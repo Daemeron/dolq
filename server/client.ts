@@ -1,14 +1,24 @@
+import type { Relay } from "./relay.ts";
+
 export class Client {
   private connection: Deno.TcpConn;
+  private relay?: Relay;
   private buffer: Uint8Array;
   private bufferSize: number;
   private log = "";
   private encoder = new TextEncoder();
   private decoder = new TextDecoder();
 
-  constructor(connection: Deno.TcpConn, bufferSize: number = 1024) {
+  constructor(
+    connection: Deno.TcpConn,
+    bufferSize: number = 1024,
+    relay?: Relay,
+  ) {
     this.connection = connection;
     this.bufferSize = bufferSize;
+    if (relay) {
+      this.relay = relay;
+    }
     this.buffer = new Uint8Array(this.bufferSize);
   }
 
