@@ -1,0 +1,59 @@
+import { app, BrowserWindow, ipcMain } from 'electron';
+import { join } from 'path';
+import { IrcMessages } from '../shared/ipc';
+import { IrcClient } from './irc/client';
+
+let mainWindow: BrowserWindow;
+let ircClient: IrcClient;
+
+function createWindow(): void {
+  mainWindow = new BrowserWindow({
+    width: 1280,
+    height: 800,
+    minWidth: 800,
+    minHeight: 600,
+    backgroundColor: '#36393f',
+    webPreferences: {
+      preload: join(__dirname, '../preload/index.js'),
+    },
+  });
+
+  if (process.env['ELECTRON_RENDERER_URL']) {
+    mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL']);
+  } else {
+    mainWindow.loadFile(join(__dirname, '../renderer/index.html'));
+  }
+}
+
+app.whenReady().then(() => {
+  ipcMain.handle(IrcMessages.connect, (_event, host: string, port: number, nick: string) => {
+    if (ircClient) return;
+
+    ircClient = new IrcClient(host, port, nick);
+
+    ircClient.connect();
+    ircClient.addLineListener((line) => {
+      mainWindow.webContents.send(IrcMessages.line, line);
+    });
+  });
+
+  ipcMain.handle(IrcMessages.send, async (_event, message: string) => {
+    await ircClient.send(message);
+  });
+
+  ipcMain.handle(IrcMessages.disconnect, () => {
+    ircClient.disconnect();
+  });
+
+  createWindow();
+
+  app.on('activate', () => {
+    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+  });
+
+
+});
+
+app.on('window-all-closed', () => {
+  if (process.platform !== 'darwin') app.quit();
+});
