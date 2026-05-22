@@ -1,3 +1,4 @@
+import { installExtension, REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';
 import { app, BrowserWindow, ipcMain } from 'electron';
 import { join } from 'path';
 import { IrcMessages } from '../shared/ipc';
@@ -25,7 +26,13 @@ function createWindow(): void {
   }
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  try {
+    const ext = await installExtension(REACT_DEVELOPER_TOOLS, { loadExtensionOptions: { allowFileAccess: true } });
+  } catch (err) {
+    console.error('Failed to install ${ext.name}', err);
+  }
+
   ipcMain.handle(IrcMessages.connect, (_event, host: string, port: number, nick: string) => {
     if (ircClient) return;
 
