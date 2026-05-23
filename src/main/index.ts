@@ -9,8 +9,8 @@ let ircClient: IrcClient;
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
-    width: 1280,
-    height: 800,
+    width: 2000,
+    height: 1080,
     minWidth: 800,
     minHeight: 600,
     backgroundColor: '#36393f',
@@ -29,6 +29,7 @@ function createWindow(): void {
 app.whenReady().then(async () => {
   try {
     const ext = await installExtension(REACT_DEVELOPER_TOOLS, { loadExtensionOptions: { allowFileAccess: true } });
+    console.log('Added Extension: ', ext.name);
   } catch (err) {
     console.error('Failed to install ${ext.name}', err);
   }
