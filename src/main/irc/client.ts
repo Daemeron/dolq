@@ -25,16 +25,21 @@ export class IrcClient {
     this.send('PASS none');
     this.send(`NICK ${this.nick}`);
     this.send(`USER ${this.nick} 0 * Reecord IRC Client`);
-    this.reader.on('line', (line) => {
-      if (line.startsWith('PING')) {
-        this.send(`PONG ${line.split(' ')[1]}`);
-      }
-    });
+    this.keepAlive();
+
   }
 
   public async disconnect(): Promise<void> {
     await this.send('QUIT');
     this.socket.end();
+  }
+
+  private keepAlive(): void {
+    this.reader.on('line', (line) => {
+      if (line.startsWith('PING')) {
+        this.send(`PONG ${line.split(' ')[1]}`);
+      }
+    });
   }
 
   public addLineListener(onLine: (line: string) => void): void {
@@ -43,7 +48,9 @@ export class IrcClient {
 
   public send(msg: string): Promise<void> {
     return new Promise((resolve, reject) => {
-      this.socket.write(`${msg}\r\n`, (err) => {
+      const line = msg.replaceAll('/', '');
+      console.log('Sending IRC message:', line);
+      this.socket.write(`${line}\r\n`, (err) => {
         if (err) reject(err);
         else resolve();
       })

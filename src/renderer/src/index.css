@@ -22,3 +22,8 @@ code {
   border-radius: 3px;
   color: #f47067;
 }
+
+/* Thin dark scrollbar for message area */
+.messages::-webkit-scrollbar        { width: 8px; }
+.messages::-webkit-scrollbar-track  { background: transparent; }
+.messages::-webkit-scrollbar-thumb  { background: #202225; border-radius: 4px; }
