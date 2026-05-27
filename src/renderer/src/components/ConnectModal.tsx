@@ -54,7 +54,7 @@ export function ConnectModal({ onConnect, onCancel }: Props) {
       onClick={onCancel}
     >
       <div
-        className="bg-[#2f3136] rounded-lg p-8 w-[440px] shadow-[0_8px_32px_rgba(0,0,0,0.5)]"
+        className="bg-[#2f3136] rounded-lg p-8 w-110 shadow-[0_8px_32px_rgba(0,0,0,0.5)]"
         onClick={(e) => e.stopPropagation()}
       >
         <h2 className="text-white text-[22px] font-bold mb-1">Add a Server</h2>

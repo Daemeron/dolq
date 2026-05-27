@@ -49,7 +49,6 @@ export class IrcClient {
   public send(msg: string): Promise<void> {
     return new Promise((resolve, reject) => {
       const line = msg.replaceAll('/', '');
-      console.log('Sending IRC message:', line);
       this.socket.write(`${line}\r\n`, (err) => {
         if (err) reject(err);
         else resolve();
