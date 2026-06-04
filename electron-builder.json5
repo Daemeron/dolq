@@ -8,6 +8,7 @@
   "files": [
     "out/**"
   ],
+  "publish": null,
   "mac": {
     "target": ["dmg", "zip"]
   },
