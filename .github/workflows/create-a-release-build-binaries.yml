@@ -1,4 +1,4 @@
-name: Build Release Binaries
+name: Create a Release - Build Binaries
 
 on:
   release:
