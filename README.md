@@ -48,7 +48,30 @@ planned.
 
 ---
 
-## Installation
+## Download
+
+Grab the latest release from the [releases page](https://github.com/daemeron/reecord/releases/latest).
+
+### macOS
+
+After downloading, macOS Gatekeeper will quarantine the app. Remove the flag before opening:
+
+```bash
+xattr -d com.apple.quarantine /path/to/app/Reecord.app
+```
+
+Then open `Reecord.app` normally.
+
+### Windows
+
+The installer is signed with a self-generated certificate, so Windows SmartScreen will warn you. To proceed:
+
+1. When the SmartScreen dialog appears, click **More info**
+2. Click **Run anyway**
+
+---
+
+## Installation (from source)
 
 ```bash
 git clone https://github.com/daemeron/reecord.git
