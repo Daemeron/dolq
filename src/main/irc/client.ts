@@ -46,6 +46,10 @@ export class IrcClient {
     this.reader.on('line', onLine);
   }
 
+  public onClose(cb: () => void): void {
+    this.socket.once('close', cb);
+  }
+
   public send(msg: string): Promise<void> {
     return new Promise((resolve, reject) => {
       const line = msg.replaceAll('/', '');

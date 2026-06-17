@@ -16,4 +16,10 @@ contextBridge.exposeInMainWorld('irc', {
     ipcRenderer.on(IrcMessages.line, handler);
     return () => ipcRenderer.removeListener(IrcMessages.line, handler);
   },
+
+  onStatus: (callback) => {
+    const handler = (_event: Electron.IpcRendererEvent, status: 'connected' | 'disconnected') => callback(status);
+    ipcRenderer.on(IrcMessages.status, handler);
+    return () => ipcRenderer.removeListener(IrcMessages.status, handler);
+  },
 } satisfies IrcApi);

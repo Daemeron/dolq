@@ -5,7 +5,7 @@ import { IrcMessages } from '../shared/ipc';
 import { IrcClient } from './irc/client';
 
 let mainWindow: BrowserWindow;
-let ircClient: IrcClient;
+let ircClient: IrcClient | null = null;
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
@@ -35,13 +35,19 @@ app.whenReady().then(async () => {
   }
 
   ipcMain.handle(IrcMessages.connect, (_event, host: string, port: number, nick: string) => {
-    if (ircClient) return;
+    if (ircClient) {
+      ircClient.disconnect();
+      ircClient = null;
+    }
 
     ircClient = new IrcClient(host, port, nick);
-
     ircClient.connect();
     ircClient.addLineListener((line) => {
       mainWindow.webContents.send(IrcMessages.line, line);
+    });
+    ircClient.onClose(() => {
+      ircClient = null;
+      mainWindow.webContents.send(IrcMessages.status, 'disconnected');
     });
   });
 
