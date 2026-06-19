@@ -116,7 +116,7 @@ export default function App() {
         />
         <div className="flex flex-1 overflow-hidden">
           <div className="flex flex-col flex-1 overflow-hidden">
-            <MessageArea messages={messages} isLog={isLog} />
+            <MessageArea messages={messages} isLog={isLog} channelId={selectedChannelId} />
             <MessageInput
               channelName={selectedChannel?.name ?? ''}
               isLog={isLog}
