@@ -1,20 +1,30 @@
-import { Server } from '../DummyData';
+import { Server } from '../types';
+import { useContextMenu } from '../useContextMenu';
+import { ContextMenu, ContextMenuHeader, ContextMenuItem } from './ContextMenu';
 
 type Props = {
   servers: Server[];
   selectedId: string;
   onSelect: (id: string) => void;
   onAddServer: () => void;
+  onRemove: (id: string) => void;
 };
 
-export function ServerList({ servers, selectedId, onSelect, onAddServer }: Props) {
+export function ServerList({ servers, selectedId, onSelect, onAddServer, onRemove }: Props) {
+  const { menu, open, close, dismissIfUnhandled } = useContextMenu<string>();
+  const menuServer = servers.find((s) => s.id === menu?.target);
+
   return (
-    <aside className="flex flex-col items-center gap-2 px-3 py-3 w-18 bg-[#202225] shrink-0">
+    <aside
+      className="relative flex flex-col items-center gap-2 px-3 py-3 w-18 bg-[#202225] shrink-0"
+      onContextMenu={dismissIfUnhandled}
+    >
       {servers.map((s) => (
         <button
           key={s.id}
           title={s.name}
           onClick={() => onSelect(s.id)}
+          onContextMenu={(e) => open(s.id, e)}
           className={`w-12 h-12 text-[18px] font-bold cursor-pointer select-none border-0 rounded-[30%] transition-[background] duration-150 ${
             s.id === selectedId
               ? 'bg-[#7289da] text-white'
@@ -32,6 +42,15 @@ export function ServerList({ servers, selectedId, onSelect, onAddServer }: Props
       >
         +
       </button>
+
+      {menu && menuServer && (
+        <ContextMenu x={menu.x} y={menu.y}>
+          <ContextMenuHeader>{menuServer.name}</ContextMenuHeader>
+          <ContextMenuItem danger onClick={() => { onRemove(menuServer.id); close(); }}>
+            Remove Server
+          </ContextMenuItem>
+        </ContextMenu>
+      )}
     </aside>
   );
 }

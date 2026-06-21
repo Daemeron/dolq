@@ -1,4 +1,4 @@
-import { User } from '../DummyData';
+import { User } from '../types';
 
 function UserRow({ user }: { user: User }) {
   return (

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import type { ServerPreset } from '../publicServers';
 
 type ConnectForm = {
   name: string;
@@ -9,6 +10,8 @@ type ConnectForm = {
 };
 
 type Props = {
+  presets: ServerPreset[];
+  nickMap: Record<string, string>;
   onConnect: (form: ConnectForm) => void;
   onCancel: () => void;
 };
@@ -26,7 +29,7 @@ const inputClass =
 const labelClass =
   'flex flex-col gap-1.5 text-[11px] font-bold uppercase tracking-[0.5px] text-[#b9bbbe]';
 
-export function ConnectModal({ onConnect, onCancel }: Props) {
+export function ConnectModal({ presets, nickMap, onConnect, onCancel }: Props) {
   const [form, setForm] = useState<ConnectForm>(DEFAULTS);
 
   useEffect(() => {
@@ -40,6 +43,16 @@ export function ConnectModal({ onConnect, onCancel }: Props) {
   function set(field: keyof ConnectForm) {
     return (e: React.ChangeEvent<HTMLInputElement>) =>
       setForm((prev) => ({ ...prev, [field]: e.target.value }));
+  }
+
+  function pickPreset(preset: ServerPreset) {
+    setForm((prev) => ({
+      ...prev,
+      name: preset.name,
+      host: preset.host,
+      port: String(preset.port),
+      nick: nickMap[preset.id] ?? prev.nick,
+    }));
   }
 
   function handleSubmit(e: React.FormEvent) {
@@ -58,7 +71,21 @@ export function ConnectModal({ onConnect, onCancel }: Props) {
         onClick={(e) => e.stopPropagation()}
       >
         <h2 className="text-white text-[22px] font-bold mb-1">Add a Server</h2>
-        <p className="text-[#b9bbbe] text-[14px] mb-6">Connect to an IRC server.</p>
+        <p className="text-[#b9bbbe] text-[14px] mb-3">Pick a server, or fill in a custom one below.</p>
+
+        <div className="flex flex-col gap-1 max-h-40 overflow-y-auto mb-5 pr-1">
+          {presets.map((preset) => (
+            <button
+              key={preset.id}
+              type="button"
+              onClick={() => pickPreset(preset)}
+              className="flex items-baseline justify-between gap-3 px-3 py-2 rounded bg-[#40444b] border-0 text-left cursor-pointer hover:bg-[#4a4f57]"
+            >
+              <span className="text-[#dcddde] text-[14px] font-medium">{preset.name}</span>
+              <span className="text-[#72767d] text-[12px] shrink-0">{preset.host}:{preset.port}</span>
+            </button>
+          ))}
+        </div>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <label className={labelClass}>

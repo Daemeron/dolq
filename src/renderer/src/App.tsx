@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { Message } from './DummyData';
+import type { Message } from './types';
 import { useStore } from './store';
 import { ServerList } from './components/ServerList';
 import { ChannelList } from './components/ChannelList';
@@ -11,10 +11,10 @@ import { ConnectModal, type ConnectForm } from './components/ConnectModal';
 
 export default function App() {
   const {
-    servers, channelMap, messageMap, userMap, nickMap,
+    servers, presets, channelMap, messageMap, userMap, nickMap,
     selectedServerId, selectedChannelId, statusMap,
-    addServer, addChannel, appendMessage, setNick, selectServer, selectChannel, setConnectionStatus,
-    setUsers, addUser, removeUser, removeUserEverywhere, renameUserEverywhere,
+    addServer, removeServer, addPreset, addChannel, removeChannel, appendMessage, setNick, selectServer,
+    selectChannel, setConnectionStatus, setUsers, addUser, removeUser, removeUserEverywhere, renameUserEverywhere,
   } = useStore();
 
   const [showModal, setShowModal] = useState(false);
@@ -79,6 +79,7 @@ export default function App() {
       { id, name: form.name, initial: form.name[0]?.toUpperCase() ?? '?' },
       { id: `${id}:__log__`, name: 'Log', isLog: true },
     );
+    addPreset({ id, name: form.name, host: form.host, port: Number(form.port) });
     setNick(id, form.nick);
     setConnectionStatus(id, 'connecting');
     await window.irc.connect(id, form.host, Number(form.port), form.nick);
@@ -104,11 +105,32 @@ export default function App() {
     setConnectionStatus(selectedServerId, 'disconnected');
   }
 
+  async function handleRemoveServer(id: string) {
+    const server = servers.find((s) => s.id === id);
+    if (!confirm(`Remove ${server?.name ?? id}? This clears its local history.`)) return;
+    await window.irc.disconnect(id);
+    removeServer(id);
+  }
+
+  async function handleJoinChannel(channelId: string) {
+    await window.irc.sendLine(selectedServerId, `JOIN ${channelId}`);
+  }
+
+  async function handleLeaveChannel(channelId: string) {
+    await window.irc.sendLine(selectedServerId, `PART ${channelId}`);
+  }
+
+  async function handleRemoveChannel(channelId: string) {
+    const joined = (userMap[channelId] ?? []).some((u) => u.nick === currentNick);
+    if (joined) await window.irc.sendLine(selectedServerId, `PART ${channelId}`);
+    removeChannel(selectedServerId, channelId);
+  }
+
   const channels = channelMap[selectedServerId] ?? [];
   const selectedChannel = channels.find((c) => c.id === selectedChannelId) ?? channels[0];
   const messages = messageMap[selectedChannelId] ?? [];
   const users = userMap[selectedChannelId] ?? [];
-  const isLog = selectedChannel?.isLog ?? false;
+  const isLog = selectedChannel?.isLog ?? true;
   const currentNick = nickMap[selectedServerId] ?? 'reecord_user';
   const connectionStatus = statusMap[selectedServerId] ?? 'disconnected';
 
@@ -130,13 +152,19 @@ export default function App() {
   return (
     <div className="flex w-full h-screen overflow-hidden">
       {showModal && (
-        <ConnectModal onConnect={handleConnect} onCancel={() => setShowModal(false)} />
+        <ConnectModal
+          presets={presets}
+          nickMap={nickMap}
+          onConnect={handleConnect}
+          onCancel={() => setShowModal(false)}
+        />
       )}
       <ServerList
         servers={servers}
         selectedId={selectedServerId}
         onSelect={selectServer}
         onAddServer={() => setShowModal(true)}
+        onRemove={handleRemoveServer}
       />
       <ChannelList
         serverName={(servers.find((s) => s.id === selectedServerId))?.name ?? ''}
@@ -144,9 +172,13 @@ export default function App() {
         selectedId={selectedChannelId}
         onSelect={selectChannel}
         currentNick={currentNick}
+        userMap={userMap}
         connectionStatus={connectionStatus}
         onConnect={connectToServer}
         onDisconnect={handleDisconnect}
+        onJoinChannel={handleJoinChannel}
+        onLeaveChannel={handleLeaveChannel}
+        onRemoveChannel={handleRemoveChannel}
       />
       <main className="flex flex-col flex-1 bg-[#36393f] overflow-hidden">
         <TopicBar

@@ -1,12 +1,11 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
-import {
-  MOCK_SERVERS, MOCK_CHANNELS, MOCK_MESSAGES, MOCK_USERS,
-  type Server, type Channel, type Message, type User,
-} from './DummyData';
+import { type Server, type Channel, type Message, type User } from './types';
+import { PUBLIC_SERVERS, type ServerPreset } from './publicServers';
 
 type State = {
   servers: Server[];
+  presets: ServerPreset[];
   channelMap: Record<string, Channel[]>;
   messageMap: Record<string, Message[]>;
   userMap: Record<string, User[]>;
@@ -18,7 +17,10 @@ type State = {
 
 type Actions = {
   addServer: (server: Server, logChannel: Channel) => void;
+  removeServer: (id: string) => void;
+  addPreset: (preset: ServerPreset) => void;
   addChannel: (serverId: string, channel: Channel) => void;
+  removeChannel: (serverId: string, channelId: string) => void;
   appendMessage: (key: string, msg: Message) => void;
   setUsers: (channelId: string, users: User[]) => void;
   addUser: (channelId: string, user: User) => void;
@@ -34,12 +36,13 @@ type Actions = {
 export const useStore = create<State & Actions>()(
   persist(
     (set, get) => ({
-      servers: MOCK_SERVERS,
-      channelMap: MOCK_CHANNELS,
-      messageMap: MOCK_MESSAGES,
-      userMap: MOCK_USERS,
-      nickMap: { libera: 'reecord_user', ircnet: 'reecord_user' },
-      selectedServerId: MOCK_SERVERS[0].id,
+      servers: [],
+      presets: PUBLIC_SERVERS,
+      channelMap: {},
+      messageMap: {},
+      userMap: {},
+      nickMap: {},
+      selectedServerId: '',
       selectedChannelId: '__log__',
       statusMap: {},
 
@@ -50,6 +53,41 @@ export const useStore = create<State & Actions>()(
           messageMap: { ...s.messageMap, [logChannel.id]: [] },
         })),
 
+      removeServer: (id) =>
+        set((s) => {
+          const servers = s.servers.filter((sv) => sv.id !== id);
+          const channelIds = (s.channelMap[id] ?? []).map((c) => c.id);
+
+          const channelMap = { ...s.channelMap };
+          delete channelMap[id];
+          const messageMap = { ...s.messageMap };
+          const userMap = { ...s.userMap };
+          channelIds.forEach((cid) => {
+            delete messageMap[cid];
+            delete userMap[cid];
+          });
+          const nickMap = { ...s.nickMap };
+          delete nickMap[id];
+          const statusMap = { ...s.statusMap };
+          delete statusMap[id];
+
+          if (s.selectedServerId !== id) {
+            return { servers, channelMap, messageMap, userMap, nickMap, statusMap };
+          }
+
+          const selectedServerId = servers[0]?.id ?? '';
+          const remainingChannels = channelMap[selectedServerId] ?? [];
+          const logCh = remainingChannels.find((c) => c.isLog);
+          const selectedChannelId = logCh?.id ?? remainingChannels[0]?.id ?? '__log__';
+          return { servers, channelMap, messageMap, userMap, nickMap, statusMap, selectedServerId, selectedChannelId };
+        }),
+
+      addPreset: (preset) =>
+        set((s) => {
+          if (s.presets.some((p) => p.id === preset.id)) return {};
+          return { presets: [...s.presets, preset] };
+        }),
+
       addChannel: (serverId, channel) =>
         set((s) => {
           const existing = s.channelMap[serverId] ?? [];
@@ -58,6 +96,24 @@ export const useStore = create<State & Actions>()(
             channelMap: { ...s.channelMap, [serverId]: [...existing, channel] },
             messageMap: { ...s.messageMap, [channel.id]: s.messageMap[channel.id] ?? [] },
           };
+        }),
+
+      removeChannel: (serverId, channelId) =>
+        set((s) => {
+          const channels = (s.channelMap[serverId] ?? []).filter((c) => c.id !== channelId);
+          const channelMap = { ...s.channelMap, [serverId]: channels };
+          const messageMap = { ...s.messageMap };
+          delete messageMap[channelId];
+          const userMap = { ...s.userMap };
+          delete userMap[channelId];
+
+          if (s.selectedChannelId !== channelId) {
+            return { channelMap, messageMap, userMap };
+          }
+
+          const logCh = channels.find((c) => c.isLog);
+          const selectedChannelId = logCh?.id ?? channels[0]?.id ?? '__log__';
+          return { channelMap, messageMap, userMap, selectedChannelId };
         }),
 
       appendMessage: (key, msg) =>
@@ -114,6 +170,7 @@ export const useStore = create<State & Actions>()(
       storage: createJSONStorage(() => localStorage),
       partialize: (s) => ({
         servers: s.servers,
+        presets: s.presets,
         channelMap: s.channelMap,
         nickMap: s.nickMap,
         selectedServerId: s.selectedServerId,

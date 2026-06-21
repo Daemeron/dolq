@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef } from 'react';
-import { Message } from '../DummyData';
+import { Message } from '../types';
 import { IrcText } from './IrcText';
 
 type Props = {

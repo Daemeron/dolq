@@ -1,4 +1,6 @@
-import { Channel } from '../DummyData';
+import { Channel, User } from '../types';
+import { useContextMenu } from '../useContextMenu';
+import { ContextMenu, ContextMenuHeader, ContextMenuItem } from './ContextMenu';
 
 type Props = {
   serverName: string;
@@ -6,12 +8,19 @@ type Props = {
   selectedId: string;
   onSelect: (id: string) => void;
   currentNick: string;
+  userMap: Record<string, User[]>;
   connectionStatus: 'disconnected' | 'connecting' | 'connected';
   onConnect: () => void;
   onDisconnect: () => void;
+  onJoinChannel: (id: string) => void;
+  onLeaveChannel: (id: string) => void;
+  onRemoveChannel: (id: string) => void;
 };
 
-export function ChannelList({ serverName, channels, selectedId, onSelect, currentNick, connectionStatus, onConnect, onDisconnect }: Props) {
+export function ChannelList({
+  serverName, channels, selectedId, onSelect, currentNick, userMap, connectionStatus, onConnect, onDisconnect,
+  onJoinChannel, onLeaveChannel, onRemoveChannel,
+}: Props) {
   const btnColor = connectionStatus === 'connected'
     ? 'bg-[#3ba55d] hover:bg-[#ed4245]'
     : connectionStatus === 'connecting'
@@ -19,9 +28,15 @@ export function ChannelList({ serverName, channels, selectedId, onSelect, curren
     : 'bg-[#72767d] hover:bg-[#3ba55d]';
   const logChannel = channels.find((c) => c.isLog);
   const regularChannels = channels.filter((c) => !c.isLog);
+  const { menu, open, close, dismissIfUnhandled } = useContextMenu<string>();
+  const menuChannel = regularChannels.find((c) => c.id === menu?.target);
+  const menuChannelJoined = !!menuChannel && (userMap[menuChannel.id] ?? []).some((u) => u.nick === currentNick);
 
   return (
-    <aside className="flex flex-col w-60 bg-[#2f3136] shrink-0 overflow-hidden">
+    <aside
+      className="relative flex flex-col w-60 bg-[#2f3136] shrink-0 overflow-hidden"
+      onContextMenu={dismissIfUnhandled}
+    >
       <div className="px-4 h-12 flex items-center font-bold text-[15px] text-white border-b border-[#26282d] shrink-0 shadow-[0_1px_0_rgba(0,0,0,0.2)]">
         {serverName}
       </div>
@@ -51,6 +66,7 @@ export function ChannelList({ serverName, channels, selectedId, onSelect, curren
           <button
             key={ch.id}
             onClick={() => onSelect(ch.id)}
+            onContextMenu={(e) => open(ch.id, e)}
             className={`flex items-center w-full py-1.5 px-2 my-px rounded border-0 text-[15px] cursor-pointer text-left transition-[background,color] duration-100 ${
               ch.id === selectedId
                 ? 'bg-[rgba(79,84,92,0.6)] text-white'
@@ -89,6 +105,24 @@ export function ChannelList({ serverName, channels, selectedId, onSelect, curren
         </div>
         <span className="text-[13px] font-semibold text-white truncate">{currentNick}</span>
       </div>
+
+      {menu && menuChannel && (
+        <ContextMenu x={menu.x} y={menu.y}>
+          <ContextMenuHeader>#{menuChannel.name}</ContextMenuHeader>
+          {menuChannelJoined ? (
+            <ContextMenuItem onClick={() => { onLeaveChannel(menuChannel.id); close(); }}>
+              Leave Channel
+            </ContextMenuItem>
+          ) : (
+            <ContextMenuItem onClick={() => { onJoinChannel(menuChannel.id); close(); }}>
+              Join Channel
+            </ContextMenuItem>
+          )}
+          <ContextMenuItem danger onClick={() => { onRemoveChannel(menuChannel.id); close(); }}>
+            Remove Channel
+          </ContextMenuItem>
+        </ContextMenu>
+      )}
     </aside>
   );
 }
