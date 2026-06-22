@@ -8,6 +8,7 @@ import { MessageArea } from './components/MessageArea';
 import { UserList } from './components/UserList';
 import { MessageInput } from './components/MessageInput';
 import { ConnectModal, type ConnectForm } from './components/ConnectModal';
+import { UserPanel } from './components/UserPanel';
 
 export default function App() {
   const {
@@ -159,27 +160,36 @@ export default function App() {
           onCancel={() => setShowModal(false)}
         />
       )}
-      <ServerList
-        servers={servers}
-        selectedId={selectedServerId}
-        onSelect={selectServer}
-        onAddServer={() => setShowModal(true)}
-        onRemove={handleRemoveServer}
-      />
-      <ChannelList
-        serverName={(servers.find((s) => s.id === selectedServerId))?.name ?? ''}
-        channels={channels}
-        selectedId={selectedChannelId}
-        onSelect={selectChannel}
-        currentNick={currentNick}
-        userMap={userMap}
-        connectionStatus={connectionStatus}
-        onConnect={connectToServer}
-        onDisconnect={handleDisconnect}
-        onJoinChannel={handleJoinChannel}
-        onLeaveChannel={handleLeaveChannel}
-        onRemoveChannel={handleRemoveChannel}
-      />
+      <div className="relative flex flex-col shrink-0">
+        <div className="flex flex-1 overflow-hidden">
+          <ServerList
+            servers={servers}
+            selectedId={selectedServerId}
+            onSelect={selectServer}
+            onAddServer={() => setShowModal(true)}
+            onRemove={handleRemoveServer}
+          />
+          <ChannelList
+            serverName={(servers.find((s) => s.id === selectedServerId))?.name ?? ''}
+            channels={channels}
+            selectedId={selectedChannelId}
+            onSelect={selectChannel}
+            currentNick={currentNick}
+            userMap={userMap}
+            onJoinChannel={handleJoinChannel}
+            onLeaveChannel={handleLeaveChannel}
+            onRemoveChannel={handleRemoveChannel}
+          />
+        </div>
+        <div className="absolute bottom-0 left-0 w-full px-3 pt-2 pb-2">
+          <UserPanel
+            currentNick={currentNick}
+            connectionStatus={connectionStatus}
+            onConnect={connectToServer}
+            onDisconnect={handleDisconnect}
+          />
+        </div>
+      </div>
       <main className="flex flex-col flex-1 bg-[#36393f] overflow-hidden">
         <TopicBar
           channelName={selectedChannel?.name ?? ''}
@@ -195,9 +205,9 @@ export default function App() {
               onSend={handleSend}
             />
           </div>
-          <aside className="w-52 bg-[#2f3136] border-l border-[#26282d] shrink-0 flex flex-col">
+          <aside className="w-52 bg-[#2f3136] border-l border-[#26282d] shrink-0 flex flex-col overflow-hidden">
             {!isLog && (
-              <div className="flex-1 overflow-y-auto py-4 px-2">
+              <div className="flex-1 min-h-0 overflow-y-auto pt-4 pb-6 px-2 scroll-thin">
                 <UserList users={users} />
               </div>
             )}

@@ -73,7 +73,7 @@ export function ConnectModal({ presets, nickMap, onConnect, onCancel }: Props) {
         <h2 className="text-white text-[22px] font-bold mb-1">Add a Server</h2>
         <p className="text-[#b9bbbe] text-[14px] mb-3">Pick a server, or fill in a custom one below.</p>
 
-        <div className="flex flex-col gap-1 max-h-40 overflow-y-auto mb-5 pr-1">
+        <div className="flex flex-col gap-1 max-h-40 overflow-y-auto scroll-thin mb-5 pr-1">
           {presets.map((preset) => (
             <button
               key={preset.id}

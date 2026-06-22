@@ -59,7 +59,7 @@ export function MessageArea({ messages, isLog, channelId }: Props) {
 
   if (isLog) {
     return (
-      <div ref={containerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto px-4 py-4 messages">
+      <div ref={containerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto px-4 py-4 scroll-thin">
         {messages.length === 0 ? (
           <p className="text-[#72767d] text-[14px]">No traffic yet.</p>
         ) : (
@@ -77,7 +77,7 @@ export function MessageArea({ messages, isLog, channelId }: Props) {
   }
 
   return (
-    <div ref={containerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto px-4 py-4 messages">
+    <div ref={containerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto px-4 py-4 scroll-thin">
       {messages.length === 0 ? (
         <p className="text-[#72767d] text-[14px] text-center mt-8">No messages yet.</p>
       ) : (
