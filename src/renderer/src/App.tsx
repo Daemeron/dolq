@@ -144,9 +144,13 @@ export default function App() {
       handleDisconnect();
     } else if (joinMatch) {
       await window.irc.sendLine(selectedServerId, `JOIN ${joinMatch[1]}`);
+    } else if (selectedChannel?.isLog) {
+      await window.irc.sendLine(selectedServerId, text);
     } else {
-      const line = selectedChannel?.isLog ? text : `PRIVMSG ${selectedChannelId} :${text}`;
-      await window.irc.sendLine(selectedServerId, line);
+      await window.irc.sendLine(selectedServerId, `PRIVMSG ${selectedChannelId} :${text}`);
+      appendMessage(selectedChannelId, {
+        id: nextMsgId.current++, nick: currentNick, text, timestamp: new Date(),
+      });
     }
   }
 
