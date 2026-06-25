@@ -1,6 +1,6 @@
-import type { IrcEvent as PublicIrcEvent } from '../../shared/ipc';
+import type { IrcEvent as PublicIrcEvent, PrivilegeLevel } from '../../shared/ipc';
 
-export type User = { nick: string; isOp: boolean };
+export type User = { nick: string; privilege: PrivilegeLevel };
 
 // Raw, one-wire-line-per-event shapes (RFC command/reply names, uppercase).
 // NAMREPLY/ENDOFNAMES never leave the main process: IrcClient buffers them
@@ -9,18 +9,54 @@ export type IrcEvent = Exclude<PublicIrcEvent, { type: 'names' }>
   | { type: 'NAMREPLY'; channel: string; users: User[] }
   | { type: 'ENDOFNAMES'; channel: string };
 
+// NAMES only ever reports a single (the highest) prefix per user without the
+// multi-prefix capability, which this client doesn't negotiate.
+const PREFIX_TO_PRIVILEGE: Record<string, PrivilegeLevel> = {
+  '~': 'owner', '&': 'admin', '@': 'op', '%': 'halfop', '+': 'voice',
+};
+
+// MODE letter -> privilege, for the letters that change a user's channel privilege.
+const MODE_LETTER_TO_PRIVILEGE: Record<string, Exclude<PrivilegeLevel, 'none'>> = {
+  q: 'owner', a: 'admin', o: 'op', h: 'halfop', v: 'voice',
+};
+
 function parseNames(nickList: string): User[] {
   return nickList.split(/\s+/).filter(Boolean).map((raw) => {
-    const isOp = raw.startsWith('@');
-    const nick = /^[@+%~&]/.test(raw) ? raw.slice(1) : raw;
-    return { nick, isOp };
+    const prefix = raw[0];
+    const privilege = PREFIX_TO_PRIVILEGE[prefix] ?? 'none';
+    const nick = privilege === 'none' ? raw : raw.slice(1);
+    return { nick, privilege };
   });
+}
+
+// Only handles MODE lines where every letter is a privilege letter (qaohv) - the
+// common case for op/voice grants. Lines mixing in other channel modes (+k, +b, ...)
+// are left unhandled rather than risk misaligning their arguments.
+function parseChannelModeChanges(
+  modeString: string,
+  args: string[],
+): { nick: string; privilege: Exclude<PrivilegeLevel, 'none'>; granted: boolean }[] | null {
+  const changes: { nick: string; privilege: Exclude<PrivilegeLevel, 'none'>; granted: boolean }[] = [];
+  let granted = true;
+  let argIndex = 0;
+
+  for (const letter of modeString) {
+    if (letter === '+') { granted = true; continue; }
+    if (letter === '-') { granted = false; continue; }
+    const privilege = MODE_LETTER_TO_PRIVILEGE[letter];
+    if (!privilege) return null;
+    const nick = args[argIndex++];
+    if (!nick) return null;
+    changes.push({ nick, privilege, granted });
+  }
+
+  return changes;
 }
 
 // One entry per wire message we understand: `pattern` matches the raw line,
 // `build` turns the capture groups into the event. Add new RFC commands/replies
 // by appending an entry here — `parseIrcLine` itself never needs to change.
-const RULES: { pattern: RegExp; build: (m: RegExpMatchArray) => IrcEvent }[] = [
+const RULES: { pattern: RegExp; build: (m: RegExpMatchArray) => IrcEvent | null }[] = [
   {
     pattern: /^:([^!\s]+)!\S+ PRIVMSG (#\S+) :(.*)$/,
     build: (m) => ({ type: 'PRIVMSG', nick: m[1], target: m[2], text: m[3] }),
@@ -40,6 +76,14 @@ const RULES: { pattern: RegExp; build: (m: RegExpMatchArray) => IrcEvent }[] = [
   {
     pattern: /^:([^!\s]+)!\S+ NICK :?(\S+)$/,
     build: (m) => ({ type: 'NICK', oldNick: m[1], newNick: m[2] }),
+  },
+  {
+    pattern: /^:[^!\s]+!\S+ MODE (#\S+) ([-+]\S+)(.*)$/,
+    build: (m) => {
+      const args = m[3].trim().split(/\s+/).filter(Boolean);
+      const changes = parseChannelModeChanges(m[2], args);
+      return changes ? { type: 'MODE', channel: m[1], changes } : null;
+    },
   },
   {
     pattern: /^:\S+ 353 \S+ [=*@] (#\S+) :(.*)$/,

@@ -60,6 +60,13 @@ function registerIrcHandlers(mainWindow: BrowserWindow): void {
   ipcMain.handle(IrcMessages.disconnect, async (_event, serverId: string) => {
     await clients.get(serverId)?.disconnect();
   });
+
+  // Lets a freshly (re)loaded renderer reconcile its optimistic, unpersisted
+  // statusMap against the connections actually still alive in this process -
+  // e.g. after a dev-mode renderer-only reload that didn't restart `clients`.
+  ipcMain.handle(IrcMessages.getStatus, (_event, serverId: string) => {
+    return clients.has(serverId) ? 'connected' : 'disconnected';
+  });
 }
 
 function registerAppLifecycleHandlers(): void {

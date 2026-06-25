@@ -1,3 +1,5 @@
+import type { PrivilegeLevel } from '../../shared/ipc';
+
 export type Server = {
   id: string;
   name: string;
@@ -21,5 +23,5 @@ export type Message = {
 
 export type User = {
   nick: string;
-  isOp: boolean;
+  privilege: PrivilegeLevel;
 };

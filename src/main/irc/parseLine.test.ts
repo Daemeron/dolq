@@ -51,14 +51,16 @@ describe('parseIrcLine', () => {
   });
 
   it('parses a 353 NAMES reply with mixed status symbols', () => {
-    expect(parseIrcLine(':irc.example.net 353 me = #general :alice @bob +carol dave')).toEqual({
+    expect(parseIrcLine(':irc.example.net 353 me = #general :~alice &bob @carol %dave +eve frank')).toEqual({
       type: 'NAMREPLY',
       channel: '#general',
       users: [
-        { nick: 'alice', isOp: false },
-        { nick: 'bob', isOp: true },
-        { nick: 'carol', isOp: false },
-        { nick: 'dave', isOp: false },
+        { nick: 'alice', privilege: 'owner' },
+        { nick: 'bob', privilege: 'admin' },
+        { nick: 'carol', privilege: 'op' },
+        { nick: 'dave', privilege: 'halfop' },
+        { nick: 'eve', privilege: 'voice' },
+        { nick: 'frank', privilege: 'none' },
       ],
     });
   });
@@ -67,6 +69,29 @@ describe('parseIrcLine', () => {
     expect(parseIrcLine(':irc.example.net 366 me #general :End of /NAMES list.')).toEqual({
       type: 'ENDOFNAMES', channel: '#general',
     });
+  });
+
+  it('parses a channel MODE granting a privilege', () => {
+    expect(parseIrcLine(':alice!u@host MODE #general +o bob')).toEqual({
+      type: 'MODE',
+      channel: '#general',
+      changes: [{ nick: 'bob', privilege: 'op', granted: true }],
+    });
+  });
+
+  it('parses a channel MODE with mixed grants and revokes for multiple nicks', () => {
+    expect(parseIrcLine(':alice!u@host MODE #general +o-v bob carol')).toEqual({
+      type: 'MODE',
+      channel: '#general',
+      changes: [
+        { nick: 'bob', privilege: 'op', granted: true },
+        { nick: 'carol', privilege: 'voice', granted: false },
+      ],
+    });
+  });
+
+  it('returns null for a channel MODE mixing in a non-privilege letter', () => {
+    expect(parseIrcLine(':alice!u@host MODE #general +ok bob secretkey')).toBeNull();
   });
 
   it('returns null for unrecognized lines', () => {

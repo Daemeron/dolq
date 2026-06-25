@@ -11,6 +11,9 @@ contextBridge.exposeInMainWorld('irc', {
   disconnect: (serverId: string) =>
     ipcRenderer.invoke(IrcMessages.disconnect, serverId),
 
+  getStatus: (serverId: string) =>
+    ipcRenderer.invoke(IrcMessages.getStatus, serverId),
+
   onLine: (callback: (serverId: string, line: string) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, serverId: string, line: string) => callback(serverId, line);
     ipcRenderer.on(IrcMessages.line, handler);
