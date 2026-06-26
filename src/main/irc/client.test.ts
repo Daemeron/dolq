@@ -203,6 +203,55 @@ describe('IrcClient nick tracking', () => {
   });
 });
 
+describe('IrcClient joined-channel tracking', () => {
+  let client: IrcClient;
+
+  function eventHandler(): (line: string) => void {
+    const lineCalls = mocks.readerOn.mock.calls.filter((call: any[]) => call[0] === 'line');
+    return lineCalls[1][1] as (line: string) => void;
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.socketWrite.mockImplementation((_data: string, cb: (err?: Error) => void) => cb());
+    client = new IrcClient('localhost', 6667, 'testnick');
+    client.connect();
+  });
+
+  it('tracks a channel once we join it', () => {
+    const onLine = eventHandler();
+    onLine(':testnick!u@host JOIN #general');
+    expect(client.getJoinedChannels()).toEqual(['#general']);
+  });
+
+  it('ignores JOIN events for other users', () => {
+    const onLine = eventHandler();
+    onLine(':someoneelse!u@host JOIN #general');
+    expect(client.getJoinedChannels()).toEqual([]);
+  });
+
+  it('drops the channel when we PART it', () => {
+    const onLine = eventHandler();
+    onLine(':testnick!u@host JOIN #general');
+    onLine(':testnick!u@host PART #general');
+    expect(client.getJoinedChannels()).toEqual([]);
+  });
+
+  it('drops the channel when we get KICKed from it', () => {
+    const onLine = eventHandler();
+    onLine(':testnick!u@host JOIN #general');
+    onLine(':alice!u@host KICK #general testnick :bye');
+    expect(client.getJoinedChannels()).toEqual([]);
+  });
+
+  it('keeps the channel when someone else gets KICKed', () => {
+    const onLine = eventHandler();
+    onLine(':testnick!u@host JOIN #general');
+    onLine(':alice!u@host KICK #general bob :bye');
+    expect(client.getJoinedChannels()).toEqual(['#general']);
+  });
+});
+
 describe('IrcClient.disconnect()', () => {
   let client: IrcClient;
 

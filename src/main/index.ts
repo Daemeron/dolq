@@ -67,6 +67,10 @@ function registerIrcHandlers(mainWindow: BrowserWindow): void {
   ipcMain.handle(IrcMessages.getStatus, (_event, serverId: string) => {
     return clients.has(serverId) ? 'connected' : 'disconnected';
   });
+
+  ipcMain.handle(IrcMessages.getJoinedChannels, (_event, serverId: string) => {
+    return clients.get(serverId)?.getJoinedChannels() ?? [];
+  });
 }
 
 function registerAppLifecycleHandlers(): void {

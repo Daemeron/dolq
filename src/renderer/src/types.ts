@@ -19,6 +19,7 @@ export type Message = {
   text: string;
   timestamp: Date;
   isRaw?: boolean;
+  system?: boolean;
 };
 
 export type User = {

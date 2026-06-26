@@ -70,6 +70,10 @@ const RULES: { pattern: RegExp; build: (m: RegExpMatchArray) => IrcEvent | null 
     build: (m) => ({ type: 'PART', nick: m[1], channel: m[2], reason: m[3] }),
   },
   {
+    pattern: /^:([^!\s]+)!\S+ KICK (#\S+) (\S+)(?: :(.*))?$/,
+    build: (m) => ({ type: 'KICK', by: m[1], channel: m[2], nick: m[3], reason: m[4] }),
+  },
+  {
     pattern: /^:([^!\s]+)!\S+ QUIT(?: :(.*))?$/,
     build: (m) => ({ type: 'QUIT', nick: m[1], reason: m[2] }),
   },

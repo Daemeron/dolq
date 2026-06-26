@@ -12,6 +12,7 @@ export type IrcEvent =
   | { type: 'PRIVMSG'; nick: string; target: string; text: string }
   | { type: 'JOIN'; nick: string; channel: string }
   | { type: 'PART'; nick: string; channel: string; reason?: string }
+  | { type: 'KICK'; by: string; channel: string; nick: string; reason?: string }
   | { type: 'QUIT'; nick: string; reason?: string }
   | { type: 'NICK'; oldNick: string; newNick: string }
   | {
@@ -26,6 +27,7 @@ export type IrcApi = {
   disconnect: (serverId: string) => Promise<void>;
   sendLine: (serverId: string, line: string) => Promise<void>;
   getStatus: (serverId: string) => Promise<'connected' | 'disconnected'>;
+  getJoinedChannels: (serverId: string) => Promise<string[]>;
   onLine: (callback: (serverId: string, line: string) => void) => () => void;
   onEvent: (callback: (serverId: string, event: IrcEvent) => void) => () => void;
   onStatus: (callback: (serverId: string, status: 'connected' | 'disconnected') => void) => () => void;
@@ -36,6 +38,7 @@ export enum IrcMessages {
   disconnect = 'irc:disconnect',
   send = 'irc:send',
   getStatus = 'irc:getStatus',
+  getJoinedChannels = 'irc:getJoinedChannels',
   line = 'irc:line',
   event = 'irc:event',
   status = 'irc:status',
