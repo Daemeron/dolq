@@ -9,8 +9,8 @@ type Props = {
 };
 
 const NICK_COLORS = [
-  '#7289da', '#43b581', '#f04747', '#faa61a',
-  '#b9bbbe', '#1abc9c', '#e91e63', '#9c27b0',
+  '#82aaff', '#50fa7b', '#ff5555', '#ffcb6b',
+  '#b0b0b0', '#8be9fd', '#ff92df', '#c792ea',
 ];
 
 function nickColor(nick: string): string {
@@ -61,12 +61,12 @@ export function MessageArea({ messages, isLog, channelId }: Props) {
     return (
       <div ref={containerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto px-4 py-4 scroll-thin">
         {messages.length === 0 ? (
-          <p className="text-[#72767d] text-[14px]">No traffic yet.</p>
+          <p className="text-[#6b6b6b] text-[14px]">No traffic yet.</p>
         ) : (
-          <div className="font-mono text-[12px] leading-5 text-[#dcddde] whitespace-pre-wrap break-all">
+          <div className="font-mono text-[12px] leading-5 text-[#e6e6e6] whitespace-pre-wrap break-all">
             {messages.map((m) => (
               <div key={m.id}>
-                <span className="text-[#72767d] mr-3">{formatTime(m.timestamp)}</span>
+                <span className="text-[#6b6b6b] mr-3">{formatTime(m.timestamp)}</span>
                 <IrcText text={m.text} />
               </div>
             ))}
@@ -79,20 +79,20 @@ export function MessageArea({ messages, isLog, channelId }: Props) {
   return (
     <div ref={containerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto px-4 py-4 scroll-thin">
       {messages.length === 0 ? (
-        <p className="text-[#72767d] text-[14px] text-center mt-8">No messages yet.</p>
+        <p className="text-[#6b6b6b] text-[14px] text-center mt-8">No messages yet.</p>
       ) : (
         messages.map((m) =>
           m.system ? (
             <div key={m.id} className="flex items-baseline gap-3 py-1 px-2">
-              <span className="text-[11px] text-[#72767d] shrink-0 w-10 text-right">{formatTime(m.timestamp)}</span>
-              <span className="text-[#72767d] text-[13px] italic"><IrcText text={m.text} /></span>
+              <span className="text-[11px] text-[#6b6b6b] shrink-0 w-10 text-right">{formatTime(m.timestamp)}</span>
+              <span className="text-[#6b6b6b] text-[13px] italic"><IrcText text={m.text} /></span>
             </div>
           ) : (
             <div
               key={m.id}
               className="flex items-baseline gap-3 py-0.5 group hover:bg-[rgba(4,4,5,0.07)] px-2 rounded"
             >
-              <span className="text-[11px] text-[#72767d] shrink-0 w-10 text-right opacity-0 group-hover:opacity-100">
+              <span className="text-[11px] text-[#6b6b6b] shrink-0 w-10 text-right opacity-0 group-hover:opacity-100">
                 {formatTime(m.timestamp)}
               </span>
               <span
@@ -101,7 +101,7 @@ export function MessageArea({ messages, isLog, channelId }: Props) {
               >
                 {m.nick}
               </span>
-              <span className="text-[#dcddde] text-[15px] leading-relaxed"><IrcText text={m.text} /></span>
+              <span className="text-[#e6e6e6] text-[15px] leading-relaxed"><IrcText text={m.text} /></span>
             </div>
           ),
         )

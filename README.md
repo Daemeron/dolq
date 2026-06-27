@@ -1,11 +1,11 @@
-# Reecord
+# Dolq
 
 > An IRC client that feels like Discord.
 
-[![Build and Test](https://github.com/daemeron/reecord/actions/workflows/build-and-test.yml/badge.svg?branch=main)](https://github.com/daemeron/reecord/actions/workflows/build-and-test.yml)
-[![Latest Release](https://img.shields.io/github/v/release/daemeron/reecord)](https://github.com/daemeron/reecord/releases/latest)
+[![Build and Test](https://github.com/daemeron/dolq/actions/workflows/build-and-test.yml/badge.svg?branch=main)](https://github.com/daemeron/dolq/actions/workflows/build-and-test.yml)
+[![Latest Release](https://img.shields.io/github/v/release/daemeron/dolq)](https://github.com/daemeron/dolq/releases/latest)
 
-Reecord is a desktop IRC client built with Electron and React, designed to bring
+Dolq is a desktop IRC client built with Electron and React, designed to bring
 a familiar, modern interface to IRC. It borrows Discord's layout — server list,
 channel list, topic bar, message area, and user list — while staying true to the
 IRC protocol underneath. Currently targeting macOS, with multiplatform support
@@ -24,7 +24,7 @@ planned.
 - **Message area** — clean chat history with per-nick color coding and hover
   timestamps
 - **User list** — shows operators and regular users in the current channel
-- **Dark theme** — Discord-inspired dark UI built with Tailwind CSS
+- **Dark theme** — grayscale dark UI built with Tailwind CSS
 
 ---
 
@@ -50,17 +50,17 @@ planned.
 
 ## Download
 
-Grab the latest release from the [releases page](https://github.com/daemeron/reecord/releases/latest).
+Grab the latest release from the [releases page](https://github.com/daemeron/dolq/releases/latest).
 
 ### macOS
 
 After downloading, macOS Gatekeeper will quarantine the app. Remove the flag before opening:
 
 ```bash
-xattr -d com.apple.quarantine /path/to/app/Reecord.app
+xattr -d com.apple.quarantine /path/to/app/Dolq.app
 ```
 
-Then open `Reecord.app` normally.
+Then open `Dolq.app` normally.
 
 ### Windows
 
@@ -74,8 +74,8 @@ The installer is signed with a self-generated certificate, so Windows SmartScree
 ## Installation (from source)
 
 ```bash
-git clone https://github.com/daemeron/reecord.git
-cd reecord
+git clone https://github.com/daemeron/dolq.git
+cd dolq
 npm install
 ```
 
@@ -115,7 +115,7 @@ npm run preview
 npm run package
 ```
 
-The packaged app is signed under app ID `com.reecord.app`. electron-builder
+The packaged app is signed under app ID `com.daemeron.dolq`. electron-builder
 config lives in `electron-builder.json5`.
 
 ---

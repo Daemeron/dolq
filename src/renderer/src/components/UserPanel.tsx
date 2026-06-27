@@ -7,17 +7,17 @@ type Props = {
 
 export function UserPanel({ currentNick, connectionStatus, onConnect, onDisconnect }: Props) {
   const btnColor = connectionStatus === 'connected'
-    ? 'bg-[#3ba55d] hover:bg-[#ed4245]'
+    ? 'bg-[#50fa7b] hover:bg-[#ff5555]'
     : connectionStatus === 'connecting'
-    ? 'bg-[#72767d] cursor-not-allowed'
-    : 'bg-[#72767d] hover:bg-[#3ba55d]';
+    ? 'bg-[#6b6b6b] cursor-not-allowed'
+    : 'bg-[#6b6b6b] hover:bg-[#50fa7b]';
 
   return (
     <div className="shrink-0">
       <button
         onClick={connectionStatus === 'connecting' ? undefined : connectionStatus === 'connected' ? onDisconnect : onConnect}
         disabled={connectionStatus === 'connecting'}
-        className={`group w-full py-2.5 rounded-t-lg text-sm font-medium text-white transition-colors ${btnColor}`}
+        className={`group w-full py-2.5 rounded-t-lg text-sm font-medium text-white text-shadow-sm transition-colors ${btnColor}`}
       >
         {connectionStatus === 'connecting' ? 'Connecting…' : connectionStatus === 'connected' ? (
           <>
@@ -31,8 +31,8 @@ export function UserPanel({ currentNick, connectionStatus, onConnect, onDisconne
           </>
         )}
       </button>
-      <div className="flex items-center gap-3 px-4 py-3.5 bg-[#292b2f] rounded-b-lg">
-        <div className="w-9 h-9 rounded-full bg-[#7289da] text-white flex items-center justify-center font-bold text-sm shrink-0">
+      <div className="flex items-center gap-3 px-4 py-3.5 bg-[#262626] rounded-b-lg">
+        <div className="w-9 h-9 rounded-full bg-[#c792ea] text-white text-shadow-sm flex items-center justify-center font-bold text-sm shrink-0">
           {currentNick[0]?.toUpperCase() ?? '?'}
         </div>
         <span className="text-[14px] font-semibold text-white truncate">{currentNick}</span>

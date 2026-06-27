@@ -133,7 +133,7 @@ export default function App() {
     const lastColon = server.id.lastIndexOf(':');
     const host = server.id.slice(0, lastColon);
     const port = Number(server.id.slice(lastColon + 1));
-    const nick = nickMap[server.id] ?? 'reecord_user';
+    const nick = nickMap[server.id] ?? 'dolq_user';
     setConnectionStatus(server.id, 'connecting');
     await window.irc.connect(server.id, host, port, nick);
     setConnectionStatus(server.id, 'connected');
@@ -170,7 +170,7 @@ export default function App() {
   const messages = messageMap[selectedChannelId] ?? [];
   const users = userMap[selectedChannelId] ?? [];
   const isLog = selectedChannel?.isLog ?? true;
-  const currentNick = nickMap[selectedServerId] ?? 'reecord_user';
+  const currentNick = nickMap[selectedServerId] ?? 'dolq_user';
   const connectionStatus = statusMap[selectedServerId] ?? 'disconnected';
 
   async function handleSend(text: string): Promise<void> {
@@ -232,7 +232,7 @@ export default function App() {
           />
         </div>
       </div>
-      <main className="flex flex-col flex-1 bg-[#36393f] overflow-hidden">
+      <main className="flex flex-col flex-1 bg-[#212121] overflow-hidden">
         <TopicBar
           channelName={selectedChannel?.name ?? ''}
           topic={selectedChannel?.topic}
@@ -247,7 +247,7 @@ export default function App() {
               onSend={handleSend}
             />
           </div>
-          <aside className="w-52 bg-[#2f3136] border-l border-[#26282d] shrink-0 flex flex-col overflow-hidden">
+          <aside className="w-52 bg-[#1c1c1c] border-l border-[#2a2a2a] shrink-0 flex flex-col overflow-hidden">
             {!isLog && (
               <div className="flex-1 min-h-0 overflow-y-auto pt-4 pb-6 px-2 scroll-thin">
                 <UserList users={users} />

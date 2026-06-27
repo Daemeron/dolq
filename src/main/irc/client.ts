@@ -30,7 +30,7 @@ export class IrcClient {
     Promise.all([
       this.send('PASS none'),
       this.send(`NICK ${this.nick}`),
-      this.send(`USER ${this.nick} 0 * Reecord IRC Client`),
+      this.send(`USER ${this.nick} 0 * Dolq IRC Client`),
     ]).catch((err) => console.error('IRC handshake error:', err.message));
     this.keepAlive();
     this.parseEvents();
