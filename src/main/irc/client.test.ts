@@ -266,4 +266,23 @@ describe('IrcClient.disconnect()', () => {
     expect(mocks.socketWrite).toHaveBeenCalledWith('QUIT\r\n', expect.any(Function));
     expect(mocks.socketEnd).toHaveBeenCalled();
   });
+
+  it('PARTs every joined channel before sending QUIT', async () => {
+    client.connect();
+    const lineCalls = mocks.readerOn.mock.calls.filter((call: any[]) => call[0] === 'line');
+    const onLine = lineCalls[1][1] as (line: string) => void;
+    onLine(':testnick!u@host JOIN #general');
+    onLine(':testnick!u@host JOIN #random');
+    mocks.socketWrite.mockClear();
+
+    await client.disconnect();
+
+    expect(mocks.socketWrite).toHaveBeenCalledWith('PART #general\r\n', expect.any(Function));
+    expect(mocks.socketWrite).toHaveBeenCalledWith('PART #random\r\n', expect.any(Function));
+    const quitCallIndex = mocks.socketWrite.mock.calls.findIndex((c: any[]) => c[0] === 'QUIT\r\n');
+    const partCallIndexes = mocks.socketWrite.mock.calls
+      .map((c: any[], i: number) => (c[0].startsWith('PART') ? i : -1))
+      .filter((i: number) => i !== -1);
+    expect(partCallIndexes.every((i: number) => i < quitCallIndex)).toBe(true);
+  });
 });
