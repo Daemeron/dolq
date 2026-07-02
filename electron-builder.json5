@@ -1,0 +1,22 @@
+{
+  "$schema": "https://raw.githubusercontent.com/electron-userland/electron-builder/master/packages/app-builder-lib/scheme.json",
+  "appId": "com.reecord.app",
+  "productName": "Reecord",
+  "directories": {
+    "buildResources": "resources"
+  },
+  "files": [
+    "out/**"
+  ],
+  "mac": {
+    "target": ["dmg", "zip"]
+  },
+  "win": {
+    "executableName": "reecord",
+    "target": ["nsis"]
+  },
+  "linux": {
+    "target": ["AppImage", "deb"],
+    "category": "Network"
+  }
+}
