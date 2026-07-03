@@ -141,7 +141,7 @@ src/
 ├── renderer/
 │   └── src/
 │       ├── App.tsx         # Root layout component
-│       ├── DummyData.ts     # Static dummy data for UI development
+│       ├── store.ts        # zustand store (servers, channels, messages, users)
 │       └── components/     # ServerList, ChannelList, TopicBar, MessageArea, UserList, MessageInput
 └── shared/
     └── ipc.ts          # IPC channel names and types shared between main and renderer
@@ -151,7 +151,11 @@ src/
 
 ## Roadmap
 
-- [ ] Work in progress
+Dolq is a slow-and-steady side project. The first target is a "usable"
+milestone - comfortable enough for daily use - followed by fuller IRC feature
+support, XDCC file transfers, and customization.
+
+See [ROADMAP.md](./ROADMAP.md) for the full plan, milestone-by-milestone.
 
 ---
 
