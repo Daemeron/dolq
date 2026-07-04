@@ -1,9 +1,10 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   socketWrite: vi.fn(),
   socketConnect: vi.fn(),
   socketEnd: vi.fn(),
+  socketDestroy: vi.fn(),
   socketOn: vi.fn(),
   socketOnce: vi.fn((_event: string, cb: () => void) => cb()),
   readerOn: vi.fn(),
@@ -16,6 +17,7 @@ vi.mock('node:net', () => ({
       write = mocks.socketWrite;
       connect = mocks.socketConnect;
       end = mocks.socketEnd;
+      destroy = mocks.socketDestroy;
       on = mocks.socketOn;
       once = mocks.socketOnce;
     },
@@ -31,7 +33,7 @@ vi.mock('node:readline', () => ({
   },
 }));
 
-import { IrcClient } from './client.js';
+import { IrcClient, PING_TIMEOUT_MS, PING_TIMEOUT_CHECK_INTERVAL_MS } from './client.js';
 
 describe('IrcClient.send()', () => {
   let client: IrcClient;
@@ -126,6 +128,65 @@ describe('IrcClient PING/PONG keepAlive', () => {
     vi.clearAllMocks();
     lineHandler(':nick!user@host PRIVMSG #chan :hello');
     expect(mocks.socketWrite).not.toHaveBeenCalled();
+  });
+});
+
+describe('IrcClient PING timeout detection', () => {
+  let client: IrcClient;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.clearAllMocks();
+    mocks.socketWrite.mockImplementation((_data: string, cb: (err?: Error) => void) => cb());
+    // Default socketOnce auto-invokes the 'close' callback immediately, which would
+    // clear the timeout-check interval before these tests get to advance it - these
+    // tests care about a close that hasn't happened yet, so don't auto-fire it.
+    mocks.socketOnce.mockImplementation(vi.fn());
+    client = new IrcClient('localhost', 6667, 'testnick');
+    client.connect();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    // Restore the default auto-invoking behavior so later describe blocks (which
+    // rely on `once('close', cb)` resolving immediately) aren't affected.
+    mocks.socketOnce.mockImplementation((_event: string, cb: () => void) => cb());
+  });
+
+  function lineHandler(): (line: string) => void {
+    const lineCall = mocks.readerOn.mock.calls.find((call: any[]) => call[0] === 'line');
+    return lineCall![1] as (line: string) => void;
+  }
+
+  it('destroys the socket once no data has arrived for longer than the timeout', () => {
+    vi.advanceTimersByTime(PING_TIMEOUT_MS + PING_TIMEOUT_CHECK_INTERVAL_MS);
+    expect(mocks.socketDestroy).toHaveBeenCalledWith(expect.any(Error));
+  });
+
+  it('does not destroy the socket before the timeout has elapsed', () => {
+    vi.advanceTimersByTime(PING_TIMEOUT_MS - PING_TIMEOUT_CHECK_INTERVAL_MS);
+    expect(mocks.socketDestroy).not.toHaveBeenCalled();
+  });
+
+  it('resets the timeout clock whenever a line is received', () => {
+    const onLine = lineHandler();
+    // Nearly time out, then receive a line just before the deadline...
+    vi.advanceTimersByTime(PING_TIMEOUT_MS - PING_TIMEOUT_CHECK_INTERVAL_MS);
+    onLine('PING :irc.example.net');
+    // ...advancing the same distance again should not be enough to time out now.
+    vi.advanceTimersByTime(PING_TIMEOUT_MS - PING_TIMEOUT_CHECK_INTERVAL_MS);
+    expect(mocks.socketDestroy).not.toHaveBeenCalled();
+  });
+
+  it('stops checking once the socket closes', () => {
+    // The interval-clearing handler is the one registered via `once`, not the
+    // reader-closing one `connect()` registers via `on`.
+    const closeCall = mocks.socketOnce.mock.calls.find((call: any[]) => call[0] === 'close');
+    const onClose = closeCall![1] as () => void;
+    onClose();
+
+    vi.advanceTimersByTime(PING_TIMEOUT_MS * 2);
+    expect(mocks.socketDestroy).not.toHaveBeenCalled();
   });
 });
 

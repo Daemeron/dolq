@@ -3,6 +3,13 @@ import readline from 'node:readline';
 import { parseIrcLine, type User } from './parseLine.js';
 import type { IrcEvent } from '../../shared/ipc';
 
+// Servers ping idle clients every minute or two; if nothing at all has been received
+// in this long, the far end is presumably gone even though the socket never got a
+// FIN/RST to tell us so (e.g. the network just vanished) - so the client checks for
+// this itself rather than sitting "connected" forever.
+export const PING_TIMEOUT_MS = 5 * 60 * 1000;
+export const PING_TIMEOUT_CHECK_INTERVAL_MS = 30 * 1000;
+
 export class IrcClient {
   private nick: string;
   private host: string;
@@ -12,6 +19,7 @@ export class IrcClient {
   private eventListeners: ((event: IrcEvent) => void)[] = [];
   private namesBuffer: Map<string, User[]> = new Map();
   private joinedChannels: Set<string> = new Set();
+  private lastActivityAt = Date.now();
 
   constructor(host: string, port: number, nick: string) {
     this.host = host;
@@ -33,6 +41,7 @@ export class IrcClient {
       this.send(`USER ${this.nick} 0 * Dolq IRC Client`),
     ]).catch((err) => console.error('IRC handshake error:', err.message));
     this.keepAlive();
+    this.watchForPingTimeout();
     this.parseEvents();
   }
 
@@ -45,10 +54,21 @@ export class IrcClient {
 
   private keepAlive(): void {
     this.reader.on('line', (line) => {
+      this.lastActivityAt = Date.now();
       if (line.startsWith('PING')) {
         this.send(`PONG ${line.split(' ')[1]}`);
       }
     });
+  }
+
+  private watchForPingTimeout(): void {
+    const check = setInterval(() => {
+      if (Date.now() - this.lastActivityAt > PING_TIMEOUT_MS) {
+        this.socket.destroy(new Error('IRC connection timed out (no data received)'));
+      }
+    }, PING_TIMEOUT_CHECK_INTERVAL_MS);
+    check.unref();
+    this.socket.once('close', () => clearInterval(check));
   }
 
   public addLineListener(onLine: (line: string) => void): void {
