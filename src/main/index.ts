@@ -46,10 +46,12 @@ app.whenReady().then(async () => {
   });
 
   ipcMain.handle(IrcMessages.send, async (_event, message: string) => {
+    if (!ircClient) return;
     await ircClient.send(message);
   });
 
   ipcMain.handle(IrcMessages.disconnect, () => {
+    if (!ircClient) return;
     ircClient.disconnect();
   });
 
