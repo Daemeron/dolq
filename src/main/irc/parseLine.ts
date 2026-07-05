@@ -20,6 +20,14 @@ const MODE_LETTER_TO_PRIVILEGE: Record<string, Exclude<PrivilegeLevel, 'none'>> 
   q: 'owner', a: 'admin', o: 'op', h: 'halfop', v: 'voice',
 };
 
+// Non-privilege CHANMODES letters, classified by how they consume `args` - needed so a
+// privilege change bundled in the same MODE line as one of these (e.g. `+ob nick mask`)
+// doesn't get its argument misaligned. Based on Ergo's advertised
+// `CHANMODES=Ibe,k,fl,CEMRUimnstu` (list-type, always-arg, set-only-arg, never-arg).
+const ALWAYS_ARG_LETTERS = new Set(['b', 'e', 'I', 'k']); // list-type (b/e/I) + key (k)
+const SET_ONLY_ARG_LETTERS = new Set(['f', 'l']); // forward target / user limit
+const NEVER_ARG_LETTERS = new Set(['C', 'E', 'M', 'R', 'U', 'i', 'm', 'n', 's', 't', 'u']);
+
 function parseNames(nickList: string): User[] {
   return nickList.split(/\s+/).filter(Boolean).map((raw) => {
     const prefix = raw[0];
@@ -29,9 +37,12 @@ function parseNames(nickList: string): User[] {
   });
 }
 
-// Only handles MODE lines where every letter is a privilege letter (qaohv) - the
-// common case for op/voice grants. Lines mixing in other channel modes (+k, +b, ...)
-// are left unhandled rather than risk misaligning their arguments.
+// Extracts privilege changes (qaohv) from a MODE line, correctly skipping over any
+// other recognized CHANMODES letters bundled into the same line (e.g. `+ob nick mask`)
+// so their arguments don't misalign the ones that follow. A letter this client doesn't
+// recognize at all means it can no longer be sure how many args the rest of the line
+// consumes, so parsing stops there - whatever privilege changes were already found
+// (earlier in the same line) are still returned rather than discarded.
 function parseChannelModeChanges(
   modeString: string,
   args: string[],
@@ -43,14 +54,21 @@ function parseChannelModeChanges(
   for (const letter of modeString) {
     if (letter === '+') { granted = true; continue; }
     if (letter === '-') { granted = false; continue; }
+
     const privilege = MODE_LETTER_TO_PRIVILEGE[letter];
-    if (!privilege) return null;
-    const nick = args[argIndex++];
-    if (!nick) return null;
-    changes.push({ nick, privilege, granted });
+    if (privilege) {
+      const nick = args[argIndex++];
+      if (!nick) break;
+      changes.push({ nick, privilege, granted });
+      continue;
+    }
+    if (ALWAYS_ARG_LETTERS.has(letter)) { argIndex++; continue; }
+    if (SET_ONLY_ARG_LETTERS.has(letter)) { if (granted) argIndex++; continue; }
+    if (NEVER_ARG_LETTERS.has(letter)) continue;
+    break; // unrecognized letter - arg alignment past this point is no longer reliable
   }
 
-  return changes;
+  return changes.length ? changes : null;
 }
 
 // One entry per wire message we understand: `pattern` matches the raw line,
