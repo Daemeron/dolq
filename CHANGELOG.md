@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.2](https://github.com/Daemeron/reecord/compare/reecord-v0.2.1...reecord-v0.2.2) (2026-07-05)
+
+
+### Bug Fixes
+
+* fix workflows using outdated data and add author for binary builds ([214fd7a](https://github.com/Daemeron/reecord/commit/214fd7abeef277871f8b44fc61d0b975657def3f))
+
 ## [0.2.1](https://github.com/Daemeron/reecord/compare/reecord-v0.2.0...reecord-v0.2.1) (2026-07-05)
 
 
