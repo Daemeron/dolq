@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.3](https://github.com/Daemeron/reecord/compare/reecord-v0.2.2...reecord-v0.2.3) (2026-07-05)
+
+
+### Bug Fixes
+
+* fix electron builder attempting to publish when our workflow does it later on ([7d8110f](https://github.com/Daemeron/reecord/commit/7d8110f608e43cb21c232f72e7bc1e0a1dd73f04))
+
 ## [0.2.2](https://github.com/Daemeron/reecord/compare/reecord-v0.2.1...reecord-v0.2.2) (2026-07-05)
 
 
