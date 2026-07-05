@@ -2,6 +2,11 @@
   "name": "reecord",
   "version": "0.2.1",
   "description": "A Discord-like IRC client",
+  "author": {
+    "email": "daemeron@icloud.com",
+    "name": "Daemeron",
+    "url": "https://github.com/Daemeron"
+  },
   "main": "out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",
