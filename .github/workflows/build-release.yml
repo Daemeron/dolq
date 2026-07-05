@@ -1,0 +1,38 @@
+name: Build Release Binaries
+
+on:
+  release:
+    types: [created]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [macos-latest, ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run package
+      - name: Upload macOS assets
+        if: runner.os == 'macOS'
+        run: gh release upload ${{ github.event.release.tag_name }} dist/*.dmg dist/*.zip --clobber
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload Linux assets
+        if: runner.os == 'Linux'
+        run: gh release upload ${{ github.event.release.tag_name }} dist/*.AppImage dist/*.deb --clobber
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload Windows assets
+        if: runner.os == 'Windows'
+        run: gh release upload ${{ github.event.release.tag_name }} (Get-Item dist/*.exe) --clobber
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
