@@ -132,11 +132,15 @@ will hang the UI.
       today (`messageMap`/`statusMap` aren't in `store.ts`'s `partialize`) -
       largely subsumed by Milestone 1's persistence work, but worth tracking as
       the concrete user-visible symptom in the meantime
-- [ ] `MODE` parsing only handles lines where every letter is a privilege letter
+- [x] `MODE` parsing only handles lines where every letter is a privilege letter
       (`qaohv`); lines mixing in other channel modes (`+k`, `+b`, ...) are
-      silently dropped (see the comment in `parseLine.ts`)
-- [ ] No handling of `PING` timeouts from the server side - if the server goes
-      silent without closing the socket, the client won't notice
+      silently dropped (see the comment in `parseLine.ts`) - now extracts
+      privilege changes bundled with known list/key/limit/no-arg modes,
+      stopping only at a truly unrecognized letter
+- [x] No handling of `PING` timeouts from the server side - if the server goes
+      silent without closing the socket, the client won't notice - the client
+      now tracks time since last received data and closes the socket itself
+      after 5 minutes of silence
 - [ ] No IPv6-specific testing/handling
 
 ---
