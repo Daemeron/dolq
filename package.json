@@ -36,7 +36,8 @@
   "dependencies": {
     "irc-caret-notation": "^1.0.5",
     "react": "^18.0.0",
-    "react-dom": "^18.0.0"
+    "react-dom": "^18.0.0",
+    "zustand": "^5.0.14"
   },
   "allowScripts": {
     "electron@42.4.1": true,
