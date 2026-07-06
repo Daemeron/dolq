@@ -1,6 +1,6 @@
 {
   "$schema": "https://raw.githubusercontent.com/electron-userland/electron-builder/master/packages/app-builder-lib/scheme.json",
-  "appId": "com.reecord.app",
+  "appId": "com.daemeron.reecord",
   "productName": "Reecord",
   "directories": {
     "buildResources": "resources"
@@ -10,14 +10,26 @@
   ],
   "publish": null,
   "mac": {
-    "target": ["dmg", "zip"]
+    "sign": {
+      "identity": "-",
+      "hardenedRuntime": false
+    },
+    "target": [
+      "dmg",
+      "zip"
+    ]
   },
   "win": {
     "executableName": "reecord",
-    "target": ["nsis"]
+    "target": [
+      "nsis"
+    ]
   },
   "linux": {
-    "target": ["AppImage", "deb"],
+    "target": [
+      "AppImage",
+      "deb"
+    ],
     "category": "Network"
   }
 }
