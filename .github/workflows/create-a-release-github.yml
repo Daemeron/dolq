@@ -11,7 +11,7 @@ permissions:
   pull-requests: write
 
 jobs:
-  release-please:
+  create-release-github:
     runs-on: ubuntu-latest
     steps:
       - uses: googleapis/release-please-action@v4
