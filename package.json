@@ -1,6 +1,6 @@
 {
   "name": "reecord",
-  "version": "0.2.3",
+  "version": "0.3.0",
   "description": "A Discord-like IRC client",
   "author": {
     "email": "daemeron@icloud.com",
