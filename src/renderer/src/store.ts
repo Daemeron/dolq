@@ -12,6 +12,7 @@ type State = {
   nickMap: Record<string, string>;
   selectedServerId: string;
   selectedChannelId: string;
+  connectionStatus: 'disconnected' | 'connecting' | 'connected';
 };
 
 type Actions = {
@@ -20,6 +21,7 @@ type Actions = {
   setNick: (serverId: string, nick: string) => void;
   selectServer: (id: string) => void;
   selectChannel: (id: string) => void;
+  setConnectionStatus: (status: 'disconnected' | 'connecting' | 'connected') => void;
 };
 
 export const useStore = create<State & Actions>()(
@@ -31,6 +33,7 @@ export const useStore = create<State & Actions>()(
       nickMap: { libera: 'reecord_user', ircnet: 'reecord_user' },
       selectedServerId: MOCK_SERVERS[0].id,
       selectedChannelId: '__log__',
+      connectionStatus: 'disconnected',
 
       addServer: (server, logChannel) =>
         set((s) => ({
@@ -52,16 +55,18 @@ export const useStore = create<State & Actions>()(
       },
 
       selectChannel: (id) => set({ selectedChannelId: id }),
+
+      setConnectionStatus: (status) => set({ connectionStatus: status }),
     }),
     {
       name: 'reecord',
-      storage: createJSONStorage(() => sessionStorage),
+      storage: createJSONStorage(() => localStorage),
       partialize: (s) => ({
         servers: s.servers,
         channelMap: s.channelMap,
         nickMap: s.nickMap,
         selectedServerId: s.selectedServerId,
-        selectedChannelId: s.selectedChannelId,
+        selectedChannelId: s.selectedChannelId
       }),
     },
   ),

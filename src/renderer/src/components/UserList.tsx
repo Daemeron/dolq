@@ -19,7 +19,7 @@ export function UserList({ users }: { users: User[] }) {
   const regular = users.filter((u) => !u.isOp);
 
   return (
-    <aside className="w-52 bg-[#2f3136] border-l border-[#26282d] shrink-0 overflow-y-auto py-4 px-2">
+    <>
       {ops.length > 0 && (
         <>
           <div className="px-2 pb-1 text-[11px] font-bold uppercase tracking-[0.5px] text-[#72767d]">
@@ -37,6 +37,6 @@ export function UserList({ users }: { users: User[] }) {
           {regular.map((u) => <UserRow key={u.nick} user={u} />)}
         </>
       )}
-    </aside>
+    </>
   );
 }

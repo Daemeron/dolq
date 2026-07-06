@@ -6,9 +6,17 @@ type Props = {
   selectedId: string;
   onSelect: (id: string) => void;
   currentNick: string;
+  connectionStatus: 'disconnected' | 'connecting' | 'connected';
+  onConnect: () => void;
+  onDisconnect: () => void;
 };
 
-export function ChannelList({ serverName, channels, selectedId, onSelect, currentNick }: Props) {
+export function ChannelList({ serverName, channels, selectedId, onSelect, currentNick, connectionStatus, onConnect, onDisconnect }: Props) {
+  const btnColor = connectionStatus === 'connected'
+    ? 'bg-[#3ba55d] hover:bg-[#ed4245]'
+    : connectionStatus === 'connecting'
+    ? 'bg-[#72767d] cursor-not-allowed'
+    : 'bg-[#72767d] hover:bg-[#3ba55d]';
   const logChannel = channels.find((c) => c.isLog);
   const regularChannels = channels.filter((c) => !c.isLog);
 
@@ -53,6 +61,26 @@ export function ChannelList({ serverName, channels, selectedId, onSelect, curren
             {ch.name}
           </button>
         ))}
+      </div>
+
+      <div className="px-2 pb-2 shrink-0">
+        <button
+          onClick={connectionStatus === 'connecting' ? undefined : connectionStatus === 'connected' ? onDisconnect : onConnect}
+          disabled={connectionStatus === 'connecting'}
+          className={`group w-full py-2 rounded text-sm font-medium text-white transition-colors ${btnColor}`}
+        >
+          {connectionStatus === 'connecting' ? 'Connecting…' : connectionStatus === 'connected' ? (
+            <>
+              <span className="group-hover:hidden">Connected</span>
+              <span className="hidden group-hover:inline">Disconnect</span>
+            </>
+          ) : (
+            <>
+              <span className="group-hover:hidden">Disconnected</span>
+              <span className="hidden group-hover:inline">Connect</span>
+            </>
+          )}
+        </button>
       </div>
 
       <div className="flex items-center gap-2 p-2 bg-[#292b2f] shrink-0">

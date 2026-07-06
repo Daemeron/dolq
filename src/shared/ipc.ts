@@ -3,6 +3,7 @@ export type IrcApi = {
   disconnect: () => Promise<void>;
   sendLine: (line: string) => Promise<void>;
   onLine: (callback: (line: string) => void) => () => void;
+  onStatus: (callback: (status: 'connected' | 'disconnected') => void) => () => void;
 };
 
 export enum IrcMessages {
@@ -10,4 +11,5 @@ export enum IrcMessages {
   disconnect = 'irc:disconnect',
   send = 'irc:send',
   line = 'irc:line',
+  status = 'irc:status',
 }
