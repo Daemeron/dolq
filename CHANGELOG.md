@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/Daemeron/reecord/compare/reecord-v0.2.3...reecord-v0.3.0) (2026-07-06)
+
+
+### Features
+
+* add zustand store with persistence ([f07cf5b](https://github.com/Daemeron/reecord/commit/f07cf5bbe3718d738d17ac7aca368c89a391856f))
+
 ## [0.2.3](https://github.com/Daemeron/reecord/compare/reecord-v0.2.2...reecord-v0.2.3) (2026-07-05)
 
 
