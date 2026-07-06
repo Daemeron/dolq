@@ -2,6 +2,9 @@
 
 > An IRC client that feels like Discord.
 
+[![Build and Test](https://github.com/daemeron/reecord/actions/workflows/build-and-test.yml/badge.svg?branch=main)](https://github.com/daemeron/reecord/actions/workflows/build-and-test.yml)
+[![Latest Release](https://img.shields.io/github/v/release/daemeron/reecord)](https://github.com/daemeron/reecord/releases/latest)
+
 Reecord is a desktop IRC client built with Electron and React, designed to bring
 a familiar, modern interface to IRC. It borrows Discord's layout — server list,
 channel list, topic bar, message area, and user list — while staying true to the
@@ -124,4 +127,4 @@ src/
 
 ## License
 
-MIT
+[MIT](./LICENSE)
