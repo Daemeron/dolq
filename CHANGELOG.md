@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.1](https://github.com/Daemeron/reecord/compare/reecord-v0.3.0...reecord-v0.3.1) (2026-07-06)
+
+
+### Bug Fixes
+
+* fix macos build binaries job pulling self-signed cert meant only for windows ([e40e4a1](https://github.com/Daemeron/reecord/commit/e40e4a145abe5bdd51b101c2a35e98dda2fb17b1))
+
 ## [0.3.0](https://github.com/Daemeron/reecord/compare/reecord-v0.2.3...reecord-v0.3.0) (2026-07-06)
 
 
