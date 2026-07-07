@@ -141,7 +141,15 @@ will hang the UI.
       silent without closing the socket, the client won't notice - the client
       now tracks time since last received data and closes the socket itself
       after 5 minutes of silence
-- [ ] No IPv6-specific testing/handling
+- [x] No IPv6-specific testing/handling - `net.Socket` already handled bare IPv6
+      literals correctly (verified live against Ergo over `::1`); the real gap was
+      a bracketed literal (`[::1]`, common URL/copy-paste convention) failing to
+      connect since nothing stripped the brackets before handing the host to
+      `net`. Host/port joining and splitting moved into a tested
+      `serverId.ts` helper that normalizes this. Also fixed a related
+      unhandled-rejection warning found in the process: the handshake's
+      `Promise.all` could leave sibling `send()` rejections unobserved when a
+      bad connection failed more than one of them
 
 ---
 
