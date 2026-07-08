@@ -1,4 +1,4 @@
-import type { IrcEvent as PublicIrcEvent, PrivilegeLevel } from '../../shared/ipc';
+import type { IrcEvent as PublicIrcEvent, PrivilegeLevel } from '../../../shared/ipc';
 
 export type User = { nick: string; privilege: PrivilegeLevel };
 

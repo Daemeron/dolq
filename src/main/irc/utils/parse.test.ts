@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseIrcLine } from './parseLine.js';
+import { parseIrcLine } from './parse.js';
 
 describe('parseIrcLine', () => {
   it('parses PRIVMSG to a channel', () => {

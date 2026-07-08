@@ -1,5 +1,5 @@
 import { Channel, User } from '../types';
-import { useContextMenu } from '../useContextMenu';
+import { useContextMenu } from '../hooks/useContextMenu';
 import { ContextMenu, ContextMenuHeader, ContextMenuItem } from './ContextMenu';
 
 type Props = {

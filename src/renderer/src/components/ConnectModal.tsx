@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { ServerPreset } from '../publicServers';
+import type { ServerPreset } from '../data/servers';
 
 type ConnectForm = {
   name: string;

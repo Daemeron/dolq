@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { EventEmitter } from 'events';
-import { Relay } from './relay';
+import { Relay } from './Relay';
 import type net from 'net';
 
 function makeServer() {
