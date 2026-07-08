@@ -1,10 +1,11 @@
-import { useEffect, useRef } from 'react';
+import { useLayoutEffect, useRef } from 'react';
 import { Message } from '../DummyData';
 import { IrcText } from './IrcText';
 
 type Props = {
   messages: Message[];
   isLog: boolean;
+  channelId: string;
 };
 
 const NICK_COLORS = [
@@ -22,20 +23,43 @@ function formatTime(d: Date): string {
   return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
-export function MessageArea({ messages, isLog }: Props) {
-  const bottomRef = useRef<HTMLDivElement>(null);
-  const scrollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+// per-channel scroll memory lives in refs since MessageArea is a single
+// always-mounted instance shared across channels (messages/channelId just swap on switch).
+const AT_BOTTOM_THRESHOLD = 40;
 
-  useEffect(() => {
-    if (scrollTimer.current) clearTimeout(scrollTimer.current);
-    scrollTimer.current = setTimeout(() => {
-      bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, 100);
-  }, [messages]);
+export function MessageArea({ messages, isLog, channelId }: Props) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const prevChannelId = useRef(channelId);
+  const scrollTop = useRef<Map<string, number>>(new Map());
+  const isAtBottom = useRef<Map<string, boolean>>(new Map());
+
+  useLayoutEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const switchedChannel = prevChannelId.current !== channelId;
+    prevChannelId.current = channelId;
+    const wasAtBottom = isAtBottom.current.get(channelId) !== false;
+
+    if (switchedChannel && !wasAtBottom) {
+      el.scrollTop = scrollTop.current.get(channelId) ?? el.scrollHeight;
+    } else if (wasAtBottom) {
+      el.scrollTo({ top: el.scrollHeight, behavior: switchedChannel ? 'auto' : 'smooth' });
+    }
+  }, [messages, channelId]);
+
+  function handleScroll() {
+    const el = containerRef.current;
+    if (!el) return;
+    scrollTop.current.set(channelId, el.scrollTop);
+    isAtBottom.current.set(
+      channelId,
+      el.scrollHeight - el.scrollTop - el.clientHeight < AT_BOTTOM_THRESHOLD,
+    );
+  }
 
   if (isLog) {
     return (
-      <div className="flex-1 overflow-y-auto px-4 py-4 messages">
+      <div ref={containerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto px-4 py-4 messages">
         {messages.length === 0 ? (
           <p className="text-[#72767d] text-[14px]">No traffic yet.</p>
         ) : (
@@ -48,13 +72,12 @@ export function MessageArea({ messages, isLog }: Props) {
             ))}
           </div>
         )}
-        <div ref={bottomRef} />
       </div>
     );
   }
 
   return (
-    <div className="flex-1 overflow-y-auto px-4 py-4 messages">
+    <div ref={containerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto px-4 py-4 messages">
       {messages.length === 0 ? (
         <p className="text-[#72767d] text-[14px] text-center mt-8">No messages yet.</p>
       ) : (
@@ -76,7 +99,6 @@ export function MessageArea({ messages, isLog }: Props) {
           </div>
         ))
       )}
-      <div ref={bottomRef} />
     </div>
   );
 }
