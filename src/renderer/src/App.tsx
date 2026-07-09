@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { MOCK_USERS, type Message } from './DummyData';
+import type { Message } from './DummyData';
 import { useStore } from './store';
 import { ServerList } from './components/ServerList';
 import { ChannelList } from './components/ChannelList';
@@ -11,24 +11,22 @@ import { ConnectModal, type ConnectForm } from './components/ConnectModal';
 
 export default function App() {
   const {
-    servers, channelMap, messageMap, nickMap,
-    selectedServerId, selectedChannelId, connectionStatus,
-    addServer, appendMessage, setNick, selectServer, selectChannel, setConnectionStatus,
+    servers, channelMap, messageMap, userMap, nickMap,
+    selectedServerId, selectedChannelId, statusMap,
+    addServer, addChannel, appendMessage, setNick, selectServer, selectChannel, setConnectionStatus,
+    setUsers, addUser, removeUser, removeUserEverywhere, renameUserEverywhere,
   } = useStore();
 
   const [showModal, setShowModal] = useState(false);
-  const connectedServerIdRef = useRef<string | null>(null);
   const nextMsgId = useRef(Date.now());
 
   useEffect(() => {
-    return window.irc.onStatus((status) => setConnectionStatus(status));
+    return window.irc.onStatus((serverId, status) => setConnectionStatus(serverId, status));
   }, [setConnectionStatus]);
 
   useEffect(() => {
-    return window.irc.onLine((line) => {
-      const sid = connectedServerIdRef.current;
-      if (!sid) return;
-      const key = `${sid}:__log__`;
+    return window.irc.onLine((serverId, line) => {
+      const key = `${serverId}:__log__`;
       const msg: Message = {
         id: nextMsgId.current++,
         nick: '',
@@ -40,6 +38,41 @@ export default function App() {
     });
   }, [appendMessage]);
 
+  useEffect(() => {
+    return window.irc.onEvent((serverId, event) => {
+      switch (event.type) {
+        case 'PRIVMSG':
+          appendMessage(event.target, {
+            id: nextMsgId.current++, nick: event.nick, text: event.text, timestamp: new Date(),
+          });
+          break;
+        case 'JOIN':
+          if (event.nick === nickMap[serverId]) {
+            addChannel(serverId, { id: event.channel, name: event.channel.slice(1), isLog: false });
+            selectChannel(event.channel);
+          } else {
+            addUser(event.channel, { nick: event.nick, isOp: false });
+          }
+          break;
+        case 'PART':
+          removeUser(event.channel, event.nick);
+          break;
+        case 'QUIT':
+          removeUserEverywhere(event.nick);
+          break;
+        case 'NICK':
+          renameUserEverywhere(event.oldNick, event.newNick);
+          break;
+        case 'names':
+          setUsers(event.channel, event.users);
+          break;
+      }
+    });
+  }, [
+    appendMessage, addChannel, selectChannel, addUser, removeUser,
+    removeUserEverywhere, renameUserEverywhere, setUsers, nickMap,
+  ]);
+
   async function handleConnect(form: ConnectForm) {
     const id = `${form.host}:${form.port}`;
     addServer(
@@ -47,10 +80,9 @@ export default function App() {
       { id: `${id}:__log__`, name: 'Log', isLog: true },
     );
     setNick(id, form.nick);
-    connectedServerIdRef.current = id;
-    setConnectionStatus('connecting');
-    await window.irc.connect(form.host, Number(form.port), form.nick);
-    setConnectionStatus('connected');
+    setConnectionStatus(id, 'connecting');
+    await window.irc.connect(id, form.host, Number(form.port), form.nick);
+    setConnectionStatus(id, 'connected');
     selectServer(id);
     setShowModal(false);
   }
@@ -62,29 +94,37 @@ export default function App() {
     const host = server.id.slice(0, lastColon);
     const port = Number(server.id.slice(lastColon + 1));
     const nick = nickMap[server.id] ?? 'reecord_user';
-    connectedServerIdRef.current = server.id;
-    setConnectionStatus('connecting');
-    await window.irc.connect(host, port, nick);
-    setConnectionStatus('connected');
+    setConnectionStatus(server.id, 'connecting');
+    await window.irc.connect(server.id, host, port, nick);
+    setConnectionStatus(server.id, 'connected');
   }
 
   async function handleDisconnect() {
-    await window.irc.disconnect();
-    setConnectionStatus('disconnected');
+    await window.irc.disconnect(selectedServerId);
+    setConnectionStatus(selectedServerId, 'disconnected');
   }
 
   const channels = channelMap[selectedServerId] ?? [];
   const selectedChannel = channels.find((c) => c.id === selectedChannelId) ?? channels[0];
   const messages = messageMap[selectedChannelId] ?? [];
-  const users = MOCK_USERS[selectedChannelId] ?? [];
+  const users = userMap[selectedChannelId] ?? [];
   const isLog = selectedChannel?.isLog ?? false;
   const currentNick = nickMap[selectedServerId] ?? 'reecord_user';
+  const connectionStatus = statusMap[selectedServerId] ?? 'disconnected';
 
   async function handleSend(text: string): Promise<void> {
-    if (text === '/connect') { connectToServer(); return; }
-    if (text === '/disconnect') { handleDisconnect(); return; }
-    const line = selectedChannel?.isLog ? text : `PRIVMSG ${selectedChannelId} :${text}`;
-    await window.irc.sendLine(line);
+    const joinMatch = text.match(/^\/join\s+(#\S+)$/);
+
+    if (text === '/connect') {
+      if (connectionStatus === 'disconnected') connectToServer();
+    } else if (text === '/disconnect') {
+      handleDisconnect();
+    } else if (joinMatch) {
+      await window.irc.sendLine(selectedServerId, `JOIN ${joinMatch[1]}`);
+    } else {
+      const line = selectedChannel?.isLog ? text : `PRIVMSG ${selectedChannelId} :${text}`;
+      await window.irc.sendLine(selectedServerId, line);
+    }
   }
 
   return (

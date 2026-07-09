@@ -5,7 +5,6 @@ import { IrcMessages } from '../shared/ipc';
 import { IrcClient } from './irc/client';
 
 let mainWindow: BrowserWindow;
-let ircClient: IrcClient | null = null;
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
@@ -27,49 +26,57 @@ function createWindow(): void {
 }
 
 app.whenReady().then(async () => {
+  createWindow();
+  registerIrcHandlers(mainWindow);
+  await installReactDevTools();
+  registerAppLifecycleHandlers();
+});
+
+function registerIrcHandlers(mainWindow: BrowserWindow): void {
+  const clients = new Map<string, IrcClient>();
+
+  ipcMain.handle(IrcMessages.connect, async (_event, serverId: string, host: string, port: number, nick: string) => {
+    await clients.get(serverId)?.disconnect();
+
+    const client = new IrcClient(host, port, nick);
+    clients.set(serverId, client);
+    client.connect();
+    client.addLineListener((line) => {
+      mainWindow.webContents.send(IrcMessages.line, serverId, line);
+    });
+    client.addEventListener((event) => {
+      mainWindow.webContents.send(IrcMessages.event, serverId, event);
+    });
+    client.onClose(() => {
+      clients.delete(serverId);
+      mainWindow.webContents.send(IrcMessages.status, serverId, 'disconnected');
+    });
+  });
+
+  ipcMain.handle(IrcMessages.send, async (_event, serverId: string, message: string) => {
+    await clients.get(serverId)?.send(message);
+  });
+
+  ipcMain.handle(IrcMessages.disconnect, async (_event, serverId: string) => {
+    await clients.get(serverId)?.disconnect();
+  });
+}
+
+function registerAppLifecycleHandlers(): void {
+  app.on('activate', () => {
+    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+  });
+
+  app.on('window-all-closed', () => {
+    if (process.platform !== 'darwin') app.quit();
+  });
+}
+
+async function installReactDevTools(): Promise<void> {
   try {
     const ext = await installExtension(REACT_DEVELOPER_TOOLS, { loadExtensionOptions: { allowFileAccess: true } });
     console.log('Added Extension: ', ext.name);
   } catch (err) {
     console.error('Failed to install ${ext.name}', err);
   }
-
-  ipcMain.handle(IrcMessages.connect, (_event, host: string, port: number, nick: string) => {
-    if (ircClient) {
-      ircClient.disconnect();
-      ircClient = null;
-    }
-
-    ircClient = new IrcClient(host, port, nick);
-    ircClient.connect();
-    ircClient.addLineListener((line) => {
-      mainWindow.webContents.send(IrcMessages.line, line);
-    });
-    ircClient.onClose(() => {
-      ircClient = null;
-      mainWindow.webContents.send(IrcMessages.status, 'disconnected');
-    });
-  });
-
-  ipcMain.handle(IrcMessages.send, async (_event, message: string) => {
-    if (!ircClient) return;
-    await ircClient.send(message);
-  });
-
-  ipcMain.handle(IrcMessages.disconnect, () => {
-    if (!ircClient) return;
-    ircClient.disconnect();
-  });
-
-  createWindow();
-
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
-  });
-
-
-});
-
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') app.quit();
-});
+}
