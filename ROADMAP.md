@@ -40,8 +40,9 @@ will hang the UI.
 
 ### Core protocol gaps
 
-- [ ] TLS/SSL support (`ircs://`, port 6697 by default) - currently
-      plaintext-only
+- [x] TLS/SSL support (port 6697 by default) - `IrcClient` connects via
+      `tls.connect()` when requested, with a per-connection toggle in the
+      connect form (defaults on)
 - [ ] SASL PLAIN authentication
 - [ ] CAP negotiation (`CAP LS` / `CAP REQ`) - at minimum `multi-prefix` (today
       `NAMES`/`MODE` only ever track a user's single highest privilege - see the
@@ -110,6 +111,11 @@ will hang the UI.
 - [ ] Emoji picker (optional, since this is "Discord-like")
 - [ ] Light theme (the `2e` icon variant is already sitting in `resources/`
       waiting for this)
+- [ ] `irc://`/`ircs://` link handling - register dolq as the OS protocol
+      handler (`app.setAsDefaultProtocolClient`) and parse the incoming URL
+      (macOS `open-url`, Windows/Linux second-instance argv) into a
+      host/port/channel/secure prefill for the connect flow, so clicking an
+      IRC link elsewhere opens straight into dolq
 
 ---
 

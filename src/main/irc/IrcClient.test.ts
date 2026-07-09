@@ -9,6 +9,10 @@ const mocks = vi.hoisted(() => ({
   socketOnce: vi.fn((_event: string, cb: () => void) => cb()),
   readerOn: vi.fn(),
   readerClose: vi.fn(),
+  tlsConnect: vi.fn(),
+  tlsWrite: vi.fn(),
+  tlsOn: vi.fn(),
+  tlsOnce: vi.fn((_event: string, cb: () => void) => cb()),
 }));
 
 vi.mock('node:net', () => ({
@@ -21,6 +25,12 @@ vi.mock('node:net', () => ({
       on = mocks.socketOn;
       once = mocks.socketOnce;
     },
+  },
+}));
+
+vi.mock('node:tls', () => ({
+  default: {
+    connect: mocks.tlsConnect,
   },
 }));
 
@@ -97,6 +107,33 @@ describe('IrcClient.connect()', () => {
     client.connect();
     const closeCall = mocks.socketOn.mock.calls.find((call: any[]) => call[0] === 'close');
     expect(closeCall).toBeDefined();
+  });
+});
+
+describe('IrcClient.connect() with secure=true', () => {
+  let client: IrcClient;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.tlsWrite.mockImplementation((_data: string, cb: (err?: Error) => void) => cb());
+    mocks.tlsConnect.mockImplementation(() => ({
+      write: mocks.tlsWrite,
+      on: mocks.tlsOn,
+      once: mocks.tlsOnce,
+    }));
+    client = new IrcClient('irc.libera.chat', 6697, 'mynick', true);
+  });
+
+  it('connects via tls.connect instead of socket.connect', () => {
+    client.connect();
+    expect(mocks.tlsConnect).toHaveBeenCalledWith({ host: 'irc.libera.chat', port: 6697 });
+    expect(mocks.socketConnect).not.toHaveBeenCalled();
+  });
+
+  it('sends the handshake over the TLS socket', () => {
+    client.connect();
+    const written = mocks.tlsWrite.mock.calls.map((call: any[]) => call[0]);
+    expect(written).toContain('NICK mynick\r\n');
   });
 });
 

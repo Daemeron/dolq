@@ -127,13 +127,13 @@ export default function App() {
     const id = buildServerId(form.host, form.port);
     const { host, port } = parseServerId(id);
     addServer(
-      { id, name: form.name, initial: form.name[0]?.toUpperCase() ?? '?' },
+      { id, name: form.name, initial: form.name[0]?.toUpperCase() ?? '?', secure: form.secure },
       { id: `${id}:__log__`, name: 'Log', isLog: true },
     );
-    addPreset({ id, name: form.name, host, port });
+    addPreset({ id, name: form.name, host, port, secure: form.secure });
     setNick(id, form.nick);
     setConnectionStatus(id, 'connecting');
-    await window.irc.connect(id, host, port, form.nick);
+    await window.irc.connect(id, host, port, form.nick, form.secure);
     setConnectionStatus(id, 'connected');
     selectServer(id);
     setShowModal(false);
@@ -145,7 +145,7 @@ export default function App() {
     const { host, port } = parseServerId(server.id);
     const nick = nickMap[server.id] ?? 'dolq_user';
     setConnectionStatus(server.id, 'connecting');
-    await window.irc.connect(server.id, host, port, nick);
+    await window.irc.connect(server.id, host, port, nick, server.secure);
     setConnectionStatus(server.id, 'connected');
   }
 

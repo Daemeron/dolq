@@ -43,10 +43,10 @@ app.whenReady().then(async () => {
 function registerIrcHandlers(mainWindow: BrowserWindow): Map<string, IrcClient> {
   const clients = new Map<string, IrcClient>();
 
-  ipcMain.handle(IrcMessages.connect, async (_event, serverId: string, host: string, port: number, nick: string) => {
+  ipcMain.handle(IrcMessages.connect, async (_event, serverId: string, host: string, port: number, nick: string, secure: boolean) => {
     await clients.get(serverId)?.disconnect();
 
-    const client = new IrcClient(host, port, nick);
+    const client = new IrcClient(host, port, nick, secure);
     clients.set(serverId, client);
     client.connect();
     client.addLineListener((line) => {

@@ -1,3 +1,7 @@
+// Standard IRC ports: plaintext and implicit TLS.
+export const IRC_PORT = 6667;
+export const IRC_TLS_PORT = 6697;
+
 // Ranked highest to lowest; 'none' means no channel privilege.
 export type PrivilegeLevel = 'owner' | 'admin' | 'op' | 'halfop' | 'voice' | 'none';
 
@@ -23,7 +27,7 @@ export type IrcEvent =
   | { type: 'names'; channel: string; users: { nick: string; privilege: PrivilegeLevel }[] };
 
 export type IrcApi = {
-  connect: (serverId: string, host: string, port: number, nick: string) => Promise<void>;
+  connect: (serverId: string, host: string, port: number, nick: string, secure: boolean) => Promise<void>;
   disconnect: (serverId: string) => Promise<void>;
   sendLine: (serverId: string, line: string) => Promise<void>;
   getStatus: (serverId: string) => Promise<'connected' | 'disconnected'>;

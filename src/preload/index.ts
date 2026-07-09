@@ -2,8 +2,8 @@ import { contextBridge, ipcRenderer } from 'electron';
 import { IrcApi, IrcEvent, IrcMessages } from '../shared/ipc';
 
 contextBridge.exposeInMainWorld('irc', {
-  connect: (serverId: string, host: string, port: number, nick: string) =>
-    ipcRenderer.invoke(IrcMessages.connect, serverId, host, port, nick),
+  connect: (serverId: string, host: string, port: number, nick: string, secure: boolean) =>
+    ipcRenderer.invoke(IrcMessages.connect, serverId, host, port, nick, secure),
 
   sendLine: (serverId: string, line: string) =>
     ipcRenderer.invoke(IrcMessages.send, serverId, line),

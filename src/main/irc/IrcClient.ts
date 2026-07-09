@@ -1,4 +1,5 @@
 import net from 'node:net';
+import tls from 'node:tls';
 import readline from 'node:readline';
 import { parseIrcLine, type User } from './utils/parse.js';
 import type { IrcEvent } from '../../shared/ipc.js';
@@ -14,6 +15,7 @@ export class IrcClient {
   private nick: string;
   private host: string;
   private port: number;
+  private secure: boolean;
   private socket: net.Socket;
   private reader: readline.Interface;
   private eventListeners: ((event: IrcEvent) => void)[] = [];
@@ -21,16 +23,25 @@ export class IrcClient {
   private joinedChannels: Set<string> = new Set();
   private lastActivityAt = Date.now();
 
-  constructor(host: string, port: number, nick: string) {
+  constructor(host: string, port: number, nick: string, secure = false) {
     this.host = host;
     this.port = port;
     this.nick = nick;
+    this.secure = secure;
     this.socket = new net.Socket();
     this.reader = readline.createInterface({ input: this.socket, crlfDelay: Infinity });
   }
 
   public connect(): void {
-    this.socket.connect({ host: this.host, port: this.port });
+    if (this.secure) {
+      // tls.connect() both creates and dials the socket, unlike net.Socket's
+      // create-then-.connect() split - so the plain socket made in the constructor
+      // is discarded here and replaced, with the reader rebound to match.
+      this.socket = tls.connect({ host: this.host, port: this.port });
+      this.reader = readline.createInterface({ input: this.socket, crlfDelay: Infinity });
+    } else {
+      this.socket.connect({ host: this.host, port: this.port });
+    }
     this.socket.on('close', () => this.reader.close());
     this.socket.on('error', (err) => {
       console.error('IRC socket error:', err.message);

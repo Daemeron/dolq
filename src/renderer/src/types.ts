@@ -4,6 +4,7 @@ export type Server = {
   id: string;
   name: string;
   initial: string;
+  secure: boolean;
 };
 
 export type Channel = {

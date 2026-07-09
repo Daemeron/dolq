@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { ServerPreset } from '../data/servers';
+import { IRC_PORT, IRC_TLS_PORT } from '../../../shared/ipc';
 
 type ConnectForm = {
   name: string;
@@ -7,6 +8,7 @@ type ConnectForm = {
   port: string;
   nick: string;
   password: string;
+  secure: boolean;
 };
 
 type Props = {
@@ -19,9 +21,10 @@ type Props = {
 const DEFAULTS: ConnectForm = {
   name: 'Localhost',
   host: 'localhost',
-  port: '6667',
+  port: String(IRC_TLS_PORT),
   nick: 'dolq_user',
   password: '',
+  secure: true,
 };
 
 const inputClass =
@@ -52,7 +55,20 @@ export function ConnectModal({ presets, nickMap, onConnect, onCancel }: Props) {
       host: preset.host,
       port: String(preset.port),
       nick: nickMap[preset.id] ?? prev.nick,
+      secure: preset.secure,
     }));
+  }
+
+  function toggleSecure(e: React.ChangeEvent<HTMLInputElement>) {
+    const secure = e.target.checked;
+    setForm((prev) => {
+      // Only follow the port along if it was still sitting on the default for the
+      // protocol being switched away from - a server can run TLS on a non-standard
+      // port, so once the user has typed their own value, leave it alone.
+      const wasOnPreviousDefault = prev.port === String(secure ? IRC_PORT : IRC_TLS_PORT);
+      const port = wasOnPreviousDefault ? String(secure ? IRC_TLS_PORT : IRC_PORT) : prev.port;
+      return { ...prev, secure, port };
+    });
   }
 
   function handleSubmit(e: React.FormEvent) {
@@ -105,12 +121,17 @@ export function ConnectModal({ presets, nickMap, onConnect, onCancel }: Props) {
                 type="number"
                 value={form.port}
                 onChange={set('port')}
-                placeholder="6667"
+                placeholder={String(IRC_PORT)}
                 min={1}
                 max={65535}
               />
             </label>
           </div>
+
+          <label className="flex items-center gap-2 text-[13px] text-[#e6e6e6] cursor-pointer select-none">
+            <input type="checkbox" checked={form.secure} onChange={toggleSecure} className="accent-[#c792ea]" />
+            Use SSL/TLS
+          </label>
 
           <label className={labelClass}>
             Nickname
