@@ -31,7 +31,7 @@ func startTestServer(t *testing.T) string {
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}
-	go NewServer(bouncer.New()).Serve(ln)
+	go NewServer(bouncer.New(nil)).Serve(ln)
 	t.Cleanup(func() {
 		ln.Close()
 		os.Remove(path)

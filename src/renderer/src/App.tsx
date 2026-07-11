@@ -15,13 +15,14 @@ export default function App() {
   const {
     servers, presets, channelMap, messageMap, userMap, nickMap,
     selectedServerId, selectedChannelId, statusMap,
-    addServer, removeServer, addPreset, addChannel, removeChannel, appendMessage, setNick, selectServer,
+    addServer, removeServer, addPreset, addChannel, removeChannel, appendMessage, setHistory, setNick, selectServer,
     selectChannel, setConnectionStatus, setUsers, addUser, removeUser, removeUserEverywhere, renameUserEverywhere,
     applyModeChanges,
   } = useStore();
 
   const [showModal, setShowModal] = useState(false);
   const nextMsgId = useRef(Date.now());
+  const historyLoaded = useRef(new Set<string>());
 
   useEffect(() => {
     return window.irc.onStatus((serverId, status) => setConnectionStatus(serverId, status));
@@ -122,6 +123,35 @@ export default function App() {
     appendMessage, addChannel, selectChannel, addUser, removeUser,
     removeUserEverywhere, renameUserEverywhere, applyModeChanges, setUsers, nickMap,
   ]);
+
+  // Preload scrollback the first time a channel is actually opened - once
+  // per channel per session, tracked outside the (unpersisted) store so it
+  // survives messageMap already being seeded to [] at channel-creation time.
+  useEffect(() => {
+    if (!selectedServerId || historyLoaded.current.has(selectedChannelId)) return;
+    historyLoaded.current.add(selectedChannelId);
+
+    const channel = channelMap[selectedServerId]?.find((c) => c.id === selectedChannelId);
+    const backendChannel = channel?.isLog ? '__log__' : selectedChannelId;
+
+    window.irc.getHistory(selectedServerId, backendChannel).then((entries) => {
+      // The backend persists every raw line and every parsed event, not
+      // just what's renderable today - same as the live onLine/onEvent
+      // effects above, only PRIVMSG (and raw lines, for the Log channel)
+      // currently become a Message. Add a case here as the live handlers
+      // above grow more of them (JOIN/PART/etc. as scrollback, say).
+      const messages: Message[] = [];
+      for (const e of entries) {
+        const timestamp = new Date(e.timestamp);
+        if (e.isRaw) {
+          messages.push({ id: e.id, nick: '', text: e.line ?? '', timestamp, isRaw: true });
+        } else if (e.event?.type === 'PRIVMSG') {
+          messages.push({ id: e.id, nick: e.event.nick, text: e.event.text, timestamp });
+        }
+      }
+      if (messages.length > 0) setHistory(selectedChannelId, messages);
+    });
+  }, [selectedServerId, selectedChannelId, channelMap, setHistory]);
 
   async function handleConnect(form: ConnectForm) {
     const id = buildServerId(form.host, form.port);

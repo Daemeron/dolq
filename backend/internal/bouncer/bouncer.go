@@ -7,9 +7,39 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
+	"github.com/Daemeron/dolq/backend/internal/history"
 	"github.com/Daemeron/dolq/backend/internal/ircclient"
+	"github.com/Daemeron/dolq/backend/internal/ircparse"
 )
+
+// logChannel is the sentinel "channel" a server's raw, unparsed line feed is
+// stored under - there's one per server, not per actual IRC channel.
+const logChannel = "__log__"
+
+// eventChannel picks which channel bucket a parsed event is persisted
+// under. Events with an explicit channel/target keep it; QuitEvent and
+// NickEvent don't have one - a QUIT or nick change can ripple across every
+// channel the user shared with us, and nothing here tracks per-user channel
+// membership to resolve that - so those fall back to the server's shared
+// log bucket, same as raw lines.
+func eventChannel(event any) string {
+	switch e := event.(type) {
+	case ircparse.PrivmsgEvent:
+		return e.Target
+	case ircparse.JoinEvent:
+		return e.Channel
+	case ircparse.PartEvent:
+		return e.Channel
+	case ircparse.KickEvent:
+		return e.Channel
+	case ircparse.ModeEvent:
+		return e.Channel
+	default:
+		return logChannel
+	}
+}
 
 // Subscriber receives one session's traffic. Defined here (rather than in
 // whatever transport implements it, e.g. ipcproto) so the dependency runs
@@ -53,10 +83,11 @@ func (s *session) fanOutStatus(serverID, status string) {
 type Bouncer struct {
 	mu       sync.Mutex
 	sessions map[string]*session
+	store    *history.Store // nil is fine, see history.Store's nil receivers
 }
 
-func New() *Bouncer {
-	return &Bouncer{sessions: make(map[string]*session)}
+func New(store *history.Store) *Bouncer {
+	return &Bouncer{sessions: make(map[string]*session), store: store}
 }
 
 // Connect (re)connects serverID, replacing any existing session for it, and
@@ -86,8 +117,23 @@ func (b *Bouncer) Connect(serverID, host string, port int, nick string, secure b
 func (b *Bouncer) connect(serverID string, client *ircclient.Client, initial Subscriber) {
 	sess := &session{client: client, subscribers: map[Subscriber]struct{}{initial: {}}}
 
-	client.AddLineListener(func(line string) { sess.fanOutLine(serverID, line) })
-	client.AddEventListener(func(event any) { sess.fanOutEvent(serverID, event) })
+	client.AddLineListener(func(line string) {
+		sess.fanOutLine(serverID, line)
+		b.store.AppendLine(serverID, logChannel, line, time.Now())
+	})
+	client.AddEventListener(func(event any) {
+		sess.fanOutEvent(serverID, event)
+		// NamesEvent is a synthesized full-membership snapshot (see
+		// ircclient's NAMES/353/366 handling), not a discrete happening -
+		// nothing to "replay" about it, and persisting a full user list on
+		// every NAMES reply would just bloat the DB. Everything else is
+		// persisted verbatim; which of it actually gets rendered as
+		// scrollback is a UI decision, not storage's to make.
+		if _, ok := event.(ircclient.NamesEvent); ok {
+			return
+		}
+		b.store.AppendEvent(serverID, eventChannel(event), event, time.Now())
+	})
 	client.OnClose(func() {
 		b.mu.Lock()
 		delete(b.sessions, serverID)
@@ -143,6 +189,13 @@ func (b *Bouncer) Disconnect(serverID string) error {
 		return nil
 	}
 	return sess.client.Disconnect()
+}
+
+// History returns up to limit persisted messages for serverID/channel,
+// oldest first, paging backwards from before (0 for "most recent"). Works
+// regardless of whether serverID currently has a live session.
+func (b *Bouncer) History(serverID, channel string, before int64, limit int) ([]history.Entry, error) {
+	return b.store.Recent(serverID, channel, before, limit)
 }
 
 // Status reports whether serverID currently has a live session.

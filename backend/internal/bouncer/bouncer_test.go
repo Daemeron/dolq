@@ -109,7 +109,7 @@ func waitFor(t *testing.T, cond func() bool) {
 }
 
 func TestFanOutIsScopedPerServerID(t *testing.T) {
-	b := New()
+	b := New(nil)
 
 	subA1, subA2 := &fakeSubscriber{}, &fakeSubscriber{}
 	serverA, _ := pipeSession(t, b, "server-a", subA1)
@@ -136,7 +136,7 @@ func TestFanOutIsScopedPerServerID(t *testing.T) {
 }
 
 func TestDetachStopsFanOutWithoutClosingTheSession(t *testing.T) {
-	b := New()
+	b := New(nil)
 	sub := &fakeSubscriber{}
 	server, _ := pipeSession(t, b, "server-a", sub)
 
@@ -153,7 +153,7 @@ func TestDetachStopsFanOutWithoutClosingTheSession(t *testing.T) {
 }
 
 func TestAttachToAnUnknownServerIDIsANoOp(t *testing.T) {
-	b := New()
+	b := New(nil)
 	sub := &fakeSubscriber{}
 	b.Attach(sub, "nonexistent") // must not panic
 	if n := sub.lineCount(); n != 0 {
@@ -162,7 +162,7 @@ func TestAttachToAnUnknownServerIDIsANoOp(t *testing.T) {
 }
 
 func TestStatusFanOutOnClose(t *testing.T) {
-	b := New()
+	b := New(nil)
 	sub := &fakeSubscriber{}
 	server, _ := pipeSession(t, b, "server-a", sub)
 
@@ -173,7 +173,7 @@ func TestStatusFanOutOnClose(t *testing.T) {
 }
 
 func TestShutdownDisconnectsEverySession(t *testing.T) {
-	b := New()
+	b := New(nil)
 	_, readerA := pipeSession(t, b, "server-a", &fakeSubscriber{})
 	_, readerB := pipeSession(t, b, "server-b", &fakeSubscriber{})
 

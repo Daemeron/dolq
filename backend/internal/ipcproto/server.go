@@ -127,6 +127,13 @@ func (s *Server) handleFrame(c *conn, f ClientFrame) {
 		c.writeFrame(ServerFrame{ID: f.ID, Type: FrameResult, OK: true, Status: s.b.Status(f.ServerID)})
 	case ActionGetJoinedChannels:
 		c.writeFrame(ServerFrame{ID: f.ID, Type: FrameResult, OK: true, Channels: s.b.JoinedChannels(f.ServerID)})
+	case ActionGetHistory:
+		entries, err := s.b.History(f.ServerID, f.Channel, f.Before, f.Limit)
+		if err != nil {
+			c.writeFrame(ServerFrame{ID: f.ID, Type: FrameResult, OK: false, Error: err.Error()})
+			return
+		}
+		c.writeFrame(ServerFrame{ID: f.ID, Type: FrameResult, OK: true, Messages: entries})
 	default:
 		c.writeFrame(ServerFrame{ID: f.ID, Type: FrameResult, OK: false, Error: "unknown action: " + f.Action})
 	}

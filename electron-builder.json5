@@ -8,6 +8,12 @@
   "files": [
     "out/**"
   ],
+  "extraResources": [
+    {
+      "from": "backend/bin",
+      "to": "bin"
+    }
+  ],
   "publish": null,
   "mac": {
     "sign": {

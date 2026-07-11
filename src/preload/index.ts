@@ -17,6 +17,9 @@ contextBridge.exposeInMainWorld('irc', {
   getJoinedChannels: (serverId: string) =>
     ipcRenderer.invoke(IrcMessages.getJoinedChannels, serverId),
 
+  getHistory: (serverId: string, channel: string, before?: number, limit?: number) =>
+    ipcRenderer.invoke(IrcMessages.getHistory, serverId, channel, before, limit),
+
   onLine: (callback: (serverId: string, line: string) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, serverId: string, line: string) => callback(serverId, line);
     ipcRenderer.on(IrcMessages.line, handler);

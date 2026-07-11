@@ -23,6 +23,7 @@ type Actions = {
   addChannel: (serverId: string, channel: Channel) => void;
   removeChannel: (serverId: string, channelId: string) => void;
   appendMessage: (key: string, msg: Message) => void;
+  setHistory: (key: string, messages: Message[]) => void;
   setUsers: (channelId: string, users: User[]) => void;
   addUser: (channelId: string, user: User) => void;
   removeUser: (channelId: string, nick: string) => void;
@@ -120,6 +121,11 @@ export const useStore = create<State & Actions>()(
 
       appendMessage: (key, msg) =>
         set((s) => ({ messageMap: { ...s.messageMap, [key]: [...(s.messageMap[key] ?? []), msg] } })),
+
+      // Seeds a channel with fetched history, prepended before anything that
+      // arrived live before the fetch resolved.
+      setHistory: (key, messages) =>
+        set((s) => ({ messageMap: { ...s.messageMap, [key]: [...messages, ...(s.messageMap[key] ?? [])] } })),
 
       setUsers: (channelId, users) =>
         set((s) => ({ userMap: { ...s.userMap, [channelId]: users } })),

@@ -14,11 +14,13 @@ import (
 	"time"
 
 	"github.com/Daemeron/dolq/backend/internal/bouncer"
+	"github.com/Daemeron/dolq/backend/internal/history"
 	"github.com/Daemeron/dolq/backend/internal/ipcproto"
 )
 
 func main() {
 	socketPath := flag.String("socket", "", "Unix domain socket path to listen on (default: a path under the OS temp dir)")
+	dbPath := flag.String("db", "", "SQLite database path for message history (default: a path under the OS config dir)")
 	flag.Parse()
 
 	path := *socketPath
@@ -35,7 +37,13 @@ func main() {
 	// the socket it should connect to.
 	fmt.Println(path)
 
-	b := bouncer.New()
+	store, err := history.Open(resolveDBPath(*dbPath))
+	if err != nil {
+		log.Fatalf("open history db: %v", err)
+	}
+	defer store.Close()
+
+	b := bouncer.New(store)
 	srv := ipcproto.NewServer(b)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -55,4 +63,23 @@ func main() {
 	case err := <-serveErr:
 		log.Printf("serve error: %v", err)
 	}
+}
+
+// resolveDBPath honors an explicit -db flag, otherwise places the database
+// under the OS's standard per-user config dir (~/Library/Application
+// Support, %AppData%, ~/.config) - unlike the socket, this has to survive
+// across restarts.
+func resolveDBPath(explicit string) string {
+	if explicit != "" {
+		return explicit
+	}
+	dir, err := os.UserConfigDir()
+	if err != nil {
+		log.Fatalf("resolve config dir: %v", err)
+	}
+	dir = filepath.Join(dir, "dolq")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		log.Fatalf("create config dir %s: %v", dir, err)
+	}
+	return filepath.Join(dir, "history.db")
 }

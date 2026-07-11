@@ -26,12 +26,27 @@ export type IrcEvent =
     }
   | { type: 'names'; channel: string; users: { nick: string; privilege: PrivilegeLevel }[] };
 
+// One persisted line, as returned by getHistory - mirrors
+// backend/internal/history.Entry's JSON shape: everything that flowed
+// through the backend gets stored verbatim (raw line, or the same IrcEvent
+// shape onEvent already delivers live), not just what today's UI renders.
+// serverId/channel aren't included: a getHistory response is already scoped
+// to the request.
+export type HistoryEntry = {
+  id: number;
+  timestamp: string; // RFC3339; caller converts with `new Date(...)`
+  isRaw?: boolean;
+  line?: string; // present when isRaw
+  event?: IrcEvent; // present when !isRaw
+};
+
 export type IrcApi = {
   connect: (serverId: string, host: string, port: number, nick: string, secure: boolean) => Promise<void>;
   disconnect: (serverId: string) => Promise<void>;
   sendLine: (serverId: string, line: string) => Promise<void>;
   getStatus: (serverId: string) => Promise<'connected' | 'disconnected'>;
   getJoinedChannels: (serverId: string) => Promise<string[]>;
+  getHistory: (serverId: string, channel: string, before?: number, limit?: number) => Promise<HistoryEntry[]>;
   onLine: (callback: (serverId: string, line: string) => void) => () => void;
   onEvent: (callback: (serverId: string, event: IrcEvent) => void) => () => void;
   onStatus: (callback: (serverId: string, status: 'connected' | 'disconnected') => void) => () => void;
@@ -43,6 +58,7 @@ export enum IrcMessages {
   send = 'irc:send',
   getStatus = 'irc:getStatus',
   getJoinedChannels = 'irc:getJoinedChannels',
+  getHistory = 'irc:getHistory',
   line = 'irc:line',
   event = 'irc:event',
   status = 'irc:status',

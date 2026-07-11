@@ -2,6 +2,8 @@
 // this backend: newline-delimited JSON frames over a Unix domain socket.
 package ipcproto
 
+import "github.com/Daemeron/dolq/backend/internal/history"
+
 // Client -> server actions.
 const (
 	ActionConnect           = "connect"
@@ -9,6 +11,7 @@ const (
 	ActionSend              = "send"
 	ActionGetStatus         = "getStatus"
 	ActionGetJoinedChannels = "getJoinedChannels"
+	ActionGetHistory        = "getHistory"
 )
 
 // Server -> client frame types.
@@ -29,17 +32,21 @@ type ClientFrame struct {
 	Nick     string `json:"nick,omitempty"`
 	Secure   bool   `json:"secure,omitempty"`
 	Line     string `json:"line,omitempty"`
+	Channel  string `json:"channel,omitempty"` // getHistory
+	Before   int64  `json:"before,omitempty"`  // getHistory: id cursor, 0 = most recent
+	Limit    int    `json:"limit,omitempty"`   // getHistory
 }
 
 // ServerFrame is one line the backend sends back.
 type ServerFrame struct {
-	ID       string   `json:"id,omitempty"` // present only on "result"
-	Type     string   `json:"type"`
-	ServerID string   `json:"serverId,omitempty"`
-	Line     string   `json:"line,omitempty"`
-	Event    any      `json:"event,omitempty"`
-	Status   string   `json:"status,omitempty"`
-	Channels []string `json:"channels,omitempty"`
-	OK       bool     `json:"ok,omitempty"`
-	Error    string   `json:"error,omitempty"`
+	ID       string          `json:"id,omitempty"` // present only on "result"
+	Type     string          `json:"type"`
+	ServerID string          `json:"serverId,omitempty"`
+	Line     string          `json:"line,omitempty"`
+	Event    any             `json:"event,omitempty"`
+	Status   string          `json:"status,omitempty"`
+	Channels []string        `json:"channels,omitempty"`
+	Messages []history.Entry `json:"messages,omitempty"`
+	OK       bool            `json:"ok,omitempty"`
+	Error    string          `json:"error,omitempty"`
 }

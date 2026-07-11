@@ -2,7 +2,7 @@ import { installExtension, REACT_DEVELOPER_TOOLS } from 'electron-devtools-insta
 import { app, BrowserWindow, ipcMain } from 'electron';
 import { join } from 'path';
 import { IrcMessages } from '../shared/ipc';
-import { IrcClient } from './irc/IrcClient';
+import { BackendClient } from './irc/BackendClient';
 
 let mainWindow: BrowserWindow;
 
@@ -35,55 +35,41 @@ app.whenReady().then(async () => {
   // has no effect on macOS, unlike Windows/Linux).
   if (!app.isPackaged) app.dock?.setIcon(ICON_PATH);
   createWindow();
-  const clients = registerIrcHandlers(mainWindow);
+
+  const backend = new BackendClient();
+  registerIrcHandlers(mainWindow, backend);
   await installReactDevTools();
-  registerAppLifecycleHandlers(clients);
+  registerAppLifecycleHandlers(backend);
 });
 
-function registerIrcHandlers(mainWindow: BrowserWindow): Map<string, IrcClient> {
-  const clients = new Map<string, IrcClient>();
+function registerIrcHandlers(mainWindow: BrowserWindow, backend: BackendClient): void {
+  ipcMain.handle(IrcMessages.connect, (_event, serverId: string, host: string, port: number, nick: string, secure: boolean) =>
+    backend.connect(serverId, host, port, nick, secure),
+  );
 
-  ipcMain.handle(IrcMessages.connect, async (_event, serverId: string, host: string, port: number, nick: string, secure: boolean) => {
-    await clients.get(serverId)?.disconnect();
+  ipcMain.handle(IrcMessages.send, (_event, serverId: string, message: string) => backend.send(serverId, message));
 
-    const client = new IrcClient(host, port, nick, secure);
-    clients.set(serverId, client);
-    client.connect();
-    client.addLineListener((line) => {
-      mainWindow.webContents.send(IrcMessages.line, serverId, line);
-    });
-    client.addEventListener((event) => {
-      mainWindow.webContents.send(IrcMessages.event, serverId, event);
-    });
-    client.onClose(() => {
-      clients.delete(serverId);
-      mainWindow.webContents.send(IrcMessages.status, serverId, 'disconnected');
-    });
-  });
+  ipcMain.handle(IrcMessages.disconnect, (_event, serverId: string) => backend.disconnect(serverId));
 
-  ipcMain.handle(IrcMessages.send, async (_event, serverId: string, message: string) => {
-    await clients.get(serverId)?.send(message);
-  });
+  ipcMain.handle(IrcMessages.getStatus, (_event, serverId: string) => backend.getStatus(serverId));
 
-  ipcMain.handle(IrcMessages.disconnect, async (_event, serverId: string) => {
-    await clients.get(serverId)?.disconnect();
-  });
+  ipcMain.handle(IrcMessages.getJoinedChannels, (_event, serverId: string) => backend.getJoinedChannels(serverId));
 
-  // Lets a freshly (re)loaded renderer reconcile its optimistic, unpersisted
-  // statusMap against the connections actually still alive in this process -
-  // e.g. after a dev-mode renderer-only reload that didn't restart `clients`.
-  ipcMain.handle(IrcMessages.getStatus, (_event, serverId: string) => {
-    return clients.has(serverId) ? 'connected' : 'disconnected';
-  });
+  ipcMain.handle(IrcMessages.getHistory, (_event, serverId: string, channel: string, before?: number, limit?: number) =>
+    backend.getHistory(serverId, channel, before, limit),
+  );
 
-  ipcMain.handle(IrcMessages.getJoinedChannels, (_event, serverId: string) => {
-    return clients.get(serverId)?.getJoinedChannels() ?? [];
-  });
-
-  return clients;
+  // The backend already tags every unsolicited frame with the serverId it
+  // belongs to, so a single subscription per frame type covers every server
+  // - no per-connect listener wiring needed.
+  backend.on('line', (serverId: string, line: string) => mainWindow.webContents.send(IrcMessages.line, serverId, line));
+  backend.on('event', (serverId: string, event: unknown) => mainWindow.webContents.send(IrcMessages.event, serverId, event));
+  backend.on('status', (serverId: string, status: 'connected' | 'disconnected') =>
+    mainWindow.webContents.send(IrcMessages.status, serverId, status),
+  );
 }
 
-function registerAppLifecycleHandlers(clients: Map<string, IrcClient>): void {
+function registerAppLifecycleHandlers(backend: BackendClient): void {
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
@@ -92,20 +78,18 @@ function registerAppLifecycleHandlers(clients: Map<string, IrcClient>): void {
     if (process.platform !== 'darwin') app.quit();
   });
 
-  // IrcClient.disconnect() already PARTs every joined channel before sending
-  // QUIT, so reusing it here leaves channels (without removing them from the
-  // renderer's persisted list) and disconnects from servers on the way out.
-  // before-quit fires for Cmd+Q, app.quit(), and (non-mac) the quit triggered
-  // by window-all-closed above - but not for a mac user just closing the
-  // window, since the app and its connections are still alive in that case.
+  // dolqd's own shutdown path (bouncer.Shutdown) already PARTs every joined
+  // channel and QUITs before exiting, so quitting here is just: stop the
+  // backend, then quit. before-quit fires for Cmd+Q, app.quit(), and
+  // (non-mac) the quit triggered by window-all-closed above - but not for a
+  // mac user just closing the window, since the app and its connections are
+  // still alive in that case.
   let quitting = false;
   app.on('before-quit', (event) => {
-    if (quitting || clients.size === 0) return;
+    if (quitting) return;
     quitting = true;
     event.preventDefault();
-    Promise.all([...clients.values()].map((client) => client.disconnect()))
-      .catch((err) => console.error('Error disconnecting on quit:', err.message))
-      .finally(() => app.quit());
+    backend.stop().finally(() => app.quit());
   });
 }
 
