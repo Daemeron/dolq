@@ -11,6 +11,7 @@ export class IrcClient {
   private reader: readline.Interface;
   private eventListeners: ((event: IrcEvent) => void)[] = [];
   private namesBuffer: Map<string, User[]> = new Map();
+  private joinedChannels: Set<string> = new Set();
 
   constructor(host: string, port: number, nick: string) {
     this.host = host;
@@ -72,8 +73,24 @@ export class IrcClient {
       if (event.type === 'NICK' && event.oldNick === this.nick) {
         this.nick = event.newNick;
       }
+      if (event.type === 'JOIN' && event.nick === this.nick) {
+        this.joinedChannels.add(event.channel);
+      }
+      if (event.type === 'PART' && event.nick === this.nick) {
+        this.joinedChannels.delete(event.channel);
+      }
+      if (event.type === 'KICK' && event.nick === this.nick) {
+        this.joinedChannels.delete(event.channel);
+      }
       this.emit(event);
     });
+  }
+
+  // Lets a freshly (re)loaded renderer verify it's still actually in the channels
+  // it remembers joining - e.g. after a dev-mode reload, or after being kicked
+  // while no renderer was around to see the KICK event.
+  public getJoinedChannels(): string[] {
+    return [...this.joinedChannels];
   }
 
   private emit(event: IrcEvent): void {

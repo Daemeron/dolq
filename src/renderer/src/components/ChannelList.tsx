@@ -54,21 +54,25 @@ export function ChannelList({
       </div>
 
       <div className="flex-1 min-h-0 overflow-y-auto px-2 pb-3 scroll-thin mb-30">
-        {regularChannels.map((ch) => (
-          <button
-            key={ch.id}
-            onClick={() => onSelect(ch.id)}
-            onContextMenu={(e) => open(ch.id, e)}
-            className={`flex items-center w-full py-1.5 px-2 my-px rounded border-0 text-[15px] cursor-pointer text-left transition-[background,color] duration-100 ${
-              ch.id === selectedId
-                ? 'bg-[rgba(79,84,92,0.6)] text-white'
-                : 'bg-transparent text-[#8e9297] hover:bg-[rgba(79,84,92,0.4)] hover:text-[#dcddde]'
-            }`}
-          >
-            <span className="text-[16px] mr-1.5 opacity-50">#</span>
-            {ch.name}
-          </button>
-        ))}
+        {regularChannels.map((ch) => {
+          const joined = (userMap[ch.id] ?? []).some((u) => u.nick === currentNick);
+          return (
+            <button
+              key={ch.id}
+              onClick={() => onSelect(ch.id)}
+              onContextMenu={(e) => open(ch.id, e)}
+              title={joined ? undefined : 'Not currently in this channel'}
+              className={`flex items-center w-full py-1.5 px-2 my-px rounded border-0 text-[15px] cursor-pointer text-left transition-[background,color] duration-100 ${
+                ch.id === selectedId
+                  ? 'bg-[rgba(79,84,92,0.6)] text-white'
+                  : 'bg-transparent text-[#8e9297] hover:bg-[rgba(79,84,92,0.4)] hover:text-[#dcddde]'
+              } ${joined ? '' : 'opacity-50 italic'}`}
+            >
+              <span className="text-[16px] mr-1.5 opacity-50">#</span>
+              {ch.name}
+            </button>
+          );
+        })}
       </div>
 
       {menu && menuChannel && (

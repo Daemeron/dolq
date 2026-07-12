@@ -32,6 +32,18 @@ describe('parseIrcLine', () => {
     });
   });
 
+  it('parses KICK with a reason', () => {
+    expect(parseIrcLine(':alice!u@host KICK #general bob :spamming')).toEqual({
+      type: 'KICK', by: 'alice', channel: '#general', nick: 'bob', reason: 'spamming',
+    });
+  });
+
+  it('parses KICK without a reason', () => {
+    expect(parseIrcLine(':alice!u@host KICK #general bob')).toEqual({
+      type: 'KICK', by: 'alice', channel: '#general', nick: 'bob', reason: undefined,
+    });
+  });
+
   it('parses QUIT', () => {
     expect(parseIrcLine(':dave!u@host QUIT :goodbye')).toEqual({
       type: 'QUIT', nick: 'dave', reason: 'goodbye',

@@ -193,6 +193,7 @@ export const useStore = create<State & Actions>()(
         servers: s.servers,
         presets: s.presets,
         channelMap: s.channelMap,
+        userMap: s.userMap,
         nickMap: s.nickMap,
         selectedServerId: s.selectedServerId,
         selectedChannelId: s.selectedChannelId

@@ -81,23 +81,30 @@ export function MessageArea({ messages, isLog, channelId }: Props) {
       {messages.length === 0 ? (
         <p className="text-[#72767d] text-[14px] text-center mt-8">No messages yet.</p>
       ) : (
-        messages.map((m) => (
-          <div
-            key={m.id}
-            className="flex items-baseline gap-3 py-0.5 group hover:bg-[rgba(4,4,5,0.07)] px-2 rounded"
-          >
-            <span className="text-[11px] text-[#72767d] shrink-0 w-10 text-right opacity-0 group-hover:opacity-100">
-              {formatTime(m.timestamp)}
-            </span>
-            <span
-              className="font-semibold text-[14px] shrink-0"
-              style={{ color: nickColor(m.nick) }}
+        messages.map((m) =>
+          m.system ? (
+            <div key={m.id} className="flex items-baseline gap-3 py-1 px-2">
+              <span className="text-[11px] text-[#72767d] shrink-0 w-10 text-right">{formatTime(m.timestamp)}</span>
+              <span className="text-[#72767d] text-[13px] italic"><IrcText text={m.text} /></span>
+            </div>
+          ) : (
+            <div
+              key={m.id}
+              className="flex items-baseline gap-3 py-0.5 group hover:bg-[rgba(4,4,5,0.07)] px-2 rounded"
             >
-              {m.nick}
-            </span>
-            <span className="text-[#dcddde] text-[15px] leading-relaxed"><IrcText text={m.text} /></span>
-          </div>
-        ))
+              <span className="text-[11px] text-[#72767d] shrink-0 w-10 text-right opacity-0 group-hover:opacity-100">
+                {formatTime(m.timestamp)}
+              </span>
+              <span
+                className="font-semibold text-[14px] shrink-0"
+                style={{ color: nickColor(m.nick) }}
+              >
+                {m.nick}
+              </span>
+              <span className="text-[#dcddde] text-[15px] leading-relaxed"><IrcText text={m.text} /></span>
+            </div>
+          ),
+        )
       )}
     </div>
   );

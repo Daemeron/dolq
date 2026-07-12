@@ -26,10 +26,26 @@ export default function App() {
     return window.irc.onStatus((serverId, status) => setConnectionStatus(serverId, status));
   }, [setConnectionStatus]);
 
+  // statusMap AND userMap aren't persisted, so both reset to empty on any
+  // renderer-only reload (e.g. dev-mode HMR) even though the main process's live
+  // connections (and their joined channels) survive it untouched. Reconcile on
+  // mount: for a channel we're actually still in, re-request NAMES so the existing
+  // 353/366 pipeline repopulates its user list (there's nothing to "fix" for a
+  // channel we're no longer in - an empty userMap already shows it correctly as
+  // not-joined, e.g. after a KICK that happened while no renderer was listening).
   useEffect(() => {
-    servers.forEach((s) => {
-      window.irc.getStatus(s.id).then((status) => setConnectionStatus(s.id, status));
+    servers.forEach(async (s) => {
+      const status = await window.irc.getStatus(s.id);
+      setConnectionStatus(s.id, status);
+      if (status !== 'connected') return;
+
+      const joined = new Set(await window.irc.getJoinedChannels(s.id));
+      const { channelMap } = useStore.getState();
+      (channelMap[s.id] ?? []).forEach((ch) => {
+        if (!ch.isLog && joined.has(ch.id)) window.irc.sendLine(s.id, `NAMES ${ch.id}`);
+      });
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -64,6 +80,18 @@ export default function App() {
           break;
         case 'PART':
           removeUser(event.channel, event.nick);
+          break;
+        case 'KICK':
+          removeUser(event.channel, event.nick);
+          if (event.nick === nickMap[serverId]) {
+            appendMessage(event.channel, {
+              id: nextMsgId.current++,
+              nick: '',
+              text: `You were kicked by ${event.by}${event.reason ? `: ${event.reason}` : ''}`,
+              timestamp: new Date(),
+              system: true,
+            });
+          }
           break;
         case 'QUIT':
           removeUserEverywhere(event.nick);
