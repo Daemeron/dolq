@@ -102,8 +102,48 @@ describe('parseIrcLine', () => {
     });
   });
 
-  it('returns null for a channel MODE mixing in a non-privilege letter', () => {
-    expect(parseIrcLine(':alice!u@host MODE #general +ok bob secretkey')).toBeNull();
+  it('extracts a privilege grant bundled with a known list/key/limit mode', () => {
+    expect(parseIrcLine(':alice!u@host MODE #general +ok bob secretkey')).toEqual({
+      type: 'MODE',
+      channel: '#general',
+      changes: [{ nick: 'bob', privilege: 'op', granted: true }],
+    });
+  });
+
+  it('does not consume an argument for a ban set alongside a privilege grant', () => {
+    expect(parseIrcLine(':alice!u@host MODE #general +ob bob carol!*@*')).toEqual({
+      type: 'MODE',
+      channel: '#general',
+      changes: [{ nick: 'bob', privilege: 'op', granted: true }],
+    });
+  });
+
+  it('only consumes a limit argument when the limit is being set, not unset', () => {
+    expect(parseIrcLine(':alice!u@host MODE #general +l-o 50 bob')).toEqual({
+      type: 'MODE',
+      channel: '#general',
+      changes: [{ nick: 'bob', privilege: 'op', granted: false }],
+    });
+  });
+
+  it('skips known no-argument flags without losing a later privilege change', () => {
+    expect(parseIrcLine(':alice!u@host MODE #general +nto bob')).toEqual({
+      type: 'MODE',
+      channel: '#general',
+      changes: [{ nick: 'bob', privilege: 'op', granted: true }],
+    });
+  });
+
+  it('returns null when no privilege changes are found', () => {
+    expect(parseIrcLine(':alice!u@host MODE #general +k secretkey')).toBeNull();
+  });
+
+  it('stops at a fully unrecognized letter but keeps changes found before it', () => {
+    expect(parseIrcLine(':alice!u@host MODE #general +oZ bob mystery')).toEqual({
+      type: 'MODE',
+      channel: '#general',
+      changes: [{ nick: 'bob', privilege: 'op', granted: true }],
+    });
   });
 
   it('returns null for unrecognized lines', () => {
