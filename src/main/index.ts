@@ -6,13 +6,16 @@ import { IrcClient } from './irc/client';
 
 let mainWindow: BrowserWindow;
 
+const ICON_PATH = join(__dirname, '../../resources/icon.png');
+
 function createWindow(): void {
   mainWindow = new BrowserWindow({
     width: 2000,
     height: 1080,
     minWidth: 800,
     minHeight: 600,
-    backgroundColor: '#36393f',
+    backgroundColor: '#212121',
+    icon: ICON_PATH,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
     },
@@ -26,6 +29,11 @@ function createWindow(): void {
 }
 
 app.whenReady().then(async () => {
+  // packaged macOS builds get their Dock icon from icon.icns automatically -
+  // this only matters for `npm run dev`/`electron .`, where macOS would
+  // otherwise show the generic Electron icon (BrowserWindow's `icon` option
+  // has no effect on macOS, unlike Windows/Linux).
+  if (!app.isPackaged) app.dock?.setIcon(ICON_PATH);
   createWindow();
   registerIrcHandlers(mainWindow);
   await installReactDevTools();
