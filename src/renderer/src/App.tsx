@@ -16,6 +16,7 @@ export default function App() {
     selectedServerId, selectedChannelId, statusMap,
     addServer, removeServer, addPreset, addChannel, removeChannel, appendMessage, setNick, selectServer,
     selectChannel, setConnectionStatus, setUsers, addUser, removeUser, removeUserEverywhere, renameUserEverywhere,
+    applyModeChanges,
   } = useStore();
 
   const [showModal, setShowModal] = useState(false);
@@ -24,6 +25,12 @@ export default function App() {
   useEffect(() => {
     return window.irc.onStatus((serverId, status) => setConnectionStatus(serverId, status));
   }, [setConnectionStatus]);
+
+  useEffect(() => {
+    servers.forEach((s) => {
+      window.irc.getStatus(s.id).then((status) => setConnectionStatus(s.id, status));
+    });
+  }, []);
 
   useEffect(() => {
     return window.irc.onLine((serverId, line) => {
@@ -52,7 +59,7 @@ export default function App() {
             addChannel(serverId, { id: event.channel, name: event.channel.slice(1), isLog: false });
             selectChannel(event.channel);
           } else {
-            addUser(event.channel, { nick: event.nick, isOp: false });
+            addUser(event.channel, { nick: event.nick, privilege: 'none' });
           }
           break;
         case 'PART':
@@ -64,6 +71,9 @@ export default function App() {
         case 'NICK':
           renameUserEverywhere(event.oldNick, event.newNick);
           break;
+        case 'MODE':
+          applyModeChanges(event.channel, event.changes);
+          break;
         case 'names':
           setUsers(event.channel, event.users);
           break;
@@ -71,7 +81,7 @@ export default function App() {
     });
   }, [
     appendMessage, addChannel, selectChannel, addUser, removeUser,
-    removeUserEverywhere, renameUserEverywhere, setUsers, nickMap,
+    removeUserEverywhere, renameUserEverywhere, applyModeChanges, setUsers, nickMap,
   ]);
 
   async function handleConnect(form: ConnectForm) {

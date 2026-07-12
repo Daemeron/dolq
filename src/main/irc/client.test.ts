@@ -158,9 +158,9 @@ describe('IrcClient NAMES accumulation', () => {
       type: 'names',
       channel: '#general',
       users: [
-        { nick: 'alice', isOp: false },
-        { nick: 'bob', isOp: true },
-        { nick: 'carol', isOp: false },
+        { nick: 'alice', privilege: 'none' },
+        { nick: 'bob', privilege: 'op' },
+        { nick: 'carol', privilege: 'none' },
       ],
     }]);
   });

@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import { type Server, type Channel, type Message, type User } from './types';
 import { PUBLIC_SERVERS, type ServerPreset } from './publicServers';
+import { outranks, type PrivilegeLevel } from '../../shared/ipc';
 
 type State = {
   servers: Server[];
@@ -25,6 +26,7 @@ type Actions = {
   setUsers: (channelId: string, users: User[]) => void;
   addUser: (channelId: string, user: User) => void;
   removeUser: (channelId: string, nick: string) => void;
+  applyModeChanges: (channelId: string, changes: { nick: string; privilege: Exclude<PrivilegeLevel, 'none'>; granted: boolean }[]) => void;
   removeUserEverywhere: (nick: string) => void;
   renameUserEverywhere: (oldNick: string, newNick: string) => void;
   setNick: (serverId: string, nick: string) => void;
@@ -133,6 +135,25 @@ export const useStore = create<State & Actions>()(
         set((s) => ({
           userMap: { ...s.userMap, [channelId]: (s.userMap[channelId] ?? []).filter((u) => u.nick !== nick) },
         })),
+
+      // without negotiating the multi-prefix capability, NAMES/MODE only ever
+      // reveal a user's single highest privilege, not the full set they hold. So a grant
+      // only takes effect if it outranks what's tracked, and a revoke only clears the
+      // tracked privilege if it matches exactly - upgrade path is CAP REQ multi-prefix.
+      applyModeChanges: (channelId, changes) =>
+        set((s) => {
+          const users = s.userMap[channelId] ?? [];
+          const latestByNick = new Map(changes.map((c) => [c.nick, c]));
+          const updated = users.map((u) => {
+            const change = latestByNick.get(u.nick);
+            if (!change) return u;
+            if (change.granted) {
+              return outranks(change.privilege, u.privilege) ? { ...u, privilege: change.privilege } : u;
+            }
+            return u.privilege === change.privilege ? { ...u, privilege: 'none' as const } : u;
+          });
+          return { userMap: { ...s.userMap, [channelId]: updated } };
+        }),
 
       removeUserEverywhere: (nick) =>
         set((s) => ({
