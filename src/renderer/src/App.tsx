@@ -28,25 +28,35 @@ export default function App() {
 
   // statusMap AND userMap aren't persisted, so both reset to empty on any
   // renderer-only reload (e.g. dev-mode HMR) even though the main process's live
-  // connections (and their joined channels) survive it untouched. Reconcile on
-  // mount: for a channel we're actually still in, re-request NAMES so the existing
-  // 353/366 pipeline repopulates its user list (there's nothing to "fix" for a
-  // channel we're no longer in - an empty userMap already shows it correctly as
-  // not-joined, e.g. after a KICK that happened while no renderer was listening).
+  // connections (and their joined channels) survive it untouched. Reconcile once
+  // hydration finishes: for a channel we're actually still in, re-request NAMES so
+  // the existing 353/366 pipeline repopulates its user list (there's nothing to
+  // "fix" for a channel we're no longer in - an empty userMap already shows it
+  // correctly as not-joined, e.g. after a KICK that happened while no renderer was
+  // listening). Reading via getState() (not the destructured `servers`) matters
+  // because persist rehydration is always async, even with synchronous
+  // localStorage - a `[]`-deps effect fires before it resolves, so the closed-over
+  // `servers` would still be the pre-hydration empty array.
   useEffect(() => {
-    servers.forEach(async (s) => {
-      const status = await window.irc.getStatus(s.id);
-      setConnectionStatus(s.id, status);
-      if (status !== 'connected') return;
+    async function reconcile() {
+      const { servers, channelMap } = useStore.getState();
+      for (const s of servers) {
+        const status = await window.irc.getStatus(s.id);
+        setConnectionStatus(s.id, status);
+        if (status !== 'connected') continue;
 
-      const joined = new Set(await window.irc.getJoinedChannels(s.id));
-      const { channelMap } = useStore.getState();
-      (channelMap[s.id] ?? []).forEach((ch) => {
-        if (!ch.isLog && joined.has(ch.id)) window.irc.sendLine(s.id, `NAMES ${ch.id}`);
-      });
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+        const joined = new Set(await window.irc.getJoinedChannels(s.id));
+        (channelMap[s.id] ?? []).forEach((ch) => {
+          if (!ch.isLog && joined.has(ch.id)) window.irc.sendLine(s.id, `NAMES ${ch.id}`);
+        });
+      }
+    }
+    if (useStore.persist.hasHydrated()) {
+      reconcile();
+      return;
+    }
+    return useStore.persist.onFinishHydration(reconcile);
+  }, [setConnectionStatus]);
 
   useEffect(() => {
     return window.irc.onLine((serverId, line) => {
