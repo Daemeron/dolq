@@ -18,17 +18,39 @@ will hang the UI.
 
 ### Persistence
 
-- [ ] SQLite-backed history store (`better-sqlite3` or `node:sqlite`) - one
-      writer in the main process, message/event tables keyed by server+channel
-- [ ] Async batched writes so a busy channel doesn't block the IRC socket read
-      loop
-- [ ] Message history stops depending on zustand's `persist` (`localStorage`) -
-      persist only small UI state there, move message bodies to SQLite
-- [ ] On channel open: preload the most recent ~1 day (or last N messages,
-      whichever is smaller) from SQLite; lazy-load older history on scroll-up
-      (infinite scroll backwards)
-- [ ] Retention setting (keep forever / N days / N messages per channel)
-- [ ] Periodic vacuum/compaction so the DB doesn't grow unbounded
+- [x] SQLite-backed history store - one writer, message/event rows keyed by
+      server+channel. Lives in the Go backend (`backend/internal/history`,
+      `modernc.org/sqlite`, pure Go/no cgo) rather than `better-sqlite3`/
+      `node:sqlite` in the Electron main process: once the IRC client itself
+      moved to `dolqd`, that's also where every line/event already flows
+      through, so that's where it gets persisted - not just `PRIVMSG`, every
+      raw line and every parsed event, verbatim. What to render from that is
+      a UI decision made separately (`App.tsx`'s `toMessages`), not
+      storage's to pre-filter
+- [x] Async batched writes so a busy channel doesn't block the IRC socket read
+      loop - one writer goroutine draining a buffered channel, opportunistically
+      batching whatever's queued into one transaction per commit instead of
+      one fsync per line. Persisted before fan-out to live subscribers, not
+      after, since fan-out writes to subscriber sockets synchronously on the
+      same read-loop goroutine and could otherwise delay history behind a
+      slow subscriber
+- [x] Message history stops depending on zustand's `persist` (`localStorage`) -
+      `messageMap` was already excluded from `partialize`; scrollback now
+      round-trips through SQLite instead (`getHistory` IPC action) rather
+      than living only in memory for the session
+- [x] On channel open: preload the most recent messages (default 100) from
+      SQLite; lazy-load older history on scroll-up (infinite scroll backwards) -
+      paged backwards via an id cursor, `MessageArea` detects the prepend from
+      the data itself and compensates scroll position so it doesn't jump
+- [x] Retention setting (keep forever / N days) - `dolqd -retention-days N`
+      (0, the default, keeps everything forever). Flag-based rather than a
+      UI toggle since there's no Preferences panel yet (separate item,
+      below) for it to live in; wiring a real setting through to this flag
+      is a small follow-up once that exists. "N messages per channel" as a
+      third mode wasn't built - no UI to choose between it and N-days either
+- [x] Periodic vacuum/compaction so the DB doesn't grow unbounded - hourly
+      prune sweep (plus once at startup) when retention is enabled, paired
+      with `PRAGMA incremental_vacuum` to actually reclaim the freed space
 
 ### Rendering
 

@@ -2,6 +2,7 @@ package history
 
 import (
 	"encoding/json"
+	"fmt"
 	"testing"
 	"time"
 )
@@ -12,7 +13,7 @@ type testEvent struct {
 }
 
 func TestAppendEventAndRecent(t *testing.T) {
-	s, err := Open(":memory:")
+	s, err := Open(":memory:", 0)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -53,7 +54,7 @@ func TestAppendEventAndRecent(t *testing.T) {
 }
 
 func TestAppendLineIsRaw(t *testing.T) {
-	s, err := Open(":memory:")
+	s, err := Open(":memory:", 0)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -64,6 +65,57 @@ func TestAppendLineIsRaw(t *testing.T) {
 
 	if !entries[0].IsRaw || entries[0].Line != ":server NOTICE * :hi" || entries[0].Event != nil {
 		t.Fatalf("expected a raw line entry, got %+v", entries[0])
+	}
+}
+
+// TestBurstSpansMultipleBatches sends more entries than maxBatch in one go,
+// so run() has to drain, commit, and go back for more at least twice -
+// checking the batching loop doesn't drop or misorder anything at that
+// boundary.
+func TestBurstSpansMultipleBatches(t *testing.T) {
+	s, err := Open(":memory:", 0)
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	defer s.Close()
+
+	const n = maxBatch*2 + 37
+	for i := 0; i < n; i++ {
+		s.AppendLine("srv", "__log__", fmt.Sprintf("line %d", i), time.Now())
+	}
+
+	entries := waitForCount(t, s, "srv", "__log__", n)
+	for i, e := range entries {
+		want := fmt.Sprintf("line %d", i)
+		if e.Line != want {
+			t.Fatalf("entry %d: got %q, want %q (order/loss bug across a batch boundary)", i, e.Line, want)
+		}
+	}
+}
+
+func TestRetentionPrunesOldEntries(t *testing.T) {
+	s, err := Open(":memory:", 1) // 1-day retention
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	defer s.Close()
+
+	old := time.Now().AddDate(0, 0, -2) // past the 1-day cutoff
+	s.AppendLine("srv", "__log__", "old line", old)
+	s.AppendLine("srv", "__log__", "recent line", time.Now())
+	waitForCount(t, s, "srv", "__log__", 2)
+
+	// pruneLoop already ran one sweep at startup (before these entries even
+	// existed) and won't run another for an hour, so drive it directly
+	// rather than waiting on the real ticker.
+	s.prune()
+
+	entries, err := s.Recent("srv", "__log__", 0, 10)
+	if err != nil {
+		t.Fatalf("recent: %v", err)
+	}
+	if len(entries) != 1 || entries[0].Line != "recent line" {
+		t.Fatalf("prune kept the wrong entries: %+v", entries)
 	}
 }
 
@@ -89,7 +141,7 @@ func waitForCount(t *testing.T, s *Store, serverID, channel string, want int) []
 	var entries []Entry
 	for time.Now().Before(deadline) {
 		var err error
-		entries, err = s.Recent(serverID, channel, 0, 10)
+		entries, err = s.Recent(serverID, channel, 0, want+10)
 		if err != nil {
 			t.Fatalf("recent: %v", err)
 		}

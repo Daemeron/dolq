@@ -2,9 +2,12 @@
 // - every raw line and every parsed event, verbatim - to SQLite, and serves
 // it back as scrollback. What to actually render from that is a UI
 // decision, made later, elsewhere; storage doesn't pre-filter. One *Store
-// per process, one writer goroutine - SQLite doesn't want concurrent
-// writers, and that's also exactly what the roadmap asked for ("one
-// writer... message/event tables keyed by server+channel").
+// per process, one writer goroutine batching queued writes into a
+// transaction - SQLite doesn't want concurrent writers, and that's also
+// exactly what the roadmap asked for ("one writer... async batched writes
+// so a busy channel doesn't block the IRC socket read loop"). An optional
+// retention window prunes old entries (and reclaims their space) on a
+// periodic sweep.
 package history
 
 import (
@@ -45,14 +48,21 @@ type Entry struct {
 }
 
 type Store struct {
-	db      *sql.DB
-	entries chan Entry
-	done    chan struct{}
+	db            *sql.DB
+	entries       chan Entry
+	done          chan struct{}
+	retentionDays int
+	stopPrune     chan struct{}
+	pruneDone     chan struct{}
 }
 
 // Open creates path's schema if needed and starts the writer goroutine.
-// Pass ":memory:" for tests.
-func Open(path string) (*Store, error) {
+// retentionDays prunes entries older than that many days on a periodic
+// sweep (plus once at startup); 0 disables pruning entirely - keep
+// everything forever, the default, and today's only behavior since nothing
+// yet offers a way to set this above the flag dolqd starts with. Pass
+// ":memory:" for tests.
+func Open(path string, retentionDays int) (*Store, error) {
 	db, err := sql.Open("sqlite", path)
 	if err != nil {
 		return nil, err
@@ -62,27 +72,92 @@ func Open(path string) (*Store, error) {
 	// serialized and SQLite never sees a concurrent writer. Chat traffic
 	// never comes close to saturating that.
 	db.SetMaxOpenConns(1)
+	// Lets `PRAGMA incremental_vacuum` (run after a prune sweep actually
+	// deletes rows) reclaim freed pages without the full-file rewrite/lock a
+	// plain VACUUM needs. Only takes effect from a fresh/empty database, so
+	// this has to run before schema creates any tables.
+	if _, err := db.Exec(`PRAGMA auto_vacuum = INCREMENTAL`); err != nil {
+		db.Close()
+		return nil, err
+	}
 	if _, err := db.Exec(schema); err != nil {
 		db.Close()
 		return nil, err
 	}
-	s := &Store{db: db, entries: make(chan Entry, 256), done: make(chan struct{})}
+	// bufferSize: every raw line queues up to two entries (the line itself,
+	// plus its parsed event) into this one channel, so a burst of N lines
+	// is really ~2N sends. Sized generously against that - see append's
+	// docs for what happens if it's ever actually exceeded.
+	const bufferSize = 4096
+	s := &Store{db: db, entries: make(chan Entry, bufferSize), done: make(chan struct{}), retentionDays: retentionDays}
 	go s.run()
+	if retentionDays > 0 {
+		s.stopPrune = make(chan struct{})
+		s.pruneDone = make(chan struct{})
+		go s.pruneLoop()
+	}
 	return s, nil
 }
 
+// maxBatch caps how many queued entries run drains into one transaction -
+// just a ceiling against a pathological burst holding one transaction open
+// too long, not a target: most batches will be far smaller.
+const maxBatch = 100
+
+// run is the sole writer goroutine. It blocks for the first entry, then
+// opportunistically drains anything already queued (up to maxBatch) into
+// the same transaction before committing - one fsync for a whole burst
+// instead of one per line, without adding latency when traffic is quiet
+// (a lone entry just commits by itself, same as before).
 func (s *Store) run() {
 	defer close(s.done)
-	for e := range s.entries {
+	for {
+		e, ok := <-s.entries
+		if !ok {
+			return
+		}
+		batch := []Entry{e}
+	drain:
+		for len(batch) < maxBatch {
+			select {
+			case e, ok := <-s.entries:
+				if !ok {
+					break drain
+				}
+				batch = append(batch, e)
+			default:
+				break drain
+			}
+		}
+		s.writeBatch(batch)
+	}
+}
+
+func (s *Store) writeBatch(batch []Entry) {
+	tx, err := s.db.Begin()
+	if err != nil {
+		log.Printf("history: begin tx: %v", err)
+		return
+	}
+	stmt, err := tx.Prepare(`INSERT INTO messages (server_id, channel, payload, ts, is_raw) VALUES (?, ?, ?, ?, ?)`)
+	if err != nil {
+		log.Printf("history: prepare insert: %v", err)
+		tx.Rollback()
+		return
+	}
+	defer stmt.Close()
+
+	for _, e := range batch {
 		payload := e.Line
 		if !e.IsRaw {
 			payload = string(e.Event)
 		}
-		_, err := s.db.Exec(`INSERT INTO messages (server_id, channel, payload, ts, is_raw) VALUES (?, ?, ?, ?, ?)`,
-			e.ServerID, e.Channel, payload, e.Timestamp.UnixMilli(), e.IsRaw)
-		if err != nil {
+		if _, err := stmt.Exec(e.ServerID, e.Channel, payload, e.Timestamp.UnixMilli(), e.IsRaw); err != nil {
 			log.Printf("history: write error: %v", err)
 		}
+	}
+	if err := tx.Commit(); err != nil {
+		log.Printf("history: commit tx: %v", err)
 	}
 }
 
@@ -104,10 +179,10 @@ func (s *Store) AppendEvent(serverID, channel string, event any, ts time.Time) {
 	s.append(Entry{ServerID: serverID, Channel: channel, Timestamp: ts, Event: payload})
 }
 
-// ponytail: buffered channel, non-blocking send. At 256 in-flight unwritten
-// entries the write side has effectively stalled - way past normal chat
-// rates - so this drops and logs rather than blocking the read loop the
-// backend dispatches Append* from.
+// ponytail: buffered channel, non-blocking send. At bufferSize in-flight
+// unwritten entries the write side has effectively stalled - a sustained
+// flood way past even a large paste or NAMES dump - so this drops and logs
+// rather than blocking the read loop the backend dispatches Append* from.
 func (s *Store) append(e Entry) {
 	if s == nil {
 		return
@@ -116,6 +191,48 @@ func (s *Store) append(e Entry) {
 	case s.entries <- e:
 	default:
 		log.Printf("history: buffer full, dropping entry for %s/%s", e.ServerID, e.Channel)
+	}
+}
+
+// pruneInterval is how often a running Store re-checks retention beyond the
+// sweep it always does once at startup.
+const pruneInterval = time.Hour
+
+func (s *Store) pruneLoop() {
+	defer close(s.pruneDone)
+	s.prune()
+	ticker := time.NewTicker(pruneInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			s.prune()
+		case <-s.stopPrune:
+			return
+		}
+	}
+}
+
+// prune deletes entries older than retentionDays and, if that actually freed
+// anything, reclaims the space. Only ever called with retentionDays > 0 (via
+// pruneLoop, gated the same way in Open/Close) - retentionDays <= 0 would
+// otherwise make the cutoff "now" and delete everything, so this guards it
+// too rather than relying solely on that call discipline.
+func (s *Store) prune() {
+	if s.retentionDays <= 0 {
+		return
+	}
+	cutoff := time.Now().AddDate(0, 0, -s.retentionDays).UnixMilli()
+	res, err := s.db.Exec(`DELETE FROM messages WHERE ts < ?`, cutoff)
+	if err != nil {
+		log.Printf("history: prune error: %v", err)
+		return
+	}
+	if n, _ := res.RowsAffected(); n > 0 {
+		log.Printf("history: pruned %d entries older than %d day(s)", n, s.retentionDays)
+		if _, err := s.db.Exec(`PRAGMA incremental_vacuum`); err != nil {
+			log.Printf("history: incremental_vacuum: %v", err)
+		}
 	}
 }
 
@@ -167,11 +284,16 @@ func (s *Store) Recent(serverID, channel string, before int64, limit int) ([]Ent
 	return entries, nil
 }
 
-// Close stops the writer goroutine (draining anything already queued) and
-// closes the database. A nil *Store is a no-op.
+// Close stops the prune loop (if running) and the writer goroutine
+// (draining anything already queued), then closes the database. A nil
+// *Store is a no-op.
 func (s *Store) Close() error {
 	if s == nil {
 		return nil
+	}
+	if s.retentionDays > 0 {
+		close(s.stopPrune)
+		<-s.pruneDone
 	}
 	close(s.entries)
 	<-s.done

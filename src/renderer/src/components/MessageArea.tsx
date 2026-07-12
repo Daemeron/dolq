@@ -6,6 +6,7 @@ type Props = {
   messages: Message[];
   isLog: boolean;
   channelId: string;
+  onLoadOlder?: () => void;
 };
 
 const NICK_COLORS = [
@@ -26,25 +27,43 @@ function formatTime(d: Date): string {
 // per-channel scroll memory lives in refs since MessageArea is a single
 // always-mounted instance shared across channels (messages/channelId just swap on switch).
 const AT_BOTTOM_THRESHOLD = 40;
+const LOAD_OLDER_THRESHOLD = 100;
 
-export function MessageArea({ messages, isLog, channelId }: Props) {
+export function MessageArea({ messages, isLog, channelId, onLoadOlder }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const prevChannelId = useRef(channelId);
   const scrollTop = useRef<Map<string, number>>(new Map());
   const isAtBottom = useRef<Map<string, boolean>>(new Map());
+  // The oldest message's id and the container's scrollHeight as of the last
+  // render, so a prepend (older history loaded in above) can be detected
+  // from the data alone and its height compensated for - rather than
+  // guessing from scroll-event timing, which races the async fetch between it.
+  const prevFirstId = useRef<number | null>(null);
+  const prevScrollHeight = useRef(0);
 
   useLayoutEffect(() => {
     const el = containerRef.current;
     if (!el) return;
     const switchedChannel = prevChannelId.current !== channelId;
-    prevChannelId.current = channelId;
-    const wasAtBottom = isAtBottom.current.get(channelId) !== false;
+    const prepended =
+      !switchedChannel && prevFirstId.current !== null && (messages[0]?.id ?? null) !== prevFirstId.current;
 
-    if (switchedChannel && !wasAtBottom) {
-      el.scrollTop = scrollTop.current.get(channelId) ?? el.scrollHeight;
-    } else if (wasAtBottom) {
-      el.scrollTo({ top: el.scrollHeight, behavior: switchedChannel ? 'auto' : 'smooth' });
+    if (prepended) {
+      // Keep whatever the user was looking at in the same spot instead of
+      // letting the newly-inserted content above it push the view down.
+      el.scrollTop += el.scrollHeight - prevScrollHeight.current;
+    } else {
+      const wasAtBottom = isAtBottom.current.get(channelId) !== false;
+      if (switchedChannel && !wasAtBottom) {
+        el.scrollTop = scrollTop.current.get(channelId) ?? el.scrollHeight;
+      } else if (wasAtBottom) {
+        el.scrollTo({ top: el.scrollHeight, behavior: switchedChannel ? 'auto' : 'smooth' });
+      }
     }
+
+    prevChannelId.current = channelId;
+    prevFirstId.current = messages[0]?.id ?? null;
+    prevScrollHeight.current = el.scrollHeight;
   }, [messages, channelId]);
 
   function handleScroll() {
@@ -55,6 +74,7 @@ export function MessageArea({ messages, isLog, channelId }: Props) {
       channelId,
       el.scrollHeight - el.scrollTop - el.clientHeight < AT_BOTTOM_THRESHOLD,
     );
+    if (onLoadOlder && el.scrollTop < LOAD_OLDER_THRESHOLD) onLoadOlder();
   }
 
   if (isLog) {

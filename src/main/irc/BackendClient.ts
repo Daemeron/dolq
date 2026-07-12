@@ -1,11 +1,15 @@
-import { ChildProcessWithoutNullStreams, spawn } from 'child_process';
+import { ChildProcessWithoutNullStreams, execFile, spawn } from 'child_process';
 import { randomUUID } from 'crypto';
 import { EventEmitter } from 'events';
 import { app } from 'electron';
+import fs from 'fs';
 import net from 'net';
 import path from 'path';
 import { createInterface } from 'readline';
+import { promisify } from 'util';
 import { HistoryEntry, IrcEvent } from '../../shared/ipc';
+
+const execFileAsync = promisify(execFile);
 
 // Mirrors backend/internal/ipcproto.ServerFrame.
 interface ServerFrame {
@@ -32,10 +36,11 @@ export class BackendClient extends EventEmitter {
   private child?: ChildProcessWithoutNullStreams;
   private socket?: net.Socket;
   private pending = new Map<string, Pending>();
-  // Connecting takes a beat (dev mode shells out to `go run`), so it starts
-  // in the background at construction time rather than in an awaited
-  // start() - callers (ipcMain handlers) can register immediately and each
-  // request just waits its turn on this instead of racing it.
+  private devBinaryPath?: string; // set in dev only, see resolveBackendCommand
+  // Connecting takes a beat (dev mode builds dolqd first), so it starts in
+  // the background at construction time rather than in an awaited start() -
+  // callers (ipcMain handlers) can register immediately and each request
+  // just waits its turn on this instead of racing it.
   private ready: Promise<void>;
 
   constructor() {
@@ -45,7 +50,8 @@ export class BackendClient extends EventEmitter {
   }
 
   private async spawnAndDial(): Promise<void> {
-    const { cmd, args, cwd } = resolveBackendCommand();
+    const { cmd, args, cwd, devBinaryPath } = await resolveBackendCommand();
+    this.devBinaryPath = devBinaryPath;
     const child = spawn(cmd, args, { cwd });
     this.child = child;
     child.stderr.on('data', (chunk: Buffer) => process.stderr.write(`[dolqd] ${chunk}`));
@@ -95,12 +101,14 @@ export class BackendClient extends EventEmitter {
     return f.messages ?? [];
   }
 
-  // Signals dolqd to shut down (which itself disconnects every session
-  // cleanly - see bouncer.Shutdown) and waits for it to exit.
-  stop(): Promise<void> {
+  // Signals dolqd to shut down (which itself disconnects every session,
+  // flushes any still-queued history writes, and prunes its socket file
+  // cleanly - see bouncer.Shutdown and history.Store.Close) and waits for it
+  // to exit.
+  async stop(): Promise<void> {
     const child = this.child;
-    if (!child) return Promise.resolve();
-    return new Promise((resolve) => {
+    if (!child) return;
+    await new Promise<void>((resolve) => {
       const timer = setTimeout(() => child.kill('SIGKILL'), 12_000);
       child.once('exit', () => {
         clearTimeout(timer);
@@ -109,9 +117,12 @@ export class BackendClient extends EventEmitter {
       // ponytail: SIGTERM only gets a graceful shutdown out of dolqd on
       // POSIX - Windows has no real signal delivery, so this force-kills
       // there instead. Fine until Windows packaging (ROADMAP milestone 5)
-      // is actually verified.
+      // is actually verified. (This relies on `child` being the real dolqd
+      // binary, not a `go run` wrapper that won't forward the signal to
+      // it - see resolveBackendCommand.)
       child.kill('SIGTERM');
     });
+    if (this.devBinaryPath) await fs.promises.rm(this.devBinaryPath, { force: true });
   }
 
   private async call(action: string, fields: Record<string, unknown>): Promise<void> {
@@ -154,14 +165,20 @@ export class BackendClient extends EventEmitter {
   }
 }
 
-function resolveBackendCommand(): { cmd: string; args: string[]; cwd: string } {
+async function resolveBackendCommand(): Promise<{ cmd: string; args: string[]; cwd: string; devBinaryPath?: string }> {
   if (app.isPackaged) {
     const exe = process.platform === 'win32' ? 'dolqd.exe' : 'dolqd';
     return { cmd: path.join(process.resourcesPath, 'bin', exe), args: [], cwd: process.resourcesPath };
   }
-  // ponytail: `go run` recompiles on every launch instead of needing a
-  // separate dev build step kept in sync by hand - a ~1s cost that's a
-  // non-issue outside packaged builds, which use the prebuilt binary above.
+  // Build to a real binary and spawn that directly, the same as the
+  // packaged path above - not `go run`, which wraps the actual binary in a
+  // child process of its own and (at least on this project's dev setup)
+  // doesn't forward SIGTERM/SIGINT to it, silently breaking the graceful
+  // shutdown stop() depends on to flush queued history writes. One `go
+  // build` up front costs about what `go run` was already paying to
+  // compile before executing, so there's no real slowdown.
   const backendDir = path.resolve(__dirname, '../../backend');
-  return { cmd: 'go', args: ['run', './cmd/dolqd'], cwd: backendDir };
+  const devBinaryPath = path.join(app.getPath('temp'), `dolqd-dev-${process.pid}`);
+  await execFileAsync('go', ['build', '-o', devBinaryPath, './cmd/dolqd'], { cwd: backendDir });
+  return { cmd: devBinaryPath, args: [], cwd: backendDir, devBinaryPath };
 }

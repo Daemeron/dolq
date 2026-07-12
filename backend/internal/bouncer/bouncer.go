@@ -117,22 +117,28 @@ func (b *Bouncer) Connect(serverID, host string, port int, nick string, secure b
 func (b *Bouncer) connect(serverID string, client *ircclient.Client, initial Subscriber) {
 	sess := &session{client: client, subscribers: map[Subscriber]struct{}{initial: {}}}
 
+	// Persist before fanning out, not after: fanOut writes to subscriber
+	// sockets synchronously, right here on the IRC read loop's goroutine, so
+	// a slow/stalled subscriber backpressures that write and blocks the read
+	// loop until it clears (pre-existing bouncer behavior, not something
+	// this changes). Append itself never blocks (see append's docs), so
+	// persisting first means a stuck subscriber can delay live delivery
+	// without also risking history for it.
 	client.AddLineListener(func(line string) {
-		sess.fanOutLine(serverID, line)
 		b.store.AppendLine(serverID, logChannel, line, time.Now())
+		sess.fanOutLine(serverID, line)
 	})
 	client.AddEventListener(func(event any) {
-		sess.fanOutEvent(serverID, event)
 		// NamesEvent is a synthesized full-membership snapshot (see
 		// ircclient's NAMES/353/366 handling), not a discrete happening -
 		// nothing to "replay" about it, and persisting a full user list on
 		// every NAMES reply would just bloat the DB. Everything else is
 		// persisted verbatim; which of it actually gets rendered as
 		// scrollback is a UI decision, not storage's to make.
-		if _, ok := event.(ircclient.NamesEvent); ok {
-			return
+		if _, ok := event.(ircclient.NamesEvent); !ok {
+			b.store.AppendEvent(serverID, eventChannel(event), event, time.Now())
 		}
-		b.store.AppendEvent(serverID, eventChannel(event), event, time.Now())
+		sess.fanOutEvent(serverID, event)
 	})
 	client.OnClose(func() {
 		b.mu.Lock()

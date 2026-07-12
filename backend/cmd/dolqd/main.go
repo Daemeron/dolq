@@ -21,6 +21,7 @@ import (
 func main() {
 	socketPath := flag.String("socket", "", "Unix domain socket path to listen on (default: a path under the OS temp dir)")
 	dbPath := flag.String("db", "", "SQLite database path for message history (default: a path under the OS config dir)")
+	retentionDays := flag.Int("retention-days", 0, "prune history older than this many days (0 = keep forever)")
 	flag.Parse()
 
 	path := *socketPath
@@ -37,7 +38,7 @@ func main() {
 	// the socket it should connect to.
 	fmt.Println(path)
 
-	store, err := history.Open(resolveDBPath(*dbPath))
+	store, err := history.Open(resolveDBPath(*dbPath), *retentionDays)
 	if err != nil {
 		log.Fatalf("open history db: %v", err)
 	}

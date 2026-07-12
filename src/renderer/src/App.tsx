@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Message } from './types';
+import type { HistoryEntry } from '../../shared/ipc';
 import { useStore } from './store';
 import { ServerList } from './components/ServerList';
 import { ChannelList } from './components/ChannelList';
@@ -10,6 +11,33 @@ import { MessageInput } from './components/MessageInput';
 import { ConnectModal, type ConnectForm } from './components/ConnectModal';
 import { UserPanel } from './components/UserPanel';
 import { buildServerId, parseServerId } from './utils/server';
+
+// How many rows getHistory fetches per page - both for the initial preload
+// and each scroll-up-triggered older page. Also doubles as the "is there
+// more?" signal: fewer than this many back means we've hit the beginning.
+const HISTORY_PAGE_SIZE = 100;
+
+// The backend persists every raw line and every parsed event, not just
+// what's renderable today - same as the live onLine/onEvent handlers below,
+// only PRIVMSG (and raw lines, for the Log channel) currently become a
+// Message. Add a case here (and in the matching onEvent switch below) as
+// more event types grow their own scrollback rendering.
+function toMessages(entries: HistoryEntry[]): Message[] {
+  const messages: Message[] = [];
+  for (const e of entries) {
+    const timestamp = new Date(e.timestamp);
+    if (e.isRaw) {
+      messages.push({ id: e.id, nick: '', text: e.line ?? '', timestamp, isRaw: true });
+    } else if (e.event?.type === 'PRIVMSG') {
+      messages.push({ id: e.id, nick: e.event.nick, text: e.event.text, timestamp });
+    }
+  }
+  return messages;
+}
+
+// Per-channel scrollback paging state - bookkeeping, not render state, so
+// it lives outside the (unpersisted) store like historyLoaded did before it.
+type HistoryPage = { oldestId: number | null; exhausted: boolean; loading: boolean };
 
 export default function App() {
   const {
@@ -22,7 +50,15 @@ export default function App() {
 
   const [showModal, setShowModal] = useState(false);
   const nextMsgId = useRef(Date.now());
-  const historyLoaded = useRef(new Set<string>());
+  const historyPages = useRef(new Map<string, HistoryPage>());
+
+  // Both the initial preload and loadOlderHistory below need the bare
+  // '__log__' key the backend stores raw lines under - the "__log__" suffix
+  // is only ever added to the messageMap/UI-facing channel id.
+  function backendChannelFor(serverId: string, channelId: string): string {
+    const channel = channelMap[serverId]?.find((c) => c.id === channelId);
+    return channel?.isLog ? '__log__' : channelId;
+  }
 
   useEffect(() => {
     return window.irc.onStatus((serverId, status) => setConnectionStatus(serverId, status));
@@ -128,27 +164,34 @@ export default function App() {
   // per channel per session, tracked outside the (unpersisted) store so it
   // survives messageMap already being seeded to [] at channel-creation time.
   useEffect(() => {
-    if (!selectedServerId || historyLoaded.current.has(selectedChannelId)) return;
-    historyLoaded.current.add(selectedChannelId);
+    if (!selectedServerId || historyPages.current.has(selectedChannelId)) return;
+    const page: HistoryPage = { oldestId: null, exhausted: false, loading: true };
+    historyPages.current.set(selectedChannelId, page);
 
-    const channel = channelMap[selectedServerId]?.find((c) => c.id === selectedChannelId);
-    const backendChannel = channel?.isLog ? '__log__' : selectedChannelId;
+    const backendChannel = backendChannelFor(selectedServerId, selectedChannelId);
+    window.irc.getHistory(selectedServerId, backendChannel, undefined, HISTORY_PAGE_SIZE).then((entries) => {
+      page.loading = false;
+      page.exhausted = entries.length < HISTORY_PAGE_SIZE;
+      page.oldestId = entries[0]?.id ?? null;
+      const messages = toMessages(entries);
+      if (messages.length > 0) setHistory(selectedChannelId, messages);
+    });
+  }, [selectedServerId, selectedChannelId, channelMap, setHistory]);
 
-    window.irc.getHistory(selectedServerId, backendChannel).then((entries) => {
-      // The backend persists every raw line and every parsed event, not
-      // just what's renderable today - same as the live onLine/onEvent
-      // effects above, only PRIVMSG (and raw lines, for the Log channel)
-      // currently become a Message. Add a case here as the live handlers
-      // above grow more of them (JOIN/PART/etc. as scrollback, say).
-      const messages: Message[] = [];
-      for (const e of entries) {
-        const timestamp = new Date(e.timestamp);
-        if (e.isRaw) {
-          messages.push({ id: e.id, nick: '', text: e.line ?? '', timestamp, isRaw: true });
-        } else if (e.event?.type === 'PRIVMSG') {
-          messages.push({ id: e.id, nick: e.event.nick, text: e.event.text, timestamp });
-        }
-      }
+  // Scroll-up-to-load-older, wired into MessageArea's onScroll. Paged
+  // backwards via the oldest row id we've fetched so far for this channel;
+  // a no-op while a page is already in flight or we've hit the beginning.
+  const loadOlderHistory = useCallback(() => {
+    const page = historyPages.current.get(selectedChannelId);
+    if (!selectedServerId || !page || page.loading || page.exhausted || page.oldestId === null) return;
+    page.loading = true;
+
+    const backendChannel = backendChannelFor(selectedServerId, selectedChannelId);
+    window.irc.getHistory(selectedServerId, backendChannel, page.oldestId, HISTORY_PAGE_SIZE).then((entries) => {
+      page.loading = false;
+      page.exhausted = entries.length < HISTORY_PAGE_SIZE;
+      if (entries[0]) page.oldestId = entries[0].id;
+      const messages = toMessages(entries);
       if (messages.length > 0) setHistory(selectedChannelId, messages);
     });
   }, [selectedServerId, selectedChannelId, channelMap, setHistory]);
@@ -280,7 +323,7 @@ export default function App() {
         />
         <div className="flex flex-1 overflow-hidden">
           <div className="flex flex-col flex-1 overflow-hidden">
-            <MessageArea messages={messages} isLog={isLog} channelId={selectedChannelId} />
+            <MessageArea messages={messages} isLog={isLog} channelId={selectedChannelId} onLoadOlder={loadOlderHistory} />
             <MessageInput
               channelName={selectedChannel?.name ?? ''}
               isLog={isLog}
