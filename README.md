@@ -1,17 +1,21 @@
 # Dolq
 
+![Dolq logo](/resources/icons/128x128.png)
+
 > An IRC client that feels like Discord.
 
 [![Build and Test](https://github.com/daemeron/dolq/actions/workflows/build-and-test.yml/badge.svg?branch=main)](https://github.com/daemeron/dolq/actions/workflows/build-and-test.yml)
 [![Latest Release](https://img.shields.io/github/v/release/daemeron/dolq)](https://github.com/daemeron/dolq/releases/latest)
 
-Dolq is a desktop IRC client built with Electron and React, designed to bring
-a familiar, modern interface to IRC. It borrows Discord's layout — server list,
+Dolq is a desktop IRC client built with Electron and React, designed to bring a
+familiar, modern interface to IRC. It borrows Discord's layout — server list,
 channel list, topic bar, message area, and user list — while staying true to the
 IRC protocol underneath. Currently targeting macOS, with multiplatform support
 planned.
 
-> Screenshot coming soon.
+> ![Screenshot 1](/resources//screenshots/Screenshot-1.png)
+> ![Screenshot 2](/resources//screenshots/Screenshot-2.png)
+> ![Screenshot 3](/resources//screenshots/Screenshot-3.png)
 
 ---
 
@@ -50,11 +54,13 @@ planned.
 
 ## Download
 
-Grab the latest release from the [releases page](https://github.com/daemeron/dolq/releases/latest).
+Grab the latest release from the
+[releases page](https://github.com/daemeron/dolq/releases/latest).
 
 ### macOS
 
-After downloading, macOS Gatekeeper will quarantine the app. Remove the flag before opening:
+After downloading, macOS Gatekeeper will quarantine the app. Remove the flag
+before opening:
 
 ```bash
 xattr -d com.apple.quarantine /path/to/app/Dolq.app
@@ -64,7 +70,8 @@ Then open `Dolq.app` normally.
 
 ### Windows
 
-The installer is signed with a self-generated certificate, so Windows SmartScreen will warn you. To proceed:
+The installer is signed with a self-generated certificate, so Windows
+SmartScreen will warn you. To proceed:
 
 1. When the SmartScreen dialog appears, click **More info**
 2. Click **Run anyway**
