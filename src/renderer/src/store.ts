@@ -187,7 +187,7 @@ export const useStore = create<State & Actions>()(
         set((s) => ({ statusMap: { ...s.statusMap, [serverId]: status } })),
     }),
     {
-      name: 'reecord',
+      name: 'dolq',
       storage: createJSONStorage(() => localStorage),
       partialize: (s) => ({
         servers: s.servers,

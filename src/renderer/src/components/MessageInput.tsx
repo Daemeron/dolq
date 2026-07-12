@@ -21,7 +21,7 @@ export function MessageInput({ channelName, isLog, onSend }: Props) {
     <div className="px-4 pb-2.5 pt-2 shrink-0">
       <form onSubmit={handleSubmit}>
         <input
-          className="w-full bg-[#40444b] border-0 rounded-lg text-[#dcddde] text-[15px] px-4 py-3 outline-none caret-[#dcddde] placeholder:text-[#72767d] disabled:opacity-40 disabled:cursor-not-allowed"
+          className="w-full bg-[#333333] border-0 rounded-lg text-[#e6e6e6] text-[15px] px-4 py-3 outline-none caret-[#e6e6e6] placeholder:text-[#6b6b6b] disabled:opacity-40 disabled:cursor-not-allowed"
           value={value}
           onChange={(e) => setValue(e.target.value)}
           placeholder={isLog ? 'Log view — type commands here like /join #channel' : `Message #${channelName}`}

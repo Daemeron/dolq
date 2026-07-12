@@ -88,7 +88,7 @@ describe('IrcClient.connect()', () => {
     client.connect();
     const written = mocks.socketWrite.mock.calls.map((call: any[]) => call[0]);
     expect(written).toContain('NICK mynick\r\n');
-    expect(written).toContain('USER mynick 0 * Reecord IRC Client\r\n');
+    expect(written).toContain('USER mynick 0 * Dolq IRC Client\r\n');
   });
 
   it('registers a close handler on the socket', () => {

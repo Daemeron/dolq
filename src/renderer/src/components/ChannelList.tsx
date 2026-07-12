@@ -26,10 +26,10 @@ export function ChannelList({
 
   return (
     <aside
-      className="relative flex flex-col w-60 bg-[#2f3136] shrink-0 overflow-hidden"
+      className="relative flex flex-col w-60 bg-[#1c1c1c] shrink-0 overflow-hidden"
       onContextMenu={dismissIfUnhandled}
     >
-      <div className="px-4 h-12 flex items-center font-bold text-[15px] text-white border-b border-[#26282d] shrink-0 shadow-[0_1px_0_rgba(0,0,0,0.2)]">
+      <div className="px-4 h-12 flex items-center font-bold text-[15px] text-white border-b border-[#2a2a2a] shrink-0 shadow-[0_1px_0_rgba(0,0,0,0.2)]">
         {serverName}
       </div>
 
@@ -39,8 +39,8 @@ export function ChannelList({
             onClick={() => onSelect(logChannel.id)}
             className={`flex items-center gap-2 w-full py-1.5 px-2 rounded border-0 text-[14px] cursor-pointer text-left font-medium transition-[background,color] duration-100 ${
               selectedId === logChannel.id
-                ? 'bg-[rgba(79,84,92,0.6)] text-white'
-                : 'bg-transparent text-[#8e9297] hover:bg-[rgba(79,84,92,0.4)] hover:text-[#dcddde]'
+                ? 'bg-[rgba(90,90,90,0.55)] text-white'
+                : 'bg-transparent text-[#909090] hover:bg-[rgba(90,90,90,0.35)] hover:text-[#e6e6e6]'
             }`}
           >
             <span className="font-mono text-[11px] opacity-60">▤</span>
@@ -49,7 +49,7 @@ export function ChannelList({
         </div>
       )}
 
-      <div className="pt-3 pb-1 px-4 text-[11px] font-bold uppercase tracking-[0.5px] text-[#72767d]">
+      <div className="pt-3 pb-1 px-4 text-[11px] font-bold uppercase tracking-[0.5px] text-[#6b6b6b]">
         Text Channels
       </div>
 
@@ -64,8 +64,8 @@ export function ChannelList({
               title={joined ? undefined : 'Not currently in this channel'}
               className={`flex items-center w-full py-1.5 px-2 my-px rounded border-0 text-[15px] cursor-pointer text-left transition-[background,color] duration-100 ${
                 ch.id === selectedId
-                  ? 'bg-[rgba(79,84,92,0.6)] text-white'
-                  : 'bg-transparent text-[#8e9297] hover:bg-[rgba(79,84,92,0.4)] hover:text-[#dcddde]'
+                  ? 'bg-[rgba(90,90,90,0.55)] text-white'
+                  : 'bg-transparent text-[#909090] hover:bg-[rgba(90,90,90,0.35)] hover:text-[#e6e6e6]'
               } ${joined ? '' : 'opacity-50 italic'}`}
             >
               <span className="text-[16px] mr-1.5 opacity-50">#</span>

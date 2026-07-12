@@ -20,14 +20,14 @@ const DEFAULTS: ConnectForm = {
   name: 'Localhost',
   host: 'localhost',
   port: '6667',
-  nick: 'reecord_user',
+  nick: 'dolq_user',
   password: '',
 };
 
 const inputClass =
-  'w-full bg-[#40444b] border-0 rounded text-[#dcddde] text-[14px] px-3 py-2.5 outline-none focus:ring-2 focus:ring-[#7289da] placeholder:text-[#72767d]';
+  'w-full bg-[#333333] border-0 rounded text-[#e6e6e6] text-[14px] px-3 py-2.5 outline-none focus:ring-2 focus:ring-[#c792ea] placeholder:text-[#6b6b6b]';
 const labelClass =
-  'flex flex-col gap-1.5 text-[11px] font-bold uppercase tracking-[0.5px] text-[#b9bbbe]';
+  'flex flex-col gap-1.5 text-[11px] font-bold uppercase tracking-[0.5px] text-[#b0b0b0]';
 
 export function ConnectModal({ presets, nickMap, onConnect, onCancel }: Props) {
   const [form, setForm] = useState<ConnectForm>(DEFAULTS);
@@ -67,11 +67,11 @@ export function ConnectModal({ presets, nickMap, onConnect, onCancel }: Props) {
       onClick={onCancel}
     >
       <div
-        className="bg-[#2f3136] rounded-lg p-8 w-110 shadow-[0_8px_32px_rgba(0,0,0,0.5)]"
+        className="bg-[#1c1c1c] rounded-lg p-8 w-110 shadow-[0_8px_32px_rgba(0,0,0,0.5)]"
         onClick={(e) => e.stopPropagation()}
       >
         <h2 className="text-white text-[22px] font-bold mb-1">Add a Server</h2>
-        <p className="text-[#b9bbbe] text-[14px] mb-3">Pick a server, or fill in a custom one below.</p>
+        <p className="text-[#b0b0b0] text-[14px] mb-3">Pick a server, or fill in a custom one below.</p>
 
         <div className="flex flex-col gap-1 max-h-40 overflow-y-auto scroll-thin mb-5 pr-1">
           {presets.map((preset) => (
@@ -79,10 +79,10 @@ export function ConnectModal({ presets, nickMap, onConnect, onCancel }: Props) {
               key={preset.id}
               type="button"
               onClick={() => pickPreset(preset)}
-              className="flex items-baseline justify-between gap-3 px-3 py-2 rounded bg-[#40444b] border-0 text-left cursor-pointer hover:bg-[#4a4f57]"
+              className="flex items-baseline justify-between gap-3 px-3 py-2 rounded bg-[#333333] border-0 text-left cursor-pointer hover:bg-[#3d3d3d]"
             >
-              <span className="text-[#dcddde] text-[14px] font-medium">{preset.name}</span>
-              <span className="text-[#72767d] text-[12px] shrink-0">{preset.host}:{preset.port}</span>
+              <span className="text-[#e6e6e6] text-[14px] font-medium">{preset.name}</span>
+              <span className="text-[#6b6b6b] text-[12px] shrink-0">{preset.host}:{preset.port}</span>
             </button>
           ))}
         </div>
@@ -132,13 +132,13 @@ export function ConnectModal({ presets, nickMap, onConnect, onCancel }: Props) {
             <button
               type="button"
               onClick={onCancel}
-              className="px-4 py-2 rounded text-[#b9bbbe] text-[14px] font-medium bg-transparent border-0 cursor-pointer hover:text-white"
+              className="px-4 py-2 rounded text-[#b0b0b0] text-[14px] font-medium bg-transparent border-0 cursor-pointer hover:text-white"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-5 py-2 rounded bg-[#7289da] text-white text-[14px] font-semibold border-0 cursor-pointer hover:bg-[#677bc4] transition-colors duration-150"
+              className="px-5 py-2 rounded bg-[#c792ea] text-white text-shadow-sm text-[14px] font-semibold border-0 cursor-pointer hover:bg-[#a579c2] transition-colors duration-150"
             >
               Connect
             </button>
