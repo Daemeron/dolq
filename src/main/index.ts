@@ -35,12 +35,12 @@ app.whenReady().then(async () => {
   // has no effect on macOS, unlike Windows/Linux).
   if (!app.isPackaged) app.dock?.setIcon(ICON_PATH);
   createWindow();
-  registerIrcHandlers(mainWindow);
+  const clients = registerIrcHandlers(mainWindow);
   await installReactDevTools();
-  registerAppLifecycleHandlers();
+  registerAppLifecycleHandlers(clients);
 });
 
-function registerIrcHandlers(mainWindow: BrowserWindow): void {
+function registerIrcHandlers(mainWindow: BrowserWindow): Map<string, IrcClient> {
   const clients = new Map<string, IrcClient>();
 
   ipcMain.handle(IrcMessages.connect, async (_event, serverId: string, host: string, port: number, nick: string) => {
@@ -79,15 +79,33 @@ function registerIrcHandlers(mainWindow: BrowserWindow): void {
   ipcMain.handle(IrcMessages.getJoinedChannels, (_event, serverId: string) => {
     return clients.get(serverId)?.getJoinedChannels() ?? [];
   });
+
+  return clients;
 }
 
-function registerAppLifecycleHandlers(): void {
+function registerAppLifecycleHandlers(clients: Map<string, IrcClient>): void {
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
 
   app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') app.quit();
+  });
+
+  // IrcClient.disconnect() already PARTs every joined channel before sending
+  // QUIT, so reusing it here leaves channels (without removing them from the
+  // renderer's persisted list) and disconnects from servers on the way out.
+  // before-quit fires for Cmd+Q, app.quit(), and (non-mac) the quit triggered
+  // by window-all-closed above - but not for a mac user just closing the
+  // window, since the app and its connections are still alive in that case.
+  let quitting = false;
+  app.on('before-quit', (event) => {
+    if (quitting || clients.size === 0) return;
+    quitting = true;
+    event.preventDefault();
+    Promise.all([...clients.values()].map((client) => client.disconnect()))
+      .catch((err) => console.error('Error disconnecting on quit:', err.message))
+      .finally(() => app.quit());
   });
 }
 

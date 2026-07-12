@@ -37,6 +37,7 @@ export class IrcClient {
   }
 
   public async disconnect(): Promise<void> {
+    await Promise.all([...this.joinedChannels].map((channel) => this.send(`PART ${channel}`)));
     await this.send('QUIT');
     this.socket.end();
     await new Promise<void>((resolve) => this.socket.once('close', resolve));
