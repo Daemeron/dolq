@@ -9,6 +9,7 @@ import { UserList } from './components/UserList';
 import { MessageInput } from './components/MessageInput';
 import { ConnectModal, type ConnectForm } from './components/ConnectModal';
 import { UserPanel } from './components/UserPanel';
+import { buildServerId, parseServerId } from './serverId';
 
 export default function App() {
   const {
@@ -123,15 +124,16 @@ export default function App() {
   ]);
 
   async function handleConnect(form: ConnectForm) {
-    const id = `${form.host}:${form.port}`;
+    const id = buildServerId(form.host, form.port);
+    const { host, port } = parseServerId(id);
     addServer(
       { id, name: form.name, initial: form.name[0]?.toUpperCase() ?? '?' },
       { id: `${id}:__log__`, name: 'Log', isLog: true },
     );
-    addPreset({ id, name: form.name, host: form.host, port: Number(form.port) });
+    addPreset({ id, name: form.name, host, port });
     setNick(id, form.nick);
     setConnectionStatus(id, 'connecting');
-    await window.irc.connect(id, form.host, Number(form.port), form.nick);
+    await window.irc.connect(id, host, port, form.nick);
     setConnectionStatus(id, 'connected');
     selectServer(id);
     setShowModal(false);
@@ -140,9 +142,7 @@ export default function App() {
   async function connectToServer() {
     const server = servers.find((s) => s.id === selectedServerId);
     if (!server) return;
-    const lastColon = server.id.lastIndexOf(':');
-    const host = server.id.slice(0, lastColon);
-    const port = Number(server.id.slice(lastColon + 1));
+    const { host, port } = parseServerId(server.id);
     const nick = nickMap[server.id] ?? 'dolq_user';
     setConnectionStatus(server.id, 'connecting');
     await window.irc.connect(server.id, host, port, nick);

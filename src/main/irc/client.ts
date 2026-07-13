@@ -35,11 +35,19 @@ export class IrcClient {
     this.socket.on('error', (err) => {
       console.error('IRC socket error:', err.message);
     });
+    // Each send() gets its own .catch() rather than relying on Promise.all's aggregate
+    // one: Promise.all only settles on the *first* rejection, so if a bad connection
+    // (e.g. one that closes before the handshake finishes writing) fails more than one
+    // of these, the others become separately-rejected promises nothing else observes -
+    // Node reports each as an unhandled rejection even though the "first" one was caught.
     Promise.all([
-      this.send('PASS none'),
-      this.send(`NICK ${this.nick}`),
-      this.send(`USER ${this.nick} 0 * Dolq IRC Client`),
-    ]).catch((err) => console.error('IRC handshake error:', err.message));
+      this.send('PASS none').catch((err) => err),
+      this.send(`NICK ${this.nick}`).catch((err) => err),
+      this.send(`USER ${this.nick} 0 * Dolq IRC Client`).catch((err) => err),
+    ]).then((results) => {
+      const err = results.find((r): r is Error => r instanceof Error);
+      if (err) console.error('IRC handshake error:', err.message);
+    });
     this.keepAlive();
     this.watchForPingTimeout();
     this.parseEvents();
