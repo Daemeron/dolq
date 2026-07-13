@@ -2,6 +2,7 @@ package ircclient
 
 import (
 	"bufio"
+	"encoding/base64"
 	"net"
 	"reflect"
 	"testing"
@@ -116,6 +117,101 @@ func TestHandshake(t *testing.T) {
 			t.Errorf("got %q want %q", got, w)
 		}
 	}
+}
+
+func TestSASL(t *testing.T) {
+	t.Run("not attempted when no credentials are configured", func(t *testing.T) {
+		c, _, r := pipeClient(t, "mynick")
+		c.Start()
+		drainHandshake(t, r) // PASS/NICK/USER, no leading CAP LS
+	})
+
+	t.Run("full successful negotiation", func(t *testing.T) {
+		c, server, r := pipeClient(t, "mynick")
+		c.SASLUser = "myuser"
+		c.SASLPass = "mypass"
+		c.Start()
+
+		if got := expectLine(t, r); got != "CAP LS 302\r\n" {
+			t.Fatalf("got %q want CAP LS 302", got)
+		}
+		drainHandshake(t, r) // PASS/NICK/USER
+
+		if got := expectLine(t, r); got != "CAP REQ :sasl\r\n" {
+			t.Fatalf("got %q want CAP REQ :sasl", got)
+		}
+		// The LS reply arriving first (as it would from a real server, since
+		// LS was sent before REQ) must not be mistaken for the REQ's ack.
+		writeLine(t, server, "CAP * LS :sasl multi-prefix")
+		writeLine(t, server, "CAP * ACK :sasl")
+
+		if got := expectLine(t, r); got != "AUTHENTICATE PLAIN\r\n" {
+			t.Fatalf("got %q want AUTHENTICATE PLAIN", got)
+		}
+		writeLine(t, server, "AUTHENTICATE +")
+
+		want := "AUTHENTICATE " + base64.StdEncoding.EncodeToString([]byte("\x00myuser\x00mypass")) + "\r\n"
+		if got := expectLine(t, r); got != want {
+			t.Fatalf("got %q want %q", got, want)
+		}
+		writeLine(t, server, ":irc.example.net 903 mynick :SASL authentication successful")
+
+		if got := expectLine(t, r); got != "CAP END\r\n" {
+			t.Fatalf("got %q want CAP END", got)
+		}
+	})
+
+	t.Run("gives up cleanly when the server declines the capability", func(t *testing.T) {
+		c, server, r := pipeClient(t, "mynick")
+		c.SASLUser = "myuser"
+		c.SASLPass = "mypass"
+		c.Start()
+
+		expectLine(t, r) // CAP LS 302
+		drainHandshake(t, r)
+		expectLine(t, r) // CAP REQ :sasl
+		writeLine(t, server, "CAP * NAK :sasl")
+
+		if got := expectLine(t, r); got != "CAP END\r\n" {
+			t.Fatalf("got %q want CAP END (no AUTHENTICATE attempt after a NAK)", got)
+		}
+	})
+
+	t.Run("gives up cleanly when authentication is rejected", func(t *testing.T) {
+		c, server, r := pipeClient(t, "mynick")
+		c.SASLUser = "myuser"
+		c.SASLPass = "wrongpass"
+		c.Start()
+
+		expectLine(t, r) // CAP LS 302
+		drainHandshake(t, r)
+		expectLine(t, r) // CAP REQ :sasl
+		writeLine(t, server, "CAP * ACK :sasl")
+		expectLine(t, r) // AUTHENTICATE PLAIN
+		writeLine(t, server, "AUTHENTICATE +")
+		expectLine(t, r) // AUTHENTICATE <payload>
+		writeLine(t, server, ":irc.example.net 904 mynick :SASL authentication failed")
+
+		if got := expectLine(t, r); got != "CAP END\r\n" {
+			t.Fatalf("got %q want CAP END", got)
+		}
+	})
+
+	t.Run("gives up after SASLTimeout when the server never responds", func(t *testing.T) {
+		c, _, r := pipeClient(t, "mynick")
+		c.SASLUser = "myuser"
+		c.SASLPass = "mypass"
+		c.SASLTimeout = 30 * time.Millisecond
+		c.Start()
+
+		expectLine(t, r) // CAP LS 302
+		drainHandshake(t, r)
+		expectLine(t, r) // CAP REQ :sasl - server never acks it
+
+		if got := expectLine(t, r); got != "CAP END\r\n" {
+			t.Fatalf("got %q want CAP END", got)
+		}
+	})
 }
 
 func TestPingPong(t *testing.T) {

@@ -9,6 +9,8 @@ type ConnectForm = {
   nick: string;
   password: string;
   secure: boolean;
+  saslUser: string;
+  saslPass: string;
 };
 
 type Props = {
@@ -25,6 +27,8 @@ const DEFAULTS: ConnectForm = {
   nick: 'dolq_user',
   password: '',
   secure: true,
+  saslUser: '',
+  saslPass: '',
 };
 
 const inputClass =
@@ -148,6 +152,33 @@ export function ConnectModal({ presets, nickMap, onConnect, onCancel }: Props) {
               placeholder="Optional"
             />
           </label>
+
+          <div className="flex flex-col gap-1.5">
+            <span className="text-[11px] font-bold uppercase tracking-[0.5px] text-[#b0b0b0]">
+              SASL Login
+            </span>
+            <p className="text-[#6b6b6b] text-[12px] -mt-0.5">
+              Optional - authenticates your registered account before joining, instead of
+              relying on NickServ IDENTIFY after connecting. Leave both blank to skip it.
+            </p>
+            <div className="flex gap-3 mt-1">
+              <input
+                className={`${inputClass} flex-1`}
+                value={form.saslUser}
+                onChange={set('saslUser')}
+                placeholder="Account name"
+                autoComplete="username"
+              />
+              <input
+                className={`${inputClass} flex-1`}
+                type="password"
+                value={form.saslPass}
+                onChange={set('saslPass')}
+                placeholder="Account password"
+                autoComplete="current-password"
+              />
+            </div>
+          </div>
 
           <div className="flex gap-3 justify-end mt-2">
             <button

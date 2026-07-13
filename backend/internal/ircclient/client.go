@@ -4,6 +4,7 @@ package ircclient
 import (
 	"bufio"
 	"crypto/tls"
+	"encoding/base64"
 	"errors"
 	"log"
 	"net"
@@ -24,6 +25,13 @@ const (
 	DefaultPingTimeout       = 5 * time.Minute
 	DefaultPingCheckInterval = 30 * time.Second
 )
+
+// DefaultSASLTimeout bounds how long the handshake waits for each step of
+// SASL negotiation (capability ack, credential prompt, auth result) before
+// giving up and registering unauthenticated - a server that doesn't
+// understand CAP at all will just never reply, and this is what stops that
+// from hanging the connection forever.
+const DefaultSASLTimeout = 10 * time.Second
 
 // NamesEvent is the synthesized event ircclient emits once a NAMES reply
 // (RFC 353, possibly split across several lines) is complete (RFC 366).
@@ -49,9 +57,23 @@ type Client struct {
 
 	closed chan struct{}
 
+	// capLines carries CAP/AUTHENTICATE/SASL-numeric lines to the handshake
+	// goroutine while it's negotiating SASL - see isCapOrAuthLine and
+	// awaitCapLine. Buffered and non-blocking to send to (like every other
+	// listener dispatch here): once negotiation is done nothing reads it
+	// again, and a slow/absent reader must never stall the read loop.
+	capLines chan string
+
 	// Overridable before Start(); tests shrink these to avoid a slow test suite.
 	PingTimeout       time.Duration
 	PingCheckInterval time.Duration
+	SASLTimeout       time.Duration
+
+	// SASL PLAIN credentials. Both empty (the default) skips SASL entirely -
+	// handshake() falls back to the plain PASS/NICK/USER sequence it always
+	// used, no CAP negotiation at all.
+	SASLUser string
+	SASLPass string
 }
 
 // Dial opens a real connection to an IRC network. secure selects TLS.
@@ -83,8 +105,10 @@ func newClient(conn net.Conn, nick string) *Client {
 		joinedChannels:    make(map[string]struct{}),
 		namesBuffer:       make(map[string][]ircparse.User),
 		closed:            make(chan struct{}),
+		capLines:          make(chan string, 16),
 		PingTimeout:       DefaultPingTimeout,
 		PingCheckInterval: DefaultPingCheckInterval,
+		SASLTimeout:       DefaultSASLTimeout,
 	}
 	c.lastActivity.Store(time.Now().UnixNano())
 	return c
@@ -102,11 +126,17 @@ func (c *Client) Start() {
 }
 
 func (c *Client) handshake() {
-	lines := []string{
-		"PASS none",
-		"NICK " + c.nick,
-		"USER " + c.nick + " 0 * Dolq IRC Client",
+	useSASL := c.SASLUser != "" && c.SASLPass != ""
+
+	var lines []string
+	if useSASL {
+		// Tells the server we're CAP-aware, which holds registration open
+		// until we send CAP END below - otherwise it could complete (and
+		// start delivering messages) before SASL has even started.
+		lines = append(lines, "CAP LS 302")
 	}
+	lines = append(lines, "PASS none", "NICK "+c.nick, "USER "+c.nick+" 0 * Dolq IRC Client")
+
 	// Unlike the TS version (which fires all three writes and separately
 	// catches each rejection so Node doesn't warn about the ones Promise.all
 	// didn't wait for), Go's Write is synchronous - so on error there's
@@ -117,6 +147,141 @@ func (c *Client) handshake() {
 			return
 		}
 	}
+
+	if useSASL {
+		c.negotiateSASL()
+	}
+}
+
+// negotiateSASL requests the sasl capability and, if granted, authenticates
+// via SASL PLAIN before releasing registration with CAP END. Only called
+// when SASL credentials are configured - handshake() already sent CAP LS to
+// hold registration open for this. Any failure along the way (declined
+// capability, rejected credentials, an unresponsive server) just logs and
+// still sends CAP END, so registration completes unauthenticated rather
+// than hanging the connection forever.
+func (c *Client) negotiateSASL() {
+	giveUp := func(reason string) {
+		log.Printf("SASL: %s - continuing without it", reason)
+		if err := c.Send("CAP END"); err != nil {
+			log.Printf("SASL: CAP END: %v", err)
+		}
+	}
+
+	if err := c.Send("CAP REQ :sasl"); err != nil {
+		giveUp("request sasl capability: " + err.Error())
+		return
+	}
+	// The CAP LS reply (triggered by handshake()'s "CAP LS 302") may arrive
+	// first and isn't what we're waiting for - only the ACK/NAK subcommand
+	// actually answers our REQ.
+	ack, ok := c.awaitCapLine(func(l string) bool {
+		sub := capSubcommand(l)
+		return sub == "ACK" || sub == "NAK"
+	})
+	if !ok {
+		giveUp("timed out waiting for the sasl capability request to be acked")
+		return
+	}
+	if capSubcommand(ack) != "ACK" {
+		giveUp("server declined the sasl capability")
+		return
+	}
+
+	if err := c.Send("AUTHENTICATE PLAIN"); err != nil {
+		giveUp("AUTHENTICATE PLAIN: " + err.Error())
+		return
+	}
+	if _, ok := c.awaitCapLine(func(l string) bool { return capCommand(l) == "AUTHENTICATE" }); !ok {
+		giveUp("timed out waiting for the server to request credentials")
+		return
+	}
+
+	// PLAIN mechanism payload: authzid NUL authcid NUL passwd. authzid
+	// (which identity to act as) is left empty - we're not impersonating
+	// another account, just authenticating as authcid.
+	payload := base64.StdEncoding.EncodeToString([]byte("\x00" + c.SASLUser + "\x00" + c.SASLPass))
+	if err := c.Send("AUTHENTICATE " + payload); err != nil {
+		giveUp("send credentials: " + err.Error())
+		return
+	}
+	result, ok := c.awaitCapLine(func(l string) bool {
+		cmd := capCommand(l)
+		return cmd != "CAP" && cmd != "AUTHENTICATE" // one of the 90x SASL result numerics
+	})
+	switch {
+	case !ok:
+		log.Print("SASL: timed out waiting for an authentication result - continuing anyway")
+	case capCommand(result) == "903":
+		log.Print("SASL: authenticated")
+	default:
+		log.Printf("SASL: authentication failed (%s) - continuing without it", strings.TrimSpace(result))
+	}
+	if err := c.Send("CAP END"); err != nil {
+		log.Printf("SASL: CAP END: %v", err)
+	}
+}
+
+// awaitCapLine blocks for the next CAP/AUTHENTICATE/SASL-numeric line
+// matching want (see isCapOrAuthLine), discarding any that don't, up to
+// SASLTimeout or until the connection closes.
+func (c *Client) awaitCapLine(want func(line string) bool) (string, bool) {
+	timeout := time.NewTimer(c.SASLTimeout)
+	defer timeout.Stop()
+	for {
+		select {
+		case line := <-c.capLines:
+			if want(line) {
+				return line, true
+			}
+		case <-timeout.C:
+			return "", false
+		case <-c.closed:
+			return "", false
+		}
+	}
+}
+
+// capFields splits an IRC line into space-separated fields, dropping a
+// leading ":<prefix>" token if present.
+func capFields(line string) []string {
+	fields := strings.Fields(line)
+	if len(fields) > 0 && strings.HasPrefix(fields[0], ":") {
+		fields = fields[1:]
+	}
+	return fields
+}
+
+// capCommand returns an IRC line's command token - CAP, AUTHENTICATE, a
+// numeric reply, whatever - after stripping any source prefix.
+func capCommand(line string) string {
+	fields := capFields(line)
+	if len(fields) == 0 {
+		return ""
+	}
+	return fields[0]
+}
+
+// capSubcommand returns the token after "CAP <target>" (ACK/NAK/LS/...), or
+// "" if line isn't a CAP line.
+func capSubcommand(line string) string {
+	fields := capFields(line)
+	if len(fields) < 3 || fields[0] != "CAP" {
+		return ""
+	}
+	return fields[2]
+}
+
+// isCapOrAuthLine reports whether line is part of capability/SASL
+// negotiation - CAP itself, AUTHENTICATE, or one of the SASL result
+// numerics (900-907) - and so belongs on capLines rather than (only) the
+// regular line/event listeners.
+func isCapOrAuthLine(line string) bool {
+	switch capCommand(line) {
+	case "CAP", "AUTHENTICATE", "900", "901", "902", "903", "904", "905", "906", "907":
+		return true
+	}
+	return false
 }
 
 func (c *Client) watchPingTimeout() {
@@ -165,6 +330,19 @@ func (c *Client) handleLine(line string) {
 	if strings.HasPrefix(line, "PING") {
 		token := strings.TrimSpace(strings.TrimPrefix(line, "PING"))
 		c.Send("PONG " + token)
+	}
+
+	// Doesn't return/skip the normal dispatch below - CAP/AUTHENTICATE
+	// traffic still shows up in the raw line feed same as everything else,
+	// same as PING above. Only negotiateSASL's awaitCapLine ever reads this
+	// channel, and only while SASL is actually being negotiated - the
+	// non-blocking send is what keeps a slow/absent reader from stalling
+	// the read loop the rest of the time.
+	if isCapOrAuthLine(line) {
+		select {
+		case c.capLines <- line:
+		default:
+		}
 	}
 
 	c.mu.Lock()

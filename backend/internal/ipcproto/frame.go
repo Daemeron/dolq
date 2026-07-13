@@ -31,6 +31,8 @@ type ClientFrame struct {
 	Port     int    `json:"port,omitempty"`
 	Nick     string `json:"nick,omitempty"`
 	Secure   bool   `json:"secure,omitempty"`
+	SASLUser string `json:"saslUser,omitempty"` // connect; both empty skips SASL
+	SASLPass string `json:"saslPass,omitempty"` // connect
 	Line     string `json:"line,omitempty"`
 	Channel  string `json:"channel,omitempty"` // getHistory
 	Before   int64  `json:"before,omitempty"`  // getHistory: id cursor, 0 = most recent

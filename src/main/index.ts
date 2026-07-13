@@ -43,8 +43,18 @@ app.whenReady().then(async () => {
 });
 
 function registerIrcHandlers(mainWindow: BrowserWindow, backend: BackendClient): void {
-  ipcMain.handle(IrcMessages.connect, (_event, serverId: string, host: string, port: number, nick: string, secure: boolean) =>
-    backend.connect(serverId, host, port, nick, secure),
+  ipcMain.handle(
+    IrcMessages.connect,
+    (
+      _event,
+      serverId: string,
+      host: string,
+      port: number,
+      nick: string,
+      secure: boolean,
+      saslUser?: string,
+      saslPass?: string,
+    ) => backend.connect(serverId, host, port, nick, secure, saslUser, saslPass),
   );
 
   ipcMain.handle(IrcMessages.send, (_event, serverId: string, message: string) => backend.send(serverId, message));

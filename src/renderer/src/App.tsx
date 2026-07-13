@@ -41,11 +41,11 @@ type HistoryPage = { oldestId: number | null; exhausted: boolean; loading: boole
 
 export default function App() {
   const {
-    servers, presets, channelMap, messageMap, userMap, nickMap,
+    servers, presets, channelMap, messageMap, userMap, nickMap, saslMap,
     selectedServerId, selectedChannelId, statusMap,
-    addServer, removeServer, addPreset, addChannel, removeChannel, appendMessage, setHistory, setNick, selectServer,
-    selectChannel, setConnectionStatus, setUsers, addUser, removeUser, removeUserEverywhere, renameUserEverywhere,
-    applyModeChanges,
+    addServer, removeServer, addPreset, addChannel, removeChannel, appendMessage, setHistory, setNick, setSaslCreds,
+    selectServer, selectChannel, setConnectionStatus, setUsers, addUser, removeUser, removeUserEverywhere,
+    renameUserEverywhere, applyModeChanges,
   } = useStore();
 
   const [showModal, setShowModal] = useState(false);
@@ -205,8 +205,9 @@ export default function App() {
     );
     addPreset({ id, name: form.name, host, port, secure: form.secure });
     setNick(id, form.nick);
+    setSaslCreds(id, form.saslUser, form.saslPass);
     setConnectionStatus(id, 'connecting');
-    await window.irc.connect(id, host, port, form.nick, form.secure);
+    await window.irc.connect(id, host, port, form.nick, form.secure, form.saslUser, form.saslPass);
     setConnectionStatus(id, 'connected');
     selectServer(id);
     setShowModal(false);
@@ -217,8 +218,9 @@ export default function App() {
     if (!server) return;
     const { host, port } = parseServerId(server.id);
     const nick = nickMap[server.id] ?? 'dolq_user';
+    const sasl = saslMap[server.id];
     setConnectionStatus(server.id, 'connecting');
-    await window.irc.connect(server.id, host, port, nick, server.secure);
+    await window.irc.connect(server.id, host, port, nick, server.secure, sasl?.user, sasl?.pass);
     setConnectionStatus(server.id, 'connected');
   }
 

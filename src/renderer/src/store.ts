@@ -14,6 +14,11 @@ type State = {
   selectedServerId: string;
   selectedChannelId: string;
   statusMap: Record<string, 'disconnected' | 'connecting' | 'connected'>;
+  // SASL credentials, kept only for the running session (see partialize) -
+  // never written to localStorage in plaintext. Re-entering them after an
+  // app restart is the accepted tradeoff until there's a real credential
+  // store to put them in.
+  saslMap: Record<string, { user: string; pass: string }>;
 };
 
 type Actions = {
@@ -31,6 +36,7 @@ type Actions = {
   removeUserEverywhere: (nick: string) => void;
   renameUserEverywhere: (oldNick: string, newNick: string) => void;
   setNick: (serverId: string, nick: string) => void;
+  setSaslCreds: (serverId: string, user: string, pass: string) => void;
   selectServer: (id: string) => void;
   selectChannel: (id: string) => void;
   setConnectionStatus: (serverId: string, status: 'disconnected' | 'connecting' | 'connected') => void;
@@ -48,6 +54,7 @@ export const useStore = create<State & Actions>()(
       selectedServerId: '',
       selectedChannelId: '__log__',
       statusMap: {},
+      saslMap: {},
 
       addServer: (server, logChannel) =>
         set((s) => ({
@@ -73,16 +80,21 @@ export const useStore = create<State & Actions>()(
           delete nickMap[id];
           const statusMap = { ...s.statusMap };
           delete statusMap[id];
+          const saslMap = { ...s.saslMap };
+          delete saslMap[id];
 
           if (s.selectedServerId !== id) {
-            return { servers, channelMap, messageMap, userMap, nickMap, statusMap };
+            return { servers, channelMap, messageMap, userMap, nickMap, statusMap, saslMap };
           }
 
           const selectedServerId = servers[0]?.id ?? '';
           const remainingChannels = channelMap[selectedServerId] ?? [];
           const logCh = remainingChannels.find((c) => c.isLog);
           const selectedChannelId = logCh?.id ?? remainingChannels[0]?.id ?? '__log__';
-          return { servers, channelMap, messageMap, userMap, nickMap, statusMap, selectedServerId, selectedChannelId };
+          return {
+            servers, channelMap, messageMap, userMap, nickMap, statusMap, saslMap,
+            selectedServerId, selectedChannelId,
+          };
         }),
 
       addPreset: (preset) =>
@@ -180,6 +192,9 @@ export const useStore = create<State & Actions>()(
 
       setNick: (serverId, nick) =>
         set((s) => ({ nickMap: { ...s.nickMap, [serverId]: nick } })),
+
+      setSaslCreds: (serverId, user, pass) =>
+        set((s) => ({ saslMap: { ...s.saslMap, [serverId]: { user, pass } } })),
 
       selectServer: (id) => {
         const channels = get().channelMap[id] ?? [];

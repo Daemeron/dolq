@@ -92,8 +92,9 @@ func New(store *history.Store) *Bouncer {
 
 // Connect (re)connects serverID, replacing any existing session for it, and
 // attaches initial as the session's first subscriber before returning so
-// nothing sent after Connect returns is missed.
-func (b *Bouncer) Connect(serverID, host string, port int, nick string, secure bool, initial Subscriber) error {
+// nothing sent after Connect returns is missed. saslUser/saslPass are
+// optional (both empty skips SASL entirely, as ircclient.Client does).
+func (b *Bouncer) Connect(serverID, host string, port int, nick string, secure bool, saslUser, saslPass string, initial Subscriber) error {
 	b.mu.Lock()
 	existing := b.sessions[serverID]
 	b.mu.Unlock()
@@ -107,6 +108,8 @@ func (b *Bouncer) Connect(serverID, host string, port int, nick string, secure b
 	if err != nil {
 		return err
 	}
+	client.SASLUser = saslUser
+	client.SASLPass = saslPass
 	b.connect(serverID, client, initial)
 	return nil
 }

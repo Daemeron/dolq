@@ -41,7 +41,17 @@ export type HistoryEntry = {
 };
 
 export type IrcApi = {
-  connect: (serverId: string, host: string, port: number, nick: string, secure: boolean) => Promise<void>;
+  // saslUser/saslPass are optional; both empty/omitted skips SASL PLAIN
+  // entirely and connects the same way it always did.
+  connect: (
+    serverId: string,
+    host: string,
+    port: number,
+    nick: string,
+    secure: boolean,
+    saslUser?: string,
+    saslPass?: string,
+  ) => Promise<void>;
   disconnect: (serverId: string) => Promise<void>;
   sendLine: (serverId: string, line: string) => Promise<void>;
   getStatus: (serverId: string) => Promise<'connected' | 'disconnected'>;

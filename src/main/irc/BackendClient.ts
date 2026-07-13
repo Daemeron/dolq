@@ -74,8 +74,16 @@ export class BackendClient extends EventEmitter {
     this.socket.on('close', () => this.rejectAllPending(new Error('dolqd connection closed')));
   }
 
-  connect(serverId: string, host: string, port: number, nick: string, secure: boolean): Promise<void> {
-    return this.call('connect', { serverId, host, port, nick, secure });
+  connect(
+    serverId: string,
+    host: string,
+    port: number,
+    nick: string,
+    secure: boolean,
+    saslUser?: string,
+    saslPass?: string,
+  ): Promise<void> {
+    return this.call('connect', { serverId, host, port, nick, secure, saslUser, saslPass });
   }
 
   disconnect(serverId: string): Promise<void> {
@@ -114,7 +122,7 @@ export class BackendClient extends EventEmitter {
         clearTimeout(timer);
         resolve();
       });
-      // ponytail: SIGTERM only gets a graceful shutdown out of dolqd on
+      // SIGTERM only gets a graceful shutdown out of dolqd on
       // POSIX - Windows has no real signal delivery, so this force-kills
       // there instead. Fine until Windows packaging (ROADMAP milestone 5)
       // is actually verified. (This relies on `child` being the real dolqd

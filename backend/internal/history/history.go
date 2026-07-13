@@ -179,7 +179,7 @@ func (s *Store) AppendEvent(serverID, channel string, event any, ts time.Time) {
 	s.append(Entry{ServerID: serverID, Channel: channel, Timestamp: ts, Event: payload})
 }
 
-// ponytail: buffered channel, non-blocking send. At bufferSize in-flight
+// buffered channel, non-blocking send. At bufferSize in-flight
 // unwritten entries the write side has effectively stalled - a sustained
 // flood way past even a large paste or NAMES dump - so this drops and logs
 // rather than blocking the read loop the backend dispatches Append* from.

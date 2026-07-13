@@ -65,7 +65,22 @@ will hang the UI.
 - [x] TLS/SSL support (port 6697 by default) - `IrcClient` connects via
       `tls.connect()` when requested, with a per-connection toggle in the
       connect form (defaults on)
-- [ ] SASL PLAIN authentication
+- [x] SASL PLAIN authentication - opt-in: `CAP LS`/`CAP REQ :sasl` only sent
+      when SASL credentials are actually configured, so a connection without
+      them handshakes exactly as before. `AUTHENTICATE`/CAP negotiation lines
+      are handled directly in `ircclient` (not parsed into events - nothing
+      else needs them), with a bounded timeout so a server that ignores CAP
+      entirely can't hang the connection; any failure (declined, rejected,
+      timed out) falls back to registering unauthenticated rather than
+      blocking the connection. Credentials live in the Connect modal and are
+      kept only for the running session (`store.ts`'s `saslMap`, excluded
+      from `partialize` like `messageMap`/`statusMap`) - not written to
+      localStorage in plaintext, so they don't survive an app restart. A
+      real credential store (there's no Preferences panel yet either) is the
+      natural place to fix that later. Separately noticed but left alone:
+      the connect form's "Server Password" (`PASS`) field is already
+      wired up in the UI but was never actually sent by the client -
+      pre-existing, unrelated to SASL, worth its own fix
 - [ ] CAP negotiation (`CAP LS` / `CAP REQ`) - at minimum `multi-prefix` (today
       `NAMES`/`MODE` only ever track a user's single highest privilege - see the
       comment on `applyModeChanges` in `store.ts`), `away-notify`, `server-time`
