@@ -87,8 +87,16 @@ will hang the UI.
 - [ ] Private messages/queries - `PRIVMSG` parsing only matches channel targets
       (`#...`) today; DMs to your own nick aren't parsed or displayed at all
 - [ ] `NOTICE` handling
-- [ ] `TOPIC` / `332` / `333` parsing - `Channel.topic` already exists in the
-      type and renders in `TopicBar`, but nothing ever sets it
+- [x] `TOPIC` / `332` / `333` parsing - the live `TOPIC` command and the
+      RPL_TOPIC (`332`) numeric sent on join parse into a shared
+      `TopicEvent` (`ircparse`); RPL_TOPICWHOTIME (`333`, who set it and
+      when) parses into `TopicWhoTimeEvent`. Both flow through unchanged
+      (bouncer/ipcproto already forward any event generically) into
+      `setTopic`/`setTopicWhoTime` store actions, so `Channel.topic` (plus
+      new `topicSetBy`/`topicSetAt` fields) actually gets set. A live
+      `TOPIC` change also records who/when itself, since servers don't
+      follow it with a 333. `TopicBar` renders the topic as before, with
+      who/when now available as a hover tooltip
 - [ ] CTCP: `ACTION` (`/me`), `VERSION` reply, `PING` reply
 - [ ] Auto-reconnect with backoff on unexpected disconnect (today only a manual
       Connect button/`/connect`)

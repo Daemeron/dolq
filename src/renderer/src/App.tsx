@@ -43,7 +43,7 @@ export default function App() {
   const {
     servers, presets, channelMap, messageMap, userMap, nickMap, saslMap,
     selectedServerId, selectedChannelId, statusMap,
-    addServer, removeServer, addPreset, addChannel, removeChannel, appendMessage, setHistory, setNick, setSaslCreds,
+    addServer, removeServer, addPreset, addChannel, removeChannel, setTopic, setTopicWhoTime, appendMessage, setHistory, setNick, setSaslCreds,
     selectServer, selectChannel, setConnectionStatus, setUsers, addUser, removeUser, removeUserEverywhere,
     renameUserEverywhere, applyModeChanges,
   } = useStore();
@@ -153,11 +153,20 @@ export default function App() {
         case 'names':
           setUsers(event.channel, event.users);
           break;
+        case 'TOPIC':
+          setTopic(serverId, event.channel, event.topic);
+          // A live change (unlike the 332 numeric on join) carries who did it -
+          // servers don't follow up with a 333 for this, so record it here too.
+          if (event.nick) setTopicWhoTime(serverId, event.channel, event.nick, new Date());
+          break;
+        case 'TOPICWHOTIME':
+          setTopicWhoTime(serverId, event.channel, event.nick, new Date(event.setAt * 1000));
+          break;
       }
     });
   }, [
     appendMessage, addChannel, selectChannel, addUser, removeUser,
-    removeUserEverywhere, renameUserEverywhere, applyModeChanges, setUsers, nickMap,
+    removeUserEverywhere, renameUserEverywhere, applyModeChanges, setUsers, setTopic, setTopicWhoTime, nickMap,
   ]);
 
   // Preload scrollback the first time a channel is actually opened - once
@@ -321,6 +330,8 @@ export default function App() {
         <TopicBar
           channelName={selectedChannel?.name ?? ''}
           topic={selectedChannel?.topic}
+          topicSetBy={selectedChannel?.topicSetBy}
+          topicSetAt={selectedChannel?.topicSetAt}
           isLog={isLog}
         />
         <div className="flex flex-1 overflow-hidden">

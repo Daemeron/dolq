@@ -27,6 +27,8 @@ type Actions = {
   addPreset: (preset: ServerPreset) => void;
   addChannel: (serverId: string, channel: Channel) => void;
   removeChannel: (serverId: string, channelId: string) => void;
+  setTopic: (serverId: string, channelId: string, topic: string) => void;
+  setTopicWhoTime: (serverId: string, channelId: string, nick: string, setAt: Date) => void;
   appendMessage: (key: string, msg: Message) => void;
   setHistory: (key: string, messages: Message[]) => void;
   setUsers: (channelId: string, users: User[]) => void;
@@ -112,6 +114,24 @@ export const useStore = create<State & Actions>()(
             messageMap: { ...s.messageMap, [channel.id]: s.messageMap[channel.id] ?? [] },
           };
         }),
+
+      setTopic: (serverId, channelId, topic) =>
+        set((s) => ({
+          channelMap: {
+            ...s.channelMap,
+            [serverId]: (s.channelMap[serverId] ?? []).map((c) => (c.id === channelId ? { ...c, topic } : c)),
+          },
+        })),
+
+      setTopicWhoTime: (serverId, channelId, nick, setAt) =>
+        set((s) => ({
+          channelMap: {
+            ...s.channelMap,
+            [serverId]: (s.channelMap[serverId] ?? []).map((c) =>
+              c.id === channelId ? { ...c, topicSetBy: nick, topicSetAt: setAt } : c,
+            ),
+          },
+        })),
 
       removeChannel: (serverId, channelId) =>
         set((s) => {

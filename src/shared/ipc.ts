@@ -24,7 +24,9 @@ export type IrcEvent =
       channel: string;
       changes: { nick: string; privilege: Exclude<PrivilegeLevel, 'none'>; granted: boolean }[];
     }
-  | { type: 'names'; channel: string; users: { nick: string; privilege: PrivilegeLevel }[] };
+  | { type: 'names'; channel: string; users: { nick: string; privilege: PrivilegeLevel }[] }
+  | { type: 'TOPIC'; channel: string; topic: string; nick?: string }
+  | { type: 'TOPICWHOTIME'; channel: string; nick: string; setAt: number };
 
 // One persisted line, as returned by getHistory - mirrors
 // backend/internal/history.Entry's JSON shape: everything that flowed

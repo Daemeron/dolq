@@ -3,6 +3,7 @@ package ircparse
 
 import (
 	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -73,6 +74,27 @@ type ModeEvent struct {
 	Type    string       `json:"type"`
 	Channel string       `json:"channel"`
 	Changes []ModeChange `json:"changes"`
+}
+
+// TopicEvent covers both a live TOPIC command and the RPL_TOPIC (332) numeric
+// a server sends on join for a channel that already has one - Nick is only
+// ever set for the former (who's changing it right now), empty for the
+// latter (just reporting the existing topic, not a change).
+type TopicEvent struct {
+	Type    string `json:"type"`
+	Channel string `json:"channel"`
+	Topic   string `json:"topic"`
+	Nick    string `json:"nick,omitempty"`
+}
+
+// TopicWhoTimeEvent is RPL_TOPICWHOTIME (333) - who set the current topic and
+// when, sent right after RPL_TOPIC (332) on join. SetAt is Unix seconds, as
+// sent on the wire.
+type TopicWhoTimeEvent struct {
+	Type    string `json:"type"`
+	Channel string `json:"channel"`
+	Nick    string `json:"nick"`
+	SetAt   int64  `json:"setAt"`
 }
 
 // NamesReplyEvent and EndOfNamesEvent are raw wire shapes (RFC replies
@@ -231,6 +253,30 @@ var rules = []rule{
 				return nil
 			}
 			return ModeEvent{Type: "MODE", Channel: m[1], Changes: changes}
+		},
+	},
+	{
+		pattern: regexp.MustCompile(`^:([^!\s]+)!\S+ TOPIC (#\S+) :(.*)$`),
+		build: func(m []string) any {
+			return TopicEvent{Type: "TOPIC", Channel: m[2], Topic: m[3], Nick: m[1]}
+		},
+	},
+	{
+		pattern: regexp.MustCompile(`^:\S+ 332 \S+ (#\S+) :(.*)$`),
+		build: func(m []string) any {
+			return TopicEvent{Type: "TOPIC", Channel: m[1], Topic: m[2]}
+		},
+	},
+	{
+		pattern: regexp.MustCompile(`^:\S+ 333 \S+ (#\S+) (\S+) :?(\d+)$`),
+		build: func(m []string) any {
+			setAt, err := strconv.ParseInt(m[3], 10, 64)
+			if err != nil {
+				return nil
+			}
+			// Some servers send the full nick!user@host, not just the nick.
+			nick, _, _ := strings.Cut(m[2], "!")
+			return TopicWhoTimeEvent{Type: "TOPICWHOTIME", Channel: m[1], Nick: nick, SetAt: setAt}
 		},
 	},
 	{

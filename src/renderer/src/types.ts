@@ -12,6 +12,8 @@ export type Channel = {
   name: string;
   isLog: boolean;
   topic?: string;
+  topicSetBy?: string;
+  topicSetAt?: Date;
 };
 
 export type Message = {

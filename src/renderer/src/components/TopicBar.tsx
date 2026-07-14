@@ -1,10 +1,13 @@
 type Props = {
   channelName: string;
   topic: string | undefined;
+  topicSetBy?: string;
+  topicSetAt?: Date;
   isLog: boolean;
 };
 
-export function TopicBar({ channelName, topic, isLog }: Props) {
+export function TopicBar({ channelName, topic, topicSetBy, topicSetAt, isLog }: Props) {
+  const whoWhen = topicSetBy && `Set by ${topicSetBy}${topicSetAt ? ` at ${topicSetAt.toLocaleString()}` : ''}`;
   return (
     <div className="h-12 flex items-center px-4 border-b border-[#2a2a2a] bg-[#212121] shrink-0 shadow-[0_1px_0_rgba(0,0,0,0.2)]">
       {isLog ? (
@@ -16,7 +19,7 @@ export function TopicBar({ channelName, topic, isLog }: Props) {
           {topic && (
             <>
               <span className="text-[#333333] mx-3 text-lg">|</span>
-              <span className="text-[#b0b0b0] text-[14px] truncate">{topic}</span>
+              <span className="text-[#b0b0b0] text-[14px] truncate" title={whoWhen}>{topic}</span>
             </>
           )}
         </>

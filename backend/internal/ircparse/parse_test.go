@@ -62,6 +62,26 @@ func TestParseLine(t *testing.T) {
 			want: NickEvent{Type: "NICK", OldNick: "eve", NewNick: "eve2"},
 		},
 		{
+			name: "parses a live TOPIC change",
+			line: ":alice!u@host TOPIC #general :new topic here",
+			want: TopicEvent{Type: "TOPIC", Channel: "#general", Topic: "new topic here", Nick: "alice"},
+		},
+		{
+			name: "parses a 332 RPL_TOPIC reply",
+			line: ":irc.example.net 332 me #general :existing topic",
+			want: TopicEvent{Type: "TOPIC", Channel: "#general", Topic: "existing topic"},
+		},
+		{
+			name: "parses a 333 RPL_TOPICWHOTIME reply with a bare nick",
+			line: ":irc.example.net 333 me #general alice 1600000000",
+			want: TopicWhoTimeEvent{Type: "TOPICWHOTIME", Channel: "#general", Nick: "alice", SetAt: 1600000000},
+		},
+		{
+			name: "parses a 333 RPL_TOPICWHOTIME reply with a full hostmask and trailing colon",
+			line: ":irc.example.net 333 me #general alice!u@host :1600000000",
+			want: TopicWhoTimeEvent{Type: "TOPICWHOTIME", Channel: "#general", Nick: "alice", SetAt: 1600000000},
+		},
+		{
 			name: "parses a 353 NAMES reply with mixed status symbols",
 			line: ":irc.example.net 353 me = #general :~alice &bob @carol %dave +eve frank",
 			want: NamesReplyEvent{
