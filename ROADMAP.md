@@ -97,7 +97,19 @@ will hang the UI.
       `TOPIC` change also records who/when itself, since servers don't
       follow it with a 333. `TopicBar` renders the topic as before, with
       who/when now available as a hover tooltip
-- [ ] CTCP: `ACTION` (`/me`), `VERSION` reply, `PING` reply
+- [x] CTCP: `ACTION` (`/me`), `VERSION` reply, `PING` reply - a CTCP payload
+      (`\x01...\x01`) inside a PRIVMSG is now recognized in `ircparse`
+      before the plain-PRIVMSG rule gets a chance to treat it as literal
+      chat text: `ACTION` becomes an `ActionEvent` (rendered as "* nick did
+      a thing", both incoming and for `/me` typed locally), everything else
+      becomes a `CTCPRequestEvent` that never leaves `ircclient` - `VERSION`
+      and `PING` get answered with a `NOTICE` back to the requester
+      (`ircclient.handleCTCPRequest`), anything else is silently ignored.
+      The new CTCP rule matches any `PRIVMSG` target (channel or a private
+      query straight to us), unlike the plain-PRIVMSG rule it sits ahead of
+      - so `VERSION`/`PING` get answered either way even though private
+      messages otherwise still aren't parsed/displayed (see the "Private
+      messages/queries" item above)
 - [ ] Auto-reconnect with backoff on unexpected disconnect (today only a manual
       Connect button/`/connect`)
 - [ ] Nickname collision handling - alternate nick / prompt instead of just

@@ -247,6 +247,69 @@ func TestPingPong(t *testing.T) {
 	})
 }
 
+func TestCTCP(t *testing.T) {
+	t.Run("replies to a CTCP VERSION request with a NOTICE", func(t *testing.T) {
+		c, server, r := pipeClient(t, "testnick")
+		c.Start()
+		drainHandshake(t, r)
+
+		writeLine(t, server, ":alice!u@host PRIVMSG testnick :\x01VERSION\x01")
+		if got := expectLine(t, r); got != "NOTICE alice :\x01VERSION "+clientVersion+"\x01\r\n" {
+			t.Errorf("got %q", got)
+		}
+	})
+
+	t.Run("replies to a CTCP PING request by echoing its token", func(t *testing.T) {
+		c, server, r := pipeClient(t, "testnick")
+		c.Start()
+		drainHandshake(t, r)
+
+		writeLine(t, server, ":alice!u@host PRIVMSG testnick :\x01PING 1600000000\x01")
+		if got := expectLine(t, r); got != "NOTICE alice :\x01PING 1600000000\x01\r\n" {
+			t.Errorf("got %q", got)
+		}
+	})
+
+	t.Run("does not reply to a CTCP ACTION - it's a message to render, not a request", func(t *testing.T) {
+		c, server, r := pipeClient(t, "testnick")
+		c.Start()
+		drainHandshake(t, r)
+		writeLine(t, server, ":alice!u@host PRIVMSG #chan :\x01ACTION waves\x01")
+
+		ch := make(chan string, 1)
+		go func() {
+			line, err := r.ReadString('\n')
+			if err == nil {
+				ch <- line
+			}
+		}()
+		select {
+		case line := <-ch:
+			t.Errorf("unexpected line written by client: %q", line)
+		case <-time.After(100 * time.Millisecond):
+		}
+	})
+
+	t.Run("emits an ActionEvent for a CTCP ACTION", func(t *testing.T) {
+		c, server, r := pipeClient(t, "testnick")
+		events := make(chan any, 1)
+		c.AddEventListener(func(e any) { events <- e })
+		c.Start()
+		drainHandshake(t, r)
+
+		writeLine(t, server, ":alice!u@host PRIVMSG #chan :\x01ACTION waves\x01")
+		select {
+		case e := <-events:
+			want := ircparse.ActionEvent{Type: "ACTION", Nick: "alice", Target: "#chan", Text: "waves"}
+			if !reflect.DeepEqual(e, want) {
+				t.Errorf("got %#v, want %#v", e, want)
+			}
+		case <-time.After(2 * time.Second):
+			t.Fatal("timed out waiting for the ActionEvent")
+		}
+	})
+}
+
 func TestPingTimeoutWatchdog(t *testing.T) {
 	t.Run("closes the connection once no data has arrived for longer than the timeout", func(t *testing.T) {
 		c, _, _ := pipeClient(t, "testnick")

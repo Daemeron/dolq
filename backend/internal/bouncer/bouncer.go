@@ -28,6 +28,8 @@ func eventChannel(event any) string {
 	switch e := event.(type) {
 	case ircparse.PrivmsgEvent:
 		return e.Target
+	case ircparse.ActionEvent:
+		return e.Target
 	case ircparse.JoinEvent:
 		return e.Channel
 	case ircparse.PartEvent:
@@ -35,6 +37,10 @@ func eventChannel(event any) string {
 	case ircparse.KickEvent:
 		return e.Channel
 	case ircparse.ModeEvent:
+		return e.Channel
+	case ircparse.TopicEvent:
+		return e.Channel
+	case ircparse.TopicWhoTimeEvent:
 		return e.Channel
 	default:
 		return logChannel

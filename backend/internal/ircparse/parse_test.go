@@ -62,6 +62,21 @@ func TestParseLine(t *testing.T) {
 			want: NickEvent{Type: "NICK", OldNick: "eve", NewNick: "eve2"},
 		},
 		{
+			name: "parses a CTCP ACTION as an ActionEvent",
+			line: ":alice!u@host PRIVMSG #general :\x01ACTION waves\x01",
+			want: ActionEvent{Type: "ACTION", Nick: "alice", Target: "#general", Text: "waves"},
+		},
+		{
+			name: "parses a CTCP VERSION request",
+			line: ":alice!u@host PRIVMSG dolq_user :\x01VERSION\x01",
+			want: CTCPRequestEvent{Nick: "alice", Target: "dolq_user", Command: "VERSION"},
+		},
+		{
+			name: "parses a CTCP PING request with its token",
+			line: ":alice!u@host PRIVMSG dolq_user :\x01PING 1600000000\x01",
+			want: CTCPRequestEvent{Nick: "alice", Target: "dolq_user", Command: "PING", Param: "1600000000"},
+		},
+		{
 			name: "parses a live TOPIC change",
 			line: ":alice!u@host TOPIC #general :new topic here",
 			want: TopicEvent{Type: "TOPIC", Channel: "#general", Topic: "new topic here", Nick: "alice"},

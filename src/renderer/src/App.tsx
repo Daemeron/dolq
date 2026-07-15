@@ -30,6 +30,8 @@ function toMessages(entries: HistoryEntry[]): Message[] {
       messages.push({ id: e.id, nick: '', text: e.line ?? '', timestamp, isRaw: true });
     } else if (e.event?.type === 'PRIVMSG') {
       messages.push({ id: e.id, nick: e.event.nick, text: e.event.text, timestamp });
+    } else if (e.event?.type === 'ACTION') {
+      messages.push({ id: e.id, nick: e.event.nick, text: e.event.text, timestamp, action: true });
     }
   }
   return messages;
@@ -116,6 +118,11 @@ export default function App() {
         case 'PRIVMSG':
           appendMessage(event.target, {
             id: nextMsgId.current++, nick: event.nick, text: event.text, timestamp: new Date(),
+          });
+          break;
+        case 'ACTION':
+          appendMessage(event.target, {
+            id: nextMsgId.current++, nick: event.nick, text: event.text, timestamp: new Date(), action: true,
           });
           break;
         case 'JOIN':
@@ -269,6 +276,7 @@ export default function App() {
 
   async function handleSend(text: string): Promise<void> {
     const joinMatch = text.match(/^\/join\s+(#\S+)$/);
+    const meMatch = text.match(/^\/me\s+(.+)$/);
 
     if (text === '/connect') {
       if (connectionStatus === 'disconnected') connectToServer();
@@ -278,6 +286,12 @@ export default function App() {
       await window.irc.sendLine(selectedServerId, `JOIN ${joinMatch[1]}`);
     } else if (selectedChannel?.isLog) {
       await window.irc.sendLine(selectedServerId, text);
+    } else if (meMatch) {
+      const action = meMatch[1];
+      await window.irc.sendLine(selectedServerId, `PRIVMSG ${selectedChannelId} :\x01ACTION ${action}\x01`);
+      appendMessage(selectedChannelId, {
+        id: nextMsgId.current++, nick: currentNick, text: action, timestamp: new Date(), action: true,
+      });
     } else {
       await window.irc.sendLine(selectedServerId, `PRIVMSG ${selectedChannelId} :${text}`);
       appendMessage(selectedChannelId, {

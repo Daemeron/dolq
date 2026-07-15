@@ -14,6 +14,7 @@ export function outranks(a: PrivilegeLevel, b: PrivilegeLevel): boolean {
 
 export type IrcEvent =
   | { type: 'PRIVMSG'; nick: string; target: string; text: string }
+  | { type: 'ACTION'; nick: string; target: string; text: string }
   | { type: 'JOIN'; nick: string; channel: string }
   | { type: 'PART'; nick: string; channel: string; reason?: string }
   | { type: 'KICK'; by: string; channel: string; nick: string; reason?: string }

@@ -37,6 +37,27 @@ type PrivmsgEvent struct {
 	Text   string `json:"text"`
 }
 
+// ActionEvent is CTCP ACTION (`/me`) - a PRIVMSG whose text is wrapped in
+// \x01ACTION ... \x01. It's split out from PrivmsgEvent so the UI can render
+// "* nick does a thing" instead of literal control bytes.
+type ActionEvent struct {
+	Type   string `json:"type"`
+	Nick   string `json:"nick"`
+	Target string `json:"target"`
+	Text   string `json:"text"`
+}
+
+// CTCPRequestEvent is any other CTCP request embedded in a PRIVMSG (RFC
+// "extended formatting": \x01COMMAND args\x01) - VERSION and PING being the
+// only ones this client answers. Not meant to leave ircclient: there's
+// nothing to render, only a reply to send - see ircclient.Client.handleLine.
+type CTCPRequestEvent struct {
+	Nick    string
+	Target  string
+	Command string
+	Param   string
+}
+
 type JoinEvent struct {
 	Type    string `json:"type"`
 	Nick    string `json:"nick"`
@@ -208,6 +229,19 @@ type rule struct {
 }
 
 var rules = []rule{
+	// Checked before the plain-PRIVMSG rule below so a CTCP-wrapped payload
+	// (\x01...\x01) - whether sent to a channel or (once query support
+	// exists) straight to us - is recognized as CTCP rather than falling
+	// through as literal chat text containing control bytes.
+	{
+		pattern: regexp.MustCompile(`^:([^!\s]+)!\S+ PRIVMSG (\S+) :\x01(\S+)(?: ([^\x01]*))?\x01$`),
+		build: func(m []string) any {
+			if m[3] == "ACTION" {
+				return ActionEvent{Type: "ACTION", Nick: m[1], Target: m[2], Text: m[4]}
+			}
+			return CTCPRequestEvent{Nick: m[1], Target: m[2], Command: m[3], Param: m[4]}
+		},
+	},
 	{
 		pattern: regexp.MustCompile(`^:([^!\s]+)!\S+ PRIVMSG (#\S+) :(.*)$`),
 		build: func(m []string) any {

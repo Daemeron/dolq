@@ -358,6 +358,9 @@ func (c *Client) handleLine(line string) {
 	}
 
 	switch e := event.(type) {
+	case ircparse.CTCPRequestEvent:
+		c.handleCTCPRequest(e)
+		return
 	case ircparse.NamesReplyEvent:
 		c.mu.Lock()
 		c.namesBuffer[e.Channel] = append(c.namesBuffer[e.Channel], e.Users...)
@@ -400,6 +403,30 @@ func (c *Client) handleLine(line string) {
 	}
 
 	c.emitEvent(event)
+}
+
+// clientVersion answers a CTCP VERSION request - just an identifying
+// string, nothing else reads it.
+const clientVersion = "Dolq IRC Client"
+
+// handleCTCPRequest answers the two CTCP requests worth auto-replying to
+// (VERSION, PING) over CTCP's own reply channel - a NOTICE back to the
+// requester, wrapped the same way the request was. Anything else (ACTION
+// never reaches here - see ircparse's PRIVMSG/CTCP rule) is silently
+// ignored, same as a client that's never heard of it.
+func (c *Client) handleCTCPRequest(e ircparse.CTCPRequestEvent) {
+	switch e.Command {
+	case "VERSION":
+		c.sendCTCPReply(e.Nick, "VERSION "+clientVersion)
+	case "PING":
+		c.sendCTCPReply(e.Nick, "PING "+e.Param)
+	}
+}
+
+func (c *Client) sendCTCPReply(nick, payload string) {
+	if err := c.Send("NOTICE " + nick + " :\x01" + payload + "\x01"); err != nil {
+		log.Printf("ircclient: CTCP reply to %s: %v", nick, err)
+	}
 }
 
 // GetJoinedChannels lets a freshly (re)attached listener verify which
