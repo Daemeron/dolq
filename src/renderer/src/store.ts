@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import { type Server, type Channel, type Message, type User } from './types';
 import { PUBLIC_SERVERS, type ServerPreset } from './data/servers';
-import { outranks, type PrivilegeLevel } from '../../shared/ipc';
+import { type PrivilegeLevel } from '../../shared/ipc';
 
 type State = {
   servers: Server[];
@@ -174,21 +174,28 @@ export const useStore = create<State & Actions>()(
           userMap: { ...s.userMap, [channelId]: (s.userMap[channelId] ?? []).filter((u) => u.nick !== nick) },
         })),
 
-      // without negotiating the multi-prefix capability, NAMES/MODE only ever
-      // reveal a user's single highest privilege, not the full set they hold. So a grant
-      // only takes effect if it outranks what's tracked, and a revoke only clears the
-      // tracked privilege if it matches exactly - upgrade path is CAP REQ multi-prefix.
+      // multi-prefix (negotiated in ircclient's CAP REQ) means NAMES now reports
+      // every privilege a user holds, not just the highest - so this can just
+      // add/remove the specific letter a MODE change touches, exactly, instead
+      // of the old single-slot heuristic (a grant only replacing what's tracked
+      // if it outranked it, a revoke only clearing an exact match) that lost a
+      // user's other privileges the moment one of them changed.
       applyModeChanges: (channelId, changes) =>
         set((s) => {
+          const byNick = new Map<string, typeof changes>();
+          for (const c of changes) byNick.set(c.nick, [...(byNick.get(c.nick) ?? []), c]);
+
           const users = s.userMap[channelId] ?? [];
-          const latestByNick = new Map(changes.map((c) => [c.nick, c]));
           const updated = users.map((u) => {
-            const change = latestByNick.get(u.nick);
-            if (!change) return u;
-            if (change.granted) {
-              return outranks(change.privilege, u.privilege) ? { ...u, privilege: change.privilege } : u;
+            const relevant = byNick.get(u.nick);
+            if (!relevant) return u;
+            let privileges = u.privileges;
+            for (const c of relevant) {
+              privileges = c.granted
+                ? privileges.includes(c.privilege) ? privileges : [...privileges, c.privilege]
+                : privileges.filter((p) => p !== c.privilege);
             }
-            return u.privilege === change.privilege ? { ...u, privilege: 'none' as const } : u;
+            return { ...u, privileges };
           });
           return { userMap: { ...s.userMap, [channelId]: updated } };
         }),

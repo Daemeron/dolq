@@ -12,6 +12,13 @@ export function outranks(a: PrivilegeLevel, b: PrivilegeLevel): boolean {
   return PRIVILEGE_RANK.indexOf(a) < PRIVILEGE_RANK.indexOf(b);
 }
 
+// The best-ranked privilege in a set - what a badge/group-by-rank display
+// wants, now that `multi-prefix` means a user's full set of channel
+// privileges is tracked, not just the one the server used to lead with.
+export function highestPrivilege(privileges: PrivilegeLevel[]): PrivilegeLevel {
+  return privileges.reduce((best, p) => (outranks(p, best) ? p : best), 'none' as PrivilegeLevel);
+}
+
 export type IrcEvent =
   | { type: 'PRIVMSG'; nick: string; target: string; text: string }
   | { type: 'ACTION'; nick: string; target: string; text: string }
@@ -25,7 +32,7 @@ export type IrcEvent =
       channel: string;
       changes: { nick: string; privilege: Exclude<PrivilegeLevel, 'none'>; granted: boolean }[];
     }
-  | { type: 'names'; channel: string; users: { nick: string; privilege: PrivilegeLevel }[] }
+  | { type: 'names'; channel: string; users: { nick: string; privileges: PrivilegeLevel[] }[] }
   | { type: 'TOPIC'; channel: string; topic: string; nick?: string }
   | { type: 'TOPICWHOTIME'; channel: string; nick: string; setAt: number };
 

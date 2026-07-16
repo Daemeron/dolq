@@ -1,5 +1,5 @@
 import { User } from '../types';
-import { PRIVILEGE_RANK, type PrivilegeLevel } from '../../../shared/ipc';
+import { PRIVILEGE_RANK, highestPrivilege, type PrivilegeLevel } from '../../../shared/ipc';
 
 const GROUP_LABEL: Record<PrivilegeLevel, string> = {
   owner: 'Owners', admin: 'Admins', op: 'Operators', halfop: 'Half-Ops', voice: 'Voiced', none: 'Online',
@@ -14,14 +14,15 @@ const COLOR: Record<PrivilegeLevel, string> = {
 };
 
 function UserRow({ user }: { user: User }) {
-  const color = COLOR[user.privilege];
+  const privilege = highestPrivilege(user.privileges);
+  const color = COLOR[privilege];
   return (
     <div className="flex items-center gap-2 px-2 py-1 rounded hover:bg-[rgba(90,90,90,0.35)] cursor-default">
       <div className="w-8 h-8 rounded-full bg-[#212121] text-[#e6e6e6] flex items-center justify-center text-[13px] font-semibold shrink-0">
         {user.nick[0]?.toUpperCase() ?? '?'}
       </div>
-      <span className={`text-[14px] truncate ${user.privilege === 'none' ? 'text-[#909090]' : 'text-[#e6e6e6]'}`}>
-        {SYMBOL[user.privilege] && <span className="mr-0.5" style={{ color }}>{SYMBOL[user.privilege]}</span>}
+      <span className={`text-[14px] truncate ${privilege === 'none' ? 'text-[#909090]' : 'text-[#e6e6e6]'}`}>
+        {SYMBOL[privilege] && <span className="mr-0.5" style={{ color }}>{SYMBOL[privilege]}</span>}
         {user.nick}
       </span>
     </div>
@@ -30,7 +31,10 @@ function UserRow({ user }: { user: User }) {
 
 export function UserList({ users }: { users: User[] }) {
   const groups = PRIVILEGE_RANK
-    .map((privilege) => ({ privilege, members: users.filter((u) => u.privilege === privilege) }))
+    .map((privilege) => ({
+      privilege,
+      members: users.filter((u) => highestPrivilege(u.privileges) === privilege),
+    }))
     .filter((g) => g.members.length > 0);
 
   return (

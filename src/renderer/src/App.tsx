@@ -130,7 +130,7 @@ export default function App() {
             addChannel(serverId, { id: event.channel, name: event.channel.slice(1), isLog: false });
             selectChannel(event.channel);
           } else {
-            addUser(event.channel, { nick: event.nick, privilege: 'none' });
+            addUser(event.channel, { nick: event.nick, privileges: [] });
           }
           break;
         case 'PART':

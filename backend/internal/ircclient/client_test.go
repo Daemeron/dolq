@@ -65,9 +65,12 @@ func writeLine(t *testing.T, conn net.Conn, line string) {
 	}
 }
 
+// drainHandshake reads off the four lines every connection sends up front:
+// CAP LS (always, now - see negotiateCaps), then the classic PASS/NICK/USER
+// registration trio.
 func drainHandshake(t *testing.T, r *bufio.Reader) {
 	t.Helper()
-	for i := 0; i < 3; i++ {
+	for range 4 {
 		expectLine(t, r)
 	}
 }
@@ -111,7 +114,7 @@ func TestHandshake(t *testing.T) {
 	c, _, r := pipeClient(t, "mynick")
 	c.Start()
 
-	want := []string{"PASS none\r\n", "NICK mynick\r\n", "USER mynick 0 * Dolq IRC Client\r\n"}
+	want := []string{"CAP LS 302\r\n", "PASS none\r\n", "NICK mynick\r\n", "USER mynick 0 * Dolq IRC Client\r\n"}
 	for _, w := range want {
 		if got := expectLine(t, r); got != w {
 			t.Errorf("got %q want %q", got, w)
@@ -119,11 +122,72 @@ func TestHandshake(t *testing.T) {
 	}
 }
 
-func TestSASL(t *testing.T) {
-	t.Run("not attempted when no credentials are configured", func(t *testing.T) {
-		c, _, r := pipeClient(t, "mynick")
+func TestCapNegotiation(t *testing.T) {
+	t.Run("requests only the baseline caps the server actually advertised", func(t *testing.T) {
+		c, server, r := pipeClient(t, "mynick")
 		c.Start()
-		drainHandshake(t, r) // PASS/NICK/USER, no leading CAP LS
+		drainHandshake(t, r)
+
+		writeLine(t, server, "CAP * LS :multi-prefix server-time some-other-cap")
+		if got := expectLine(t, r); got != "CAP REQ :multi-prefix server-time\r\n" {
+			t.Fatalf("got %q", got)
+		}
+		writeLine(t, server, "CAP * ACK :multi-prefix server-time")
+
+		if got := expectLine(t, r); got != "CAP END\r\n" {
+			t.Fatalf("got %q want CAP END", got)
+		}
+	})
+
+	t.Run("accumulates a multi-line LS 302 reply before requesting", func(t *testing.T) {
+		c, server, r := pipeClient(t, "mynick")
+		c.Start()
+		drainHandshake(t, r)
+
+		writeLine(t, server, "CAP * LS * :multi-prefix")
+		writeLine(t, server, "CAP * LS :away-notify server-time")
+
+		if got := expectLine(t, r); got != "CAP REQ :multi-prefix away-notify server-time\r\n" {
+			t.Fatalf("got %q", got)
+		}
+	})
+
+	t.Run("sends no REQ, still ends with CAP END, when nothing offered matches", func(t *testing.T) {
+		c, server, r := pipeClient(t, "mynick")
+		c.Start()
+		drainHandshake(t, r)
+
+		writeLine(t, server, "CAP * LS :some-other-cap")
+		if got := expectLine(t, r); got != "CAP END\r\n" {
+			t.Fatalf("got %q want CAP END directly (no REQ sent)", got)
+		}
+	})
+
+	t.Run("registers plainly if the server never replies to CAP LS", func(t *testing.T) {
+		c, _, r := pipeClient(t, "mynick")
+		c.CapTimeout = 30 * time.Millisecond
+		c.Start()
+		drainHandshake(t, r)
+
+		if got := expectLine(t, r); got != "CAP END\r\n" {
+			t.Fatalf("got %q want CAP END", got)
+		}
+	})
+}
+
+func TestSASL(t *testing.T) {
+	t.Run("not requested when no credentials are configured, even if the server offers it", func(t *testing.T) {
+		c, server, r := pipeClient(t, "mynick")
+		c.Start()
+		drainHandshake(t, r)
+
+		writeLine(t, server, "CAP * LS :sasl")
+		// sasl is the only thing offered and it's never requested without
+		// credentials, so this should go straight to CAP END - no CAP REQ,
+		// no AUTHENTICATE, at all.
+		if got := expectLine(t, r); got != "CAP END\r\n" {
+			t.Fatalf("got %q want CAP END (no CAP REQ)", got)
+		}
 	})
 
 	t.Run("full successful negotiation", func(t *testing.T) {
@@ -131,18 +195,15 @@ func TestSASL(t *testing.T) {
 		c.SASLUser = "myuser"
 		c.SASLPass = "mypass"
 		c.Start()
+		drainHandshake(t, r)
 
-		if got := expectLine(t, r); got != "CAP LS 302\r\n" {
-			t.Fatalf("got %q want CAP LS 302", got)
-		}
-		drainHandshake(t, r) // PASS/NICK/USER
+		// Offers only sasl - baseline cap requesting is covered by
+		// TestCapNegotiation, so this stays focused on the SASL exchange.
+		writeLine(t, server, "CAP * LS :sasl")
 
 		if got := expectLine(t, r); got != "CAP REQ :sasl\r\n" {
 			t.Fatalf("got %q want CAP REQ :sasl", got)
 		}
-		// The LS reply arriving first (as it would from a real server, since
-		// LS was sent before REQ) must not be mistaken for the REQ's ack.
-		writeLine(t, server, "CAP * LS :sasl multi-prefix")
 		writeLine(t, server, "CAP * ACK :sasl")
 
 		if got := expectLine(t, r); got != "AUTHENTICATE PLAIN\r\n" {
@@ -166,9 +227,9 @@ func TestSASL(t *testing.T) {
 		c.SASLUser = "myuser"
 		c.SASLPass = "mypass"
 		c.Start()
-
-		expectLine(t, r) // CAP LS 302
 		drainHandshake(t, r)
+
+		writeLine(t, server, "CAP * LS :sasl")
 		expectLine(t, r) // CAP REQ :sasl
 		writeLine(t, server, "CAP * NAK :sasl")
 
@@ -182,9 +243,9 @@ func TestSASL(t *testing.T) {
 		c.SASLUser = "myuser"
 		c.SASLPass = "wrongpass"
 		c.Start()
-
-		expectLine(t, r) // CAP LS 302
 		drainHandshake(t, r)
+
+		writeLine(t, server, "CAP * LS :sasl")
 		expectLine(t, r) // CAP REQ :sasl
 		writeLine(t, server, "CAP * ACK :sasl")
 		expectLine(t, r) // AUTHENTICATE PLAIN
@@ -197,15 +258,15 @@ func TestSASL(t *testing.T) {
 		}
 	})
 
-	t.Run("gives up after SASLTimeout when the server never responds", func(t *testing.T) {
-		c, _, r := pipeClient(t, "mynick")
+	t.Run("gives up after CapTimeout when the server never acks the sasl request", func(t *testing.T) {
+		c, server, r := pipeClient(t, "mynick")
 		c.SASLUser = "myuser"
 		c.SASLPass = "mypass"
-		c.SASLTimeout = 30 * time.Millisecond
+		c.CapTimeout = 30 * time.Millisecond
 		c.Start()
-
-		expectLine(t, r) // CAP LS 302
 		drainHandshake(t, r)
+
+		writeLine(t, server, "CAP * LS :sasl")
 		expectLine(t, r) // CAP REQ :sasl - server never acks it
 
 		if got := expectLine(t, r); got != "CAP END\r\n" {
@@ -376,9 +437,9 @@ func TestNamesAccumulation(t *testing.T) {
 		want := NamesEvent{
 			Type: "names", Channel: "#general",
 			Users: []ircparse.User{
-				{Nick: "alice", Privilege: ircparse.PrivilegeNone},
-				{Nick: "bob", Privilege: ircparse.PrivilegeOp},
-				{Nick: "carol", Privilege: ircparse.PrivilegeNone},
+				{Nick: "alice"},
+				{Nick: "bob", Privileges: []ircparse.PrivilegeLevel{ircparse.PrivilegeOp}},
+				{Nick: "carol"},
 			},
 		}
 		select {

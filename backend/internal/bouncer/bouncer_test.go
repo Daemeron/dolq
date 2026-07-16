@@ -71,7 +71,7 @@ func pipeSession(t *testing.T, b *Bouncer, serverID string, initial Subscriber) 
 	b.connect(serverID, client, initial)
 
 	r := bufio.NewReader(serverConn)
-	for i := 0; i < 3; i++ { // drain the PASS/NICK/USER handshake
+	for i := 0; i < 4; i++ { // drain CAP LS + the PASS/NICK/USER handshake
 		if _, err := r.ReadString('\n'); err != nil {
 			t.Fatalf("drain handshake: %v", err)
 		}

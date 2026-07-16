@@ -19,9 +19,16 @@ const (
 	PrivilegeNone   PrivilegeLevel = "none"
 )
 
+// Privileges holds every channel privilege a user currently has, not just
+// the highest - populated from all of a NAMES prefix stack (e.g. "@+alice"
+// is both op and voice), which the server only sends once `multi-prefix`
+// has been negotiated (see ircclient's CAP REQ). Without it, a server only
+// ever leads with the single highest prefix, so this just comes back with
+// that one entry - same information as before, only representing it as a
+// (single-element) set instead of a bare field.
 type User struct {
-	Nick      string         `json:"nick"`
-	Privilege PrivilegeLevel `json:"privilege"`
+	Nick       string           `json:"nick"`
+	Privileges []PrivilegeLevel `json:"privileges"`
 }
 
 type ModeChange struct {
@@ -130,8 +137,8 @@ type EndOfNamesEvent struct {
 	Channel string
 }
 
-// NAMES only ever reports a single (the highest) prefix per user without the
-// multi-prefix capability, which this client doesn't negotiate.
+// With `multi-prefix` negotiated, a NAMES entry can stack every prefix a
+// user holds (e.g. "@+alice" for op+voice) instead of just the highest one.
 var prefixToPrivilege = map[byte]PrivilegeLevel{
 	'~': PrivilegeOwner, '&': PrivilegeAdmin, '@': PrivilegeOp, '%': PrivilegeHalfop, '+': PrivilegeVoice,
 }
@@ -156,14 +163,17 @@ func parseNames(nickList string) []User {
 	fields := strings.Fields(nickList)
 	users := make([]User, 0, len(fields))
 	for _, raw := range fields {
-		privilege, ok := prefixToPrivilege[raw[0]]
-		nick := raw
-		if ok {
-			nick = raw[1:]
-		} else {
-			privilege = PrivilegeNone
+		i := 0
+		var privileges []PrivilegeLevel
+		for i < len(raw) {
+			p, ok := prefixToPrivilege[raw[i]]
+			if !ok {
+				break
+			}
+			privileges = append(privileges, p)
+			i++
 		}
-		users = append(users, User{Nick: nick, Privilege: privilege})
+		users = append(users, User{Nick: raw[i:], Privileges: privileges})
 	}
 	return users
 }

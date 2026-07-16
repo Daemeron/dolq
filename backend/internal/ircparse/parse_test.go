@@ -102,12 +102,23 @@ func TestParseLine(t *testing.T) {
 			want: NamesReplyEvent{
 				Channel: "#general",
 				Users: []User{
-					{Nick: "alice", Privilege: PrivilegeOwner},
-					{Nick: "bob", Privilege: PrivilegeAdmin},
-					{Nick: "carol", Privilege: PrivilegeOp},
-					{Nick: "dave", Privilege: PrivilegeHalfop},
-					{Nick: "eve", Privilege: PrivilegeVoice},
-					{Nick: "frank", Privilege: PrivilegeNone},
+					{Nick: "alice", Privileges: []PrivilegeLevel{PrivilegeOwner}},
+					{Nick: "bob", Privileges: []PrivilegeLevel{PrivilegeAdmin}},
+					{Nick: "carol", Privileges: []PrivilegeLevel{PrivilegeOp}},
+					{Nick: "dave", Privileges: []PrivilegeLevel{PrivilegeHalfop}},
+					{Nick: "eve", Privileges: []PrivilegeLevel{PrivilegeVoice}},
+					{Nick: "frank"},
+				},
+			},
+		},
+		{
+			name: "parses a 353 NAMES reply with a stacked multi-prefix entry",
+			line: ":irc.example.net 353 me = #general :@+alice bob",
+			want: NamesReplyEvent{
+				Channel: "#general",
+				Users: []User{
+					{Nick: "alice", Privileges: []PrivilegeLevel{PrivilegeOp, PrivilegeVoice}},
+					{Nick: "bob"},
 				},
 			},
 		},

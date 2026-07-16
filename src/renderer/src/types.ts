@@ -28,5 +28,5 @@ export type Message = {
 
 export type User = {
   nick: string;
-  privilege: PrivilegeLevel;
+  privileges: PrivilegeLevel[];
 };

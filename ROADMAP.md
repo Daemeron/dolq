@@ -81,9 +81,29 @@ will hang the UI.
       the connect form's "Server Password" (`PASS`) field is already
       wired up in the UI but was never actually sent by the client -
       pre-existing, unrelated to SASL, worth its own fix
-- [ ] CAP negotiation (`CAP LS` / `CAP REQ`) - at minimum `multi-prefix` (today
-      `NAMES`/`MODE` only ever track a user's single highest privilege - see the
-      comment on `applyModeChanges` in `store.ts`), `away-notify`, `server-time`
+- [x] CAP negotiation (`CAP LS` / `CAP REQ`) - `CAP LS 302` is now sent on
+      every connection, not just when SASL is configured (`ircclient.handshake`);
+      `multi-prefix`, `away-notify`, and `server-time` are requested as one
+      REQ whenever the server advertises them (`negotiateCaps`/`requestCaps`),
+      `sasl` as an independent second REQ so a server declining one doesn't
+      take the other down with it (ACK/NAK answers a REQ atomically). A
+      server that doesn't understand CAP at all just never replies to CAP
+      LS, so every step falls back to registering as if CAP was never sent,
+      the same guarantee SASL negotiation already had. `multi-prefix` is
+      actually put to use: `ircparse.User.Privilege` (a single highest
+      privilege) became `Privileges []PrivilegeLevel` (everything a user
+      currently holds), parsed from a NAMES entry's full stacked prefix
+      (`@+alice`) instead of just its first character - `applyModeChanges`
+      in `store.ts` now adds/removes the exact privilege a MODE change
+      touches instead of the old single-slot heuristic that lost a user's
+      other privileges the moment one of them changed. `server-time` tags
+      every line with `@time=...`, which would otherwise break every
+      regex-based parsing rule in `ircparse` - `ircclient.stripMessageTags`
+      strips that prefix before parsing (the raw, tagged line still reaches
+      history/log verbatim); the timestamp itself isn't otherwise used yet.
+      `away-notify`'s unsolicited `AWAY` lines just flow through unparsed,
+      same as any other command this client doesn't act on - no away-status
+      UI exists yet (that's Milestone 2's "Away status" item)
 - [ ] Private messages/queries - `PRIVMSG` parsing only matches channel targets
       (`#...`) today; DMs to your own nick aren't parsed or displayed at all
 - [ ] `NOTICE` handling
