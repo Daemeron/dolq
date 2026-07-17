@@ -1,3 +1,5 @@
+import { useRef } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { User } from '../types';
 import { PRIVILEGE_RANK, highestPrivilege, type PrivilegeLevel } from '../../../shared/ipc';
 
@@ -12,6 +14,23 @@ const SYMBOL: Record<PrivilegeLevel, string> = {
 const COLOR: Record<PrivilegeLevel, string> = {
   owner: '#ff92df', admin: '#ff5555', op: '#ffcb6b', halfop: '#8be9fd', voice: '#c792ea', none: '#909090',
 };
+
+type Row = { type: 'header'; privilege: PrivilegeLevel; count: number; first: boolean } | { type: 'user'; user: User };
+
+// Flattened header+user rows (rather than nested groups) so the whole list is
+// one virtualizer - a large channel is nearly all "user" rows anyway.
+export function toRows(users: User[]): Row[] {
+  const rows: Row[] = [];
+  let first = true;
+  for (const privilege of PRIVILEGE_RANK) {
+    const members = users.filter((u) => highestPrivilege(u.privileges) === privilege);
+    if (members.length === 0) continue;
+    rows.push({ type: 'header', privilege, count: members.length, first });
+    first = false;
+    for (const user of members) rows.push({ type: 'user', user });
+  }
+  return rows;
+}
 
 function UserRow({ user }: { user: User }) {
   const privilege = highestPrivilege(user.privileges);
@@ -30,24 +49,45 @@ function UserRow({ user }: { user: User }) {
 }
 
 export function UserList({ users }: { users: User[] }) {
-  const groups = PRIVILEGE_RANK
-    .map((privilege) => ({
-      privilege,
-      members: users.filter((u) => highestPrivilege(u.privileges) === privilege),
-    }))
-    .filter((g) => g.members.length > 0);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const rows = toRows(users);
+
+  // Row heights are fixed by the markup (avatar/line height, no wrapping
+  // text) but still measured rather than hardcoded, so padding/margin tweaks
+  // to the rows below don't silently drift out of sync with a guessed number.
+  const rowVirtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => containerRef.current,
+    estimateSize: () => 40,
+    getItemKey: (index) => (rows[index].type === 'header' ? `h-${rows[index].privilege}` : rows[index].user.nick),
+    overscan: 10,
+  });
 
   return (
-    <>
-      {groups.map((g, i) => (
-        <div key={g.privilege}>
-          {i > 0 && <div className="my-3" />}
-          <div className="px-2 pb-1 text-[11px] font-bold uppercase tracking-[0.5px] text-[#6b6b6b]">
-            {GROUP_LABEL[g.privilege]} — {g.members.length}
-          </div>
-          {g.members.map((u) => <UserRow key={u.nick} user={u} />)}
-        </div>
-      ))}
-    </>
+    <div ref={containerRef} className="flex-1 min-h-0 overflow-y-auto pt-4 pb-6 px-2 scroll-thin">
+      <div style={{ height: rowVirtualizer.getTotalSize(), position: 'relative' }}>
+        {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+          const row = rows[virtualRow.index];
+          return (
+            <div
+              key={virtualRow.key}
+              ref={rowVirtualizer.measureElement}
+              data-index={virtualRow.index}
+              style={{ position: 'absolute', top: 0, left: 0, right: 0, transform: `translateY(${virtualRow.start}px)` }}
+            >
+              {row.type === 'header' ? (
+                <div className={row.first ? 'px-2 pb-1' : 'px-2 pb-1 mt-3'}>
+                  <div className="text-[11px] font-bold uppercase tracking-[0.5px] text-[#6b6b6b]">
+                    {GROUP_LABEL[row.privilege]} — {row.count}
+                  </div>
+                </div>
+              ) : (
+                <UserRow user={row.user} />
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }

@@ -54,11 +54,33 @@ will hang the UI.
 
 ### Rendering
 
-- [ ] Virtualized message list (e.g. `react-window` / `@tanstack/virtual`) so
-      scrollback of tens of thousands of lines stays smooth
-- [ ] Preserve scroll position across virtualization changes (channel switch,
-      history backfill inserting older messages above the viewport)
-- [ ] Virtualized user list for large channels (100+ users)
+- [x] Virtualized message list (`@tanstack/react-virtual`) so scrollback of
+      tens of thousands of lines stays smooth - only the rows in (and just
+      around) the viewport are ever mounted. Row heights vary with wrapped
+      text, so sizes start as an estimate and get corrected via
+      `ResizeObserver` after each row mounts; keyed by message id (not index)
+      so a history-backfill prepend doesn't invalidate every already-measured
+      row below it, only the new unmeasured ones above
+- [x] Preserve scroll position across virtualization changes (channel switch,
+      history backfill inserting older messages above the viewport) - the
+      virtualizer's `anchorTo`/`followOnAppend` keep the view pinned to
+      whatever's on screen when older history loads in above it, and follow
+      new messages to the bottom only if you were already there, re-applied
+      on every individual row remeasurement rather than once per render so it
+      doesn't drift as estimated heights get replaced by real ones. Channel
+      switching is a full swap rather than an append/prepend, so it's still
+      handled explicitly: jump to bottom or the remembered scroll position for
+      that channel, same as before virtualization. That jump uses estimated
+      heights for the newly-selected channel (nothing's measured yet), so a
+      restored mid-scroll position can settle slightly as real heights come
+      in - bottom-follow doesn't have this problem since it self-corrects;
+      only worth fixing for the restore case too if that settle is noticeable
+- [x] Virtualized user list for large channels (100+ users) - flattened into
+      one list of header+user rows (rather than nested groups) since a large
+      channel is nearly all user rows anyway; same dynamic-measurement
+      approach as the message list, though row heights are fixed here (no
+      wrapping text) so it's really just future-proofing against padding
+      tweaks drifting out of sync with a hardcoded number
 
 ### Core protocol gaps
 

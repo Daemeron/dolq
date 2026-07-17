@@ -36,6 +36,7 @@
   },
   "dependencies": {
     "@playwright/test": "^1.62.0",
+    "@tanstack/react-virtual": "^3.14.9",
     "irc-caret-notation": "^1.0.5",
     "react": "^18.0.0",
     "react-dom": "^18.0.0",

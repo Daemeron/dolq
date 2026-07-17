@@ -358,11 +358,7 @@ export default function App() {
             />
           </div>
           <aside className="w-52 bg-[#1c1c1c] border-l border-[#2a2a2a] shrink-0 flex flex-col overflow-hidden">
-            {!isLog && (
-              <div className="flex-1 min-h-0 overflow-y-auto pt-4 pb-6 px-2 scroll-thin">
-                <UserList users={users} />
-              </div>
-            )}
+            {!isLog && <UserList users={users} />}
           </aside>
         </div>
       </main>

@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { Message } from '../types';
 import { IrcText } from './IrcText';
 
@@ -34,37 +35,46 @@ export function MessageArea({ messages, isLog, channelId, onLoadOlder }: Props) 
   const prevChannelId = useRef(channelId);
   const scrollTop = useRef<Map<string, number>>(new Map());
   const isAtBottom = useRef<Map<string, boolean>>(new Map());
-  // The oldest message's id and the container's scrollHeight as of the last
-  // render, so a prepend (older history loaded in above) can be detected
-  // from the data alone and its height compensated for - rather than
-  // guessing from scroll-event timing, which races the async fetch between it.
-  const prevFirstId = useRef<number | null>(null);
-  const prevScrollHeight = useRef(0);
+
+  const switchedChannel = prevChannelId.current !== channelId;
+
+  // Row heights vary (wrapped text), so sizes start as an estimate and get
+  // corrected via ResizeObserver after each row mounts. Keying by message id
+  // (not index) keeps a prepended older-history page from invalidating every
+  // already-measured row below it - only the new rows above are unmeasured.
+  // anchorTo/followOnAppend do what the old hand-rolled scrollTop math used
+  // to: keep the view pinned to what you were looking at when older history
+  // loads in above it, and follow new messages to the bottom only if you were
+  // already there - but re-applied on every individual remeasurement instead
+  // of once per render, so it doesn't drift once estimated heights are
+  // replaced by real ones.
+  const rowVirtualizer = useVirtualizer({
+    count: messages.length,
+    getScrollElement: () => containerRef.current,
+    estimateSize: () => (isLog ? 20 : 28),
+    getItemKey: (index) => messages[index].id,
+    overscan: 8,
+    anchorTo: 'end',
+    followOnAppend: switchedChannel ? false : 'smooth',
+    scrollEndThreshold: AT_BOTTOM_THRESHOLD,
+  });
 
   useLayoutEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-    const switchedChannel = prevChannelId.current !== channelId;
-    const prepended =
-      !switchedChannel && prevFirstId.current !== null && (messages[0]?.id ?? null) !== prevFirstId.current;
-
-    if (prepended) {
-      // Keep whatever the user was looking at in the same spot instead of
-      // letting the newly-inserted content above it push the view down.
-      el.scrollTop += el.scrollHeight - prevScrollHeight.current;
-    } else {
-      const wasAtBottom = isAtBottom.current.get(channelId) !== false;
-      if (switchedChannel && !wasAtBottom) {
-        el.scrollTop = scrollTop.current.get(channelId) ?? el.scrollHeight;
-      } else if (wasAtBottom) {
-        el.scrollTo({ top: el.scrollHeight, behavior: switchedChannel ? 'auto' : 'smooth' });
+    if (switchedChannel) {
+      const el = containerRef.current;
+      if (el) {
+        const wasAtBottom = isAtBottom.current.get(channelId) !== false;
+        // Known limitation: this jump uses estimated row heights for the
+        // newly-selected channel (nothing's measured yet), so a restored
+        // mid-scroll position can settle slightly as real heights come in.
+        // Bottom-follow self-corrects (virtual-core re-pins on every
+        // remeasure while at end); only fix the restore case too if that
+        // settle is noticeable.
+        el.scrollTop = wasAtBottom ? el.scrollHeight : scrollTop.current.get(channelId) ?? el.scrollHeight;
       }
     }
-
     prevChannelId.current = channelId;
-    prevFirstId.current = messages[0]?.id ?? null;
-    prevScrollHeight.current = el.scrollHeight;
-  }, [messages, channelId]);
+  }, [channelId, switchedChannel]);
 
   function handleScroll() {
     const el = containerRef.current;
@@ -77,65 +87,65 @@ export function MessageArea({ messages, isLog, channelId, onLoadOlder }: Props) 
     if (onLoadOlder && el.scrollTop < LOAD_OLDER_THRESHOLD) onLoadOlder();
   }
 
-  if (isLog) {
+  const virtualRows = rowVirtualizer.getVirtualItems();
+
+  if (messages.length === 0) {
     return (
       <div ref={containerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto px-4 py-4 scroll-thin">
-        {messages.length === 0 ? (
-          <p className="text-[#6b6b6b] text-[14px]">No traffic yet.</p>
-        ) : (
-          <div className="font-mono text-[12px] leading-5 text-[#e6e6e6] whitespace-pre-wrap break-all">
-            {messages.map((m) => (
-              <div key={m.id}>
-                <span className="text-[#6b6b6b] mr-3">{formatTime(m.timestamp)}</span>
-                <IrcText text={m.text} />
-              </div>
-            ))}
-          </div>
-        )}
+        <p className={isLog ? 'text-[#6b6b6b] text-[14px]' : 'text-[#6b6b6b] text-[14px] text-center mt-8'}>
+          {isLog ? 'No traffic yet.' : 'No messages yet.'}
+        </p>
       </div>
     );
   }
 
   return (
     <div ref={containerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto px-4 py-4 scroll-thin">
-      {messages.length === 0 ? (
-        <p className="text-[#6b6b6b] text-[14px] text-center mt-8">No messages yet.</p>
-      ) : (
-        messages.map((m) =>
-          m.system ? (
-            <div key={m.id} className="flex items-baseline gap-3 py-1 px-2">
-              <span className="text-[11px] text-[#6b6b6b] shrink-0 w-10 text-right">{formatTime(m.timestamp)}</span>
-              <span className="text-[#6b6b6b] text-[13px] italic"><IrcText text={m.text} /></span>
-            </div>
-          ) : m.action ? (
-            <div key={m.id} className="flex items-baseline gap-3 py-0.5 group hover:bg-[rgba(4,4,5,0.07)] px-2 rounded">
-              <span className="text-[11px] text-[#6b6b6b] shrink-0 w-10 text-right opacity-0 group-hover:opacity-100">
-                {formatTime(m.timestamp)}
-              </span>
-              <span className="text-[15px] leading-relaxed italic">
-                <span style={{ color: nickColor(m.nick) }}>* {m.nick}</span>{' '}
-                <span className="text-[#e6e6e6]"><IrcText text={m.text} /></span>
-              </span>
-            </div>
-          ) : (
+      <div style={{ height: rowVirtualizer.getTotalSize(), position: 'relative' }}>
+        {virtualRows.map((virtualRow) => {
+          const m = messages[virtualRow.index];
+          return (
             <div
-              key={m.id}
-              className="flex items-baseline gap-3 py-0.5 group hover:bg-[rgba(4,4,5,0.07)] px-2 rounded"
+              key={virtualRow.key}
+              ref={rowVirtualizer.measureElement}
+              data-index={virtualRow.index}
+              style={{ position: 'absolute', top: 0, left: 0, right: 0, transform: `translateY(${virtualRow.start}px)` }}
             >
-              <span className="text-[11px] text-[#6b6b6b] shrink-0 w-10 text-right opacity-0 group-hover:opacity-100">
-                {formatTime(m.timestamp)}
-              </span>
-              <span
-                className="font-semibold text-[14px] shrink-0"
-                style={{ color: nickColor(m.nick) }}
-              >
-                {m.nick}
-              </span>
-              <span className="text-[#e6e6e6] text-[15px] leading-relaxed"><IrcText text={m.text} /></span>
+              {isLog ? (
+                <div className="font-mono text-[12px] leading-5 text-[#e6e6e6] whitespace-pre-wrap break-all">
+                  <span className="text-[#6b6b6b] mr-3">{formatTime(m.timestamp)}</span>
+                  <IrcText text={m.text} />
+                </div>
+              ) : m.system ? (
+                <div className="flex items-baseline gap-3 py-1 px-2">
+                  <span className="text-[11px] text-[#6b6b6b] shrink-0 w-10 text-right">{formatTime(m.timestamp)}</span>
+                  <span className="text-[#6b6b6b] text-[13px] italic"><IrcText text={m.text} /></span>
+                </div>
+              ) : m.action ? (
+                <div className="flex items-baseline gap-3 py-0.5 group hover:bg-[rgba(4,4,5,0.07)] px-2 rounded">
+                  <span className="text-[11px] text-[#6b6b6b] shrink-0 w-10 text-right opacity-0 group-hover:opacity-100">
+                    {formatTime(m.timestamp)}
+                  </span>
+                  <span className="text-[15px] leading-relaxed italic">
+                    <span style={{ color: nickColor(m.nick) }}>* {m.nick}</span>{' '}
+                    <span className="text-[#e6e6e6]"><IrcText text={m.text} /></span>
+                  </span>
+                </div>
+              ) : (
+                <div className="flex items-baseline gap-3 py-0.5 group hover:bg-[rgba(4,4,5,0.07)] px-2 rounded">
+                  <span className="text-[11px] text-[#6b6b6b] shrink-0 w-10 text-right opacity-0 group-hover:opacity-100">
+                    {formatTime(m.timestamp)}
+                  </span>
+                  <span className="font-semibold text-[14px] shrink-0" style={{ color: nickColor(m.nick) }}>
+                    {m.nick}
+                  </span>
+                  <span className="text-[#e6e6e6] text-[15px] leading-relaxed"><IrcText text={m.text} /></span>
+                </div>
+              )}
             </div>
-          ),
-        )
-      )}
+          );
+        })}
+      </div>
     </div>
   );
 }
