@@ -7,7 +7,7 @@ import net from 'net';
 import path from 'path';
 import { createInterface } from 'readline';
 import { promisify } from 'util';
-import { HistoryEntry, IrcEvent } from '../../shared/ipc';
+import { ConnectionStatus, HistoryEntry, IrcEvent } from '../../shared/ipc';
 
 const execFileAsync = promisify(execFile);
 
@@ -18,7 +18,7 @@ interface ServerFrame {
   serverId?: string;
   line?: string;
   event?: IrcEvent;
-  status?: 'connected' | 'disconnected';
+  status?: ConnectionStatus;
   channels?: string[];
   messages?: HistoryEntry[];
   ok?: boolean;
@@ -94,7 +94,7 @@ export class BackendClient extends EventEmitter {
     return this.call('send', { serverId, line });
   }
 
-  async getStatus(serverId: string): Promise<'connected' | 'disconnected'> {
+  async getStatus(serverId: string): Promise<ConnectionStatus> {
     const f = await this.request('getStatus', { serverId });
     return f.status ?? 'disconnected';
   }

@@ -152,8 +152,17 @@ will hang the UI.
       - so `VERSION`/`PING` get answered either way even though private
       messages otherwise still aren't parsed/displayed (see the "Private
       messages/queries" item above)
-- [ ] Auto-reconnect with backoff on unexpected disconnect (today only a manual
-      Connect button/`/connect`)
+- [x] Auto-reconnect with backoff on unexpected disconnect - a session's close
+      is now either intentional (`Disconnect`, or a fresh `Connect` replacing
+      it) or not; only the latter triggers a redial with exponential backoff
+      (`Bouncer.ReconnectBackoffBase`/`Max`, 2s doubling to a 60s cap),
+      indefinitely until it succeeds or the user disconnects. The session
+      object (and its subscribers) survives the drop - only its underlying
+      `ircclient.Client` gets swapped out on a successful redial, so an
+      attached frontend keeps receiving fan-out without re-`Attach`ing.
+      Status during a retry reuses the existing `connecting` state (no new
+      status value, so no frontend changes needed) rather than adding a
+      distinct "reconnecting" state
 - [ ] Nickname collision handling - alternate nick / prompt instead of just
       showing the raw `433` line in the Log
 - [ ] Outgoing flood protection (basic send-rate limiting so a paste storm

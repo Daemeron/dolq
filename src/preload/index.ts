@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import { IrcApi, IrcEvent, IrcMessages } from '../shared/ipc';
+import { ConnectionStatus, IrcApi, IrcEvent, IrcMessages } from '../shared/ipc';
 
 contextBridge.exposeInMainWorld('irc', {
   connect: (
@@ -41,7 +41,7 @@ contextBridge.exposeInMainWorld('irc', {
   },
 
   onStatus: (callback) => {
-    const handler = (_event: Electron.IpcRendererEvent, serverId: string, status: 'connected' | 'disconnected') =>
+    const handler = (_event: Electron.IpcRendererEvent, serverId: string, status: ConnectionStatus) =>
       callback(serverId, status);
     ipcRenderer.on(IrcMessages.status, handler);
     return () => ipcRenderer.removeListener(IrcMessages.status, handler);

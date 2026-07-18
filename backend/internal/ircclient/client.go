@@ -545,6 +545,20 @@ func (c *Client) sendCTCPReply(nick, payload string) {
 	}
 }
 
+// Closed reports whether the connection has already ended - i.e. whether
+// OnClose's registered callbacks have already run (or would run immediately
+// if registered now). Lets a caller holding onto a possibly-stale Client
+// (bouncer, after an unexpected drop) tell whether it's still worth trying
+// to use before doing so.
+func (c *Client) Closed() bool {
+	select {
+	case <-c.closed:
+		return true
+	default:
+		return false
+	}
+}
+
 // GetJoinedChannels lets a freshly (re)attached listener verify which
 // channels this session is still actually in.
 func (c *Client) GetJoinedChannels() []string {

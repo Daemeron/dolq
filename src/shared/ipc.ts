@@ -64,13 +64,18 @@ export type IrcApi = {
   ) => Promise<void>;
   disconnect: (serverId: string) => Promise<void>;
   sendLine: (serverId: string, line: string) => Promise<void>;
-  getStatus: (serverId: string) => Promise<'connected' | 'disconnected'>;
+  getStatus: (serverId: string) => Promise<ConnectionStatus>;
   getJoinedChannels: (serverId: string) => Promise<string[]>;
   getHistory: (serverId: string, channel: string, before?: number, limit?: number) => Promise<HistoryEntry[]>;
   onLine: (callback: (serverId: string, line: string) => void) => () => void;
   onEvent: (callback: (serverId: string, event: IrcEvent) => void) => () => void;
-  onStatus: (callback: (serverId: string, status: 'connected' | 'disconnected') => void) => () => void;
+  onStatus: (callback: (serverId: string, status: ConnectionStatus) => void) => () => void;
 };
+
+// 'connecting' covers both a fresh manual connect and the backend
+// auto-retrying after an unexpected drop - the frontend doesn't need to
+// tell those apart, see ROADMAP's "Auto-reconnect with backoff".
+export type ConnectionStatus = 'connected' | 'connecting' | 'disconnected';
 
 export enum IrcMessages {
   connect = 'irc:connect',

@@ -1,7 +1,7 @@
 import { installExtension, REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';
 import { app, BrowserWindow, ipcMain } from 'electron';
 import { join } from 'path';
-import { IrcMessages } from '../shared/ipc';
+import { ConnectionStatus, IrcMessages } from '../shared/ipc';
 import { BackendClient } from './irc/BackendClient';
 
 let mainWindow: BrowserWindow;
@@ -74,7 +74,7 @@ function registerIrcHandlers(mainWindow: BrowserWindow, backend: BackendClient):
   // - no per-connect listener wiring needed.
   backend.on('line', (serverId: string, line: string) => mainWindow.webContents.send(IrcMessages.line, serverId, line));
   backend.on('event', (serverId: string, event: unknown) => mainWindow.webContents.send(IrcMessages.event, serverId, event));
-  backend.on('status', (serverId: string, status: 'connected' | 'disconnected') =>
+  backend.on('status', (serverId: string, status: ConnectionStatus) =>
     mainWindow.webContents.send(IrcMessages.status, serverId, status),
   );
 }

@@ -3,8 +3,10 @@ package bouncer
 import (
 	"bufio"
 	"context"
+	"fmt"
 	"net"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -67,16 +69,27 @@ func pipeSession(t *testing.T, b *Bouncer, serverID string, initial Subscriber) 
 		serverConn.Close()
 	})
 
+	// dial: nil - net.Pipe() can't be redialed, so this session opts out of
+	// auto-reconnect (see TestReconnect* below for that, over a dialFunc
+	// that can be).
 	client := ircclient.New(clientConn, "testnick")
-	b.connect(serverID, client, initial)
+	b.connect(serverID, client, initial, nil)
 
 	r := bufio.NewReader(serverConn)
-	for i := 0; i < 4; i++ { // drain CAP LS + the PASS/NICK/USER handshake
+	drainHandshake(t, r)
+	return serverConn, r
+}
+
+// drainHandshake reads off CAP LS plus the PASS/NICK/USER lines every
+// ircclient handshake sends, so a test's subsequent reads see only its own
+// traffic.
+func drainHandshake(t *testing.T, r *bufio.Reader) {
+	t.Helper()
+	for range 4 {
 		if _, err := r.ReadString('\n'); err != nil {
 			t.Fatalf("drain handshake: %v", err)
 		}
 	}
-	return serverConn, r
 }
 
 func writeLine(t *testing.T, conn net.Conn, line string) {
@@ -197,5 +210,123 @@ func TestShutdownDisconnectsEverySession(t *testing.T) {
 	case <-done:
 	case <-time.After(2 * time.Second):
 		t.Fatal("Shutdown did not return")
+	}
+}
+
+// pipeDial returns a dialFunc that redials by handing out a fresh
+// net.Pipe() pair each call, and a channel delivering the server-side end
+// of each one so a test can drive it as a fake IRC server.
+func pipeDial(t *testing.T) (dialFunc, chan net.Conn) {
+	t.Helper()
+	servers := make(chan net.Conn, 8)
+	dial := func() (*ircclient.Client, error) {
+		clientConn, serverConn := net.Pipe()
+		t.Cleanup(func() { clientConn.Close(); serverConn.Close() })
+		servers <- serverConn
+		return ircclient.New(clientConn, "testnick"), nil
+	}
+	return dial, servers
+}
+
+func TestReconnectsAfterUnexpectedDrop(t *testing.T) {
+	dial, servers := pipeDial(t)
+	b := New(nil)
+	// Long enough that "connecting" is reliably observable as the *last*
+	// status before the redial (which succeeds immediately, no real
+	// network involved) flips it to "connected" - too short a backoff
+	// races the poll below.
+	b.ReconnectBackoffBase = 50 * time.Millisecond
+	b.ReconnectBackoffMax = 50 * time.Millisecond
+
+	sub := &fakeSubscriber{}
+	client, err := dial()
+	if err != nil {
+		t.Fatal(err)
+	}
+	first := <-servers
+	b.connect("server-a", client, sub, dial)
+	drainHandshake(t, bufio.NewReader(first))
+
+	first.Close() // the far end going away unexpectedly
+
+	waitFor(t, func() bool { return sub.lastStatus() == "connecting" })
+
+	second := <-servers // reconnect's redial
+	drainHandshake(t, bufio.NewReader(second))
+
+	waitFor(t, func() bool { return sub.lastStatus() == "connected" })
+	if got := b.Status("server-a"); got != "connected" {
+		t.Errorf("Status(server-a) = %q, want connected", got)
+	}
+
+	// Still fanning out to the original subscriber over the new connection,
+	// without needing to re-Attach.
+	writeLine(t, second, ":irc.example.net 001 me :Welcome back")
+	waitFor(t, func() bool { return sub.lastLine() == ":irc.example.net 001 me :Welcome back" })
+}
+
+func TestReconnectRetriesOnDialFailure(t *testing.T) {
+	realDial, servers := pipeDial(t)
+	var failuresLeft atomic.Int32
+	failuresLeft.Store(2)
+	dial := func() (*ircclient.Client, error) {
+		if failuresLeft.Add(-1) >= 0 {
+			return nil, fmt.Errorf("simulated dial failure")
+		}
+		return realDial()
+	}
+
+	b := New(nil)
+	b.ReconnectBackoffBase = 20 * time.Millisecond
+	b.ReconnectBackoffMax = 20 * time.Millisecond
+
+	sub := &fakeSubscriber{}
+	client, err := realDial()
+	if err != nil {
+		t.Fatal(err)
+	}
+	first := <-servers
+	b.connect("server-a", client, sub, dial)
+	drainHandshake(t, bufio.NewReader(first))
+
+	first.Close()
+	waitFor(t, func() bool { return sub.lastStatus() == "connecting" })
+
+	// Only arrives once the two simulated dial failures have been retried
+	// past.
+	second := <-servers
+	drainHandshake(t, bufio.NewReader(second))
+	waitFor(t, func() bool { return sub.lastStatus() == "connected" })
+}
+
+func TestDisconnectDuringBackoffCancelsReconnect(t *testing.T) {
+	dial, servers := pipeDial(t)
+	b := New(nil)
+	b.ReconnectBackoffBase = 200 * time.Millisecond // long enough to Disconnect mid-sleep
+	b.ReconnectBackoffMax = 200 * time.Millisecond
+
+	sub := &fakeSubscriber{}
+	client, err := dial()
+	if err != nil {
+		t.Fatal(err)
+	}
+	first := <-servers
+	b.connect("server-a", client, sub, dial)
+	drainHandshake(t, bufio.NewReader(first))
+
+	first.Close()
+	waitFor(t, func() bool { return sub.lastStatus() == "connecting" })
+
+	if err := b.Disconnect("server-a"); err != nil {
+		t.Fatalf("Disconnect: %v", err)
+	}
+
+	waitFor(t, func() bool { return sub.lastStatus() == "disconnected" })
+	waitFor(t, func() bool { return b.Status("server-a") == "disconnected" })
+
+	select {
+	case <-servers:
+		t.Fatal("dial was retried after Disconnect")
+	case <-time.After(300 * time.Millisecond):
 	}
 }
