@@ -32,11 +32,15 @@ export function toRows(users: User[]): Row[] {
   return rows;
 }
 
-function UserRow({ user }: { user: User }) {
+function UserRow({ user, onOpenQuery }: { user: User; onOpenQuery?: (nick: string) => void }) {
   const privilege = highestPrivilege(user.privileges);
   const color = COLOR[privilege];
   return (
-    <div className="flex items-center gap-2 px-2 py-1 rounded hover:bg-[rgba(90,90,90,0.35)] cursor-default">
+    <button
+      onClick={onOpenQuery && (() => onOpenQuery(user.nick))}
+      title={onOpenQuery ? `Message ${user.nick}` : undefined}
+      className="flex items-center gap-2 w-full px-2 py-1 rounded border-0 bg-transparent text-left hover:bg-[rgba(90,90,90,0.35)] cursor-pointer"
+    >
       <div className="w-8 h-8 rounded-full bg-[#212121] text-[#e6e6e6] flex items-center justify-center text-[13px] font-semibold shrink-0">
         {user.nick[0]?.toUpperCase() ?? '?'}
       </div>
@@ -44,11 +48,13 @@ function UserRow({ user }: { user: User }) {
         {SYMBOL[privilege] && <span className="mr-0.5" style={{ color }}>{SYMBOL[privilege]}</span>}
         {user.nick}
       </span>
-    </div>
+    </button>
   );
 }
 
-export function UserList({ users }: { users: User[] }) {
+type ListProps = { users: User[]; currentNick?: string; onOpenQuery?: (nick: string) => void };
+
+export function UserList({ users, currentNick, onOpenQuery }: ListProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const rows = toRows(users);
 
@@ -82,7 +88,7 @@ export function UserList({ users }: { users: User[] }) {
                   </div>
                 </div>
               ) : (
-                <UserRow user={row.user} />
+                <UserRow user={row.user} onOpenQuery={row.user.nick === currentNick ? undefined : onOpenQuery} />
               )}
             </div>
           );

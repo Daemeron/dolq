@@ -11,6 +11,9 @@ export type Channel = {
   id: string;
   name: string;
   isLog: boolean;
+  // A DM/query - id is the correspondent's bare nick, same convention as a
+  // channel's id being its bare "#name" (see App.tsx's PRIVMSG handling).
+  isQuery?: boolean;
   topic?: string;
   topicSetBy?: string;
   topicSetAt?: Date;

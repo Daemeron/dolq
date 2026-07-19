@@ -126,8 +126,24 @@ will hang the UI.
       `away-notify`'s unsolicited `AWAY` lines just flow through unparsed,
       same as any other command this client doesn't act on - no away-status
       UI exists yet (that's Milestone 2's "Away status" item)
-- [ ] Private messages/queries - `PRIVMSG` parsing only matches channel targets
-      (`#...`) today; DMs to your own nick aren't parsed or displayed at all
+- [x] Private messages/queries - `PRIVMSG`'s target pattern is no longer
+      restricted to `#...`; a non-channel target is always our own nick
+      (the only way we'd ever receive one), so `ircparse` now parses it like
+      any other PRIVMSG rather than dropping it. History buckets it by the
+      other party instead of by target (which would otherwise just be our
+      own nick for every DM we've ever received) - `bouncer.dmOrChannel` -
+      so both directions of a conversation land in the same place once
+      echo-message support exists to persist our own side of it too (today,
+      same pre-existing gap channel messages have: only what flows back
+      *into* the client gets persisted, not what we send). The frontend
+      auto-opens a "query" (`Channel.isQuery`) on first incoming DM from a
+      nick, the same way a channel auto-joins on `JOIN`, listed under its
+      own "Direct Messages" section in the sidebar; clicking a user in
+      `UserList` or `/msg <nick> <text>` starts one manually. Everything
+      that already existed per-channel - scrollback via `getHistory`,
+      CTCP `ACTION`/`VERSION`/`PING` (already target-agnostic, see CTCP
+      above) - works for a query the same way, since a query is just a
+      `Channel` whose id is a bare nick instead of `#name`
 - [ ] `NOTICE` handling
 - [x] `TOPIC` / `332` / `333` parsing - the live `TOPIC` command and the
       RPL_TOPIC (`332`) numeric sent on join parse into a shared

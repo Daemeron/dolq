@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strings"
 	"sync"
 	"time"
 
@@ -28,9 +29,9 @@ const logChannel = "__log__"
 func eventChannel(event any) string {
 	switch e := event.(type) {
 	case ircparse.PrivmsgEvent:
-		return e.Target
+		return dmOrChannel(e.Target, e.Nick)
 	case ircparse.ActionEvent:
-		return e.Target
+		return dmOrChannel(e.Target, e.Nick)
 	case ircparse.JoinEvent:
 		return e.Channel
 	case ircparse.PartEvent:
@@ -46,6 +47,20 @@ func eventChannel(event any) string {
 	default:
 		return logChannel
 	}
+}
+
+// dmOrChannel picks the history bucket for a PRIVMSG/ACTION. A channel
+// target keeps its name; a non-channel target is always our own nick (the
+// only way we'd ever receive one), so those bucket by sender instead - both
+// directions of a DM conversation end up in the same place. Only incoming
+// DMs go through here; our own sent messages aren't looped back by the
+// server without echo-message, the same pre-existing gap channel messages
+// have.
+func dmOrChannel(target, nick string) string {
+	if strings.HasPrefix(target, "#") {
+		return target
+	}
+	return nick
 }
 
 // Subscriber receives one session's traffic. Defined here (rather than in

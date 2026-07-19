@@ -3,10 +3,11 @@ import { useState } from 'react';
 type Props = {
   channelName: string;
   isLog: boolean;
+  isQuery?: boolean;
   onSend: (text: string) => void;
 };
 
-export function MessageInput({ channelName, isLog, onSend }: Props) {
+export function MessageInput({ channelName, isLog, isQuery, onSend }: Props) {
   const [value, setValue] = useState('');
 
   function handleSubmit(e: React.FormEvent) {
@@ -24,7 +25,11 @@ export function MessageInput({ channelName, isLog, onSend }: Props) {
           className="w-full bg-[#333333] border-0 rounded-lg text-[#e6e6e6] text-[15px] px-4 py-3 outline-none caret-[#e6e6e6] placeholder:text-[#6b6b6b] disabled:opacity-40 disabled:cursor-not-allowed"
           value={value}
           onChange={(e) => setValue(e.target.value)}
-          placeholder={isLog ? 'Log view — type commands here like /join #channel' : `Message #${channelName}`}
+          placeholder={
+            isLog ? 'Log view — type commands here like /join #channel'
+              : isQuery ? `Message ${channelName}`
+              : `Message #${channelName}`
+          }
         />
       </form>
     </div>

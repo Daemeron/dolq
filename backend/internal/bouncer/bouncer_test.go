@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/Daemeron/dolq/backend/internal/ircclient"
+	"github.com/Daemeron/dolq/backend/internal/ircparse"
 )
 
 type fakeSubscriber struct {
@@ -328,5 +329,25 @@ func TestDisconnectDuringBackoffCancelsReconnect(t *testing.T) {
 	case <-servers:
 		t.Fatal("dial was retried after Disconnect")
 	case <-time.After(300 * time.Millisecond):
+	}
+}
+
+func TestEventChannelBucketsPrivateMessagesBySender(t *testing.T) {
+	tests := []struct {
+		name  string
+		event any
+		want  string
+	}{
+		{"channel PRIVMSG keeps its target", ircparse.PrivmsgEvent{Nick: "alice", Target: "#general"}, "#general"},
+		{"DM PRIVMSG buckets by sender, not our own nick", ircparse.PrivmsgEvent{Nick: "alice", Target: "dolq_user"}, "alice"},
+		{"channel ACTION keeps its target", ircparse.ActionEvent{Nick: "alice", Target: "#general"}, "#general"},
+		{"DM ACTION buckets by sender", ircparse.ActionEvent{Nick: "alice", Target: "dolq_user"}, "alice"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := eventChannel(tt.event); got != tt.want {
+				t.Errorf("eventChannel(%#v) = %q, want %q", tt.event, got, tt.want)
+			}
+		})
 	}
 }

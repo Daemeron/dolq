@@ -112,16 +112,36 @@ export default function App() {
     });
   }, [appendMessage]);
 
+  // Opens a query with `nick` if one isn't already open - there's no
+  // protocol-level "start a DM" beyond just sending/receiving a PRIVMSG, so
+  // this only touches local state.
+  function ensureQuery(serverId: string, nick: string) {
+    if (!(channelMap[serverId] ?? []).some((c) => c.id === nick)) {
+      addChannel(serverId, { id: nick, name: nick, isLog: false, isQuery: true });
+    }
+  }
+
+  // A non-channel PRIVMSG/ACTION target is always our own nick (that's the
+  // only way we'd ever receive one) - bucket those by sender instead so both
+  // directions of a DM land in the same query, auto-opening it like a
+  // channel auto-joins on JOIN. Doesn't steal focus, unlike JOIN, since
+  // receiving a DM isn't something we did.
+  function dmKey(serverId: string, target: string, nick: string): string {
+    if (target.startsWith('#')) return target;
+    ensureQuery(serverId, nick);
+    return nick;
+  }
+
   useEffect(() => {
     return window.irc.onEvent((serverId, event) => {
       switch (event.type) {
         case 'PRIVMSG':
-          appendMessage(event.target, {
+          appendMessage(dmKey(serverId, event.target, event.nick), {
             id: nextMsgId.current++, nick: event.nick, text: event.text, timestamp: new Date(),
           });
           break;
         case 'ACTION':
-          appendMessage(event.target, {
+          appendMessage(dmKey(serverId, event.target, event.nick), {
             id: nextMsgId.current++, nick: event.nick, text: event.text, timestamp: new Date(), action: true,
           });
           break;
@@ -174,6 +194,7 @@ export default function App() {
   }, [
     appendMessage, addChannel, selectChannel, addUser, removeUser,
     removeUserEverywhere, renameUserEverywhere, applyModeChanges, setUsers, setTopic, setTopicWhoTime, nickMap,
+    channelMap,
   ]);
 
   // Preload scrollback the first time a channel is actually opened - once
@@ -266,17 +287,24 @@ export default function App() {
     removeChannel(selectedServerId, channelId);
   }
 
+  function handleOpenQuery(nick: string) {
+    ensureQuery(selectedServerId, nick);
+    selectChannel(nick);
+  }
+
   const channels = channelMap[selectedServerId] ?? [];
   const selectedChannel = channels.find((c) => c.id === selectedChannelId) ?? channels[0];
   const messages = messageMap[selectedChannelId] ?? [];
   const users = userMap[selectedChannelId] ?? [];
   const isLog = selectedChannel?.isLog ?? true;
+  const isQuery = selectedChannel?.isQuery ?? false;
   const currentNick = nickMap[selectedServerId] ?? 'dolq_user';
   const connectionStatus = statusMap[selectedServerId] ?? 'disconnected';
 
   async function handleSend(text: string): Promise<void> {
     const joinMatch = text.match(/^\/join\s+(#\S+)$/);
     const meMatch = text.match(/^\/me\s+(.+)$/);
+    const msgMatch = text.match(/^\/msg\s+(\S+)\s+(.+)$/);
 
     if (text === '/connect') {
       if (connectionStatus === 'disconnected') connectToServer();
@@ -284,6 +312,11 @@ export default function App() {
       handleDisconnect();
     } else if (joinMatch) {
       await window.irc.sendLine(selectedServerId, `JOIN ${joinMatch[1]}`);
+    } else if (msgMatch) {
+      const [, nick, msg] = msgMatch;
+      await window.irc.sendLine(selectedServerId, `PRIVMSG ${nick} :${msg}`);
+      handleOpenQuery(nick);
+      appendMessage(nick, { id: nextMsgId.current++, nick: currentNick, text: msg, timestamp: new Date() });
     } else if (selectedChannel?.isLog) {
       await window.irc.sendLine(selectedServerId, text);
     } else if (meMatch) {
@@ -329,6 +362,7 @@ export default function App() {
             onJoinChannel={handleJoinChannel}
             onLeaveChannel={handleLeaveChannel}
             onRemoveChannel={handleRemoveChannel}
+            onCloseQuery={handleRemoveChannel}
           />
         </div>
         <div className="absolute bottom-0 left-0 w-full px-3 pt-2 pb-2">
@@ -347,6 +381,7 @@ export default function App() {
           topicSetBy={selectedChannel?.topicSetBy}
           topicSetAt={selectedChannel?.topicSetAt}
           isLog={isLog}
+          isQuery={isQuery}
         />
         <div className="flex flex-1 overflow-hidden">
           <div className="flex flex-col flex-1 overflow-hidden">
@@ -354,11 +389,14 @@ export default function App() {
             <MessageInput
               channelName={selectedChannel?.name ?? ''}
               isLog={isLog}
+              isQuery={isQuery}
               onSend={handleSend}
             />
           </div>
           <aside className="w-52 bg-[#1c1c1c] border-l border-[#2a2a2a] shrink-0 flex flex-col overflow-hidden">
-            {!isLog && <UserList users={users} />}
+            {!isLog && !isQuery && (
+              <UserList users={users} currentNick={currentNick} onOpenQuery={handleOpenQuery} />
+            )}
           </aside>
         </div>
       </main>

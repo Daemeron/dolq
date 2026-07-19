@@ -240,9 +240,9 @@ type rule struct {
 
 var rules = []rule{
 	// Checked before the plain-PRIVMSG rule below so a CTCP-wrapped payload
-	// (\x01...\x01) - whether sent to a channel or (once query support
-	// exists) straight to us - is recognized as CTCP rather than falling
-	// through as literal chat text containing control bytes.
+	// (\x01...\x01) - whether sent to a channel or straight to us as a query
+	// - is recognized as CTCP rather than falling through as literal chat
+	// text containing control bytes.
 	{
 		pattern: regexp.MustCompile(`^:([^!\s]+)!\S+ PRIVMSG (\S+) :\x01(\S+)(?: ([^\x01]*))?\x01$`),
 		build: func(m []string) any {
@@ -253,7 +253,10 @@ var rules = []rule{
 		},
 	},
 	{
-		pattern: regexp.MustCompile(`^:([^!\s]+)!\S+ PRIVMSG (#\S+) :(.*)$`),
+		// Any target, not just a channel: a non-channel target is a private
+		// message/query addressed straight to us (the only way we'd ever
+		// receive one) - see the "Private messages/queries" ROADMAP item.
+		pattern: regexp.MustCompile(`^:([^!\s]+)!\S+ PRIVMSG (\S+) :(.*)$`),
 		build: func(m []string) any {
 			return PrivmsgEvent{Type: "PRIVMSG", Nick: m[1], Target: m[2], Text: m[3]}
 		},

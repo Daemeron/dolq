@@ -17,6 +17,11 @@ func TestParseLine(t *testing.T) {
 			want: PrivmsgEvent{Type: "PRIVMSG", Nick: "alice", Target: "#general", Text: "hello there"},
 		},
 		{
+			name: "parses PRIVMSG to a nick as a private message",
+			line: ":alice!u@host PRIVMSG dolq_user :hey, got a sec?",
+			want: PrivmsgEvent{Type: "PRIVMSG", Nick: "alice", Target: "dolq_user", Text: "hey, got a sec?"},
+		},
+		{
 			name: "parses JOIN without a leading colon on the channel",
 			line: ":bob!u@host JOIN #general",
 			want: JoinEvent{Type: "JOIN", Nick: "bob", Channel: "#general"},
