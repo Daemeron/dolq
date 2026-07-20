@@ -27,6 +27,7 @@ export type Message = {
   isRaw?: boolean;
   system?: boolean;
   action?: boolean;
+  notice?: boolean;
 };
 
 export type User = {

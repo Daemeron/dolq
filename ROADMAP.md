@@ -144,7 +144,24 @@ will hang the UI.
       CTCP `ACTION`/`VERSION`/`PING` (already target-agnostic, see CTCP
       above) - works for a query the same way, since a query is just a
       `Channel` whose id is a bare nick instead of `#name`
-- [ ] `NOTICE` handling
+- [x] `NOTICE` handling - `ircparse` gets a `NoticeEvent`, same shape and
+      targeting as `PrivmsgEvent` (a channel or straight to us), kept
+      separate so the UI can render it distinctly (`-nick-` prefix, dim
+      italic) rather than folding it into normal chat. The source isn't
+      always a nick - server notices (pre-registration MOTD-adjacent lines,
+      NickServ/ChanServ confirmations from bare "services." hostnames on
+      some networks) come from a plain hostname with no `!user@host`, so
+      `Nick` is just whatever preceded an optional `!`. Channel notices get
+      the same per-channel history bucket and live rendering as PRIVMSG; a
+      private notice deliberately doesn't bucket by sender the way a DM does
+      (see "Private messages/queries" above) - it's frequently a service or
+      the server itself, not someone worth opening a query for - so it falls
+      back to the shared log bucket, where its raw line was already showing
+      up before this (nothing to fix there, just now also a structured event
+      for anything that wants one). CTCP replies riding in on a NOTICE
+      (nothing in this client sends CTCP requests, so nothing to reply to
+      it, and it's a rare enough shape) aren't unwrapped - would show up as
+      literal `\x01...\x01` text if it ever happened
 - [x] `TOPIC` / `332` / `333` parsing - the live `TOPIC` command and the
       RPL_TOPIC (`332`) numeric sent on join parse into a shared
       `TopicEvent` (`ircparse`); RPL_TOPICWHOTIME (`333`, who set it and

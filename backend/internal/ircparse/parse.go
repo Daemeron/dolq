@@ -54,6 +54,21 @@ type ActionEvent struct {
 	Text   string `json:"text"`
 }
 
+// NoticeEvent is a NOTICE - same targeting as PRIVMSG (a channel or a query
+// straight to us) but meant never to trigger an automated reply, which is
+// exactly why CTCP replies (see ircclient.sendCTCPReply) go out as NOTICE
+// rather than PRIVMSG. Kept as its own event type, not folded into
+// PrivmsgEvent, so the UI can render it distinctly. The source isn't always
+// a nick!user@host - server notices (pre-registration MOTD-adjacent lines,
+// etc.) come from a bare server hostname instead, so Nick is just whatever
+// preceded an optional "!" rather than requiring one.
+type NoticeEvent struct {
+	Type   string `json:"type"`
+	Nick   string `json:"nick"`
+	Target string `json:"target"`
+	Text   string `json:"text"`
+}
+
 // CTCPRequestEvent is any other CTCP request embedded in a PRIVMSG (RFC
 // "extended formatting": \x01COMMAND args\x01) - VERSION and PING being the
 // only ones this client answers. Not meant to leave ircclient: there's
@@ -259,6 +274,16 @@ var rules = []rule{
 		pattern: regexp.MustCompile(`^:([^!\s]+)!\S+ PRIVMSG (\S+) :(.*)$`),
 		build: func(m []string) any {
 			return PrivmsgEvent{Type: "PRIVMSG", Nick: m[1], Target: m[2], Text: m[3]}
+		},
+	},
+	{
+		// Source is "nick!user@host" for a real user, but just a bare server
+		// hostname (no "!") for server notices - cut at an optional "!" rather
+		// than requiring one, same trick TOPICWHOTIME's build func uses below.
+		pattern: regexp.MustCompile(`^:(\S+) NOTICE (\S+) :(.*)$`),
+		build: func(m []string) any {
+			nick, _, _ := strings.Cut(m[1], "!")
+			return NoticeEvent{Type: "NOTICE", Nick: nick, Target: m[2], Text: m[3]}
 		},
 	},
 	{

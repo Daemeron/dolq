@@ -22,6 +22,21 @@ func TestParseLine(t *testing.T) {
 			want: PrivmsgEvent{Type: "PRIVMSG", Nick: "alice", Target: "dolq_user", Text: "hey, got a sec?"},
 		},
 		{
+			name: "parses NOTICE from a user",
+			line: ":NickServ!services@host NOTICE dolq_user :You are now identified.",
+			want: NoticeEvent{Type: "NOTICE", Nick: "NickServ", Target: "dolq_user", Text: "You are now identified."},
+		},
+		{
+			name: "parses NOTICE from a bare server hostname",
+			line: ":irc.example.net NOTICE dolq_user :*** Looking up your hostname...",
+			want: NoticeEvent{Type: "NOTICE", Nick: "irc.example.net", Target: "dolq_user", Text: "*** Looking up your hostname..."},
+		},
+		{
+			name: "parses NOTICE to a channel",
+			line: ":alice!u@host NOTICE #general :heads up",
+			want: NoticeEvent{Type: "NOTICE", Nick: "alice", Target: "#general", Text: "heads up"},
+		},
+		{
 			name: "parses JOIN without a leading colon on the channel",
 			line: ":bob!u@host JOIN #general",
 			want: JoinEvent{Type: "JOIN", Nick: "bob", Channel: "#general"},

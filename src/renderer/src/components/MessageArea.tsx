@@ -121,6 +121,14 @@ export function MessageArea({ messages, isLog, channelId, onLoadOlder }: Props) 
                   <span className="text-[11px] text-[#6b6b6b] shrink-0 w-10 text-right">{formatTime(m.timestamp)}</span>
                   <span className="text-[#6b6b6b] text-[13px] italic"><IrcText text={m.text} /></span>
                 </div>
+              ) : m.notice ? (
+                <div className="flex items-baseline gap-3 py-0.5 px-2">
+                  <span className="text-[11px] text-[#6b6b6b] shrink-0 w-10 text-right">{formatTime(m.timestamp)}</span>
+                  <span className="text-[13px] italic text-[#909090]">
+                    <span style={{ color: nickColor(m.nick) }}>-{m.nick}-</span>{' '}
+                    <IrcText text={m.text} />
+                  </span>
+                </div>
               ) : m.action ? (
                 <div className="flex items-baseline gap-3 py-0.5 group hover:bg-[rgba(4,4,5,0.07)] px-2 rounded">
                   <span className="text-[11px] text-[#6b6b6b] shrink-0 w-10 text-right opacity-0 group-hover:opacity-100">

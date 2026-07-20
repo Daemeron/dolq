@@ -32,6 +32,15 @@ func eventChannel(event any) string {
 		return dmOrChannel(e.Target, e.Nick)
 	case ircparse.ActionEvent:
 		return dmOrChannel(e.Target, e.Nick)
+	case ircparse.NoticeEvent:
+		// Unlike PRIVMSG/ACTION, a private NOTICE doesn't bucket by sender -
+		// it's frequently a bare server hostname, not a nick worth opening a
+		// query for (see ircparse.NoticeEvent), so it falls back to the log
+		// bucket instead, same as QuitEvent/NickEvent below.
+		if strings.HasPrefix(e.Target, "#") {
+			return e.Target
+		}
+		return logChannel
 	case ircparse.JoinEvent:
 		return e.Channel
 	case ircparse.PartEvent:

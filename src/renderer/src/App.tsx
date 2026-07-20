@@ -19,9 +19,15 @@ const HISTORY_PAGE_SIZE = 100;
 
 // The backend persists every raw line and every parsed event, not just
 // what's renderable today - same as the live onLine/onEvent handlers below,
-// only PRIVMSG (and raw lines, for the Log channel) currently become a
-// Message. Add a case here (and in the matching onEvent switch below) as
-// more event types grow their own scrollback rendering.
+// only PRIVMSG/ACTION/NOTICE (and raw lines, for the Log channel) currently
+// become a Message. Add a case here (and in the matching onEvent switch
+// below) as more event types grow their own scrollback rendering.
+//
+// A private (non-channel) NOTICE is deliberately skipped here: it buckets
+// into the same "__log__" history as raw lines (see bouncer.eventChannel),
+// which already contains the raw NOTICE line itself - rendering the parsed
+// event too would show it twice. Channel notices bucket separately, so no
+// such overlap there.
 function toMessages(entries: HistoryEntry[]): Message[] {
   const messages: Message[] = [];
   for (const e of entries) {
@@ -32,6 +38,8 @@ function toMessages(entries: HistoryEntry[]): Message[] {
       messages.push({ id: e.id, nick: e.event.nick, text: e.event.text, timestamp });
     } else if (e.event?.type === 'ACTION') {
       messages.push({ id: e.id, nick: e.event.nick, text: e.event.text, timestamp, action: true });
+    } else if (e.event?.type === 'NOTICE' && e.event.target.startsWith('#')) {
+      messages.push({ id: e.id, nick: e.event.nick, text: e.event.text, timestamp, notice: true });
     }
   }
   return messages;
@@ -144,6 +152,17 @@ export default function App() {
           appendMessage(dmKey(serverId, event.target, event.nick), {
             id: nextMsgId.current++, nick: event.nick, text: event.text, timestamp: new Date(), action: true,
           });
+          break;
+        case 'NOTICE':
+          // A private NOTICE isn't routed anywhere here - it already shows
+          // up as a raw line in the Log (onLine above), same as before this
+          // was parsed at all. Only channel notices get the nicer per-channel
+          // rendering, same reasoning as toMessages above.
+          if (event.target.startsWith('#')) {
+            appendMessage(event.target, {
+              id: nextMsgId.current++, nick: event.nick, text: event.text, timestamp: new Date(), notice: true,
+            });
+          }
           break;
         case 'JOIN':
           if (event.nick === nickMap[serverId]) {

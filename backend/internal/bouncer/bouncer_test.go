@@ -332,7 +332,7 @@ func TestDisconnectDuringBackoffCancelsReconnect(t *testing.T) {
 	}
 }
 
-func TestEventChannelBucketsPrivateMessagesBySender(t *testing.T) {
+func TestEventChannelBucketing(t *testing.T) {
 	tests := []struct {
 		name  string
 		event any
@@ -342,6 +342,8 @@ func TestEventChannelBucketsPrivateMessagesBySender(t *testing.T) {
 		{"DM PRIVMSG buckets by sender, not our own nick", ircparse.PrivmsgEvent{Nick: "alice", Target: "dolq_user"}, "alice"},
 		{"channel ACTION keeps its target", ircparse.ActionEvent{Nick: "alice", Target: "#general"}, "#general"},
 		{"DM ACTION buckets by sender", ircparse.ActionEvent{Nick: "alice", Target: "dolq_user"}, "alice"},
+		{"channel NOTICE keeps its target", ircparse.NoticeEvent{Nick: "alice", Target: "#general"}, "#general"},
+		{"private NOTICE falls back to the log bucket, not the sender", ircparse.NoticeEvent{Nick: "irc.example.net", Target: "dolq_user"}, logChannel},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
