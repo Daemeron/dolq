@@ -192,7 +192,25 @@ export default function App() {
           break;
         case 'NICK':
           renameUserEverywhere(event.oldNick, event.newNick);
+          // Our own nick, not just someone else's in a shared channel's user
+          // list - nickMap is what JOIN/KICK above compare against to tell
+          // "us" from "someone else", and what UserPanel displays.
+          if (event.oldNick === nickMap[serverId]) setNick(serverId, event.newNick);
           break;
+        case 'WELCOME':
+          // Authoritative: the nick we asked for at connect time might not
+          // be the one that actually got registered (see NICKINUSE below).
+          setNick(serverId, event.nick);
+          break;
+        case 'NICKINUSE': {
+          const text = event.retrying
+            ? `Nickname "${event.nick}" is already in use - trying "${event.retrying}" instead.`
+            : `Nickname "${event.nick}" is already in use.`;
+          appendMessage(`${serverId}:__log__`, {
+            id: nextMsgId.current++, nick: '', text, timestamp: new Date(), system: true,
+          });
+          break;
+        }
         case 'MODE':
           applyModeChanges(event.channel, event.changes);
           break;
@@ -213,7 +231,7 @@ export default function App() {
   }, [
     appendMessage, addChannel, selectChannel, addUser, removeUser,
     removeUserEverywhere, renameUserEverywhere, applyModeChanges, setUsers, setTopic, setTopicWhoTime, nickMap,
-    channelMap,
+    channelMap, setNick,
   ]);
 
   // Preload scrollback the first time a channel is actually opened - once

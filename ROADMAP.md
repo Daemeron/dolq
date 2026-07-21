@@ -196,8 +196,22 @@ will hang the UI.
       Status during a retry reuses the existing `connecting` state (no new
       status value, so no frontend changes needed) rather than adding a
       distinct "reconnecting" state
-- [ ] Nickname collision handling - alternate nick / prompt instead of just
-      showing the raw `433` line in the Log
+- [x] Nickname collision handling - alternate nick, not a prompt: while still
+      registering (before RPL_WELCOME/`001`), `ircclient` reacts to
+      ERR_NICKNAMEINUSE (`433`) by retrying with the nick plus one more
+      underscore each attempt, up to 5 tries, then gives up rather than
+      retrying forever against a server that just always says no. `001`'s
+      target param - not just an echo of whatever `NICK` was last sent - is
+      now what the client actually trusts as "my nick" (`WelcomeEvent`),
+      which is what makes the auto-retry safe to do at all. A collision from
+      an already-registered client's own live `/nick` isn't auto-overridden
+      the same way (that'd silently land you on a nick you didn't ask for) -
+      either way, a clear message replaces the raw `433` line in the Log
+      (`NickInUseEvent`, `Retrying` set only for the pre-registration case).
+      Also fixed in passing: the frontend's own notion of "my nick"
+      (`nickMap`) never updated on a live self `NICK` change before this -
+      needed for the new WELCOME-driven correction to actually stick, but a
+      real gap on its own regardless of collisions
 - [ ] Outgoing flood protection (basic send-rate limiting so a paste storm
       doesn't get you killed by the server)
 

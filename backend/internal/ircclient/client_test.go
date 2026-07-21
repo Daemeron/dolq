@@ -48,6 +48,20 @@ func expectLine(t *testing.T, r *bufio.Reader) string {
 	}
 }
 
+// expectNoLine fails if the client writes anything within a short window -
+// used to assert a retry/reply was deliberately withheld. Uses conn's own
+// deadline (net.Pipe supports one) and reads directly on the calling
+// goroutine, unlike expectLine, so there's nothing left running - and
+// nothing that can call t.Fatal - once the subtest that started it returns.
+func expectNoLine(t *testing.T, conn net.Conn, r *bufio.Reader) {
+	t.Helper()
+	conn.SetReadDeadline(time.Now().Add(200 * time.Millisecond))
+	defer conn.SetReadDeadline(time.Time{})
+	if line, err := r.ReadString('\n'); err == nil {
+		t.Fatalf("got unexpected line %q", line)
+	}
+}
+
 func writeLine(t *testing.T, conn net.Conn, line string) {
 	t.Helper()
 	done := make(chan error, 1)
@@ -515,6 +529,120 @@ func TestNickTracking(t *testing.T) {
 		if got != "testnick" {
 			t.Errorf("nick = %q, want testnick", got)
 		}
+	})
+}
+
+func TestNickCollisionHandling(t *testing.T) {
+	t.Run("retries with an alternate nick while still registering", func(t *testing.T) {
+		c, server, r := pipeClient(t, "testnick")
+		events := make(chan any, 10)
+		c.AddEventListener(func(e any) { events <- e })
+		c.Start()
+		drainHandshake(t, r)
+
+		writeLine(t, server, ":irc.example.net 433 * testnick :Nickname is already in use.")
+
+		if got := expectLine(t, r); got != "NICK testnick_\r\n" {
+			t.Errorf("retry line = %q, want NICK testnick_", got)
+		}
+		select {
+		case e := <-events:
+			want := ircparse.NickInUseEvent{Type: "NICKINUSE", Nick: "testnick", Retrying: "testnick_"}
+			if !reflect.DeepEqual(e, want) {
+				t.Errorf("event = %#v, want %#v", e, want)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("timed out waiting for the NICKINUSE event")
+		}
+
+		c.mu.Lock()
+		got := c.nick
+		c.mu.Unlock()
+		if got != "testnick_" {
+			t.Errorf("nick = %q, want testnick_", got)
+		}
+	})
+
+	t.Run("gives up after maxNickCollisionRetries and stops retrying", func(t *testing.T) {
+		c, server, r := pipeClient(t, "testnick")
+		events := make(chan any, 10)
+		c.AddEventListener(func(e any) { events <- e })
+		c.Start()
+		drainHandshake(t, r)
+
+		for range maxNickCollisionRetries {
+			writeLine(t, server, ":irc.example.net 433 * testnick :Nickname is already in use.")
+			expectLine(t, r) // the retry NICK
+			<-events
+		}
+
+		// One more collision past the cap: no further NICK sent, and the
+		// event reports it gave up (Retrying empty).
+		writeLine(t, server, ":irc.example.net 433 * testnick :Nickname is already in use.")
+		select {
+		case e := <-events:
+			want := ircparse.NickInUseEvent{Type: "NICKINUSE", Nick: "testnick"}
+			if !reflect.DeepEqual(e, want) {
+				t.Errorf("event = %#v, want %#v", e, want)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("timed out waiting for the NICKINUSE event")
+		}
+
+		expectNoLine(t, server, r)
+	})
+
+	t.Run("RPL_WELCOME confirms the nick and marks registration complete", func(t *testing.T) {
+		c, server, r := pipeClient(t, "testnick")
+		events := make(chan any, 10)
+		c.AddEventListener(func(e any) { events <- e })
+		c.Start()
+		drainHandshake(t, r)
+
+		writeLine(t, server, ":irc.example.net 001 testnick :Welcome to the Example Network, testnick")
+		select {
+		case <-events:
+		case <-time.After(time.Second):
+			t.Fatal("timed out waiting for the WELCOME event")
+		}
+
+		c.mu.Lock()
+		nick, registered := c.nick, c.registered
+		c.mu.Unlock()
+		if nick != "testnick" || !registered {
+			t.Errorf("nick = %q, registered = %v, want testnick, true", nick, registered)
+		}
+	})
+
+	t.Run("a live nick change rejected after registration is not auto-retried", func(t *testing.T) {
+		c, server, r := pipeClient(t, "testnick")
+		events := make(chan any, 10)
+		c.AddEventListener(func(e any) { events <- e })
+		c.Start()
+		drainHandshake(t, r)
+
+		writeLine(t, server, ":irc.example.net 001 testnick :Welcome")
+		<-events // WELCOME
+
+		writeLine(t, server, ":irc.example.net 433 testnick newnick :Nickname is already in use.")
+		select {
+		case e := <-events:
+			want := ircparse.NickInUseEvent{Type: "NICKINUSE", Nick: "newnick"}
+			if !reflect.DeepEqual(e, want) {
+				t.Errorf("event = %#v, want %#v", e, want)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("timed out waiting for the NICKINUSE event")
+		}
+
+		c.mu.Lock()
+		got := c.nick
+		c.mu.Unlock()
+		if got != "testnick" {
+			t.Errorf("nick = %q, want unchanged testnick", got)
+		}
+
+		expectNoLine(t, server, r)
 	})
 }
 

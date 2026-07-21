@@ -44,6 +44,28 @@ type PrivmsgEvent struct {
 	Text   string `json:"text"`
 }
 
+// WelcomeEvent is RPL_WELCOME (001), the first reply once registration
+// actually succeeds - its target parameter is the server's authoritative
+// view of our nick, which might not match what was requested (see
+// NickInUseEvent below): this is what ircclient trusts as "my nick" rather
+// than just assuming whatever NICK it originally sent was accepted.
+type WelcomeEvent struct {
+	Type string `json:"type"`
+	Nick string `json:"nick"`
+}
+
+// NickInUseEvent is ERR_NICKNAMEINUSE (433) - the requested nick is taken.
+// Retrying carries the alternate nick ircclient automatically retried with,
+// if it did (only while still registering, see Client.handleNickInUse) -
+// empty means it gave up (retries exhausted) or this was an already-
+// registered client's own live nick change getting rejected, which isn't
+// silently overridden with a nick nobody asked for.
+type NickInUseEvent struct {
+	Type     string `json:"type"`
+	Nick     string `json:"nick"`
+	Retrying string `json:"retrying,omitempty"`
+}
+
 // ActionEvent is CTCP ACTION (`/me`) - a PRIVMSG whose text is wrapped in
 // \x01ACTION ... \x01. It's split out from PrivmsgEvent so the UI can render
 // "* nick does a thing" instead of literal control bytes.
@@ -361,6 +383,18 @@ var rules = []rule{
 		pattern: regexp.MustCompile(`^:\S+ 366 \S+ (#\S+)`),
 		build: func(m []string) any {
 			return EndOfNamesEvent{Channel: m[1]}
+		},
+	},
+	{
+		pattern: regexp.MustCompile(`^:\S+ 001 (\S+) :`),
+		build: func(m []string) any {
+			return WelcomeEvent{Type: "WELCOME", Nick: m[1]}
+		},
+	},
+	{
+		pattern: regexp.MustCompile(`^:\S+ 433 \S+ (\S+) :`),
+		build: func(m []string) any {
+			return NickInUseEvent{Type: "NICKINUSE", Nick: m[1]}
 		},
 	},
 }

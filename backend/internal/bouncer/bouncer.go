@@ -25,7 +25,9 @@ const logChannel = "__log__"
 // NickEvent don't have one - a QUIT or nick change can ripple across every
 // channel the user shared with us, and nothing here tracks per-user channel
 // membership to resolve that - so those fall back to the server's shared
-// log bucket, same as raw lines.
+// log bucket, same as raw lines. Connection-level events (WelcomeEvent,
+// a private NickInUseEvent) fall back the same way via the default case
+// below - there's no channel for them to belong to at all.
 func eventChannel(event any) string {
 	switch e := event.(type) {
 	case ircparse.PrivmsgEvent:

@@ -344,6 +344,8 @@ func TestEventChannelBucketing(t *testing.T) {
 		{"DM ACTION buckets by sender", ircparse.ActionEvent{Nick: "alice", Target: "dolq_user"}, "alice"},
 		{"channel NOTICE keeps its target", ircparse.NoticeEvent{Nick: "alice", Target: "#general"}, "#general"},
 		{"private NOTICE falls back to the log bucket, not the sender", ircparse.NoticeEvent{Nick: "irc.example.net", Target: "dolq_user"}, logChannel},
+		{"WELCOME falls back to the log bucket", ircparse.WelcomeEvent{Nick: "dolq_user"}, logChannel},
+		{"NICKINUSE falls back to the log bucket", ircparse.NickInUseEvent{Nick: "dolq_user"}, logChannel},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

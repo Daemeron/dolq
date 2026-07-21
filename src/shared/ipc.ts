@@ -28,6 +28,8 @@ export type IrcEvent =
   | { type: 'KICK'; by: string; channel: string; nick: string; reason?: string }
   | { type: 'QUIT'; nick: string; reason?: string }
   | { type: 'NICK'; oldNick: string; newNick: string }
+  | { type: 'WELCOME'; nick: string }
+  | { type: 'NICKINUSE'; nick: string; retrying?: string }
   | {
       type: 'MODE';
       channel: string;

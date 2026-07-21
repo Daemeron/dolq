@@ -37,6 +37,21 @@ func TestParseLine(t *testing.T) {
 			want: NoticeEvent{Type: "NOTICE", Nick: "alice", Target: "#general", Text: "heads up"},
 		},
 		{
+			name: "parses RPL_WELCOME (001) for our confirmed nick",
+			line: ":irc.example.net 001 dolq_user :Welcome to the Example Network, dolq_user",
+			want: WelcomeEvent{Type: "WELCOME", Nick: "dolq_user"},
+		},
+		{
+			name: "parses ERR_NICKNAMEINUSE (433) before registration",
+			line: ":irc.example.net 433 * dolq_user :Nickname is already in use.",
+			want: NickInUseEvent{Type: "NICKINUSE", Nick: "dolq_user"},
+		},
+		{
+			name: "parses ERR_NICKNAMEINUSE (433) after registration",
+			line: ":irc.example.net 433 dolq_user newnick :Nickname is already in use.",
+			want: NickInUseEvent{Type: "NICKINUSE", Nick: "newnick"},
+		},
+		{
 			name: "parses JOIN without a leading colon on the channel",
 			line: ":bob!u@host JOIN #general",
 			want: JoinEvent{Type: "JOIN", Nick: "bob", Channel: "#general"},
@@ -212,7 +227,7 @@ func TestParseLine(t *testing.T) {
 			},
 		},
 		{name: "returns nil for an unrecognized PING line", line: "PING :irc.example.net", want: nil},
-		{name: "returns nil for an unrecognized numeric", line: ":irc.example.net 001 me :Welcome", want: nil},
+		{name: "returns nil for an unrecognized numeric", line: ":irc.example.net 002 me :Your host is irc.example.net", want: nil},
 		{name: "returns nil for garbage", line: "garbage", want: nil},
 	}
 

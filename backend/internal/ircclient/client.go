@@ -34,6 +34,13 @@ const (
 // is what stops that from hanging the connection forever.
 const DefaultCapTimeout = 10 * time.Second
 
+// maxNickCollisionRetries bounds automatic alternate-nick retries during
+// initial registration (before RPL_WELCOME) - see handleNickInUse. A server
+// that just always says "in use" would otherwise retry forever; past this
+// it gives up and stays unregistered, the same give-up-and-move-on shape
+// CAP/SASL negotiation already has for a server that never answers at all.
+const maxNickCollisionRetries = 5
+
 // NamesEvent is the synthesized event ircclient emits once a NAMES reply
 // (RFC 353, possibly split across several lines) is complete (RFC 366).
 type NamesEvent struct {
@@ -48,6 +55,8 @@ type Client struct {
 
 	mu             sync.Mutex
 	nick           string
+	registered     bool // true once RPL_WELCOME (001) confirms nick, see handleNickInUse
+	nickCollisions int  // count of automatic alternate-nick retries so far, capped by maxNickCollisionRetries
 	joinedChannels map[string]struct{}
 	namesBuffer    map[string][]ircparse.User
 	lineListeners  []func(line string)
@@ -492,6 +501,15 @@ func (c *Client) handleLine(line string) {
 		}
 		c.emitEvent(NamesEvent{Type: "names", Channel: e.Channel, Users: users})
 		return
+	case ircparse.WelcomeEvent:
+		c.mu.Lock()
+		c.nick = e.Nick
+		c.registered = true
+		c.mu.Unlock()
+	case ircparse.NickInUseEvent:
+		retrying := c.handleNickInUse(e.Nick)
+		c.emitEvent(ircparse.NickInUseEvent{Type: "NICKINUSE", Nick: e.Nick, Retrying: retrying})
+		return
 	case ircparse.NickEvent:
 		c.mu.Lock()
 		if e.OldNick == c.nick {
@@ -543,6 +561,31 @@ func (c *Client) sendCTCPReply(nick, payload string) {
 	if err := c.Send("NOTICE " + nick + " :\x01" + payload + "\x01"); err != nil {
 		log.Printf("ircclient: CTCP reply to %s: %v", nick, err)
 	}
+}
+
+// handleNickInUse reacts to ERR_NICKNAMEINUSE (433). While still registering
+// (no RPL_WELCOME yet) it retries with nick plus one underscore per attempt
+// so far, up to maxNickCollisionRetries, and returns the nick it retried
+// with. Once already registered - a live /nick attempt getting rejected -
+// or once retries are exhausted, it does nothing and returns "": neither
+// case should silently land the connection on a nick nobody asked for.
+func (c *Client) handleNickInUse(nick string) string {
+	c.mu.Lock()
+	var retry string
+	if !c.registered && c.nickCollisions < maxNickCollisionRetries {
+		c.nickCollisions++
+		retry = nick + strings.Repeat("_", c.nickCollisions)
+		c.nick = retry
+	}
+	c.mu.Unlock()
+
+	if retry == "" {
+		return ""
+	}
+	if err := c.Send("NICK " + retry); err != nil {
+		log.Printf("ircclient: retry NICK %s: %v", retry, err)
+	}
+	return retry
 }
 
 // Closed reports whether the connection has already ended - i.e. whether
