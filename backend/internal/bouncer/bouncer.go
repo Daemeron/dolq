@@ -415,7 +415,12 @@ func (b *Bouncer) JoinedChannels(serverID string) []string {
 	return client.GetJoinedChannels()
 }
 
-// Send writes a line to serverID's session.
+// Send writes a line to serverID's session. Paced (see
+// ircclient.Client.SendPaced) - this is the one and only path a
+// user-originated line takes to the wire, so it's the right (and only)
+// place to guard against a paste storm or rapid-fire command spam tripping
+// the server's own flood protection; internal protocol traffic never goes
+// through here.
 func (b *Bouncer) Send(serverID, line string) error {
 	b.mu.Lock()
 	sess := b.sessions[serverID]
@@ -426,7 +431,7 @@ func (b *Bouncer) Send(serverID, line string) error {
 	sess.mu.Lock()
 	client := sess.client
 	sess.mu.Unlock()
-	return client.Send(line)
+	return client.SendPaced(line)
 }
 
 // Shutdown disconnects every live session concurrently, or until ctx is

@@ -124,6 +124,57 @@ func TestSend(t *testing.T) {
 	})
 }
 
+func TestSendPaced(t *testing.T) {
+	t.Run("sends up to the burst immediately", func(t *testing.T) {
+		c, _, r := pipeClient(t, "testnick")
+		c.FloodBurst = 3
+		c.FloodInterval = time.Hour // never refills during this test
+		for range 3 {
+			go c.SendPaced("PRIVMSG #chan :line")
+		}
+		for range 3 {
+			expectLine(t, r)
+		}
+	})
+
+	t.Run("throttles beyond the burst until the next interval", func(t *testing.T) {
+		c, server, r := pipeClient(t, "testnick")
+		c.FloodBurst = 1
+		c.FloodInterval = 500 * time.Millisecond
+		go c.SendPaced("PRIVMSG #chan :first")
+		expectLine(t, r) // spends the only token, immediately
+
+		go c.SendPaced("PRIVMSG #chan :second")
+		expectNoLine(t, server, r) // still well within the interval
+		if got := expectLine(t, r); got != "PRIVMSG #chan :second\r\n" {
+			t.Errorf("got %q", got)
+		}
+	})
+
+	t.Run("returns an error if the connection closes while waiting for a token", func(t *testing.T) {
+		c, server, r := pipeClient(t, "testnick")
+		c.Start()
+		drainHandshake(t, r)
+		c.FloodBurst = 1
+		c.FloodInterval = time.Hour // never refills in time
+		go c.SendPaced("PRIVMSG #chan :first")
+		expectLine(t, r) // spends the only token
+
+		errCh := make(chan error, 1)
+		go func() { errCh <- c.SendPaced("PRIVMSG #chan :second") }()
+
+		server.Close() // trips the read loop's EOF, closing c.closed
+		select {
+		case err := <-errCh:
+			if err == nil {
+				t.Error("expected an error, got nil")
+			}
+		case <-time.After(2 * time.Second):
+			t.Fatal("SendPaced didn't return once the connection closed")
+		}
+	})
+}
+
 func TestHandshake(t *testing.T) {
 	c, _, r := pipeClient(t, "mynick")
 	c.Start()

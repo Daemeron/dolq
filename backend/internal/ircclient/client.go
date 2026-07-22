@@ -41,6 +41,17 @@ const DefaultCapTimeout = 10 * time.Second
 // CAP/SASL negotiation already has for a server that never answers at all.
 const maxNickCollisionRetries = 5
 
+// DefaultFloodBurst and DefaultFloodInterval bound outgoing user-originated
+// traffic (see SendPaced) to a burst of DefaultFloodBurst lines, then one
+// more every DefaultFloodInterval - generic pacing that clears most
+// servers' own flood protection without a paste storm getting the
+// connection killed, without needing per-network tuning. Overridable before
+// Start() the same way PingTimeout/CapTimeout are.
+const (
+	DefaultFloodBurst    = 4
+	DefaultFloodInterval = 2 * time.Second
+)
+
 // NamesEvent is the synthesized event ircclient emits once a NAMES reply
 // (RFC 353, possibly split across several lines) is complete (RFC 366).
 type NamesEvent struct {
@@ -79,11 +90,27 @@ type Client struct {
 	PingCheckInterval time.Duration
 	CapTimeout        time.Duration
 
+	// Overridable before the first SendPaced call - unlike the timeouts
+	// above, flood pacing has no Start()-time goroutine to seed, it lazily
+	// self-initializes on first use (see floodLimiter.wait), so there's no
+	// deadline for overriding these beyond "before anything gets sent".
+	FloodBurst    int
+	FloodInterval time.Duration
+
 	// SASL PLAIN credentials. Both empty (the default) just means the "sasl"
 	// capability never makes it into negotiateCaps' REQ - every other
 	// capability this client wants is still requested the same either way.
 	SASLUser string
 	SASLPass string
+
+	// flood paces SendPaced - a plain zero-value field (not a pointer set up
+	// in Start()) specifically so it's safe to use immediately after
+	// construction, before Start() has run. That matters: bouncer's
+	// reconnect swaps a session's client (and flips its status to
+	// "connected", inviting a Send) before calling the new client's Start(),
+	// so a pointer initialized there could still be nil when a concurrent
+	// SendPaced call reaches it.
+	flood floodLimiter
 }
 
 // Dial opens a real connection to an IRC network. secure selects TLS.
@@ -119,6 +146,8 @@ func newClient(conn net.Conn, nick string) *Client {
 		PingTimeout:       DefaultPingTimeout,
 		PingCheckInterval: DefaultPingCheckInterval,
 		CapTimeout:        DefaultCapTimeout,
+		FloodBurst:        DefaultFloodBurst,
+		FloodInterval:     DefaultFloodInterval,
 	}
 	c.lastActivity.Store(time.Now().UnixNano())
 	return c
@@ -662,6 +691,72 @@ func (c *Client) Send(msg string) error {
 	defer c.writeMu.Unlock()
 	_, err := c.conn.Write([]byte(line + "\r\n"))
 	return err
+}
+
+// SendPaced is like Send, but paced by the outgoing flood limiter (see
+// floodLimiter) - it blocks until a token is available or the connection
+// closes first, whichever comes first. Only for user-originated traffic
+// (bouncer.Send is the only caller): internal protocol lines - the
+// handshake, PONG replies, CTCP replies, Disconnect's PART/QUIT - go
+// through Send directly and are never delayed by this, since none of them
+// are the paste-storm/rapid-command-spam case this guards against, and PONG
+// in particular is time-sensitive enough that delaying it could self-
+// inflict a ping timeout.
+func (c *Client) SendPaced(msg string) error {
+	if !c.flood.wait(c.FloodBurst, c.FloodInterval, c.closed) {
+		return errors.New("ircclient: connection closed while waiting to send")
+	}
+	return c.Send(msg)
+}
+
+// floodLimiter is a token bucket sized in whole lines: burst tokens are
+// available immediately, then one more every interval - refilled lazily
+// (computed from elapsed wall-clock time on each call, not a background
+// goroutine), so a zero-value floodLimiter is immediately usable with no
+// setup step and nothing to leak or stop on disconnect.
+type floodLimiter struct {
+	mu       sync.Mutex
+	init     bool
+	tokens   int
+	burst    int
+	interval time.Duration
+	next     time.Time // when the next token becomes available
+}
+
+// wait blocks (waking up in interval-sized steps, checking done each time)
+// until a token is available, spends it, and returns true - or returns
+// false if done fires first. burst/interval are only read on the very first
+// call, which is what makes it safe to keep overriding Client.FloodBurst/
+// FloodInterval right up until that point, same as the other Client
+// timeouts that are only consulted once their owning goroutine starts.
+func (fl *floodLimiter) wait(burst int, interval time.Duration, done <-chan struct{}) bool {
+	for {
+		fl.mu.Lock()
+		if !fl.init {
+			fl.tokens, fl.burst, fl.interval = burst, burst, interval
+			fl.next = time.Now().Add(interval)
+			fl.init = true
+		}
+		now := time.Now()
+		if fl.tokens < fl.burst && !now.Before(fl.next) {
+			gained := int(now.Sub(fl.next)/fl.interval) + 1
+			fl.tokens = min(fl.burst, fl.tokens+gained)
+			fl.next = fl.next.Add(time.Duration(gained) * fl.interval)
+		}
+		if fl.tokens > 0 {
+			fl.tokens--
+			fl.mu.Unlock()
+			return true
+		}
+		sleep := fl.next.Sub(now)
+		fl.mu.Unlock()
+
+		select {
+		case <-time.After(sleep):
+		case <-done:
+			return false
+		}
+	}
 }
 
 // Disconnect PARTs every joined channel, sends QUIT, then closes the

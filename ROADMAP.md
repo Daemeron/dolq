@@ -212,8 +212,25 @@ will hang the UI.
       (`nickMap`) never updated on a live self `NICK` change before this -
       needed for the new WELCOME-driven correction to actually stick, but a
       real gap on its own regardless of collisions
-- [ ] Outgoing flood protection (basic send-rate limiting so a paste storm
-      doesn't get you killed by the server)
+- [x] Outgoing flood protection - `Bouncer.Send` is the one path every
+      user-originated line takes to the wire (typed chat, `/join`/`/part`/
+      `/me`, raw commands from the Log), so it's the one place this needs to
+      live: `ircclient.Client.SendPaced` now sits in front of the actual
+      write, a token bucket allowing a burst of 4 lines immediately then one
+      more every 2s, refilled lazily from elapsed wall-clock time rather
+      than a background goroutine - a paste storm gets sent, just spread out
+      enough to clear a typical server's own flood protection instead of
+      getting the connection killed for tripping it, nothing gets silently
+      dropped. Deliberately doesn't touch internal protocol traffic
+      (handshake, PONG, CTCP replies, `Disconnect`'s PART/QUIT) - those
+      still go through the unpaced `Send` directly, since delaying PONG in
+      particular could self-inflict a ping timeout. Known gap: the frontend
+      still does its optimistic local echo only after `sendLine`'s IPC round
+      trip resolves, so a paced (delayed) send would show up in your own
+      chat view late too - not fixed here since nothing in today's UI (a
+      single-line input, one Enter per message) can actually trigger the
+      burst limit in normal use; worth revisiting if multi-line paste or
+      scripting/aliases (Milestone 2) ever can
 
 ### Preferences (v1 - the minimum to be comfortable daily)
 
