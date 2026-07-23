@@ -1,8 +1,9 @@
 import { installExtension, REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';
 import { app, BrowserWindow, ipcMain } from 'electron';
 import { join } from 'path';
-import { ConnectionStatus, IrcMessages } from '../shared/ipc';
+import { ConnectionStatus, IrcMessages, Settings } from '../shared/ipc';
 import { BackendClient } from './irc/BackendClient';
+import { loadSettings, saveSettings } from './settings';
 
 let mainWindow: BrowserWindow;
 
@@ -36,8 +37,10 @@ app.whenReady().then(async () => {
   if (!app.isPackaged) app.dock?.setIcon(ICON_PATH);
   createWindow();
 
-  const backend = new BackendClient();
+  const settings = loadSettings();
+  const backend = new BackendClient(settings.retentionDays);
   registerIrcHandlers(mainWindow, backend);
+  registerSettingsHandlers(settings);
   await installReactDevTools();
   registerAppLifecycleHandlers(backend);
 });
@@ -77,6 +80,20 @@ function registerIrcHandlers(mainWindow: BrowserWindow, backend: BackendClient):
   backend.on('status', (serverId: string, status: ConnectionStatus) =>
     mainWindow.webContents.send(IrcMessages.status, serverId, status),
   );
+}
+
+// Settings live for the process's lifetime in `current`, not re-read from
+// disk on every get - saveSettings persists it, but retentionDays only
+// actually takes effect on the next launch (it's dolqd's launch flag, not
+// something it can be told to change mid-run), so there's nothing to apply
+// live here either way.
+function registerSettingsHandlers(initial: Settings): void {
+  let current = initial;
+  ipcMain.handle(IrcMessages.getSettings, () => current);
+  ipcMain.handle(IrcMessages.setSettings, (_event, settings: Settings) => {
+    current = settings;
+    saveSettings(settings);
+  });
 }
 
 function registerAppLifecycleHandlers(backend: BackendClient): void {

@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import { ConnectionStatus, IrcApi, IrcEvent, IrcMessages } from '../shared/ipc';
+import { ConnectionStatus, IrcApi, IrcEvent, IrcMessages, Settings } from '../shared/ipc';
 
 contextBridge.exposeInMainWorld('irc', {
   connect: (
@@ -26,6 +26,10 @@ contextBridge.exposeInMainWorld('irc', {
 
   getHistory: (serverId: string, channel: string, before?: number, limit?: number) =>
     ipcRenderer.invoke(IrcMessages.getHistory, serverId, channel, before, limit),
+
+  getSettings: () => ipcRenderer.invoke(IrcMessages.getSettings),
+
+  setSettings: (settings: Settings) => ipcRenderer.invoke(IrcMessages.setSettings, settings),
 
   onLine: (callback: (serverId: string, line: string) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, serverId: string, line: string) => callback(serverId, line);

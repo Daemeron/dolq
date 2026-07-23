@@ -234,7 +234,24 @@ will hang the UI.
 
 ### Preferences (v1 - the minimum to be comfortable daily)
 
-- [ ] Preferences window/panel
+- [x] Preferences window/panel - a modal (`PreferencesModal`, same style as
+      `ConnectModal`), opened from a gear icon next to the nick in
+      `UserPanel`. Settings live in their own small JSON file
+      (`src/main/settings.ts`, under `app.getPath('userData')`) rather than
+      the renderer's localStorage-backed zustand store: unlike everything
+      else in that store, at least one setting (retention) has to be read by
+      the main process before `dolqd` is even spawned (it becomes the
+      `-retention-days` launch flag - previously hardcoded to never being
+      passed at all, so retention silently defaulted to "forever" for every
+      real user regardless of the flag already existing backend-side), which
+      the renderer can't serve in time. First (only, for now) setting wired
+      through: history retention, the exact "small follow-up" the
+      persistence section above already called out once this existed. It's
+      a launch flag, not something `dolqd` can be told to change mid-run, so
+      saving it persists immediately but only takes effect on the next
+      start - explained in the panel itself rather than actually restarting
+      the backend (and dropping every live connection) to apply it
+      immediately
 - [ ] Per-server identity defaults (nick, alt nicks, username/realname, SASL
       creds, autojoin channel list)
 - [ ] Notification toggle + basic mention/highlight detection (own nick

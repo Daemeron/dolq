@@ -3,9 +3,10 @@ type Props = {
   connectionStatus: 'disconnected' | 'connecting' | 'connected';
   onConnect: () => void;
   onDisconnect: () => void;
+  onOpenPreferences: () => void;
 };
 
-export function UserPanel({ currentNick, connectionStatus, onConnect, onDisconnect }: Props) {
+export function UserPanel({ currentNick, connectionStatus, onConnect, onDisconnect, onOpenPreferences }: Props) {
   const btnColor = connectionStatus === 'connected'
     ? 'bg-[#50fa7b] hover:bg-[#ff5555]'
     : connectionStatus === 'connecting'
@@ -35,7 +36,14 @@ export function UserPanel({ currentNick, connectionStatus, onConnect, onDisconne
         <div className="w-9 h-9 rounded-full bg-[#c792ea] text-white text-shadow-sm flex items-center justify-center font-bold text-sm shrink-0">
           {currentNick[0]?.toUpperCase() ?? '?'}
         </div>
-        <span className="text-[14px] font-semibold text-white truncate">{currentNick}</span>
+        <span className="text-[14px] font-semibold text-white truncate flex-1">{currentNick}</span>
+        <button
+          onClick={onOpenPreferences}
+          title="Preferences"
+          className="shrink-0 w-7 h-7 flex items-center justify-center rounded border-0 bg-transparent text-[#909090] cursor-pointer hover:text-white hover:bg-[rgba(90,90,90,0.35)]"
+        >
+          ⚙
+        </button>
       </div>
     </div>
   );

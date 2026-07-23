@@ -53,6 +53,18 @@ export type HistoryEntry = {
   event?: IrcEvent; // present when !isRaw
 };
 
+// Settings that persist independent of any one server - unlike everything
+// else in this file, these are read by the main process before dolqd is
+// even spawned (retentionDays becomes its `-retention-days` launch flag),
+// so they live in their own small file rather than the renderer's
+// localStorage-backed zustand store (see src/main/settings.ts).
+export type Settings = {
+  // Prune history older than this many days; 0 keeps it forever (dolqd's
+  // own default). Takes effect on the next launch, not live - it's a launch
+  // flag, not something dolqd can be told to change mid-run.
+  retentionDays: number;
+};
+
 export type IrcApi = {
   // saslUser/saslPass are optional; both empty/omitted skips SASL PLAIN
   // entirely and connects the same way it always did.
@@ -70,6 +82,8 @@ export type IrcApi = {
   getStatus: (serverId: string) => Promise<ConnectionStatus>;
   getJoinedChannels: (serverId: string) => Promise<string[]>;
   getHistory: (serverId: string, channel: string, before?: number, limit?: number) => Promise<HistoryEntry[]>;
+  getSettings: () => Promise<Settings>;
+  setSettings: (settings: Settings) => Promise<void>;
   onLine: (callback: (serverId: string, line: string) => void) => () => void;
   onEvent: (callback: (serverId: string, event: IrcEvent) => void) => () => void;
   onStatus: (callback: (serverId: string, status: ConnectionStatus) => void) => () => void;
@@ -87,6 +101,8 @@ export enum IrcMessages {
   getStatus = 'irc:getStatus',
   getJoinedChannels = 'irc:getJoinedChannels',
   getHistory = 'irc:getHistory',
+  getSettings = 'irc:getSettings',
+  setSettings = 'irc:setSettings',
   line = 'irc:line',
   event = 'irc:event',
   status = 'irc:status',

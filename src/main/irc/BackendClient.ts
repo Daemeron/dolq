@@ -43,14 +43,14 @@ export class BackendClient extends EventEmitter {
   // just waits its turn on this instead of racing it.
   private ready: Promise<void>;
 
-  constructor() {
+  constructor(private retentionDays: number) {
     super();
     this.ready = this.spawnAndDial();
     this.ready.catch((err) => console.error('dolqd failed to start:', err));
   }
 
   private async spawnAndDial(): Promise<void> {
-    const { cmd, args, cwd, devBinaryPath } = await resolveBackendCommand();
+    const { cmd, args, cwd, devBinaryPath } = await resolveBackendCommand(this.retentionDays);
     this.devBinaryPath = devBinaryPath;
     const child = spawn(cmd, args, { cwd });
     this.child = child;
@@ -173,10 +173,13 @@ export class BackendClient extends EventEmitter {
   }
 }
 
-async function resolveBackendCommand(): Promise<{ cmd: string; args: string[]; cwd: string; devBinaryPath?: string }> {
+async function resolveBackendCommand(
+  retentionDays: number,
+): Promise<{ cmd: string; args: string[]; cwd: string; devBinaryPath?: string }> {
+  const args = ['-retention-days', String(retentionDays)];
   if (app.isPackaged) {
     const exe = process.platform === 'win32' ? 'dolqd.exe' : 'dolqd';
-    return { cmd: path.join(process.resourcesPath, 'bin', exe), args: [], cwd: process.resourcesPath };
+    return { cmd: path.join(process.resourcesPath, 'bin', exe), args, cwd: process.resourcesPath };
   }
   // Build to a real binary and spawn that directly, the same as the
   // packaged path above - not `go run`, which wraps the actual binary in a
@@ -188,5 +191,5 @@ async function resolveBackendCommand(): Promise<{ cmd: string; args: string[]; c
   const backendDir = path.resolve(__dirname, '../../backend');
   const devBinaryPath = path.join(app.getPath('temp'), `dolqd-dev-${process.pid}`);
   await execFileAsync('go', ['build', '-o', devBinaryPath, './cmd/dolqd'], { cwd: backendDir });
-  return { cmd: devBinaryPath, args: [], cwd: backendDir, devBinaryPath };
+  return { cmd: devBinaryPath, args, cwd: backendDir, devBinaryPath };
 }

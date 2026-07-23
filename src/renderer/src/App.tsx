@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Message } from './types';
-import type { HistoryEntry } from '../../shared/ipc';
+import type { HistoryEntry, Settings } from '../../shared/ipc';
 import { useStore } from './store';
 import { ServerList } from './components/ServerList';
 import { ChannelList } from './components/ChannelList';
@@ -9,6 +9,7 @@ import { MessageArea } from './components/MessageArea';
 import { UserList } from './components/UserList';
 import { MessageInput } from './components/MessageInput';
 import { ConnectModal, type ConnectForm } from './components/ConnectModal';
+import { PreferencesModal } from './components/PreferencesModal';
 import { UserPanel } from './components/UserPanel';
 import { buildServerId, parseServerId } from './utils/server';
 
@@ -59,8 +60,24 @@ export default function App() {
   } = useStore();
 
   const [showModal, setShowModal] = useState(false);
+  const [showPreferences, setShowPreferences] = useState(false);
+  // Not in the zustand store: unlike everything else there, these belong to
+  // the main process (not per-server, and read from disk before the
+  // renderer even exists - see src/main/settings.ts), so the renderer just
+  // mirrors whatever it last fetched/saved rather than owning them.
+  const [settings, setSettingsState] = useState<Settings>({ retentionDays: 0 });
   const nextMsgId = useRef(Date.now());
   const historyPages = useRef(new Map<string, HistoryPage>());
+
+  useEffect(() => {
+    window.irc.getSettings().then(setSettingsState);
+  }, []);
+
+  async function handleSavePreferences(next: Settings) {
+    await window.irc.setSettings(next);
+    setSettingsState(next);
+    setShowPreferences(false);
+  }
 
   // Both the initial preload and loadOlderHistory below need the bare
   // '__log__' key the backend stores raw lines under - the "__log__" suffix
@@ -380,6 +397,13 @@ export default function App() {
           onCancel={() => setShowModal(false)}
         />
       )}
+      {showPreferences && (
+        <PreferencesModal
+          settings={settings}
+          onSave={handleSavePreferences}
+          onCancel={() => setShowPreferences(false)}
+        />
+      )}
       <div className="relative flex flex-col shrink-0">
         <div className="flex flex-1 overflow-hidden">
           <ServerList
@@ -408,6 +432,7 @@ export default function App() {
             connectionStatus={connectionStatus}
             onConnect={connectToServer}
             onDisconnect={handleDisconnect}
+            onOpenPreferences={() => setShowPreferences(true)}
           />
         </div>
       </div>
