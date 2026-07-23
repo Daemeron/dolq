@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildServerId, parseServerId } from './serverId';
+import { buildServerId, parseServerId } from './server';
 
 describe('buildServerId', () => {
   it('joins a regular hostname and port', () => {

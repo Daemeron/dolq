@@ -33,7 +33,7 @@ vi.mock('node:readline', () => ({
   },
 }));
 
-import { IrcClient, PING_TIMEOUT_MS, PING_TIMEOUT_CHECK_INTERVAL_MS } from './client.js';
+import { IrcClient, PING_TIMEOUT_MS, PING_TIMEOUT_CHECK_INTERVAL_MS } from './IrcClient.js';
 
 describe('IrcClient.send()', () => {
   let client: IrcClient;

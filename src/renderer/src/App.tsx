@@ -9,7 +9,7 @@ import { UserList } from './components/UserList';
 import { MessageInput } from './components/MessageInput';
 import { ConnectModal, type ConnectForm } from './components/ConnectModal';
 import { UserPanel } from './components/UserPanel';
-import { buildServerId, parseServerId } from './serverId';
+import { buildServerId, parseServerId } from './utils/server';
 
 export default function App() {
   const {

@@ -1,7 +1,7 @@
 import net from 'node:net';
 import readline from 'node:readline';
-import { parseIrcLine, type User } from './parseLine.js';
-import type { IrcEvent } from '../../shared/ipc';
+import { parseIrcLine, type User } from './utils/parse.js';
+import type { IrcEvent } from '../../shared/ipc.js';
 
 // Servers ping idle clients every minute or two; if nothing at all has been received
 // in this long, the far end is presumably gone even though the socket never got a

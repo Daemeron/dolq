@@ -2,7 +2,7 @@ import { installExtension, REACT_DEVELOPER_TOOLS } from 'electron-devtools-insta
 import { app, BrowserWindow, ipcMain } from 'electron';
 import { join } from 'path';
 import { IrcMessages } from '../shared/ipc';
-import { IrcClient } from './irc/client';
+import { IrcClient } from './irc/IrcClient';
 
 let mainWindow: BrowserWindow;
 

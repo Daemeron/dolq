@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import { type Server, type Channel, type Message, type User } from './types';
-import { PUBLIC_SERVERS, type ServerPreset } from './publicServers';
+import { PUBLIC_SERVERS, type ServerPreset } from './data/servers';
 import { outranks, type PrivilegeLevel } from '../../shared/ipc';
 
 type State = {
