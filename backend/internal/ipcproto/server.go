@@ -118,7 +118,7 @@ func (s *Server) handleConn(netConn net.Conn) {
 func (s *Server) handleFrame(c *conn, f ClientFrame) {
 	switch f.Action {
 	case ActionConnect:
-		c.writeResult(f.ID, s.b.Connect(f.ServerID, f.Host, f.Port, f.Nick, f.Secure, f.SASLUser, f.SASLPass, c))
+		c.writeResult(f.ID, s.b.Connect(f.ServerID, f.Host, f.Port, f.Nick, f.Secure, f.SASLUser, f.SASLPass, f.Username, f.Realname, f.AltNicks, c))
 	case ActionDisconnect:
 		c.writeResult(f.ID, s.b.Disconnect(f.ServerID))
 	case ActionSend:

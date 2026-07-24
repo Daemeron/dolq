@@ -67,7 +67,10 @@ export type Settings = {
 
 export type IrcApi = {
   // saslUser/saslPass are optional; both empty/omitted skips SASL PLAIN
-  // entirely and connects the same way it always did.
+  // entirely and connects the same way it always did. username/realname
+  // empty default to nick/"Dolq IRC Client"; altNicks empty just means the
+  // usual underscore-appending nick-collision fallback, nothing configured
+  // ahead of it.
   connect: (
     serverId: string,
     host: string,
@@ -76,6 +79,9 @@ export type IrcApi = {
     secure: boolean,
     saslUser?: string,
     saslPass?: string,
+    username?: string,
+    realname?: string,
+    altNicks?: string[],
   ) => Promise<void>;
   disconnect: (serverId: string) => Promise<void>;
   sendLine: (serverId: string, line: string) => Promise<void>;

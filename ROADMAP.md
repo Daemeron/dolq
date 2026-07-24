@@ -252,8 +252,26 @@ will hang the UI.
       start - explained in the panel itself rather than actually restarting
       the backend (and dropping every live connection) to apply it
       immediately
-- [ ] Per-server identity defaults (nick, alt nicks, username/realname, SASL
-      creds, autojoin channel list)
+- [x] Per-server identity defaults (nick, alt nicks, username/realname, SASL
+      creds, autojoin channel list) - nick and SASL creds already had a home
+      (`nickMap`/`saslMap`); this rounds out `Server` with `altNicks`,
+      `username`, `realname`, `autojoinChannels`, all optional and all
+      captured in `ConnectModal`'s new collapsible "Advanced" section so the
+      common case (host/nick/SASL) doesn't get more cluttered. AltNicks
+      feeds directly into the nick-collision retry machinery from the
+      "Nickname collision handling" item above - `handleNickInUse` tries
+      each configured alt nick in order before falling back to
+      underscore-appending, a configured fallback beating a mangled one.
+      Username/realname flow into the `USER` line (previously hardcoded to
+      the nick and "Dolq IRC Client"); realname now gets a proper leading
+      `:` there too, so a multi-word one actually round-trips correctly
+      instead of just working by most servers' leniency. Autojoin channels
+      get JOINed once `WELCOME` (`001`) confirms registration - the same
+      event that now also drives nick-tracking, so there's no separate
+      "just connected" signal needed. Not built: a way to edit any of this
+      for a server already added - matches nick/SASL's own existing
+      precedent (ConnectModal-only, no edit-later UI exists for those
+      either), not a gap introduced by this
 - [ ] Notification toggle + basic mention/highlight detection (own nick
       mentioned in a channel you're not focused on)
 - [ ] Timestamp format (12h/24h), compact vs. cozy message density

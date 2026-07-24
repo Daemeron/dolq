@@ -24,19 +24,22 @@ const (
 
 // ClientFrame is one line the frontend sends.
 type ClientFrame struct {
-	ID       string `json:"id,omitempty"` // caller-chosen; echoed back on the result
-	Action   string `json:"action"`
-	ServerID string `json:"serverId,omitempty"`
-	Host     string `json:"host,omitempty"`
-	Port     int    `json:"port,omitempty"`
-	Nick     string `json:"nick,omitempty"`
-	Secure   bool   `json:"secure,omitempty"`
-	SASLUser string `json:"saslUser,omitempty"` // connect; both empty skips SASL
-	SASLPass string `json:"saslPass,omitempty"` // connect
-	Line     string `json:"line,omitempty"`
-	Channel  string `json:"channel,omitempty"` // getHistory
-	Before   int64  `json:"before,omitempty"`  // getHistory: id cursor, 0 = most recent
-	Limit    int    `json:"limit,omitempty"`   // getHistory
+	ID       string   `json:"id,omitempty"` // caller-chosen; echoed back on the result
+	Action   string   `json:"action"`
+	ServerID string   `json:"serverId,omitempty"`
+	Host     string   `json:"host,omitempty"`
+	Port     int      `json:"port,omitempty"`
+	Nick     string   `json:"nick,omitempty"`
+	Secure   bool     `json:"secure,omitempty"`
+	SASLUser string   `json:"saslUser,omitempty"` // connect; both empty skips SASL
+	SASLPass string   `json:"saslPass,omitempty"` // connect
+	Username string   `json:"username,omitempty"` // connect; empty defaults to nick
+	Realname string   `json:"realname,omitempty"` // connect; empty defaults to "Dolq IRC Client"
+	AltNicks []string `json:"altNicks,omitempty"` // connect
+	Line     string   `json:"line,omitempty"`
+	Channel  string   `json:"channel,omitempty"` // getHistory
+	Before   int64    `json:"before,omitempty"`  // getHistory: id cursor, 0 = most recent
+	Limit    int      `json:"limit,omitempty"`   // getHistory
 }
 
 // ServerFrame is one line the backend sends back.

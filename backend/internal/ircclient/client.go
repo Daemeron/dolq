@@ -103,6 +103,17 @@ type Client struct {
 	SASLUser string
 	SASLPass string
 
+	// Identity overrides for the USER line - both empty (the default) means
+	// "USER <nick> 0 * :Dolq IRC Client", same as before these existed.
+	Username string
+	Realname string
+
+	// AltNicks are tried in order, before handleNickInUse falls back to
+	// appending underscores, each time the currently-requested nick turns
+	// out to be taken during registration (see handleNickInUse) - a
+	// configured fallback beats a mangled one.
+	AltNicks []string
+
 	// flood paces SendPaced - a plain zero-value field (not a pointer set up
 	// in Start()) specifically so it's safe to use immediately after
 	// construction, before Start() has run. That matters: bouncer's
@@ -165,12 +176,28 @@ func (c *Client) Start() {
 }
 
 func (c *Client) handshake() {
+	username := c.Username
+	if username == "" {
+		username = c.nick
+	}
+	realname := c.Realname
+	if realname == "" {
+		realname = "Dolq IRC Client"
+	}
+
 	// Sent unconditionally, not just when SASL is configured: this is also
 	// how the client finds out whether the server supports multi-prefix/
 	// away-notify/server-time (see negotiateCaps) - it holds registration
 	// open until CAP END below, so a server that understands CAP won't
 	// complete (and start delivering messages) before that.
-	lines := []string{"CAP LS 302", "PASS none", "NICK " + c.nick, "USER " + c.nick + " 0 * Dolq IRC Client"}
+	//
+	// realname gets a leading ':' (unlike before Username/Realname were
+	// configurable) so it can actually contain spaces - a bare multi-word
+	// trailing param is something most servers tolerate leniently, but
+	// isn't correct, and a user-supplied realname is more likely to have
+	// spaces than the old hardcoded "Dolq IRC Client" ever needed to worry
+	// about.
+	lines := []string{"CAP LS 302", "PASS none", "NICK " + c.nick, "USER " + username + " 0 * :" + realname}
 
 	// Unlike the TS version (which fires all three writes and separately
 	// catches each rejection so Node doesn't warn about the ones Promise.all
@@ -593,17 +620,25 @@ func (c *Client) sendCTCPReply(nick, payload string) {
 }
 
 // handleNickInUse reacts to ERR_NICKNAMEINUSE (433). While still registering
-// (no RPL_WELCOME yet) it retries with nick plus one underscore per attempt
-// so far, up to maxNickCollisionRetries, and returns the nick it retried
-// with. Once already registered - a live /nick attempt getting rejected -
-// or once retries are exhausted, it does nothing and returns "": neither
-// case should silently land the connection on a nick nobody asked for.
+// (no RPL_WELCOME yet) it retries through AltNicks in order first - a
+// configured fallback beats a mangled one - then falls back to nick plus
+// one more underscore per attempt, up to max(maxNickCollisionRetries,
+// len(AltNicks)) so a longer configured list always gets a full chance, and
+// returns the nick it retried with. Once already registered - a live /nick
+// attempt getting rejected - or once retries are exhausted, it does nothing
+// and returns "": neither case should silently land the connection on a
+// nick nobody asked for.
 func (c *Client) handleNickInUse(nick string) string {
 	c.mu.Lock()
 	var retry string
-	if !c.registered && c.nickCollisions < maxNickCollisionRetries {
+	limit := max(maxNickCollisionRetries, len(c.AltNicks))
+	if !c.registered && c.nickCollisions < limit {
+		if c.nickCollisions < len(c.AltNicks) {
+			retry = c.AltNicks[c.nickCollisions]
+		} else {
+			retry = nick + strings.Repeat("_", c.nickCollisions-len(c.AltNicks)+1)
+		}
 		c.nickCollisions++
-		retry = nick + strings.Repeat("_", c.nickCollisions)
 		c.nick = retry
 	}
 	c.mu.Unlock()

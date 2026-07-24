@@ -8,7 +8,7 @@ import { TopicBar } from './components/TopicBar';
 import { MessageArea } from './components/MessageArea';
 import { UserList } from './components/UserList';
 import { MessageInput } from './components/MessageInput';
-import { ConnectModal, type ConnectForm } from './components/ConnectModal';
+import { ConnectModal, parseList, type ConnectForm } from './components/ConnectModal';
 import { PreferencesModal } from './components/PreferencesModal';
 import { UserPanel } from './components/UserPanel';
 import { buildServerId, parseServerId } from './utils/server';
@@ -218,6 +218,11 @@ export default function App() {
           // Authoritative: the nick we asked for at connect time might not
           // be the one that actually got registered (see NICKINUSE below).
           setNick(serverId, event.nick);
+          // Registration just completed - now's the only time to autojoin,
+          // there's nothing else that marks "freshly (re)connected".
+          servers.find((s) => s.id === serverId)?.autojoinChannels?.forEach((ch) =>
+            window.irc.sendLine(serverId, `JOIN ${ch}`),
+          );
           break;
         case 'NICKINUSE': {
           const text = event.retrying
@@ -248,7 +253,7 @@ export default function App() {
   }, [
     appendMessage, addChannel, selectChannel, addUser, removeUser,
     removeUserEverywhere, renameUserEverywhere, applyModeChanges, setUsers, setTopic, setTopicWhoTime, nickMap,
-    channelMap, setNick,
+    channelMap, setNick, servers,
   ]);
 
   // Preload scrollback the first time a channel is actually opened - once
@@ -290,15 +295,23 @@ export default function App() {
   async function handleConnect(form: ConnectForm) {
     const id = buildServerId(form.host, form.port);
     const { host, port } = parseServerId(id);
+    const altNicks = parseList(form.altNicks);
+    const autojoinChannels = parseList(form.autojoinChannels);
     addServer(
-      { id, name: form.name, initial: form.name[0]?.toUpperCase() ?? '?', secure: form.secure },
+      {
+        id, name: form.name, initial: form.name[0]?.toUpperCase() ?? '?', secure: form.secure,
+        altNicks, username: form.username || undefined, realname: form.realname || undefined, autojoinChannels,
+      },
       { id: `${id}:__log__`, name: 'Log', isLog: true },
     );
     addPreset({ id, name: form.name, host, port, secure: form.secure });
     setNick(id, form.nick);
     setSaslCreds(id, form.saslUser, form.saslPass);
     setConnectionStatus(id, 'connecting');
-    await window.irc.connect(id, host, port, form.nick, form.secure, form.saslUser, form.saslPass);
+    await window.irc.connect(
+      id, host, port, form.nick, form.secure, form.saslUser, form.saslPass,
+      form.username, form.realname, altNicks,
+    );
     setConnectionStatus(id, 'connected');
     selectServer(id);
     setShowModal(false);
@@ -311,7 +324,10 @@ export default function App() {
     const nick = nickMap[server.id] ?? 'dolq_user';
     const sasl = saslMap[server.id];
     setConnectionStatus(server.id, 'connecting');
-    await window.irc.connect(server.id, host, port, nick, server.secure, sasl?.user, sasl?.pass);
+    await window.irc.connect(
+      server.id, host, port, nick, server.secure, sasl?.user, sasl?.pass,
+      server.username, server.realname, server.altNicks,
+    );
     setConnectionStatus(server.id, 'connected');
   }
 

@@ -11,7 +11,20 @@ type ConnectForm = {
   secure: boolean;
   saslUser: string;
   saslPass: string;
+  // Comma/whitespace-separated - parsed with parseList on submit, same as
+  // the store's Server.altNicks/autojoinChannels arrays they become.
+  altNicks: string;
+  username: string;
+  realname: string;
+  autojoinChannels: string;
 };
+
+// Splits on commas and/or whitespace, dropping empties - one shared parser
+// for both list-shaped fields below rather than slightly different rules
+// for each.
+function parseList(value: string): string[] {
+  return value.split(/[,\s]+/).map((s) => s.trim()).filter(Boolean);
+}
 
 type Props = {
   presets: ServerPreset[];
@@ -29,6 +42,10 @@ const DEFAULTS: ConnectForm = {
   secure: true,
   saslUser: '',
   saslPass: '',
+  altNicks: '',
+  username: '',
+  realname: '',
+  autojoinChannels: '',
 };
 
 const inputClass =
@@ -153,6 +170,43 @@ export function ConnectModal({ presets, nickMap, onConnect, onCancel }: Props) {
             />
           </label>
 
+          <details className="flex flex-col gap-4">
+            <summary className="text-[11px] font-bold uppercase tracking-[0.5px] text-[#b0b0b0] cursor-pointer select-none">
+              Advanced
+            </summary>
+
+            <label className={`${labelClass} mt-4`}>
+              Alt Nicknames
+              <input
+                className={inputClass}
+                value={form.altNicks}
+                onChange={set('altNicks')}
+                placeholder="nick2, nick3 (tried in order if Nickname is taken)"
+              />
+            </label>
+
+            <div className="flex gap-3">
+              <label className={`${labelClass} flex-1`}>
+                Username
+                <input className={inputClass} value={form.username} onChange={set('username')} placeholder={form.nick || 'defaults to Nickname'} />
+              </label>
+              <label className={`${labelClass} flex-1`}>
+                Real Name
+                <input className={inputClass} value={form.realname} onChange={set('realname')} placeholder="Dolq IRC Client" />
+              </label>
+            </div>
+
+            <label className={labelClass}>
+              Autojoin Channels
+              <input
+                className={inputClass}
+                value={form.autojoinChannels}
+                onChange={set('autojoinChannels')}
+                placeholder="#general, #offtopic"
+              />
+            </label>
+          </details>
+
           <div className="flex flex-col gap-1.5">
             <span className="text-[11px] font-bold uppercase tracking-[0.5px] text-[#b0b0b0]">
               SASL Login
@@ -202,3 +256,4 @@ export function ConnectModal({ presets, nickMap, onConnect, onCancel }: Props) {
 }
 
 export type { ConnectForm };
+export { parseList };

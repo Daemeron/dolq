@@ -179,7 +179,7 @@ func TestHandshake(t *testing.T) {
 	c, _, r := pipeClient(t, "mynick")
 	c.Start()
 
-	want := []string{"CAP LS 302\r\n", "PASS none\r\n", "NICK mynick\r\n", "USER mynick 0 * Dolq IRC Client\r\n"}
+	want := []string{"CAP LS 302\r\n", "PASS none\r\n", "NICK mynick\r\n", "USER mynick 0 * :Dolq IRC Client\r\n"}
 	for _, w := range want {
 		if got := expectLine(t, r); got != w {
 			t.Errorf("got %q want %q", got, w)
@@ -611,6 +611,42 @@ func TestNickCollisionHandling(t *testing.T) {
 		c.mu.Unlock()
 		if got != "testnick_" {
 			t.Errorf("nick = %q, want testnick_", got)
+		}
+	})
+
+	t.Run("tries configured AltNicks in order before falling back to underscores", func(t *testing.T) {
+		c, server, r := pipeClient(t, "testnick")
+		c.AltNicks = []string{"testnick2", "testnick3"}
+		events := make(chan any, 10)
+		c.AddEventListener(func(e any) { events <- e })
+		c.Start()
+		drainHandshake(t, r)
+
+		writeLine(t, server, ":irc.example.net 433 * testnick :Nickname is already in use.")
+		if got := expectLine(t, r); got != "NICK testnick2\r\n" {
+			t.Errorf("retry line = %q, want NICK testnick2", got)
+		}
+		<-events
+
+		writeLine(t, server, ":irc.example.net 433 * testnick2 :Nickname is already in use.")
+		if got := expectLine(t, r); got != "NICK testnick3\r\n" {
+			t.Errorf("retry line = %q, want NICK testnick3", got)
+		}
+		<-events
+
+		// AltNicks exhausted - falls back to underscore-appending the last
+		// rejected nick, same as with no AltNicks configured at all.
+		writeLine(t, server, ":irc.example.net 433 * testnick3 :Nickname is already in use.")
+		if got := expectLine(t, r); got != "NICK testnick3_\r\n" {
+			t.Errorf("retry line = %q, want NICK testnick3_", got)
+		}
+		<-events
+
+		c.mu.Lock()
+		got := c.nick
+		c.mu.Unlock()
+		if got != "testnick3_" {
+			t.Errorf("nick = %q, want testnick3_", got)
 		}
 	})
 

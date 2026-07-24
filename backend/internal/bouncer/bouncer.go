@@ -170,7 +170,11 @@ func New(store *history.Store) *Bouncer {
 // attaches initial as the session's first subscriber before returning so
 // nothing sent after Connect returns is missed. saslUser/saslPass are
 // optional (both empty skips SASL entirely, as ircclient.Client does).
-func (b *Bouncer) Connect(serverID, host string, port int, nick string, secure bool, saslUser, saslPass string, initial Subscriber) error {
+func (b *Bouncer) Connect(
+	serverID, host string, port int, nick string, secure bool,
+	saslUser, saslPass, username, realname string, altNicks []string,
+	initial Subscriber,
+) error {
 	if err := b.Disconnect(serverID); err != nil {
 		return err
 	}
@@ -185,6 +189,9 @@ func (b *Bouncer) Connect(serverID, host string, port int, nick string, secure b
 		}
 		client.SASLUser = saslUser
 		client.SASLPass = saslPass
+		client.Username = username
+		client.Realname = realname
+		client.AltNicks = altNicks
 		return client, nil
 	}
 	client, err := dial()

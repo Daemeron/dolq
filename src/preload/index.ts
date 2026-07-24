@@ -10,7 +10,13 @@ contextBridge.exposeInMainWorld('irc', {
     secure: boolean,
     saslUser?: string,
     saslPass?: string,
-  ) => ipcRenderer.invoke(IrcMessages.connect, serverId, host, port, nick, secure, saslUser, saslPass),
+    username?: string,
+    realname?: string,
+    altNicks?: string[],
+  ) =>
+    ipcRenderer.invoke(
+      IrcMessages.connect, serverId, host, port, nick, secure, saslUser, saslPass, username, realname, altNicks,
+    ),
 
   sendLine: (serverId: string, line: string) =>
     ipcRenderer.invoke(IrcMessages.send, serverId, line),

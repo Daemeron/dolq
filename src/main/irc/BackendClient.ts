@@ -82,8 +82,11 @@ export class BackendClient extends EventEmitter {
     secure: boolean,
     saslUser?: string,
     saslPass?: string,
+    username?: string,
+    realname?: string,
+    altNicks?: string[],
   ): Promise<void> {
-    return this.call('connect', { serverId, host, port, nick, secure, saslUser, saslPass });
+    return this.call('connect', { serverId, host, port, nick, secure, saslUser, saslPass, username, realname, altNicks });
   }
 
   disconnect(serverId: string): Promise<void> {

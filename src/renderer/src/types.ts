@@ -5,6 +5,13 @@ export type Server = {
   name: string;
   initial: string;
   secure: boolean;
+  // Per-server identity defaults, all optional - empty/missing behaves
+  // exactly as before these existed (ircclient defaults username/realname
+  // from nick, altNicks unused, autojoinChannels nothing to join).
+  altNicks?: string[];
+  username?: string;
+  realname?: string;
+  autojoinChannels?: string[];
 };
 
 export type Channel = {
