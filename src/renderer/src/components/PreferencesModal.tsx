@@ -5,6 +5,12 @@ type Props = {
   settings: Settings;
   onSave: (settings: Settings) => void;
   onCancel: () => void;
+  // Unlike `settings` (main-process-owned, retentionDays needs a restart -
+  // see src/main/settings.ts), this is a plain renderer/zustand-store value
+  // that applies live, so it's a controlled checkbox rather than part of
+  // the form's own save/cancel flow.
+  notificationsEnabled: boolean;
+  onNotificationsEnabledChange: (enabled: boolean) => void;
 };
 
 const inputClass =
@@ -12,7 +18,9 @@ const inputClass =
 const labelClass =
   'flex flex-col gap-1.5 text-[11px] font-bold uppercase tracking-[0.5px] text-[#b0b0b0]';
 
-export function PreferencesModal({ settings, onSave, onCancel }: Props) {
+export function PreferencesModal({
+  settings, onSave, onCancel, notificationsEnabled, onNotificationsEnabledChange,
+}: Props) {
   const [retentionDays, setRetentionDays] = useState(String(settings.retentionDays));
 
   useEffect(() => {
@@ -39,6 +47,16 @@ export function PreferencesModal({ settings, onSave, onCancel }: Props) {
         <p className="text-[#b0b0b0] text-[14px] mb-5">
           Applies to every server. Some settings need a restart to take effect.
         </p>
+
+        <label className="flex items-center gap-2 text-[13px] text-[#e6e6e6] cursor-pointer select-none mb-5">
+          <input
+            type="checkbox"
+            checked={notificationsEnabled}
+            onChange={(e) => onNotificationsEnabledChange(e.target.checked)}
+            className="accent-[#c792ea]"
+          />
+          Desktop notifications when mentioned in a channel you're not viewing
+        </label>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <label className={labelClass}>

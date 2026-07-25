@@ -272,8 +272,30 @@ will hang the UI.
       for a server already added - matches nick/SASL's own existing
       precedent (ConnectModal-only, no edit-later UI exists for those
       either), not a gap introduced by this
-- [ ] Notification toggle + basic mention/highlight detection (own nick
-      mentioned in a channel you're not focused on)
+- [x] Notification toggle + basic mention/highlight detection (own nick
+      mentioned in a channel you're not focused on) - `mentionsNick`
+      (`utils/mentions.ts`) does a whole-word, case-insensitive match,
+      bounded with lookarounds rather than `\b` since an IRC nick can start
+      or end with a non-word character (`[bot]`, RFC 2812 allows
+      `[]{}\|^_-\``) that `\b` would never fire a boundary on at all. On a
+      channel PRIVMSG/ACTION that mentions you and isn't the channel
+      currently selected: highlights it in the sidebar (`mentionedChannels`
+      in the store, cleared on selecting it - not persisted, same as
+      statusMap/userMap) and, if the toggle is on, fires a real desktop
+      notification via the renderer's own `Notification` (Electron
+      implements the standard web API there directly - no IPC/main-process
+      round trip needed) that jumps you straight to the channel on click.
+      Scoped to channels only, not queries - unlike a channel, every DM is
+      already "for you" by definition, so there's no separate "mention"
+      signal to detect there. The toggle itself lives in the zustand store
+      (persisted, applies live) rather than the main-process settings file
+      the Preferences panel's retention setting uses - it doesn't need to
+      exist before `dolqd` spawns the way retention does, so there's no
+      reason to pay that indirection for it; the panel now surfaces both,
+      each through whichever path actually fits. Not built: window-focus
+      awareness (only "is this the selected channel" is checked, not "is
+      the app window itself focused") - skipped for now, the selected-
+      channel check alone covers the common case
 - [ ] Timestamp format (12h/24h), compact vs. cozy message density
 
 ---

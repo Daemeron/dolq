@@ -12,6 +12,7 @@ import { ConnectModal, parseList, type ConnectForm } from './components/ConnectM
 import { PreferencesModal } from './components/PreferencesModal';
 import { UserPanel } from './components/UserPanel';
 import { buildServerId, parseServerId } from './utils/server';
+import { mentionsNick } from './utils/mentions';
 
 // How many rows getHistory fetches per page - both for the initial preload
 // and each scroll-up-triggered older page. Also doubles as the "is there
@@ -50,13 +51,22 @@ function toMessages(entries: HistoryEntry[]): Message[] {
 // it lives outside the (unpersisted) store like historyLoaded did before it.
 type HistoryPage = { oldestId: number | null; exhausted: boolean; loading: boolean };
 
+// Electron's renderer implements the standard web Notification API directly
+// - no IPC/main-process round trip needed. Guarded by typeof in case it's
+// ever unavailable (e.g. a future headless/test environment).
+function notify(title: string, body: string, onClick: () => void): void {
+  if (typeof Notification === 'undefined') return;
+  const n = new Notification(title, { body });
+  n.onclick = onClick;
+}
+
 export default function App() {
   const {
     servers, presets, channelMap, messageMap, userMap, nickMap, saslMap,
-    selectedServerId, selectedChannelId, statusMap,
+    selectedServerId, selectedChannelId, statusMap, mentionedChannels, notificationsEnabled,
     addServer, removeServer, addPreset, addChannel, removeChannel, setTopic, setTopicWhoTime, appendMessage, setHistory, setNick, setSaslCreds,
     selectServer, selectChannel, setConnectionStatus, setUsers, addUser, removeUser, removeUserEverywhere,
-    renameUserEverywhere, applyModeChanges,
+    renameUserEverywhere, applyModeChanges, markMentioned, setNotificationsEnabled,
   } = useStore();
 
   const [showModal, setShowModal] = useState(false);
@@ -157,19 +167,39 @@ export default function App() {
     return nick;
   }
 
+  // Own-nick mention in a channel (not a query - see the ROADMAP note)
+  // you're not currently looking at: highlights it in the sidebar
+  // (markMentioned, cleared on selecting it - see store.ts) and, if enabled,
+  // fires a desktop notification that jumps you straight there.
+  function checkMention(serverId: string, channelId: string, target: string, text: string) {
+    if (!target.startsWith('#') || channelId === selectedChannelId) return;
+    if (!mentionsNick(text, nickMap[serverId])) return;
+    markMentioned(channelId);
+    if (notificationsEnabled) {
+      notify(`Mentioned in ${channelId}`, text, () => {
+        selectServer(serverId);
+        selectChannel(channelId);
+      });
+    }
+  }
+
   useEffect(() => {
     return window.irc.onEvent((serverId, event) => {
       switch (event.type) {
-        case 'PRIVMSG':
-          appendMessage(dmKey(serverId, event.target, event.nick), {
-            id: nextMsgId.current++, nick: event.nick, text: event.text, timestamp: new Date(),
-          });
+        case 'PRIVMSG': {
+          const key = dmKey(serverId, event.target, event.nick);
+          appendMessage(key, { id: nextMsgId.current++, nick: event.nick, text: event.text, timestamp: new Date() });
+          checkMention(serverId, key, event.target, event.text);
           break;
-        case 'ACTION':
-          appendMessage(dmKey(serverId, event.target, event.nick), {
+        }
+        case 'ACTION': {
+          const key = dmKey(serverId, event.target, event.nick);
+          appendMessage(key, {
             id: nextMsgId.current++, nick: event.nick, text: event.text, timestamp: new Date(), action: true,
           });
+          checkMention(serverId, key, event.target, event.text);
           break;
+        }
         case 'NOTICE':
           // A private NOTICE isn't routed anywhere here - it already shows
           // up as a raw line in the Log (onLine above), same as before this
@@ -253,7 +283,7 @@ export default function App() {
   }, [
     appendMessage, addChannel, selectChannel, addUser, removeUser,
     removeUserEverywhere, renameUserEverywhere, applyModeChanges, setUsers, setTopic, setTopicWhoTime, nickMap,
-    channelMap, setNick, servers,
+    channelMap, setNick, servers, selectedChannelId, selectServer, markMentioned, notificationsEnabled,
   ]);
 
   // Preload scrollback the first time a channel is actually opened - once
@@ -418,6 +448,8 @@ export default function App() {
           settings={settings}
           onSave={handleSavePreferences}
           onCancel={() => setShowPreferences(false)}
+          notificationsEnabled={notificationsEnabled}
+          onNotificationsEnabledChange={setNotificationsEnabled}
         />
       )}
       <div className="relative flex flex-col shrink-0">
@@ -436,6 +468,7 @@ export default function App() {
             onSelect={selectChannel}
             currentNick={currentNick}
             userMap={userMap}
+            mentionedChannels={mentionedChannels}
             onJoinChannel={handleJoinChannel}
             onLeaveChannel={handleLeaveChannel}
             onRemoveChannel={handleRemoveChannel}

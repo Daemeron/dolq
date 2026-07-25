@@ -9,6 +9,7 @@ type Props = {
   onSelect: (id: string) => void;
   currentNick: string;
   userMap: Record<string, User[]>;
+  mentionedChannels: Record<string, boolean>;
   onJoinChannel: (id: string) => void;
   onLeaveChannel: (id: string) => void;
   onRemoveChannel: (id: string) => void;
@@ -16,7 +17,7 @@ type Props = {
 };
 
 export function ChannelList({
-  serverName, channels, selectedId, onSelect, currentNick, userMap,
+  serverName, channels, selectedId, onSelect, currentNick, userMap, mentionedChannels,
   onJoinChannel, onLeaveChannel, onRemoveChannel, onCloseQuery,
 }: Props) {
   const logChannel = channels.find((c) => c.isLog);
@@ -59,6 +60,7 @@ export function ChannelList({
       <div className="flex-1 min-h-0 overflow-y-auto px-2 pb-3 scroll-thin mb-30">
         {regularChannels.map((ch) => {
           const joined = (userMap[ch.id] ?? []).some((u) => u.nick === currentNick);
+          const mentioned = !!mentionedChannels[ch.id];
           return (
             <button
               key={ch.id}
@@ -68,11 +70,14 @@ export function ChannelList({
               className={`flex items-center w-full py-1.5 px-2 my-px rounded border-0 text-[15px] cursor-pointer text-left transition-[background,color] duration-100 ${
                 ch.id === selectedId
                   ? 'bg-[rgba(90,90,90,0.55)] text-white'
+                  : mentioned
+                  ? 'bg-transparent text-[#ffcb6b] font-semibold hover:bg-[rgba(90,90,90,0.35)]'
                   : 'bg-transparent text-[#909090] hover:bg-[rgba(90,90,90,0.35)] hover:text-[#e6e6e6]'
               } ${joined ? '' : 'opacity-50 italic'}`}
             >
               <span className="text-[16px] mr-1.5 opacity-50">#</span>
-              {ch.name}
+              <span className="flex-1 truncate">{ch.name}</span>
+              {mentioned && <span className="w-2 h-2 rounded-full bg-[#ffcb6b] shrink-0" />}
             </button>
           );
         })}

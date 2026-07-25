@@ -19,6 +19,11 @@ type State = {
   // app restart is the accepted tradeoff until there's a real credential
   // store to put them in.
   saslMap: Record<string, { user: string; pass: string }>;
+  // Channels with an unseen own-nick mention - cleared on selecting the
+  // channel (see selectChannel), so like statusMap/userMap there's nothing
+  // meaningful to restore from a previous session; excluded from partialize.
+  mentionedChannels: Record<string, boolean>;
+  notificationsEnabled: boolean;
 };
 
 type Actions = {
@@ -42,6 +47,8 @@ type Actions = {
   selectServer: (id: string) => void;
   selectChannel: (id: string) => void;
   setConnectionStatus: (serverId: string, status: 'disconnected' | 'connecting' | 'connected') => void;
+  markMentioned: (channelId: string) => void;
+  setNotificationsEnabled: (enabled: boolean) => void;
 };
 
 export const useStore = create<State & Actions>()(
@@ -57,6 +64,8 @@ export const useStore = create<State & Actions>()(
       selectedChannelId: '__log__',
       statusMap: {},
       saslMap: {},
+      mentionedChannels: {},
+      notificationsEnabled: true,
 
       addServer: (server, logChannel) =>
         set((s) => ({
@@ -229,10 +238,24 @@ export const useStore = create<State & Actions>()(
         set({ selectedServerId: id, selectedChannelId: logCh?.id ?? channels[0]?.id ?? '__log__' });
       },
 
-      selectChannel: (id) => set({ selectedChannelId: id }),
+      // Selecting a channel is "viewing" it, so any pending mention on it is
+      // resolved - same spot JOIN's auto-select already lived, now doing
+      // double duty.
+      selectChannel: (id) =>
+        set((s) => {
+          if (!s.mentionedChannels[id]) return { selectedChannelId: id };
+          const mentionedChannels = { ...s.mentionedChannels };
+          delete mentionedChannels[id];
+          return { selectedChannelId: id, mentionedChannels };
+        }),
 
       setConnectionStatus: (serverId, status) =>
         set((s) => ({ statusMap: { ...s.statusMap, [serverId]: status } })),
+
+      markMentioned: (channelId) =>
+        set((s) => ({ mentionedChannels: { ...s.mentionedChannels, [channelId]: true } })),
+
+      setNotificationsEnabled: (enabled) => set({ notificationsEnabled: enabled }),
     }),
     {
       name: 'dolq',
