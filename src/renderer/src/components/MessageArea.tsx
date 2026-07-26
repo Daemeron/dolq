@@ -8,6 +8,8 @@ type Props = {
   isLog: boolean;
   channelId: string;
   onLoadOlder?: () => void;
+  timestampFormat: '12h' | '24h';
+  density: 'cozy' | 'compact';
 };
 
 const NICK_COLORS = [
@@ -21,8 +23,8 @@ function nickColor(nick: string): string {
   return NICK_COLORS[Math.abs(hash) % NICK_COLORS.length];
 }
 
-function formatTime(d: Date): string {
-  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+function formatTime(d: Date, timestampFormat: '12h' | '24h'): string {
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: timestampFormat === '12h' });
 }
 
 // per-channel scroll memory lives in refs since MessageArea is a single
@@ -30,13 +32,19 @@ function formatTime(d: Date): string {
 const AT_BOTTOM_THRESHOLD = 40;
 const LOAD_OLDER_THRESHOLD = 100;
 
-export function MessageArea({ messages, isLog, channelId, onLoadOlder }: Props) {
+export function MessageArea({ messages, isLog, channelId, onLoadOlder, timestampFormat, density }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const prevChannelId = useRef(channelId);
   const scrollTop = useRef<Map<string, number>>(new Map());
   const isAtBottom = useRef<Map<string, boolean>>(new Map());
 
   const switchedChannel = prevChannelId.current !== channelId;
+  const compact = density === 'compact';
+  // cozy's py-0.5/py-1 vs compact's py-0 (see the row markup below) - kept
+  // in sync here so the initial estimate isn't wildly off from what
+  // actually renders (still just an estimate either way, corrected via
+  // ResizeObserver once a row mounts, same as isLog already was).
+  const rowEstimate = isLog ? 20 : compact ? 22 : 28;
 
   // Row heights vary (wrapped text), so sizes start as an estimate and get
   // corrected via ResizeObserver after each row mounts. Keying by message id
@@ -51,7 +59,7 @@ export function MessageArea({ messages, isLog, channelId, onLoadOlder }: Props) 
   const rowVirtualizer = useVirtualizer({
     count: messages.length,
     getScrollElement: () => containerRef.current,
-    estimateSize: () => (isLog ? 20 : 28),
+    estimateSize: () => rowEstimate,
     getItemKey: (index) => messages[index].id,
     overscan: 8,
     anchorTo: 'end',
@@ -113,26 +121,30 @@ export function MessageArea({ messages, isLog, channelId, onLoadOlder }: Props) 
             >
               {isLog ? (
                 <div className="font-mono text-[12px] leading-5 text-[#e6e6e6] whitespace-pre-wrap break-all">
-                  <span className="text-[#6b6b6b] mr-3">{formatTime(m.timestamp)}</span>
+                  <span className="text-[#6b6b6b] mr-3">{formatTime(m.timestamp, timestampFormat)}</span>
                   <IrcText text={m.text} />
                 </div>
               ) : m.system ? (
-                <div className="flex items-baseline gap-3 py-1 px-2">
-                  <span className="text-[11px] text-[#6b6b6b] shrink-0 w-10 text-right">{formatTime(m.timestamp)}</span>
+                <div className={`flex items-baseline gap-3 px-2 ${compact ? 'py-0' : 'py-1'}`}>
+                  <span className="text-[11px] text-[#6b6b6b] shrink-0 w-10 text-right">
+                    {formatTime(m.timestamp, timestampFormat)}
+                  </span>
                   <span className="text-[#6b6b6b] text-[13px] italic"><IrcText text={m.text} /></span>
                 </div>
               ) : m.notice ? (
-                <div className="flex items-baseline gap-3 py-0.5 px-2">
-                  <span className="text-[11px] text-[#6b6b6b] shrink-0 w-10 text-right">{formatTime(m.timestamp)}</span>
+                <div className={`flex items-baseline gap-3 px-2 ${compact ? 'py-0' : 'py-0.5'}`}>
+                  <span className="text-[11px] text-[#6b6b6b] shrink-0 w-10 text-right">
+                    {formatTime(m.timestamp, timestampFormat)}
+                  </span>
                   <span className="text-[13px] italic text-[#909090]">
                     <span style={{ color: nickColor(m.nick) }}>-{m.nick}-</span>{' '}
                     <IrcText text={m.text} />
                   </span>
                 </div>
               ) : m.action ? (
-                <div className="flex items-baseline gap-3 py-0.5 group hover:bg-[rgba(4,4,5,0.07)] px-2 rounded">
+                <div className={`flex items-baseline gap-3 group hover:bg-[rgba(4,4,5,0.07)] px-2 rounded ${compact ? 'py-0' : 'py-0.5'}`}>
                   <span className="text-[11px] text-[#6b6b6b] shrink-0 w-10 text-right opacity-0 group-hover:opacity-100">
-                    {formatTime(m.timestamp)}
+                    {formatTime(m.timestamp, timestampFormat)}
                   </span>
                   <span className="text-[15px] leading-relaxed italic">
                     <span style={{ color: nickColor(m.nick) }}>* {m.nick}</span>{' '}
@@ -140,9 +152,9 @@ export function MessageArea({ messages, isLog, channelId, onLoadOlder }: Props) 
                   </span>
                 </div>
               ) : (
-                <div className="flex items-baseline gap-3 py-0.5 group hover:bg-[rgba(4,4,5,0.07)] px-2 rounded">
+                <div className={`flex items-baseline gap-3 group hover:bg-[rgba(4,4,5,0.07)] px-2 rounded ${compact ? 'py-0' : 'py-0.5'}`}>
                   <span className="text-[11px] text-[#6b6b6b] shrink-0 w-10 text-right opacity-0 group-hover:opacity-100">
-                    {formatTime(m.timestamp)}
+                    {formatTime(m.timestamp, timestampFormat)}
                   </span>
                   <span className="font-semibold text-[14px] shrink-0" style={{ color: nickColor(m.nick) }}>
                     {m.nick}

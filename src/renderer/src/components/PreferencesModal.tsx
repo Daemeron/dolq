@@ -6,11 +6,15 @@ type Props = {
   onSave: (settings: Settings) => void;
   onCancel: () => void;
   // Unlike `settings` (main-process-owned, retentionDays needs a restart -
-  // see src/main/settings.ts), this is a plain renderer/zustand-store value
-  // that applies live, so it's a controlled checkbox rather than part of
-  // the form's own save/cancel flow.
+  // see src/main/settings.ts), these are plain renderer/zustand-store
+  // values that apply live, so they're controlled inputs rather than part
+  // of the form's own save/cancel flow.
   notificationsEnabled: boolean;
   onNotificationsEnabledChange: (enabled: boolean) => void;
+  timestampFormat: '12h' | '24h';
+  onTimestampFormatChange: (format: '12h' | '24h') => void;
+  messageDensity: 'cozy' | 'compact';
+  onMessageDensityChange: (density: 'cozy' | 'compact') => void;
 };
 
 const inputClass =
@@ -20,6 +24,7 @@ const labelClass =
 
 export function PreferencesModal({
   settings, onSave, onCancel, notificationsEnabled, onNotificationsEnabledChange,
+  timestampFormat, onTimestampFormatChange, messageDensity, onMessageDensityChange,
 }: Props) {
   const [retentionDays, setRetentionDays] = useState(String(settings.retentionDays));
 
@@ -48,7 +53,7 @@ export function PreferencesModal({
           Applies to every server. Some settings need a restart to take effect.
         </p>
 
-        <label className="flex items-center gap-2 text-[13px] text-[#e6e6e6] cursor-pointer select-none mb-5">
+        <label className="flex items-center gap-2 text-[13px] text-[#e6e6e6] cursor-pointer select-none mb-4">
           <input
             type="checkbox"
             checked={notificationsEnabled}
@@ -57,6 +62,31 @@ export function PreferencesModal({
           />
           Desktop notifications when mentioned in a channel you're not viewing
         </label>
+
+        <div className="flex gap-3 mb-5">
+          <label className={`${labelClass} flex-1`}>
+            Timestamp Format
+            <select
+              className={inputClass}
+              value={timestampFormat}
+              onChange={(e) => onTimestampFormatChange(e.target.value as '12h' | '24h')}
+            >
+              <option value="12h">12-hour (2:30 PM)</option>
+              <option value="24h">24-hour (14:30)</option>
+            </select>
+          </label>
+          <label className={`${labelClass} flex-1`}>
+            Message Density
+            <select
+              className={inputClass}
+              value={messageDensity}
+              onChange={(e) => onMessageDensityChange(e.target.value as 'cozy' | 'compact')}
+            >
+              <option value="cozy">Cozy</option>
+              <option value="compact">Compact</option>
+            </select>
+          </label>
+        </div>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <label className={labelClass}>

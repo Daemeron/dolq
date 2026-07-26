@@ -24,6 +24,8 @@ type State = {
   // meaningful to restore from a previous session; excluded from partialize.
   mentionedChannels: Record<string, boolean>;
   notificationsEnabled: boolean;
+  timestampFormat: '12h' | '24h';
+  messageDensity: 'cozy' | 'compact';
 };
 
 type Actions = {
@@ -49,6 +51,8 @@ type Actions = {
   setConnectionStatus: (serverId: string, status: 'disconnected' | 'connecting' | 'connected') => void;
   markMentioned: (channelId: string) => void;
   setNotificationsEnabled: (enabled: boolean) => void;
+  setTimestampFormat: (format: '12h' | '24h') => void;
+  setMessageDensity: (density: 'cozy' | 'compact') => void;
 };
 
 export const useStore = create<State & Actions>()(
@@ -66,6 +70,8 @@ export const useStore = create<State & Actions>()(
       saslMap: {},
       mentionedChannels: {},
       notificationsEnabled: true,
+      timestampFormat: '12h',
+      messageDensity: 'cozy',
 
       addServer: (server, logChannel) =>
         set((s) => ({
@@ -256,6 +262,10 @@ export const useStore = create<State & Actions>()(
         set((s) => ({ mentionedChannels: { ...s.mentionedChannels, [channelId]: true } })),
 
       setNotificationsEnabled: (enabled) => set({ notificationsEnabled: enabled }),
+
+      setTimestampFormat: (format) => set({ timestampFormat: format }),
+
+      setMessageDensity: (density) => set({ messageDensity: density }),
     }),
     {
       name: 'dolq',
@@ -267,7 +277,10 @@ export const useStore = create<State & Actions>()(
         userMap: s.userMap,
         nickMap: s.nickMap,
         selectedServerId: s.selectedServerId,
-        selectedChannelId: s.selectedChannelId
+        selectedChannelId: s.selectedChannelId,
+        notificationsEnabled: s.notificationsEnabled,
+        timestampFormat: s.timestampFormat,
+        messageDensity: s.messageDensity,
       }),
     },
   ),

@@ -296,7 +296,20 @@ will hang the UI.
       awareness (only "is this the selected channel" is checked, not "is
       the app window itself focused") - skipped for now, the selected-
       channel check alone covers the common case
-- [ ] Timestamp format (12h/24h), compact vs. cozy message density
+- [x] Timestamp format (12h/24h), compact vs. cozy message density - both
+      live in the zustand store (persisted, applies instantly, no restart -
+      same reasoning as the notifications toggle above for why these don't
+      go through the main-process settings file), surfaced as two more
+      controls in the Preferences panel. `MessageArea.formatTime` takes the
+      format as a param (`hour12` straight into `toLocaleTimeString`);
+      compact density tightens each non-log row's vertical padding
+      (`py-0.5`/`py-1` down to `py-0`) and the virtualizer's row-height
+      estimate to match, everything else about a row - font size, layout -
+      stays the same. In fixing this, noticed and fixed the notifications
+      toggle from the previous item was never actually added to the store's
+      `partialize` - it looked persisted (the store option is right there)
+      but silently reset to its default on every restart; now it, and both
+      of these, actually are
 
 ---
 

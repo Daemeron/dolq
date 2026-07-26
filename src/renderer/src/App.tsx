@@ -64,9 +64,10 @@ export default function App() {
   const {
     servers, presets, channelMap, messageMap, userMap, nickMap, saslMap,
     selectedServerId, selectedChannelId, statusMap, mentionedChannels, notificationsEnabled,
+    timestampFormat, messageDensity,
     addServer, removeServer, addPreset, addChannel, removeChannel, setTopic, setTopicWhoTime, appendMessage, setHistory, setNick, setSaslCreds,
     selectServer, selectChannel, setConnectionStatus, setUsers, addUser, removeUser, removeUserEverywhere,
-    renameUserEverywhere, applyModeChanges, markMentioned, setNotificationsEnabled,
+    renameUserEverywhere, applyModeChanges, markMentioned, setNotificationsEnabled, setTimestampFormat, setMessageDensity,
   } = useStore();
 
   const [showModal, setShowModal] = useState(false);
@@ -450,6 +451,10 @@ export default function App() {
           onCancel={() => setShowPreferences(false)}
           notificationsEnabled={notificationsEnabled}
           onNotificationsEnabledChange={setNotificationsEnabled}
+          timestampFormat={timestampFormat}
+          onTimestampFormatChange={setTimestampFormat}
+          messageDensity={messageDensity}
+          onMessageDensityChange={setMessageDensity}
         />
       )}
       <div className="relative flex flex-col shrink-0">
@@ -496,7 +501,14 @@ export default function App() {
         />
         <div className="flex flex-1 overflow-hidden">
           <div className="flex flex-col flex-1 overflow-hidden">
-            <MessageArea messages={messages} isLog={isLog} channelId={selectedChannelId} onLoadOlder={loadOlderHistory} />
+            <MessageArea
+              messages={messages}
+              isLog={isLog}
+              channelId={selectedChannelId}
+              onLoadOlder={loadOlderHistory}
+              timestampFormat={timestampFormat}
+              density={messageDensity}
+            />
             <MessageInput
               channelName={selectedChannel?.name ?? ''}
               isLog={isLog}
