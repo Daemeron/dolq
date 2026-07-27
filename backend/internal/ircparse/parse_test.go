@@ -226,6 +226,51 @@ func TestParseLine(t *testing.T) {
 				Changes: []ModeChange{{Nick: "bob", Privilege: PrivilegeOp, Granted: true}},
 			},
 		},
+		{
+			name: "parses a 311 RPL_WHOISUSER reply",
+			line: ":irc.example.net 311 dolq_user alice ident host.example.net * :Alice Example",
+			want: WhoisUserEvent{Nick: "alice", User: "ident", Host: "host.example.net", Realname: "Alice Example"},
+		},
+		{
+			name: "parses a 312 RPL_WHOISSERVER reply",
+			line: ":irc.example.net 312 dolq_user alice irc.example.net :Example IRC Network",
+			want: WhoisServerEvent{Nick: "alice", Server: "irc.example.net", Info: "Example IRC Network"},
+		},
+		{
+			name: "parses a 317 RPL_WHOISIDLE reply with a signon time",
+			line: ":irc.example.net 317 dolq_user alice 300 1700000000 :seconds idle, signon time",
+			want: WhoisIdleEvent{Nick: "alice", IdleSeconds: 300, SignonTime: 1700000000},
+		},
+		{
+			name: "parses a 317 RPL_WHOISIDLE reply without a signon time",
+			line: ":irc.example.net 317 dolq_user alice 300 :seconds idle",
+			want: WhoisIdleEvent{Nick: "alice", IdleSeconds: 300},
+		},
+		{
+			name: "parses a 319 RPL_WHOISCHANNELS reply, stripping privilege prefixes",
+			line: ":irc.example.net 319 dolq_user alice :@#general +#offtopic #help",
+			want: WhoisChannelsEvent{Nick: "alice", Channels: []string{"#general", "#offtopic", "#help"}},
+		},
+		{
+			name: "parses a 330 RPL_WHOISACCOUNT reply",
+			line: ":irc.example.net 330 dolq_user alice alice_account :is logged in as",
+			want: WhoisAccountEvent{Nick: "alice", Account: "alice_account"},
+		},
+		{
+			name: "parses a 301 RPL_AWAY reply",
+			line: ":irc.example.net 301 dolq_user alice :gone fishing",
+			want: WhoisAwayEvent{Nick: "alice", Message: "gone fishing"},
+		},
+		{
+			name: "parses a 401 ERR_NOSUCHNICK reply",
+			line: ":irc.example.net 401 dolq_user ghost :No such nick/channel",
+			want: ErrNoSuchNickEvent{Nick: "ghost"},
+		},
+		{
+			name: "parses a 318 RPL_ENDOFWHOIS reply",
+			line: ":irc.example.net 318 dolq_user alice :End of /WHOIS list.",
+			want: EndOfWhoisEvent{Nick: "alice"},
+		},
 		{name: "returns nil for an unrecognized PING line", line: "PING :irc.example.net", want: nil},
 		{name: "returns nil for an unrecognized numeric", line: ":irc.example.net 002 me :Your host is irc.example.net", want: nil},
 		{name: "returns nil for garbage", line: "garbage", want: nil},

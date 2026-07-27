@@ -70,6 +70,7 @@ type Client struct {
 	nickCollisions int  // count of automatic alternate-nick retries so far, capped by maxNickCollisionRetries
 	joinedChannels map[string]struct{}
 	namesBuffer    map[string][]ircparse.User
+	whoisBuffer    map[string]ircparse.WhoisEvent // accumulated per nick until RPL_ENDOFWHOIS - see handleLine
 	lineListeners  []func(line string)
 	eventListeners []func(event any)
 	closeListeners []func()
@@ -152,6 +153,7 @@ func newClient(conn net.Conn, nick string) *Client {
 		nick:              nick,
 		joinedChannels:    make(map[string]struct{}),
 		namesBuffer:       make(map[string][]ircparse.User),
+		whoisBuffer:       make(map[string]ircparse.WhoisEvent),
 		closed:            make(chan struct{}),
 		capLines:          make(chan string, 16),
 		PingTimeout:       DefaultPingTimeout,
@@ -557,6 +559,38 @@ func (c *Client) handleLine(line string) {
 		}
 		c.emitEvent(NamesEvent{Type: "names", Channel: e.Channel, Users: users})
 		return
+	case ircparse.WhoisUserEvent:
+		c.updateWhois(e.Nick, func(w *ircparse.WhoisEvent) { w.User, w.Host, w.Realname = e.User, e.Host, e.Realname })
+		return
+	case ircparse.WhoisServerEvent:
+		c.updateWhois(e.Nick, func(w *ircparse.WhoisEvent) { w.Server, w.ServerInfo = e.Server, e.Info })
+		return
+	case ircparse.WhoisIdleEvent:
+		c.updateWhois(e.Nick, func(w *ircparse.WhoisEvent) { w.IdleSeconds, w.SignonTime = e.IdleSeconds, e.SignonTime })
+		return
+	case ircparse.WhoisChannelsEvent:
+		c.updateWhois(e.Nick, func(w *ircparse.WhoisEvent) { w.Channels = e.Channels })
+		return
+	case ircparse.WhoisAccountEvent:
+		c.updateWhois(e.Nick, func(w *ircparse.WhoisEvent) { w.Account = e.Account })
+		return
+	case ircparse.WhoisAwayEvent:
+		c.updateWhois(e.Nick, func(w *ircparse.WhoisEvent) { w.Away = e.Message })
+		return
+	case ircparse.ErrNoSuchNickEvent:
+		c.updateWhois(e.Nick, func(w *ircparse.WhoisEvent) { w.NoSuchNick = true })
+		return
+	case ircparse.EndOfWhoisEvent:
+		c.mu.Lock()
+		w, ok := c.whoisBuffer[e.Nick]
+		delete(c.whoisBuffer, e.Nick)
+		c.mu.Unlock()
+		if !ok {
+			w.Nick = e.Nick
+		}
+		w.Type = "whois"
+		c.emitEvent(w)
+		return
 	case ircparse.WelcomeEvent:
 		c.mu.Lock()
 		c.nick = e.Nick
@@ -617,6 +651,18 @@ func (c *Client) sendCTCPReply(nick, payload string) {
 	if err := c.Send("NOTICE " + nick + " :\x01" + payload + "\x01"); err != nil {
 		log.Printf("ircclient: CTCP reply to %s: %v", nick, err)
 	}
+}
+
+// updateWhois mutates the in-progress WhoisEvent buffered for nick via fn,
+// starting a fresh one if this is the first reply seen for it - the shared
+// lock/read-modify-write every WHOIS numeric case above needs.
+func (c *Client) updateWhois(nick string, fn func(w *ircparse.WhoisEvent)) {
+	c.mu.Lock()
+	w := c.whoisBuffer[nick]
+	w.Nick = nick
+	fn(&w)
+	c.whoisBuffer[nick] = w
+	c.mu.Unlock()
 }
 
 // handleNickInUse reacts to ERR_NICKNAMEINUSE (433). While still registering

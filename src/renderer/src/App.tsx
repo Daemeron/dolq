@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Message } from './types';
-import type { HistoryEntry, Settings } from '../../shared/ipc';
+import type { HistoryEntry, IrcEvent, Settings } from '../../shared/ipc';
 import { useStore } from './store';
 import { ServerList } from './components/ServerList';
 import { ChannelList } from './components/ChannelList';
@@ -10,6 +10,7 @@ import { UserList } from './components/UserList';
 import { MessageInput } from './components/MessageInput';
 import { ConnectModal, parseList, type ConnectForm } from './components/ConnectModal';
 import { PreferencesModal } from './components/PreferencesModal';
+import { WhoisModal } from './components/WhoisModal';
 import { UserPanel } from './components/UserPanel';
 import { buildServerId, parseServerId } from './utils/server';
 import { mentionsNick } from './utils/mentions';
@@ -77,6 +78,11 @@ export default function App() {
   // renderer even exists - see src/main/settings.ts), so the renderer just
   // mirrors whatever it last fetched/saved rather than owning them.
   const [settings, setSettingsState] = useState<Settings>({ retentionDays: 0 });
+  // The nick a WHOIS is currently open for (drives the modal, and matches
+  // against incoming 'whois' events - see the onEvent switch below);
+  // whoisResult stays null until that reply actually arrives.
+  const [whoisNick, setWhoisNick] = useState<string | null>(null);
+  const [whoisResult, setWhoisResult] = useState<Extract<IrcEvent, { type: 'whois' }> | null>(null);
   const nextMsgId = useRef(Date.now());
   const historyPages = useRef(new Map<string, HistoryPage>());
 
@@ -279,12 +285,15 @@ export default function App() {
         case 'TOPICWHOTIME':
           setTopicWhoTime(serverId, event.channel, event.nick, new Date(event.setAt * 1000));
           break;
+        case 'whois':
+          if (event.nick === whoisNick) setWhoisResult(event);
+          break;
       }
     });
   }, [
     appendMessage, addChannel, selectChannel, addUser, removeUser,
     removeUserEverywhere, renameUserEverywhere, applyModeChanges, setUsers, setTopic, setTopicWhoTime, nickMap,
-    channelMap, setNick, servers, selectedChannelId, selectServer, markMentioned, notificationsEnabled,
+    channelMap, setNick, servers, selectedChannelId, selectServer, markMentioned, notificationsEnabled, whoisNick,
   ]);
 
   // Preload scrollback the first time a channel is actually opened - once
@@ -393,6 +402,12 @@ export default function App() {
     selectChannel(nick);
   }
 
+  function handleWhois(nick: string) {
+    setWhoisNick(nick);
+    setWhoisResult(null);
+    window.irc.sendLine(selectedServerId, `WHOIS ${nick}`);
+  }
+
   const channels = channelMap[selectedServerId] ?? [];
   const selectedChannel = channels.find((c) => c.id === selectedChannelId) ?? channels[0];
   const messages = messageMap[selectedChannelId] ?? [];
@@ -457,6 +472,13 @@ export default function App() {
           onMessageDensityChange={setMessageDensity}
         />
       )}
+      {whoisNick && (
+        <WhoisModal
+          nick={whoisNick}
+          result={whoisResult}
+          onClose={() => { setWhoisNick(null); setWhoisResult(null); }}
+        />
+      )}
       <div className="relative flex flex-col shrink-0">
         <div className="flex flex-1 overflow-hidden">
           <ServerList
@@ -518,7 +540,7 @@ export default function App() {
           </div>
           <aside className="w-52 bg-[#1c1c1c] border-l border-[#2a2a2a] shrink-0 flex flex-col overflow-hidden">
             {!isLog && !isQuery && (
-              <UserList users={users} currentNick={currentNick} onOpenQuery={handleOpenQuery} />
+              <UserList users={users} currentNick={currentNick} onOpenQuery={handleOpenQuery} onWhois={handleWhois} />
             )}
           </aside>
         </div>

@@ -37,7 +37,22 @@ export type IrcEvent =
     }
   | { type: 'names'; channel: string; users: { nick: string; privileges: PrivilegeLevel[] }[] }
   | { type: 'TOPIC'; channel: string; topic: string; nick?: string }
-  | { type: 'TOPICWHOTIME'; channel: string; nick: string; setAt: number };
+  | { type: 'TOPICWHOTIME'; channel: string; nick: string; setAt: number }
+  | {
+      type: 'whois';
+      nick: string;
+      user?: string;
+      host?: string;
+      realname?: string;
+      server?: string;
+      serverInfo?: string;
+      idleSeconds?: number;
+      signonTime?: number;
+      channels?: string[];
+      account?: string;
+      away?: string;
+      noSuchNick?: boolean;
+    };
 
 // One persisted line, as returned by getHistory - mirrors
 // backend/internal/history.Entry's JSON shape: everything that flowed

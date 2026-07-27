@@ -315,7 +315,21 @@ will hang the UI.
 
 ## Milestone 2 — IRC power-user features
 
-- [ ] WHOIS panel (click a user → WHOIS info)
+- [x] WHOIS panel (click a user → WHOIS info) - right-click a user in
+      `UserList` (left-click already opens a query, see "Private
+      messages/queries"). `ircclient` accumulates the handful of numeric
+      replies a WHOIS scatters across the wire (311 user/host/realname, 312
+      server, 317 idle/signon, 319 channels, 330 account - not universally
+      supported, some networks just omit it, 401 no-such-nick) keyed by
+      nick, the same buffer-until-a-terminator shape NAMES already uses,
+      and emits one synthesized `WhoisEvent` on 318 (RPL_ENDOFWHOIS).
+      RPL_AWAY (301) is parsed too, but only folded into an in-flight WHOIS
+      for now - it's also sent standalone when messaging an away user,
+      which the "Away status" item below will need to handle without
+      colliding with this. `WhoisModal` shows a "Looking up..." state
+      until the reply lands (or "No such nick" if 401 fired) - no timeout
+      if the server never answers at all, same tradeoff CAP negotiation
+      doesn't have here since there's no handshake blocking on it
 - [ ] Ignore/block list (per-nick, per-network)
 - [ ] DCC CHAT
 - [ ] Clickable URLs, safe link handling

@@ -537,6 +537,96 @@ func TestNamesAccumulation(t *testing.T) {
 	})
 }
 
+func TestWhoisAccumulation(t *testing.T) {
+	t.Run("combines every WHOIS reply into one whois event on 318", func(t *testing.T) {
+		c, server, r := pipeClient(t, "testnick")
+		events := make(chan any, 10)
+		c.AddEventListener(func(e any) { events <- e })
+		c.Start()
+		drainHandshake(t, r)
+
+		writeLine(t, server, ":irc.example.net 311 testnick alice ident host.example.net * :Alice Example")
+		writeLine(t, server, ":irc.example.net 312 testnick alice irc.example.net :Example IRC Network")
+		writeLine(t, server, ":irc.example.net 317 testnick alice 300 1700000000 :seconds idle, signon time")
+		writeLine(t, server, ":irc.example.net 319 testnick alice :@#general +#offtopic")
+		writeLine(t, server, ":irc.example.net 330 testnick alice alice_account :is logged in as")
+		select {
+		case e := <-events:
+			t.Fatalf("expected no event yet, got %#v", e)
+		case <-time.After(50 * time.Millisecond):
+		}
+
+		writeLine(t, server, ":irc.example.net 318 testnick alice :End of /WHOIS list.")
+		want := ircparse.WhoisEvent{
+			Type: "whois", Nick: "alice", User: "ident", Host: "host.example.net", Realname: "Alice Example",
+			Server: "irc.example.net", ServerInfo: "Example IRC Network",
+			IdleSeconds: 300, SignonTime: 1700000000,
+			Channels: []string{"#general", "#offtopic"}, Account: "alice_account",
+		}
+		select {
+		case e := <-events:
+			if !reflect.DeepEqual(e, want) {
+				t.Errorf("got %#v want %#v", e, want)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("timed out waiting for the whois event")
+		}
+	})
+
+	t.Run("marks NoSuchNick when 401 precedes 318 with nothing else buffered", func(t *testing.T) {
+		c, server, r := pipeClient(t, "testnick")
+		events := make(chan any, 10)
+		c.AddEventListener(func(e any) { events <- e })
+		c.Start()
+		drainHandshake(t, r)
+
+		writeLine(t, server, ":irc.example.net 401 testnick ghost :No such nick/channel")
+		writeLine(t, server, ":irc.example.net 318 testnick ghost :End of /WHOIS list.")
+		want := ircparse.WhoisEvent{Type: "whois", Nick: "ghost", NoSuchNick: true}
+		select {
+		case e := <-events:
+			if !reflect.DeepEqual(e, want) {
+				t.Errorf("got %#v want %#v", e, want)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("timed out waiting for the whois event")
+		}
+	})
+
+	t.Run("keeps concurrent WHOIS requests for different nicks separate", func(t *testing.T) {
+		c, server, r := pipeClient(t, "testnick")
+		events := make(chan any, 10)
+		c.AddEventListener(func(e any) { events <- e })
+		c.Start()
+		drainHandshake(t, r)
+
+		writeLine(t, server, ":irc.example.net 311 testnick alice a a.example.net * :Alice")
+		writeLine(t, server, ":irc.example.net 311 testnick bob b b.example.net * :Bob")
+		writeLine(t, server, ":irc.example.net 318 testnick alice :End of /WHOIS list.")
+
+		select {
+		case e := <-events:
+			want := ircparse.WhoisEvent{Type: "whois", Nick: "alice", User: "a", Host: "a.example.net", Realname: "Alice"}
+			if !reflect.DeepEqual(e, want) {
+				t.Errorf("got %#v want %#v", e, want)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("timed out waiting for alice's whois event")
+		}
+
+		writeLine(t, server, ":irc.example.net 318 testnick bob :End of /WHOIS list.")
+		select {
+		case e := <-events:
+			want := ircparse.WhoisEvent{Type: "whois", Nick: "bob", User: "b", Host: "b.example.net", Realname: "Bob"}
+			if !reflect.DeepEqual(e, want) {
+				t.Errorf("got %#v want %#v", e, want)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("timed out waiting for bob's whois event")
+		}
+	})
+}
+
 func TestNickTracking(t *testing.T) {
 	t.Run("updates the tracked nick when the server confirms our own NICK change", func(t *testing.T) {
 		c, server, r := pipeClient(t, "testnick")

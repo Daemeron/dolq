@@ -174,6 +174,76 @@ type EndOfNamesEvent struct {
 	Channel string
 }
 
+// WhoisEvent is the synthesized result of a WHOIS request - ircclient
+// accumulates the handful of raw numeric replies below (all "not meant to
+// leave ircclient" the same way NamesReplyEvent/EndOfNamesEvent aren't)
+// keyed by nick as they arrive, and emits this once RPL_ENDOFWHOIS (318)
+// closes it out. Every field but Nick is only ever set if the server
+// actually sent that piece - a network without WHOISACCOUNT (330) support,
+// say, just leaves Account empty rather than this failing to build at all.
+type WhoisEvent struct {
+	Type        string   `json:"type"`
+	Nick        string   `json:"nick"`
+	User        string   `json:"user,omitempty"`
+	Host        string   `json:"host,omitempty"`
+	Realname    string   `json:"realname,omitempty"`
+	Server      string   `json:"server,omitempty"`
+	ServerInfo  string   `json:"serverInfo,omitempty"`
+	IdleSeconds int64    `json:"idleSeconds,omitempty"`
+	SignonTime  int64    `json:"signonTime,omitempty"`
+	Channels    []string `json:"channels,omitempty"`
+	Account     string   `json:"account,omitempty"`
+	Away        string   `json:"away,omitempty"`
+	// NoSuchNick means ERR_NOSUCHNICK (401) arrived instead of any of the
+	// above - the WHOIS target doesn't exist (or just quit/changed nick
+	// before the request landed).
+	NoSuchNick bool `json:"noSuchNick,omitempty"`
+}
+
+// WhoisUserEvent (311), WhoisServerEvent (312), WhoisIdleEvent (317),
+// WhoisChannelsEvent (319), WhoisAccountEvent (330, not universally
+// supported), WhoisAwayEvent (301), ErrNoSuchNickEvent (401), and
+// EndOfWhoisEvent (318) are the raw wire shapes WhoisEvent above is built
+// from - see ircclient.Client's whoisBuffer.
+type WhoisUserEvent struct {
+	Nick, User, Host, Realname string
+}
+
+type WhoisServerEvent struct {
+	Nick, Server, Info string
+}
+
+type WhoisIdleEvent struct {
+	Nick        string
+	IdleSeconds int64
+	SignonTime  int64 // 0 if the server didn't include one
+}
+
+type WhoisChannelsEvent struct {
+	Nick     string
+	Channels []string
+}
+
+type WhoisAccountEvent struct {
+	Nick, Account string
+}
+
+// WhoisAwayEvent is RPL_AWAY (301) - also sent standalone (outside any
+// WHOIS) when messaging an away user, but this client only parses it as
+// part of a WHOIS reply for now; see the "Away status" ROADMAP item for the
+// standalone case.
+type WhoisAwayEvent struct {
+	Nick, Message string
+}
+
+type ErrNoSuchNickEvent struct {
+	Nick string
+}
+
+type EndOfWhoisEvent struct {
+	Nick string
+}
+
 // With `multi-prefix` negotiated, a NAMES entry can stack every prefix a
 // user holds (e.g. "@+alice" for op+voice) instead of just the highest one.
 var prefixToPrivilege = map[byte]PrivilegeLevel{
@@ -194,6 +264,21 @@ var setOnlyArgLetters = map[byte]bool{'f': true, 'l': true}
 var neverArgLetters = map[byte]bool{
 	'C': true, 'E': true, 'M': true, 'R': true, 'U': true,
 	'i': true, 'm': true, 'n': true, 's': true, 't': true, 'u': true,
+}
+
+// stripPrivilegePrefix drops any leading NAMES-style privilege symbols
+// (`@#general` -> `#general`) - RPL_WHOISCHANNELS (319) lists channels the
+// same way NAMES lists users, prefixed with the caller's highest privilege
+// in each, which a WHOIS summary has no use for.
+func stripPrivilegePrefix(s string) string {
+	i := 0
+	for i < len(s) {
+		if _, ok := prefixToPrivilege[s[i]]; !ok {
+			break
+		}
+		i++
+	}
+	return s[i:]
 }
 
 func parseNames(nickList string) []User {
@@ -395,6 +480,71 @@ var rules = []rule{
 		pattern: regexp.MustCompile(`^:\S+ 433 \S+ (\S+) :`),
 		build: func(m []string) any {
 			return NickInUseEvent{Type: "NICKINUSE", Nick: m[1]}
+		},
+	},
+	{
+		// The "*" between host and the realname's ':' is an unused legacy
+		// field (historically the hopcount to the target's server) - every
+		// server still sends it, nothing reads it.
+		pattern: regexp.MustCompile(`^:\S+ 311 \S+ (\S+) (\S+) (\S+) \S+ :(.*)$`),
+		build: func(m []string) any {
+			return WhoisUserEvent{Nick: m[1], User: m[2], Host: m[3], Realname: m[4]}
+		},
+	},
+	{
+		pattern: regexp.MustCompile(`^:\S+ 312 \S+ (\S+) (\S+) :(.*)$`),
+		build: func(m []string) any {
+			return WhoisServerEvent{Nick: m[1], Server: m[2], Info: m[3]}
+		},
+	},
+	{
+		// The signon-time parameter is a newer (but widely deployed)
+		// addition servers may or may not send.
+		pattern: regexp.MustCompile(`^:\S+ 317 \S+ (\S+) (\d+)(?: (\d+))? :`),
+		build: func(m []string) any {
+			idle, err := strconv.ParseInt(m[2], 10, 64)
+			if err != nil {
+				return nil
+			}
+			var signon int64
+			if m[3] != "" {
+				signon, _ = strconv.ParseInt(m[3], 10, 64)
+			}
+			return WhoisIdleEvent{Nick: m[1], IdleSeconds: idle, SignonTime: signon}
+		},
+	},
+	{
+		pattern: regexp.MustCompile(`^:\S+ 319 \S+ (\S+) :(.*)$`),
+		build: func(m []string) any {
+			channels := strings.Fields(m[2])
+			for i, ch := range channels {
+				channels[i] = stripPrivilegePrefix(ch)
+			}
+			return WhoisChannelsEvent{Nick: m[1], Channels: channels}
+		},
+	},
+	{
+		pattern: regexp.MustCompile(`^:\S+ 330 \S+ (\S+) (\S+) :`),
+		build: func(m []string) any {
+			return WhoisAccountEvent{Nick: m[1], Account: m[2]}
+		},
+	},
+	{
+		pattern: regexp.MustCompile(`^:\S+ 301 \S+ (\S+) :(.*)$`),
+		build: func(m []string) any {
+			return WhoisAwayEvent{Nick: m[1], Message: m[2]}
+		},
+	},
+	{
+		pattern: regexp.MustCompile(`^:\S+ 401 \S+ (\S+) :`),
+		build: func(m []string) any {
+			return ErrNoSuchNickEvent{Nick: m[1]}
+		},
+	},
+	{
+		pattern: regexp.MustCompile(`^:\S+ 318 \S+ (\S+) :`),
+		build: func(m []string) any {
+			return EndOfWhoisEvent{Nick: m[1]}
 		},
 	},
 }
