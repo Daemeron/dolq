@@ -330,7 +330,21 @@ will hang the UI.
       until the reply lands (or "No such nick" if 401 fired) - no timeout
       if the server never answers at all, same tradeoff CAP negotiation
       doesn't have here since there's no handshake blocking on it
-- [ ] Ignore/block list (per-nick, per-network)
+- [x] Ignore/block list (per-nick, per-network) - purely a client-side
+      display filter (`store.ignoredNicks`, persisted, keyed by serverId -
+      "per-network" already means "per-server" everywhere else in this app,
+      e.g. `nickMap`/`saslMap`, so this follows suit rather than inventing a
+      separate notion of "network"). IRC has no native ignore, so nothing
+      is sent to the server - an ignored nick's PRIVMSG/ACTION/NOTICE just
+      never reaches `appendMessage` (and, for a DM, never even opens a
+      query - see `isIgnored`'s placement ahead of `dmKey`). Scoped to chat
+      content only, not JOIN/PART/QUIT/etc. - ignoring means "stop showing
+      me what they say", not "hide that they exist". Toggled from a right-
+      click in `UserList` (ignored users render dimmed + struck through);
+      since that only works while they're actually visible in a shared
+      channel, the Preferences panel also lists every ignored nick across
+      every server with its own Unignore, for the case where they've since
+      left or you're not sharing a channel with them anymore
 - [ ] DCC CHAT
 - [ ] Clickable URLs, safe link handling
 - [ ] Search across history (per-channel and global)

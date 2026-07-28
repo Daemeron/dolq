@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { Settings } from '../../../shared/ipc';
+import type { Server } from '../types';
 
 type Props = {
   settings: Settings;
@@ -15,6 +16,12 @@ type Props = {
   onTimestampFormatChange: (format: '12h' | '24h') => void;
   messageDensity: 'cozy' | 'compact';
   onMessageDensityChange: (density: 'cozy' | 'compact') => void;
+  // Ignored nicks are normally managed from a user's context menu
+  // (UserList), but that only works while they're actually visible in a
+  // shared channel - this is the only way to remove one once they aren't.
+  servers: Server[];
+  ignoredNicks: Record<string, string[]>;
+  onRemoveIgnore: (serverId: string, nick: string) => void;
 };
 
 const inputClass =
@@ -25,8 +32,12 @@ const labelClass =
 export function PreferencesModal({
   settings, onSave, onCancel, notificationsEnabled, onNotificationsEnabledChange,
   timestampFormat, onTimestampFormatChange, messageDensity, onMessageDensityChange,
+  servers, ignoredNicks, onRemoveIgnore,
 }: Props) {
   const [retentionDays, setRetentionDays] = useState(String(settings.retentionDays));
+  const ignoredEntries = Object.entries(ignoredNicks).flatMap(([serverId, nicks]) =>
+    nicks.map((nick) => ({ serverId, nick })),
+  );
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -87,6 +98,30 @@ export function PreferencesModal({
             </select>
           </label>
         </div>
+
+        {ignoredEntries.length > 0 && (
+          <div className="flex flex-col gap-1.5 mb-5">
+            <span className="text-[11px] font-bold uppercase tracking-[0.5px] text-[#b0b0b0]">
+              Ignored Users
+            </span>
+            <div className="flex flex-col gap-1 max-h-32 overflow-y-auto scroll-thin pr-1">
+              {ignoredEntries.map(({ serverId, nick }) => (
+                <div key={`${serverId}:${nick}`} className="flex items-center justify-between gap-3 px-3 py-1.5 rounded bg-[#333333]">
+                  <span className="text-[#e6e6e6] text-[13px] truncate">
+                    {nick} <span className="text-[#6b6b6b]">on {servers.find((s) => s.id === serverId)?.name ?? serverId}</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => onRemoveIgnore(serverId, nick)}
+                    className="shrink-0 text-[#ff5555] text-[12px] font-medium bg-transparent border-0 cursor-pointer hover:underline"
+                  >
+                    Unignore
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <label className={labelClass}>

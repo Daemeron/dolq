@@ -35,10 +35,11 @@ export function toRows(users: User[]): Row[] {
 }
 
 function UserRow(
-  { user, onOpenQuery, onContextMenu }: {
+  { user, onOpenQuery, onContextMenu, ignored }: {
     user: User;
     onOpenQuery?: (nick: string) => void;
     onContextMenu: (e: React.MouseEvent) => void;
+    ignored: boolean;
   },
 ) {
   const privilege = highestPrivilege(user.privileges);
@@ -48,12 +49,12 @@ function UserRow(
       onClick={onOpenQuery && (() => onOpenQuery(user.nick))}
       onContextMenu={onContextMenu}
       title={onOpenQuery ? `Message ${user.nick}` : undefined}
-      className="flex items-center gap-2 w-full px-2 py-1 rounded border-0 bg-transparent text-left hover:bg-[rgba(90,90,90,0.35)] cursor-pointer"
+      className={`flex items-center gap-2 w-full px-2 py-1 rounded border-0 bg-transparent text-left hover:bg-[rgba(90,90,90,0.35)] cursor-pointer ${ignored ? 'opacity-40' : ''}`}
     >
       <div className="w-8 h-8 rounded-full bg-[#212121] text-[#e6e6e6] flex items-center justify-center text-[13px] font-semibold shrink-0">
         {user.nick[0]?.toUpperCase() ?? '?'}
       </div>
-      <span className={`text-[14px] truncate ${privilege === 'none' ? 'text-[#909090]' : 'text-[#e6e6e6]'}`}>
+      <span className={`text-[14px] truncate ${ignored ? 'line-through text-[#6b6b6b]' : privilege === 'none' ? 'text-[#909090]' : 'text-[#e6e6e6]'}`}>
         {SYMBOL[privilege] && <span className="mr-0.5" style={{ color }}>{SYMBOL[privilege]}</span>}
         {user.nick}
       </span>
@@ -66,9 +67,11 @@ type ListProps = {
   currentNick?: string;
   onOpenQuery?: (nick: string) => void;
   onWhois: (nick: string) => void;
+  ignoredNicks: string[];
+  onToggleIgnore: (nick: string) => void;
 };
 
-export function UserList({ users, currentNick, onOpenQuery, onWhois }: ListProps) {
+export function UserList({ users, currentNick, onOpenQuery, onWhois, ignoredNicks, onToggleIgnore }: ListProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const rows = toRows(users);
   const { menu, open, close, dismissIfUnhandled } = useContextMenu<string>();
@@ -111,6 +114,7 @@ export function UserList({ users, currentNick, onOpenQuery, onWhois }: ListProps
                   user={row.user}
                   onOpenQuery={row.user.nick === currentNick ? undefined : onOpenQuery}
                   onContextMenu={(e) => open(row.user.nick, e)}
+                  ignored={ignoredNicks.includes(row.user.nick)}
                 />
               )}
             </div>
@@ -123,6 +127,9 @@ export function UserList({ users, currentNick, onOpenQuery, onWhois }: ListProps
           <ContextMenuHeader>{menu.target}</ContextMenuHeader>
           <ContextMenuItem onClick={() => { onWhois(menu.target); close(); }}>
             WHOIS
+          </ContextMenuItem>
+          <ContextMenuItem danger={!ignoredNicks.includes(menu.target)} onClick={() => { onToggleIgnore(menu.target); close(); }}>
+            {ignoredNicks.includes(menu.target) ? 'Unignore' : 'Ignore'}
           </ContextMenuItem>
         </ContextMenu>
       )}

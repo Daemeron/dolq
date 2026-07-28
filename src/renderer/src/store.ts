@@ -26,6 +26,11 @@ type State = {
   notificationsEnabled: boolean;
   timestampFormat: '12h' | '24h';
   messageDensity: 'cozy' | 'compact';
+  // Per-server (see ROADMAP's "per-network" - serverId is this app's only
+  // notion of a network boundary already, same as nickMap/saslMap/etc.)
+  // ignore list - purely a client-side display filter, nothing sent to the
+  // server (IRC has no native "ignore").
+  ignoredNicks: Record<string, string[]>;
 };
 
 type Actions = {
@@ -53,6 +58,8 @@ type Actions = {
   setNotificationsEnabled: (enabled: boolean) => void;
   setTimestampFormat: (format: '12h' | '24h') => void;
   setMessageDensity: (density: 'cozy' | 'compact') => void;
+  addIgnore: (serverId: string, nick: string) => void;
+  removeIgnore: (serverId: string, nick: string) => void;
 };
 
 export const useStore = create<State & Actions>()(
@@ -72,6 +79,7 @@ export const useStore = create<State & Actions>()(
       notificationsEnabled: true,
       timestampFormat: '12h',
       messageDensity: 'cozy',
+      ignoredNicks: {},
 
       addServer: (server, logChannel) =>
         set((s) => ({
@@ -99,9 +107,11 @@ export const useStore = create<State & Actions>()(
           delete statusMap[id];
           const saslMap = { ...s.saslMap };
           delete saslMap[id];
+          const ignoredNicks = { ...s.ignoredNicks };
+          delete ignoredNicks[id];
 
           if (s.selectedServerId !== id) {
-            return { servers, channelMap, messageMap, userMap, nickMap, statusMap, saslMap };
+            return { servers, channelMap, messageMap, userMap, nickMap, statusMap, saslMap, ignoredNicks };
           }
 
           const selectedServerId = servers[0]?.id ?? '';
@@ -109,7 +119,7 @@ export const useStore = create<State & Actions>()(
           const logCh = remainingChannels.find((c) => c.isLog);
           const selectedChannelId = logCh?.id ?? remainingChannels[0]?.id ?? '__log__';
           return {
-            servers, channelMap, messageMap, userMap, nickMap, statusMap, saslMap,
+            servers, channelMap, messageMap, userMap, nickMap, statusMap, saslMap, ignoredNicks,
             selectedServerId, selectedChannelId,
           };
         }),
@@ -266,6 +276,18 @@ export const useStore = create<State & Actions>()(
       setTimestampFormat: (format) => set({ timestampFormat: format }),
 
       setMessageDensity: (density) => set({ messageDensity: density }),
+
+      addIgnore: (serverId, nick) =>
+        set((s) => {
+          const existing = s.ignoredNicks[serverId] ?? [];
+          if (existing.includes(nick)) return {};
+          return { ignoredNicks: { ...s.ignoredNicks, [serverId]: [...existing, nick] } };
+        }),
+
+      removeIgnore: (serverId, nick) =>
+        set((s) => ({
+          ignoredNicks: { ...s.ignoredNicks, [serverId]: (s.ignoredNicks[serverId] ?? []).filter((n) => n !== nick) },
+        })),
     }),
     {
       name: 'dolq',
@@ -281,6 +303,7 @@ export const useStore = create<State & Actions>()(
         notificationsEnabled: s.notificationsEnabled,
         timestampFormat: s.timestampFormat,
         messageDensity: s.messageDensity,
+        ignoredNicks: s.ignoredNicks,
       }),
     },
   ),

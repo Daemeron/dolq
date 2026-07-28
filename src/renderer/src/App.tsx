@@ -65,10 +65,11 @@ export default function App() {
   const {
     servers, presets, channelMap, messageMap, userMap, nickMap, saslMap,
     selectedServerId, selectedChannelId, statusMap, mentionedChannels, notificationsEnabled,
-    timestampFormat, messageDensity,
+    timestampFormat, messageDensity, ignoredNicks,
     addServer, removeServer, addPreset, addChannel, removeChannel, setTopic, setTopicWhoTime, appendMessage, setHistory, setNick, setSaslCreds,
     selectServer, selectChannel, setConnectionStatus, setUsers, addUser, removeUser, removeUserEverywhere,
     renameUserEverywhere, applyModeChanges, markMentioned, setNotificationsEnabled, setTimestampFormat, setMessageDensity,
+    addIgnore, removeIgnore,
   } = useStore();
 
   const [showModal, setShowModal] = useState(false);
@@ -190,16 +191,26 @@ export default function App() {
     }
   }
 
+  // A message never even reaches dmKey - an ignored nick DMing you doesn't
+  // pop open a new query either. Scoped to actual chat content (PRIVMSG/
+  // ACTION/NOTICE), not JOIN/PART/QUIT/etc. - "ignore" here means "stop
+  // showing me what they say", not "pretend they don't exist".
+  function isIgnored(serverId: string, nick: string): boolean {
+    return (ignoredNicks[serverId] ?? []).includes(nick);
+  }
+
   useEffect(() => {
     return window.irc.onEvent((serverId, event) => {
       switch (event.type) {
         case 'PRIVMSG': {
+          if (isIgnored(serverId, event.nick)) break;
           const key = dmKey(serverId, event.target, event.nick);
           appendMessage(key, { id: nextMsgId.current++, nick: event.nick, text: event.text, timestamp: new Date() });
           checkMention(serverId, key, event.target, event.text);
           break;
         }
         case 'ACTION': {
+          if (isIgnored(serverId, event.nick)) break;
           const key = dmKey(serverId, event.target, event.nick);
           appendMessage(key, {
             id: nextMsgId.current++, nick: event.nick, text: event.text, timestamp: new Date(), action: true,
@@ -212,7 +223,7 @@ export default function App() {
           // up as a raw line in the Log (onLine above), same as before this
           // was parsed at all. Only channel notices get the nicer per-channel
           // rendering, same reasoning as toMessages above.
-          if (event.target.startsWith('#')) {
+          if (event.target.startsWith('#') && !isIgnored(serverId, event.nick)) {
             appendMessage(event.target, {
               id: nextMsgId.current++, nick: event.nick, text: event.text, timestamp: new Date(), notice: true,
             });
@@ -294,6 +305,7 @@ export default function App() {
     appendMessage, addChannel, selectChannel, addUser, removeUser,
     removeUserEverywhere, renameUserEverywhere, applyModeChanges, setUsers, setTopic, setTopicWhoTime, nickMap,
     channelMap, setNick, servers, selectedChannelId, selectServer, markMentioned, notificationsEnabled, whoisNick,
+    ignoredNicks,
   ]);
 
   // Preload scrollback the first time a channel is actually opened - once
@@ -408,6 +420,14 @@ export default function App() {
     window.irc.sendLine(selectedServerId, `WHOIS ${nick}`);
   }
 
+  function handleToggleIgnore(nick: string) {
+    if (isIgnored(selectedServerId, nick)) {
+      removeIgnore(selectedServerId, nick);
+    } else {
+      addIgnore(selectedServerId, nick);
+    }
+  }
+
   const channels = channelMap[selectedServerId] ?? [];
   const selectedChannel = channels.find((c) => c.id === selectedChannelId) ?? channels[0];
   const messages = messageMap[selectedChannelId] ?? [];
@@ -470,6 +490,9 @@ export default function App() {
           onTimestampFormatChange={setTimestampFormat}
           messageDensity={messageDensity}
           onMessageDensityChange={setMessageDensity}
+          servers={servers}
+          ignoredNicks={ignoredNicks}
+          onRemoveIgnore={removeIgnore}
         />
       )}
       {whoisNick && (
@@ -540,7 +563,14 @@ export default function App() {
           </div>
           <aside className="w-52 bg-[#1c1c1c] border-l border-[#2a2a2a] shrink-0 flex flex-col overflow-hidden">
             {!isLog && !isQuery && (
-              <UserList users={users} currentNick={currentNick} onOpenQuery={handleOpenQuery} onWhois={handleWhois} />
+              <UserList
+                users={users}
+                currentNick={currentNick}
+                onOpenQuery={handleOpenQuery}
+                onWhois={handleWhois}
+                ignoredNicks={ignoredNicks[selectedServerId] ?? []}
+                onToggleIgnore={handleToggleIgnore}
+              />
             )}
           </aside>
         </div>
