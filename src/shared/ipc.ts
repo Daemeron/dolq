@@ -52,7 +52,8 @@ export type IrcEvent =
       account?: string;
       away?: string;
       noSuchNick?: boolean;
-    };
+    }
+  | { type: 'DCCCHATOFFER'; nick: string; ip: string; port: number };
 
 // One persisted line, as returned by getHistory - mirrors
 // backend/internal/history.Entry's JSON shape: everything that flowed
@@ -105,6 +106,14 @@ export type IrcApi = {
   getHistory: (serverId: string, channel: string, before?: number, limit?: number) => Promise<HistoryEntry[]>;
   getSettings: () => Promise<Settings>;
   setSettings: (settings: Settings) => Promise<void>;
+  // DCC CHAT (see backend/internal/bouncer/dcc.go). Both offer and accept
+  // return a session id that lines/status for that session arrive under -
+  // onLine/onStatus below are already generic over "some id", DCC sessions
+  // just aren't real serverIds.
+  dccOffer: (serverId: string, nick: string) => Promise<string>;
+  dccAccept: (ip: string, port: number) => Promise<string>;
+  dccSend: (dccId: string, line: string) => Promise<void>;
+  dccClose: (dccId: string) => Promise<void>;
   onLine: (callback: (serverId: string, line: string) => void) => () => void;
   onEvent: (callback: (serverId: string, event: IrcEvent) => void) => () => void;
   onStatus: (callback: (serverId: string, status: ConnectionStatus) => void) => () => void;
@@ -124,6 +133,10 @@ export enum IrcMessages {
   getHistory = 'irc:getHistory',
   getSettings = 'irc:getSettings',
   setSettings = 'irc:setSettings',
+  dccOffer = 'irc:dccOffer',
+  dccAccept = 'irc:dccAccept',
+  dccSend = 'irc:dccSend',
+  dccClose = 'irc:dccClose',
   line = 'irc:line',
   event = 'irc:event',
   status = 'irc:status',

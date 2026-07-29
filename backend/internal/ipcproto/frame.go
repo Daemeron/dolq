@@ -12,6 +12,10 @@ const (
 	ActionGetStatus         = "getStatus"
 	ActionGetJoinedChannels = "getJoinedChannels"
 	ActionGetHistory        = "getHistory"
+	ActionDCCOffer          = "dccOffer"  // sends a CTCP DCC CHAT request and listens for the reply
+	ActionDCCAccept         = "dccAccept" // dials a peer's offered DCC CHAT listener
+	ActionDCCSend           = "dccSend"
+	ActionDCCClose          = "dccClose"
 )
 
 // Server -> client frame types.
@@ -40,6 +44,12 @@ type ClientFrame struct {
 	Channel  string   `json:"channel,omitempty"` // getHistory
 	Before   int64    `json:"before,omitempty"`  // getHistory: id cursor, 0 = most recent
 	Limit    int      `json:"limit,omitempty"`   // getHistory
+	// DCC CHAT (see bouncer/dcc.go). dccOffer reuses ServerID (which IRC
+	// connection to send the CTCP over) and Nick (the target); dccAccept
+	// reuses Host/Port (the peer's announced address, from a
+	// DCCChatOfferEvent); dccSend/dccClose use DCCID (dccOffer/dccAccept's
+	// result) and, for dccSend, Line.
+	DCCID string `json:"dccId,omitempty"`
 }
 
 // ServerFrame is one line the backend sends back.
@@ -52,6 +62,7 @@ type ServerFrame struct {
 	Status   string          `json:"status,omitempty"`
 	Channels []string        `json:"channels,omitempty"`
 	Messages []history.Entry `json:"messages,omitempty"`
+	DCCID    string          `json:"dccId,omitempty"` // dccOffer/dccAccept's result
 	OK       bool            `json:"ok,omitempty"`
 	Error    string          `json:"error,omitempty"`
 }

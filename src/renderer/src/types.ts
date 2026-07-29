@@ -21,6 +21,12 @@ export type Channel = {
   // A DM/query - id is the correspondent's bare nick, same convention as a
   // channel's id being its bare "#name" (see App.tsx's PRIVMSG handling).
   isQuery?: boolean;
+  // A DCC CHAT session - id is its "dcc:<uuid>" session id (see
+  // window.irc.dccOffer/dccAccept), name is still the peer's nick. Always
+  // paired with isQuery: true, it renders the same way (query-style
+  // TopicBar/MessageInput), just in its own sidebar section and closed via
+  // dccClose instead of PART - see ChannelList/App.tsx's handleRemoveChannel.
+  isDCC?: boolean;
   topic?: string;
   topicSetBy?: string;
   topicSetAt?: Date;

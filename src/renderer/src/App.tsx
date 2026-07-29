@@ -11,6 +11,7 @@ import { MessageInput } from './components/MessageInput';
 import { ConnectModal, parseList, type ConnectForm } from './components/ConnectModal';
 import { PreferencesModal } from './components/PreferencesModal';
 import { WhoisModal } from './components/WhoisModal';
+import { DCCOfferModal } from './components/DCCOfferModal';
 import { UserPanel } from './components/UserPanel';
 import { buildServerId, parseServerId } from './utils/server';
 import { mentionsNick } from './utils/mentions';
@@ -84,6 +85,9 @@ export default function App() {
   // whoisResult stays null until that reply actually arrives.
   const [whoisNick, setWhoisNick] = useState<string | null>(null);
   const [whoisResult, setWhoisResult] = useState<Extract<IrcEvent, { type: 'whois' }> | null>(null);
+  // An incoming DCC CHAT offer awaiting accept/decline - see the
+  // DCCCHATOFFER case below and DCCOfferModal.
+  const [pendingDCCOffer, setPendingDCCOffer] = useState<{ serverId: string; nick: string; ip: string; port: number } | null>(null);
   const nextMsgId = useRef(Date.now());
   const historyPages = useRef(new Map<string, HistoryPage>());
 
@@ -141,8 +145,30 @@ export default function App() {
     return useStore.persist.onFinishHydration(reconcile);
   }, [setConnectionStatus]);
 
+  // A DCC session's channel lives under whichever server initiated/accepted
+  // it (see handleDCCOffer/handleAcceptDCC), keyed by its dccId same as any
+  // other channel - this just has to search every server's list to find it,
+  // since a raw onLine callback isn't given which one.
+  function dccPeerNick(dccId: string): string {
+    for (const channels of Object.values(channelMap)) {
+      const ch = channels.find((c) => c.id === dccId);
+      if (ch) return ch.name;
+    }
+    return '';
+  }
+
   useEffect(() => {
     return window.irc.onLine((serverId, line) => {
+      // A DCC CHAT session (see the ROADMAP note) isn't a real serverId -
+      // its lines are the chat itself, not raw IRC protocol traffic to
+      // stash in a Log bucket, so they go straight into the session's own
+      // channel instead.
+      if (serverId.startsWith('dcc:')) {
+        appendMessage(serverId, {
+          id: nextMsgId.current++, nick: dccPeerNick(serverId), text: line, timestamp: new Date(),
+        });
+        return;
+      }
       const key = `${serverId}:__log__`;
       const msg: Message = {
         id: nextMsgId.current++,
@@ -153,7 +179,7 @@ export default function App() {
       };
       appendMessage(key, msg);
     });
-  }, [appendMessage]);
+  }, [appendMessage, channelMap]);
 
   // Opens a query with `nick` if one isn't already open - there's no
   // protocol-level "start a DM" beyond just sending/receiving a PRIVMSG, so
@@ -299,6 +325,11 @@ export default function App() {
         case 'whois':
           if (event.nick === whoisNick) setWhoisResult(event);
           break;
+        case 'DCCCHATOFFER':
+          // Last offer wins if more than one arrives before this is
+          // resolved - a real edge case, not worth a queue for.
+          setPendingDCCOffer({ serverId, nick: event.nick, ip: event.ip, port: event.port });
+          break;
       }
     });
   }, [
@@ -404,8 +435,13 @@ export default function App() {
   }
 
   async function handleRemoveChannel(channelId: string) {
-    const joined = (userMap[channelId] ?? []).some((u) => u.nick === currentNick);
-    if (joined) await window.irc.sendLine(selectedServerId, `PART ${channelId}`);
+    const channel = (channelMap[selectedServerId] ?? []).find((c) => c.id === channelId);
+    if (channel?.isDCC) {
+      await window.irc.dccClose(channelId);
+    } else {
+      const joined = (userMap[channelId] ?? []).some((u) => u.nick === currentNick);
+      if (joined) await window.irc.sendLine(selectedServerId, `PART ${channelId}`);
+    }
     removeChannel(selectedServerId, channelId);
   }
 
@@ -426,6 +462,30 @@ export default function App() {
     } else {
       addIgnore(selectedServerId, nick);
     }
+  }
+
+  // Offers a DCC CHAT to nick over the currently selected server - opens
+  // (and switches to) its channel right away, in the "connecting" status
+  // getStatus/onStatus already report generically; see dccPeerNick for how
+  // its lines find their way back to it.
+  async function handleDCCOffer(nick: string) {
+    const id = await window.irc.dccOffer(selectedServerId, nick);
+    addChannel(selectedServerId, { id, name: nick, isLog: false, isQuery: true, isDCC: true });
+    selectChannel(id);
+  }
+
+  async function handleAcceptDCCOffer() {
+    if (!pendingDCCOffer) return;
+    const { serverId, nick, ip, port } = pendingDCCOffer;
+    setPendingDCCOffer(null);
+    const id = await window.irc.dccAccept(ip, port);
+    addChannel(serverId, { id, name: nick, isLog: false, isQuery: true, isDCC: true });
+    selectServer(serverId);
+    selectChannel(id);
+  }
+
+  function handleDeclineDCCOffer() {
+    setPendingDCCOffer(null);
   }
 
   const channels = channelMap[selectedServerId] ?? [];
@@ -455,6 +515,14 @@ export default function App() {
       appendMessage(nick, { id: nextMsgId.current++, nick: currentNick, text: msg, timestamp: new Date() });
     } else if (selectedChannel?.isLog) {
       await window.irc.sendLine(selectedServerId, text);
+    } else if (selectedChannel?.isDCC) {
+      // Plain text straight to the peer, no IRC framing (not even CTCP
+      // ACTION for /me - DCC CHAT is just a raw line-oriented socket, kept
+      // that simple here too).
+      await window.irc.dccSend(selectedChannelId, text);
+      appendMessage(selectedChannelId, {
+        id: nextMsgId.current++, nick: currentNick, text, timestamp: new Date(),
+      });
     } else if (meMatch) {
       const action = meMatch[1];
       await window.irc.sendLine(selectedServerId, `PRIVMSG ${selectedChannelId} :\x01ACTION ${action}\x01`);
@@ -502,6 +570,13 @@ export default function App() {
           onClose={() => { setWhoisNick(null); setWhoisResult(null); }}
         />
       )}
+      {pendingDCCOffer && (
+        <DCCOfferModal
+          nick={pendingDCCOffer.nick}
+          onAccept={handleAcceptDCCOffer}
+          onDecline={handleDeclineDCCOffer}
+        />
+      )}
       <div className="relative flex flex-col shrink-0">
         <div className="flex flex-1 overflow-hidden">
           <ServerList
@@ -543,6 +618,8 @@ export default function App() {
           topicSetAt={selectedChannel?.topicSetAt}
           isLog={isLog}
           isQuery={isQuery}
+          isDCC={selectedChannel?.isDCC}
+          dccStatus={selectedChannel?.isDCC ? statusMap[selectedChannelId] : undefined}
         />
         <div className="flex flex-1 overflow-hidden">
           <div className="flex flex-col flex-1 overflow-hidden">
@@ -570,6 +647,7 @@ export default function App() {
                 onWhois={handleWhois}
                 ignoredNicks={ignoredNicks[selectedServerId] ?? []}
                 onToggleIgnore={handleToggleIgnore}
+                onDCCOffer={handleDCCOffer}
               />
             )}
           </aside>

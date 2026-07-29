@@ -21,6 +21,7 @@ interface ServerFrame {
   status?: ConnectionStatus;
   channels?: string[];
   messages?: HistoryEntry[];
+  dccId?: string;
   ok?: boolean;
   error?: string;
 }
@@ -110,6 +111,26 @@ export class BackendClient extends EventEmitter {
   async getHistory(serverId: string, channel: string, before?: number, limit?: number): Promise<HistoryEntry[]> {
     const f = await this.request('getHistory', { serverId, channel, before, limit });
     return f.messages ?? [];
+  }
+
+  async dccOffer(serverId: string, nick: string): Promise<string> {
+    const f = await this.request('dccOffer', { serverId, nick });
+    if (!f.ok) throw new Error(f.error);
+    return f.dccId ?? '';
+  }
+
+  async dccAccept(ip: string, port: number): Promise<string> {
+    const f = await this.request('dccAccept', { host: ip, port });
+    if (!f.ok) throw new Error(f.error);
+    return f.dccId ?? '';
+  }
+
+  dccSend(dccId: string, line: string): Promise<void> {
+    return this.call('dccSend', { dccId, line });
+  }
+
+  dccClose(dccId: string): Promise<void> {
+    return this.call('dccClose', { dccId });
   }
 
   // Signals dolqd to shut down (which itself disconnects every session,

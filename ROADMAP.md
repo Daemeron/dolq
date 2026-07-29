@@ -345,7 +345,40 @@ will hang the UI.
       channel, the Preferences panel also lists every ignored nick across
       every server with its own Unignore, for the case where they've since
       left or you're not sharing a channel with them anymore
-- [ ] DCC CHAT
+- [x] DCC CHAT - a new `dcc` package handles the peer-to-peer half (plain
+      newline-delimited text over a direct TCP connection, no more IRC
+      framing at all), deliberately shaped like `ircclient.Client` (Send/
+      AddLineListener/OnClose/Start) even though DCC needs none of that
+      shape's original IRC-specific reasons to exist - consistency with the
+      rest of this codebase over a bespoke API. The CTCP handshake that
+      sets one up still rides over the ordinary IRC connection though:
+      `ircclient` parses an incoming `DCC CHAT` request into a
+      `DCCChatOfferEvent` (unlike VERSION/PING, nothing auto-replies -
+      accepting is a user decision) and `bouncer.DCCOffer`/`DCCAccept`
+      open the actual socket. A DCC session's traffic reuses the exact
+      same `Subscriber.SendLine`/`SendStatus` fan-out an IRC session's
+      lines already go through, keyed by a synthetic `dcc:<uuid>` id
+      standing in for a serverId - the whole ipcproto/preload/onLine/
+      onStatus pipeline never needed to know that was IRC-specific in the
+      first place, so no new wire framing was needed, just two new
+      actions (`dccOffer`/`dccAccept`, returning that id) plus
+      `dccSend`/`dccClose`. Frontend-side a DCC session is a `Channel`
+      with both `isQuery` and `isDCC` set - same TopicBar/MessageInput
+      treatment a query already gets, just its own "DCC Chats" sidebar
+      section and closed via `dccClose` instead of `PART`. Known
+      limitations, both explained in code comments rather than solved:
+      the announced IP is a best-effort guess at your outbound interface
+      (`dcc.LocalIP`) with no NAT traversal - behind one, the offer only
+      connects if the peer can actually reach that address (same LAN, or
+      port forwarding), the same real limitation DCC has always had, not
+      specific to this client; and a DCC session doesn't survive an app
+      restart the way IRC sessions do (no reconnect, no persistence) -
+      this app only ever has one Electron-process subscriber at a time,
+      so that bouncer-survives-a-subscriber-disconnect guarantee wasn't
+      worth replicating for something this transient. Also noticed but
+      out of scope: an unrelated pre-existing flaky test in
+      `internal/history` (`TestRetentionPrunesOldEntries`) - untouched by
+      this change, worth its own fix
 - [ ] Clickable URLs, safe link handling
 - [ ] Search across history (per-channel and global)
 - [ ] Export channel/server logs (plain text, maybe JSON)

@@ -434,6 +434,60 @@ func TestCTCP(t *testing.T) {
 			t.Fatal("timed out waiting for the ActionEvent")
 		}
 	})
+
+	t.Run("emits a DCCChatOfferEvent for a CTCP DCC CHAT request, decoding the IP", func(t *testing.T) {
+		c, server, r := pipeClient(t, "testnick")
+		events := make(chan any, 1)
+		c.AddEventListener(func(e any) { events <- e })
+		c.Start()
+		drainHandshake(t, r)
+
+		writeLine(t, server, ":alice!u@host PRIVMSG testnick :\x01DCC CHAT chat 3232235777 5000\x01")
+		select {
+		case e := <-events:
+			want := ircparse.DCCChatOfferEvent{Type: "DCCCHATOFFER", Nick: "alice", IP: "192.168.1.1", Port: 5000}
+			if !reflect.DeepEqual(e, want) {
+				t.Errorf("got %#v, want %#v", e, want)
+			}
+		case <-time.After(2 * time.Second):
+			t.Fatal("timed out waiting for the DCCChatOfferEvent")
+		}
+	})
+
+	t.Run("does not auto-reply to a DCC CHAT request", func(t *testing.T) {
+		c, server, r := pipeClient(t, "testnick")
+		c.Start()
+		drainHandshake(t, r)
+		writeLine(t, server, ":alice!u@host PRIVMSG testnick :\x01DCC CHAT chat 3232235777 5000\x01")
+
+		ch := make(chan string, 1)
+		go func() {
+			line, err := r.ReadString('\n')
+			if err == nil {
+				ch <- line
+			}
+		}()
+		select {
+		case line := <-ch:
+			t.Errorf("unexpected line written by client: %q", line)
+		case <-time.After(100 * time.Millisecond):
+		}
+	})
+
+	t.Run("ignores a non-CHAT DCC request (e.g. SEND - that's a file transfer, not this)", func(t *testing.T) {
+		c, server, r := pipeClient(t, "testnick")
+		events := make(chan any, 1)
+		c.AddEventListener(func(e any) { events <- e })
+		c.Start()
+		drainHandshake(t, r)
+
+		writeLine(t, server, ":alice!u@host PRIVMSG testnick :\x01DCC SEND file.txt 3232235777 5000 1024\x01")
+		select {
+		case e := <-events:
+			t.Errorf("expected no event, got %#v", e)
+		case <-time.After(100 * time.Millisecond):
+		}
+	})
 }
 
 func TestPingTimeoutWatchdog(t *testing.T) {

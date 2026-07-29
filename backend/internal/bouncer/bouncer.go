@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Daemeron/dolq/backend/internal/dcc"
 	"github.com/Daemeron/dolq/backend/internal/history"
 	"github.com/Daemeron/dolq/backend/internal/ircclient"
 	"github.com/Daemeron/dolq/backend/internal/ircparse"
@@ -151,18 +152,30 @@ type Bouncer struct {
 	sessions map[string]*session
 	store    *history.Store // nil is fine, see history.Store's nil receivers
 
+	// dccMu guards dccSessions separately from mu - DCC bookkeeping (see
+	// dcc.go) has nothing to do with IRC session state and there's no
+	// reason for the two to contend with each other.
+	dccMu       sync.Mutex
+	dccSessions map[string]*dcc.Session
+
 	// Overridable before any Connect() call - tests shrink these so a
 	// reconnect test doesn't have to sit through a real backoff.
 	ReconnectBackoffBase time.Duration
 	ReconnectBackoffMax  time.Duration
+
+	// Overridable before any DCCOffer() call - tests shrink this so an
+	// unaccepted-offer test doesn't have to sit through the real timeout.
+	DCCAcceptTimeout time.Duration
 }
 
 func New(store *history.Store) *Bouncer {
 	return &Bouncer{
 		sessions:             make(map[string]*session),
+		dccSessions:          make(map[string]*dcc.Session),
 		store:                store,
 		ReconnectBackoffBase: 2 * time.Second,
 		ReconnectBackoffMax:  60 * time.Second,
+		DCCAcceptTimeout:     DefaultDCCAcceptTimeout,
 	}
 }
 
@@ -444,6 +457,8 @@ func (b *Bouncer) Send(serverID, line string) error {
 // Shutdown disconnects every live session concurrently, or until ctx is
 // done - used on SIGINT/SIGTERM.
 func (b *Bouncer) Shutdown(ctx context.Context) {
+	b.closeAllDCC()
+
 	b.mu.Lock()
 	sessions := make([]*session, 0, len(b.sessions))
 	for _, sess := range b.sessions {

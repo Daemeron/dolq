@@ -92,14 +92,28 @@ type NoticeEvent struct {
 }
 
 // CTCPRequestEvent is any other CTCP request embedded in a PRIVMSG (RFC
-// "extended formatting": \x01COMMAND args\x01) - VERSION and PING being the
-// only ones this client answers. Not meant to leave ircclient: there's
-// nothing to render, only a reply to send - see ircclient.Client.handleLine.
+// "extended formatting": \x01COMMAND args\x01) - VERSION and PING get an
+// automatic reply, DCC gets parsed into a DCCChatOfferEvent for the user to
+// accept/decline (see ircclient.Client.handleCTCPRequest for both).  Not
+// meant to leave ircclient itself: there's nothing here to render directly.
 type CTCPRequestEvent struct {
 	Nick    string
 	Target  string
 	Command string
 	Param   string
+}
+
+// DCCChatOfferEvent is a parsed CTCP "DCC CHAT" request - someone offering
+// to open a direct peer-to-peer chat connection, bypassing the IRC server
+// for its actual content. IP is already decoded from the wire's big-endian-
+// uint32-decimal convention (see dcc.DecodeIP) into a normal dotted-quad
+// string. Accepting or declining is a user decision the UI makes - nothing
+// here dials out on its own, see bouncer.DCCAccept.
+type DCCChatOfferEvent struct {
+	Type string `json:"type"`
+	Nick string `json:"nick"`
+	IP   string `json:"ip"`
+	Port int    `json:"port"`
 }
 
 type JoinEvent struct {

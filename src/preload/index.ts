@@ -37,6 +37,14 @@ contextBridge.exposeInMainWorld('irc', {
 
   setSettings: (settings: Settings) => ipcRenderer.invoke(IrcMessages.setSettings, settings),
 
+  dccOffer: (serverId: string, nick: string) => ipcRenderer.invoke(IrcMessages.dccOffer, serverId, nick),
+
+  dccAccept: (ip: string, port: number) => ipcRenderer.invoke(IrcMessages.dccAccept, ip, port),
+
+  dccSend: (dccId: string, line: string) => ipcRenderer.invoke(IrcMessages.dccSend, dccId, line),
+
+  dccClose: (dccId: string) => ipcRenderer.invoke(IrcMessages.dccClose, dccId),
+
   onLine: (callback: (serverId: string, line: string) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, serverId: string, line: string) => callback(serverId, line);
     ipcRenderer.on(IrcMessages.line, handler);

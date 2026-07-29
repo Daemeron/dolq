@@ -69,9 +69,12 @@ type ListProps = {
   onWhois: (nick: string) => void;
   ignoredNicks: string[];
   onToggleIgnore: (nick: string) => void;
+  onDCCOffer: (nick: string) => void;
 };
 
-export function UserList({ users, currentNick, onOpenQuery, onWhois, ignoredNicks, onToggleIgnore }: ListProps) {
+export function UserList({
+  users, currentNick, onOpenQuery, onWhois, ignoredNicks, onToggleIgnore, onDCCOffer,
+}: ListProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const rows = toRows(users);
   const { menu, open, close, dismissIfUnhandled } = useContextMenu<string>();
@@ -127,6 +130,9 @@ export function UserList({ users, currentNick, onOpenQuery, onWhois, ignoredNick
           <ContextMenuHeader>{menu.target}</ContextMenuHeader>
           <ContextMenuItem onClick={() => { onWhois(menu.target); close(); }}>
             WHOIS
+          </ContextMenuItem>
+          <ContextMenuItem onClick={() => { onDCCOffer(menu.target); close(); }}>
+            DCC Chat
           </ContextMenuItem>
           <ContextMenuItem danger={!ignoredNicks.includes(menu.target)} onClick={() => { onToggleIgnore(menu.target); close(); }}>
             {ignoredNicks.includes(menu.target) ? 'Unignore' : 'Ignore'}

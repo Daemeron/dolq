@@ -15,6 +15,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/Daemeron/dolq/backend/internal/dcc"
 	"github.com/Daemeron/dolq/backend/internal/ircparse"
 )
 
@@ -635,16 +636,43 @@ const clientVersion = "Dolq IRC Client"
 
 // handleCTCPRequest answers the two CTCP requests worth auto-replying to
 // (VERSION, PING) over CTCP's own reply channel - a NOTICE back to the
-// requester, wrapped the same way the request was. Anything else (ACTION
-// never reaches here - see ircparse's PRIVMSG/CTCP rule) is silently
-// ignored, same as a client that's never heard of it.
+// requester, wrapped the same way the request was. DCC is the one CTCP
+// request that isn't answered automatically at all - see handleDCCRequest.
+// Anything else (ACTION never reaches here - see ircparse's PRIVMSG/CTCP
+// rule) is silently ignored, same as a client that's never heard of it.
 func (c *Client) handleCTCPRequest(e ircparse.CTCPRequestEvent) {
 	switch e.Command {
 	case "VERSION":
 		c.sendCTCPReply(e.Nick, "VERSION "+clientVersion)
 	case "PING":
 		c.sendCTCPReply(e.Nick, "PING "+e.Param)
+	case "DCC":
+		c.handleDCCRequest(e.Nick, e.Param)
 	}
+}
+
+// handleDCCRequest parses a CTCP DCC request's param and, for CHAT
+// specifically, emits a DCCChatOfferEvent for the UI to accept or decline -
+// unlike VERSION/PING, nothing here answers automatically, and unlike every
+// other CTCP request, this one *does* leave ircclient as an event (there's
+// something to actually show: an offer, not just a reply to send).
+// Anything other than CHAT (e.g. SEND, a file transfer offer) is ignored -
+// that's Milestone 3's XDCC/DCC item, not this one.
+func (c *Client) handleDCCRequest(nick, param string) {
+	fields := strings.Fields(param)
+	if len(fields) < 4 || fields[0] != "CHAT" {
+		return
+	}
+	ipNum, err := strconv.ParseUint(fields[2], 10, 32)
+	if err != nil {
+		return
+	}
+	port, err := strconv.Atoi(fields[3])
+	if err != nil {
+		return
+	}
+	ip := dcc.DecodeIP(uint32(ipNum))
+	c.emitEvent(ircparse.DCCChatOfferEvent{Type: "DCCCHATOFFER", Nick: nick, IP: ip.String(), Port: port})
 }
 
 func (c *Client) sendCTCPReply(nick, payload string) {

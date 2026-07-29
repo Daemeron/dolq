@@ -75,6 +75,14 @@ function registerIrcHandlers(mainWindow: BrowserWindow, backend: BackendClient):
     backend.getHistory(serverId, channel, before, limit),
   );
 
+  ipcMain.handle(IrcMessages.dccOffer, (_event, serverId: string, nick: string) => backend.dccOffer(serverId, nick));
+
+  ipcMain.handle(IrcMessages.dccAccept, (_event, ip: string, port: number) => backend.dccAccept(ip, port));
+
+  ipcMain.handle(IrcMessages.dccSend, (_event, dccId: string, line: string) => backend.dccSend(dccId, line));
+
+  ipcMain.handle(IrcMessages.dccClose, (_event, dccId: string) => backend.dccClose(dccId));
+
   // The backend already tags every unsolicited frame with the serverId it
   // belongs to, so a single subscription per frame type covers every server
   // - no per-connect listener wiring needed.

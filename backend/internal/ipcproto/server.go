@@ -134,6 +134,24 @@ func (s *Server) handleFrame(c *conn, f ClientFrame) {
 			return
 		}
 		c.writeFrame(ServerFrame{ID: f.ID, Type: FrameResult, OK: true, Messages: entries})
+	case ActionDCCOffer:
+		id, err := s.b.DCCOffer(f.ServerID, f.Nick, c)
+		if err != nil {
+			c.writeFrame(ServerFrame{ID: f.ID, Type: FrameResult, OK: false, Error: err.Error()})
+			return
+		}
+		c.writeFrame(ServerFrame{ID: f.ID, Type: FrameResult, OK: true, DCCID: id})
+	case ActionDCCAccept:
+		id, err := s.b.DCCAccept(f.Host, f.Port, c)
+		if err != nil {
+			c.writeFrame(ServerFrame{ID: f.ID, Type: FrameResult, OK: false, Error: err.Error()})
+			return
+		}
+		c.writeFrame(ServerFrame{ID: f.ID, Type: FrameResult, OK: true, DCCID: id})
+	case ActionDCCSend:
+		c.writeResult(f.ID, s.b.DCCSend(f.DCCID, f.Line))
+	case ActionDCCClose:
+		c.writeResult(f.ID, s.b.DCCClose(f.DCCID))
 	default:
 		c.writeFrame(ServerFrame{ID: f.ID, Type: FrameResult, OK: false, Error: "unknown action: " + f.Action})
 	}
