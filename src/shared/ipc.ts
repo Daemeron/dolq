@@ -114,6 +114,13 @@ export type IrcApi = {
   dccAccept: (ip: string, port: number) => Promise<string>;
   dccSend: (dccId: string, line: string) => Promise<void>;
   dccClose: (dccId: string) => Promise<void>;
+  // Opens url in the OS's default browser (Electron's shell.openExternal) -
+  // not something the renderer can do directly (no direct Node/Electron API
+  // access, by design). Rejects for anything that isn't http(s) - see
+  // IrcText, which only ever recognizes http(s) links to begin with, and
+  // main/index.ts's handler, which checks again rather than trusting the
+  // renderer's own regex as the only guard.
+  openExternal: (url: string) => Promise<void>;
   onLine: (callback: (serverId: string, line: string) => void) => () => void;
   onEvent: (callback: (serverId: string, event: IrcEvent) => void) => () => void;
   onStatus: (callback: (serverId: string, status: ConnectionStatus) => void) => () => void;
@@ -137,6 +144,7 @@ export enum IrcMessages {
   dccAccept = 'irc:dccAccept',
   dccSend = 'irc:dccSend',
   dccClose = 'irc:dccClose',
+  openExternal = 'irc:openExternal',
   line = 'irc:line',
   event = 'irc:event',
   status = 'irc:status',

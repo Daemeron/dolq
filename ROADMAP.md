@@ -379,7 +379,22 @@ will hang the UI.
       out of scope: an unrelated pre-existing flaky test in
       `internal/history` (`TestRetentionPrunesOldEntries`) - untouched by
       this change, worth its own fix
-- [ ] Clickable URLs, safe link handling
+- [x] Clickable URLs, safe link handling - `IrcText` runs a second pass over
+      each already-formatted chunk (mIRC color/bold/etc. parsing stays
+      untouched), splitting out `http(s)://` matches as clickable links -
+      deliberately http(s)-only, nothing else IRC text carries a real risk
+      of (a `javascript:` or platform-specific custom-scheme URI actually
+      launching something is the concern "safe" is about here, not
+      mismatched link text vs. href the way browsers worry about phishing -
+      IRC text has no separate "display text", what you see is the literal
+      URL). Clicking calls a new `window.irc.openExternal`, since
+      `shell.openExternal` only exists in the main process - checked again
+      there rather than trusting the renderer's own regex as the only
+      guard against a non-http(s) scheme. Trailing sentence punctuation
+      glued onto a match ("see https://example.com.") is trimmed off
+      after the fact rather than excluded from the matching regex itself,
+      since a period is a perfectly valid character *inside* a URL
+      (`example.co.uk`) - only stripped when it's stuck to the very end
 - [ ] Search across history (per-channel and global)
 - [ ] Export channel/server logs (plain text, maybe JSON)
 - [ ] ChanServ/NickServ-aware helpers (e.g. detect registration prompts, auth

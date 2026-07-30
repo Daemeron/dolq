@@ -45,6 +45,8 @@ contextBridge.exposeInMainWorld('irc', {
 
   dccClose: (dccId: string) => ipcRenderer.invoke(IrcMessages.dccClose, dccId),
 
+  openExternal: (url: string) => ipcRenderer.invoke(IrcMessages.openExternal, url),
+
   onLine: (callback: (serverId: string, line: string) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, serverId: string, line: string) => callback(serverId, line);
     ipcRenderer.on(IrcMessages.line, handler);

@@ -1,5 +1,5 @@
 import { installExtension, REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';
-import { app, BrowserWindow, ipcMain } from 'electron';
+import { app, BrowserWindow, ipcMain, shell } from 'electron';
 import { join } from 'path';
 import { ConnectionStatus, IrcMessages, Settings } from '../shared/ipc';
 import { BackendClient } from './irc/BackendClient';
@@ -41,9 +41,24 @@ app.whenReady().then(async () => {
   const backend = new BackendClient(settings.retentionDays);
   registerIrcHandlers(mainWindow, backend);
   registerSettingsHandlers(settings);
+  registerShellHandlers();
   await installReactDevTools();
   registerAppLifecycleHandlers(backend);
 });
+
+// Not IRC-backend traffic at all - shell.openExternal is only reachable
+// from the main process, so a clicked link in the renderer (see IrcText)
+// has to come through here. Rechecked server-side rather than trusting the
+// renderer's own http(s)-only regex as the sole guard.
+function registerShellHandlers(): void {
+  ipcMain.handle(IrcMessages.openExternal, (_event, url: string) => {
+    const parsed = new URL(url);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      throw new Error(`refusing to open non-http(s) link: ${url}`);
+    }
+    return shell.openExternal(url);
+  });
+}
 
 function registerIrcHandlers(mainWindow: BrowserWindow, backend: BackendClient): void {
   ipcMain.handle(
