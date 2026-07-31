@@ -14,6 +14,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"log"
+	"strings"
 	"time"
 
 	_ "modernc.org/sqlite" // registers the "sqlite" driver, pure Go (no cgo)
@@ -34,13 +35,13 @@ CREATE INDEX IF NOT EXISTS idx_messages_scope ON messages(server_id, channel, id
 // Entry is one persisted line - either a raw line from a server's log feed
 // (IsRaw, Line set) or a structured IRC event (Event set, JSON-encoded the
 // same way it's sent to live subscribers - see bouncer.Subscriber.SendEvent).
-// ServerID/Channel aren't serialized: a retrieval response is already
-// scoped to the request's serverId/channel, so echoing them back on every
-// row would be redundant.
+// ServerID/Channel *are* serialized, unlike everything else here that's
+// scoped to one request - Search (unlike Recent) can span every channel,
+// even every server, so a result needs to say where it came from.
 type Entry struct {
 	ID        int64           `json:"id"`
-	ServerID  string          `json:"-"`
-	Channel   string          `json:"-"`
+	ServerID  string          `json:"serverId"`
+	Channel   string          `json:"channel"`
 	Timestamp time.Time       `json:"timestamp"`
 	IsRaw     bool            `json:"isRaw,omitempty"`
 	Line      string          `json:"line,omitempty"`
@@ -258,7 +259,7 @@ func (s *Store) Recent(serverID, channel string, before int64, limit int) ([]Ent
 
 	var entries []Entry
 	for rows.Next() {
-		var e Entry
+		e := Entry{ServerID: serverID, Channel: channel}
 		var ts int64
 		var payload string
 		if err := rows.Scan(&e.ID, &payload, &ts, &e.IsRaw); err != nil {
@@ -282,6 +283,70 @@ func (s *Store) Recent(serverID, channel string, before int64, limit int) ([]Ent
 		entries[i], entries[j] = entries[j], entries[i]
 	}
 	return entries, nil
+}
+
+// Search returns up to limit entries whose stored payload contains query
+// (case-insensitive substring match - SQLite's LIKE already is, for ASCII),
+// newest first. serverID/channel scope the search when non-empty; either or
+// both empty widens it (empty channel: every channel on serverID; empty
+// serverID: every server, "global").
+//
+// This is a literal substring match against the raw stored payload - JSON
+// for a parsed event, plain text for a raw line - not anything JSON-aware.
+// Works well for actual words/phrases, which is what "search" means in
+// practice; a query that happens to collide with JSON structure itself
+// (e.g. "type") can turn up noise. SQLite FTS5 (a virtual table kept in
+// sync with this one via triggers) would be the natural upgrade if that
+// ever matters enough to justify the added schema complexity - not
+// something "search across history" needs to start with.
+func (s *Store) Search(serverID, channel, query string, limit int) ([]Entry, error) {
+	if s == nil {
+		return nil, nil
+	}
+	if limit <= 0 {
+		limit = 200
+	}
+	rows, err := s.db.Query(
+		`SELECT id, server_id, channel, payload, ts, is_raw FROM messages
+		 WHERE (? = '' OR server_id = ?) AND (? = '' OR channel = ?)
+		   AND payload LIKE '%' || ? || '%' ESCAPE '\'
+		 ORDER BY id DESC LIMIT ?`,
+		serverID, serverID, channel, channel, escapeLike(query), limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var entries []Entry
+	for rows.Next() {
+		var e Entry
+		var ts int64
+		var payload string
+		if err := rows.Scan(&e.ID, &e.ServerID, &e.Channel, &payload, &ts, &e.IsRaw); err != nil {
+			return nil, err
+		}
+		e.Timestamp = time.UnixMilli(ts)
+		if e.IsRaw {
+			e.Line = payload
+		} else {
+			e.Event = json.RawMessage(payload)
+		}
+		entries = append(entries, e)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return entries, nil
+}
+
+// escapeLike backslash-escapes a user-typed search term's own LIKE
+// wildcards (%, _) so e.g. searching for a literal "50%" doesn't turn into
+// a wildcard match - paired with the query's own ESCAPE '\' clause.
+func escapeLike(s string) string {
+	s = strings.ReplaceAll(s, `\`, `\\`)
+	s = strings.ReplaceAll(s, `%`, `\%`)
+	s = strings.ReplaceAll(s, `_`, `\_`)
+	return s
 }
 
 // Close stops the prune loop (if running) and the writer goroutine

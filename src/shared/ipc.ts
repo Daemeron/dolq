@@ -55,14 +55,17 @@ export type IrcEvent =
     }
   | { type: 'DCCCHATOFFER'; nick: string; ip: string; port: number };
 
-// One persisted line, as returned by getHistory - mirrors
+// One persisted line, as returned by getHistory/search - mirrors
 // backend/internal/history.Entry's JSON shape: everything that flowed
 // through the backend gets stored verbatim (raw line, or the same IrcEvent
 // shape onEvent already delivers live), not just what today's UI renders.
-// serverId/channel aren't included: a getHistory response is already scoped
-// to the request.
+// serverId/channel are always present on the wire (a search can span more
+// than one of either, so results have to say where they came from) - just
+// redundant, not wrong, for a getHistory response already scoped to one.
 export type HistoryEntry = {
   id: number;
+  serverId: string;
+  channel: string;
   timestamp: string; // RFC3339; caller converts with `new Date(...)`
   isRaw?: boolean;
   line?: string; // present when isRaw
@@ -104,6 +107,9 @@ export type IrcApi = {
   getStatus: (serverId: string) => Promise<ConnectionStatus>;
   getJoinedChannels: (serverId: string) => Promise<string[]>;
   getHistory: (serverId: string, channel: string, before?: number, limit?: number) => Promise<HistoryEntry[]>;
+  // Both serverId and channel empty/omitted widens the search - see
+  // backend/internal/history.Store.Search's doc for exactly how.
+  search: (serverId: string, channel: string, query: string, limit?: number) => Promise<HistoryEntry[]>;
   getSettings: () => Promise<Settings>;
   setSettings: (settings: Settings) => Promise<void>;
   // DCC CHAT (see backend/internal/bouncer/dcc.go). Both offer and accept
@@ -138,6 +144,7 @@ export enum IrcMessages {
   getStatus = 'irc:getStatus',
   getJoinedChannels = 'irc:getJoinedChannels',
   getHistory = 'irc:getHistory',
+  search = 'irc:search',
   getSettings = 'irc:getSettings',
   setSettings = 'irc:setSettings',
   dccOffer = 'irc:dccOffer',

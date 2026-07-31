@@ -127,9 +127,106 @@ func TestNilStoreIsNoop(t *testing.T) {
 	if err != nil || entries != nil {
 		t.Fatalf("nil store should no-op, got entries=%v err=%v", entries, err)
 	}
+	found, err := s.Search("srv", "#chan", "hi", 10)
+	if err != nil || found != nil {
+		t.Fatalf("nil store Search should no-op, got entries=%v err=%v", found, err)
+	}
 	if err := s.Close(); err != nil {
 		t.Fatalf("nil store Close should no-op, got %v", err)
 	}
+}
+
+func TestSearch(t *testing.T) {
+	s, err := Open(":memory:", 0)
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	defer s.Close()
+
+	base := time.Now()
+	s.AppendLine("srv", "#general", "hello world", base)
+	s.AppendLine("srv", "#offtopic", "goodbye world", base.Add(time.Second))
+	s.AppendLine("other-srv", "#general", "hello from elsewhere", base.Add(2*time.Second))
+	waitForCount(t, s, "srv", "#general", 1)
+	waitForCount(t, s, "srv", "#offtopic", 1)
+	waitForCount(t, s, "other-srv", "#general", 1)
+
+	t.Run("scoped to one server and channel", func(t *testing.T) {
+		got, err := s.Search("srv", "#general", "hello", 10)
+		if err != nil {
+			t.Fatalf("search: %v", err)
+		}
+		if len(got) != 1 || got[0].Line != "hello world" {
+			t.Fatalf("got %+v, want just the #general match", got)
+		}
+	})
+
+	t.Run("empty channel searches every channel on that server", func(t *testing.T) {
+		got, err := s.Search("srv", "", "world", 10)
+		if err != nil {
+			t.Fatalf("search: %v", err)
+		}
+		if len(got) != 2 {
+			t.Fatalf("got %d results, want 2 (both srv channels)", len(got))
+		}
+	})
+
+	t.Run("empty server searches globally", func(t *testing.T) {
+		got, err := s.Search("", "", "hello", 10)
+		if err != nil {
+			t.Fatalf("search: %v", err)
+		}
+		if len(got) != 2 {
+			t.Fatalf("got %d results, want 2 (both servers)", len(got))
+		}
+	})
+
+	t.Run("results carry their own serverId/channel for a global search", func(t *testing.T) {
+		got, err := s.Search("", "", "hello", 10)
+		if err != nil {
+			t.Fatalf("search: %v", err)
+		}
+		byServer := map[string]string{}
+		for _, e := range got {
+			byServer[e.ServerID] = e.Channel
+		}
+		if byServer["srv"] != "#general" || byServer["other-srv"] != "#general" {
+			t.Fatalf("results missing their scope: %+v", got)
+		}
+	})
+
+	t.Run("case-insensitive", func(t *testing.T) {
+		got, err := s.Search("srv", "#general", "HELLO", 10)
+		if err != nil {
+			t.Fatalf("search: %v", err)
+		}
+		if len(got) != 1 {
+			t.Fatalf("got %d results, want 1", len(got))
+		}
+	})
+
+	t.Run("no match returns no results, not an error", func(t *testing.T) {
+		got, err := s.Search("srv", "#general", "nonexistent", 10)
+		if err != nil {
+			t.Fatalf("search: %v", err)
+		}
+		if len(got) != 0 {
+			t.Fatalf("got %+v, want no results", got)
+		}
+	})
+
+	t.Run("a literal LIKE wildcard in the query is escaped, not treated as a wildcard", func(t *testing.T) {
+		s.AppendLine("srv", "#general", "50% off today", base.Add(3*time.Second))
+		waitForCount(t, s, "srv", "#general", 2)
+
+		got, err := s.Search("srv", "#general", "50%", 10)
+		if err != nil {
+			t.Fatalf("search: %v", err)
+		}
+		if len(got) != 1 || got[0].Line != "50% off today" {
+			t.Fatalf("got %+v, want just the literal \"50%%\" match", got)
+		}
+	})
 }
 
 // waitForCount polls Recent until it sees want entries for serverID/channel

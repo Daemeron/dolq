@@ -33,6 +33,9 @@ contextBridge.exposeInMainWorld('irc', {
   getHistory: (serverId: string, channel: string, before?: number, limit?: number) =>
     ipcRenderer.invoke(IrcMessages.getHistory, serverId, channel, before, limit),
 
+  search: (serverId: string, channel: string, query: string, limit?: number) =>
+    ipcRenderer.invoke(IrcMessages.search, serverId, channel, query, limit),
+
   getSettings: () => ipcRenderer.invoke(IrcMessages.getSettings),
 
   setSettings: (settings: Settings) => ipcRenderer.invoke(IrcMessages.setSettings, settings),

@@ -113,6 +113,11 @@ export class BackendClient extends EventEmitter {
     return f.messages ?? [];
   }
 
+  async search(serverId: string, channel: string, query: string, limit?: number): Promise<HistoryEntry[]> {
+    const f = await this.request('search', { serverId, channel, query, limit });
+    return f.messages ?? [];
+  }
+
   async dccOffer(serverId: string, nick: string): Promise<string> {
     const f = await this.request('dccOffer', { serverId, nick });
     if (!f.ok) throw new Error(f.error);

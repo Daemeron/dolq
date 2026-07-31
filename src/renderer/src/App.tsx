@@ -12,6 +12,7 @@ import { ConnectModal, parseList, type ConnectForm } from './components/ConnectM
 import { PreferencesModal } from './components/PreferencesModal';
 import { WhoisModal } from './components/WhoisModal';
 import { DCCOfferModal } from './components/DCCOfferModal';
+import { SearchModal } from './components/SearchModal';
 import { UserPanel } from './components/UserPanel';
 import { buildServerId, parseServerId } from './utils/server';
 import { mentionsNick } from './utils/mentions';
@@ -75,6 +76,7 @@ export default function App() {
 
   const [showModal, setShowModal] = useState(false);
   const [showPreferences, setShowPreferences] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
   // Not in the zustand store: unlike everything else there, these belong to
   // the main process (not per-server, and read from disk before the
   // renderer even exists - see src/main/settings.ts), so the renderer just
@@ -488,6 +490,21 @@ export default function App() {
     setPendingDCCOffer(null);
   }
 
+  // A search result's channel is the backend key (see backendChannelFor) -
+  // "__log__" for the Log, needing the same reverse lookup the search
+  // preload path never had to do since it's always scoped to one channel
+  // whose sidebar id you already know.
+  function handleJumpToSearchResult(serverId: string, channel: string) {
+    selectServer(serverId);
+    if (channel === '__log__') {
+      const logCh = (channelMap[serverId] ?? []).find((c) => c.isLog);
+      selectChannel(logCh?.id ?? '__log__');
+    } else {
+      selectChannel(channel);
+    }
+    setShowSearch(false);
+  }
+
   const channels = channelMap[selectedServerId] ?? [];
   const selectedChannel = channels.find((c) => c.id === selectedChannelId) ?? channels[0];
   const messages = messageMap[selectedChannelId] ?? [];
@@ -577,6 +594,16 @@ export default function App() {
           onDecline={handleDeclineDCCOffer}
         />
       )}
+      {showSearch && (
+        <SearchModal
+          servers={servers}
+          defaultServerId={selectedServerId}
+          defaultChannel={backendChannelFor(selectedServerId, selectedChannelId)}
+          defaultChannelLabel={isLog ? 'Log' : isQuery ? (selectedChannel?.name ?? '') : `#${selectedChannel?.name ?? ''}`}
+          onJump={handleJumpToSearchResult}
+          onClose={() => setShowSearch(false)}
+        />
+      )}
       <div className="relative flex flex-col shrink-0">
         <div className="flex flex-1 overflow-hidden">
           <ServerList
@@ -598,6 +625,7 @@ export default function App() {
             onLeaveChannel={handleLeaveChannel}
             onRemoveChannel={handleRemoveChannel}
             onCloseQuery={handleRemoveChannel}
+            onOpenSearch={() => setShowSearch(true)}
           />
         </div>
         <div className="absolute bottom-0 left-0 w-full px-3 pt-2 pb-2">

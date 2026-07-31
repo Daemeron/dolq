@@ -12,6 +12,7 @@ const (
 	ActionGetStatus         = "getStatus"
 	ActionGetJoinedChannels = "getJoinedChannels"
 	ActionGetHistory        = "getHistory"
+	ActionSearch            = "search"    // Channel/ServerID empty widens the search - see bouncer.Search
 	ActionDCCOffer          = "dccOffer"  // sends a CTCP DCC CHAT request and listens for the reply
 	ActionDCCAccept         = "dccAccept" // dials a peer's offered DCC CHAT listener
 	ActionDCCSend           = "dccSend"
@@ -41,9 +42,10 @@ type ClientFrame struct {
 	Realname string   `json:"realname,omitempty"` // connect; empty defaults to "Dolq IRC Client"
 	AltNicks []string `json:"altNicks,omitempty"` // connect
 	Line     string   `json:"line,omitempty"`
-	Channel  string   `json:"channel,omitempty"` // getHistory
+	Channel  string   `json:"channel,omitempty"` // getHistory, search (empty widens a search - see bouncer.Search)
 	Before   int64    `json:"before,omitempty"`  // getHistory: id cursor, 0 = most recent
-	Limit    int      `json:"limit,omitempty"`   // getHistory
+	Limit    int      `json:"limit,omitempty"`   // getHistory, search
+	Query    string   `json:"query,omitempty"`   // search
 	// DCC CHAT (see bouncer/dcc.go). dccOffer reuses ServerID (which IRC
 	// connection to send the CTCP over) and Nick (the target); dccAccept
 	// reuses Host/Port (the peer's announced address, from a

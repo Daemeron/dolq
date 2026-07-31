@@ -14,11 +14,12 @@ type Props = {
   onLeaveChannel: (id: string) => void;
   onRemoveChannel: (id: string) => void;
   onCloseQuery: (id: string) => void;
+  onOpenSearch: () => void;
 };
 
 export function ChannelList({
   serverName, channels, selectedId, onSelect, currentNick, userMap, mentionedChannels,
-  onJoinChannel, onLeaveChannel, onRemoveChannel, onCloseQuery,
+  onJoinChannel, onLeaveChannel, onRemoveChannel, onCloseQuery, onOpenSearch,
 }: Props) {
   const logChannel = channels.find((c) => c.isLog);
   const regularChannels = channels.filter((c) => !c.isLog && !c.isQuery);
@@ -38,8 +39,15 @@ export function ChannelList({
       className="relative flex flex-col w-60 bg-[#1c1c1c] shrink-0 overflow-hidden"
       onContextMenu={dismissIfUnhandled}
     >
-      <div className="px-4 h-12 flex items-center font-bold text-[15px] text-white border-b border-[#2a2a2a] shrink-0 shadow-[0_1px_0_rgba(0,0,0,0.2)]">
-        {serverName}
+      <div className="px-4 h-12 flex items-center justify-between font-bold text-[15px] text-white border-b border-[#2a2a2a] shrink-0 shadow-[0_1px_0_rgba(0,0,0,0.2)]">
+        <span className="truncate">{serverName}</span>
+        <button
+          onClick={onOpenSearch}
+          title="Search history"
+          className="shrink-0 w-7 h-7 flex items-center justify-center rounded border-0 bg-transparent text-[#909090] cursor-pointer hover:text-white hover:bg-[rgba(90,90,90,0.35)]"
+        >
+          🔍
+        </button>
       </div>
 
       {logChannel && (

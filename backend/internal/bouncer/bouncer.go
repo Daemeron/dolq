@@ -406,6 +406,15 @@ func (b *Bouncer) History(serverID, channel string, before int64, limit int) ([]
 	return b.store.Recent(serverID, channel, before, limit)
 }
 
+// Search searches persisted history the same way History does, but across
+// possibly every channel and/or every server at once - see
+// history.Store.Search for the actual scoping/matching rules. Works
+// regardless of whether any of the matched servers currently have a live
+// session, same as History.
+func (b *Bouncer) Search(serverID, channel, query string, limit int) ([]history.Entry, error) {
+	return b.store.Search(serverID, channel, query, limit)
+}
+
 // Status reports serverID's session state: "connected", "connecting" (mid
 // reconnect after an unexpected drop), or "disconnected" (no session at
 // all).

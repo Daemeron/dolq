@@ -395,7 +395,23 @@ will hang the UI.
       after the fact rather than excluded from the matching regex itself,
       since a period is a perfectly valid character *inside* a URL
       (`example.co.uk`) - only stripped when it's stuck to the very end
-- [ ] Search across history (per-channel and global)
+- [x] Search across history (per-channel and global) - `history.Store.Search`
+      is a case-insensitive `LIKE` match against the same stored payload
+      `Recent` already reads (raw line text, or the JSON a parsed event was
+      encoded as) - a literal substring match, not JSON-aware, so a query
+      that happens to collide with JSON structure itself (rare - real
+      searches are words/phrases) can turn up noise; SQLite FTS5 would be
+      the natural upgrade if that ever actually matters enough to justify
+      a virtual table kept in sync via triggers. serverID/channel empty
+      widens the scope (empty channel: every channel on that server; empty
+      server: every server, "global") - the two ROADMAP asked for are just
+      the two ends of that, `SearchModal`'s checkbox toggling between them.
+      A result carries its own serverId/channel now (`history.Entry` always
+      serializes them, not just for search - `Recent`/getHistory's response
+      didn't need them before since it's already scoped to one, but now
+      does double duty), so clicking one can jump straight to that
+      channel - the search icon lives in `ChannelList`'s header, next to
+      the server name it's implicitly scoped to by default
 - [ ] Export channel/server logs (plain text, maybe JSON)
 - [ ] ChanServ/NickServ-aware helpers (e.g. detect registration prompts, auth
       flow shortcuts)

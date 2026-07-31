@@ -90,6 +90,10 @@ function registerIrcHandlers(mainWindow: BrowserWindow, backend: BackendClient):
     backend.getHistory(serverId, channel, before, limit),
   );
 
+  ipcMain.handle(IrcMessages.search, (_event, serverId: string, channel: string, query: string, limit?: number) =>
+    backend.search(serverId, channel, query, limit),
+  );
+
   ipcMain.handle(IrcMessages.dccOffer, (_event, serverId: string, nick: string) => backend.dccOffer(serverId, nick));
 
   ipcMain.handle(IrcMessages.dccAccept, (_event, ip: string, port: number) => backend.dccAccept(ip, port));

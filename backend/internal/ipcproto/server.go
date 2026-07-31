@@ -134,6 +134,13 @@ func (s *Server) handleFrame(c *conn, f ClientFrame) {
 			return
 		}
 		c.writeFrame(ServerFrame{ID: f.ID, Type: FrameResult, OK: true, Messages: entries})
+	case ActionSearch:
+		entries, err := s.b.Search(f.ServerID, f.Channel, f.Query, f.Limit)
+		if err != nil {
+			c.writeFrame(ServerFrame{ID: f.ID, Type: FrameResult, OK: false, Error: err.Error()})
+			return
+		}
+		c.writeFrame(ServerFrame{ID: f.ID, Type: FrameResult, OK: true, Messages: entries})
 	case ActionDCCOffer:
 		id, err := s.b.DCCOffer(f.ServerID, f.Nick, c)
 		if err != nil {
