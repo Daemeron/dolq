@@ -16,6 +16,7 @@ import { SearchModal } from './components/SearchModal';
 import { UserPanel } from './components/UserPanel';
 import { buildServerId, parseServerId } from './utils/server';
 import { mentionsNick } from './utils/mentions';
+import { formatEntry } from './utils/exportFormat';
 
 // How many rows getHistory fetches per page - both for the initial preload
 // and each scroll-up-triggered older page. Also doubles as the "is there
@@ -505,6 +506,27 @@ export default function App() {
     setShowSearch(false);
   }
 
+  // Pages backwards through the whole channel's history the same way
+  // loadOlderHistory does (oldestId cursor, exhausted once a page comes
+  // back short), just running to completion instead of one page at a time.
+  async function handleExportChannel(format: 'text' | 'json') {
+    const backendChannel = backendChannelFor(selectedServerId, selectedChannelId);
+    const pageSize = 1000;
+    let all: HistoryEntry[] = [];
+    let before: number | undefined;
+    for (;;) {
+      const page = await window.irc.getHistory(selectedServerId, backendChannel, before, pageSize);
+      if (page.length === 0) break;
+      all = [...page, ...all];
+      before = page[0].id;
+      if (page.length < pageSize) break;
+    }
+
+    const name = selectedChannel?.name || 'log';
+    const content = format === 'json' ? JSON.stringify(all, null, 2) : all.map(formatEntry).join('\n');
+    await window.irc.saveTextFile(`${name}.${format === 'json' ? 'json' : 'txt'}`, content);
+  }
+
   const channels = channelMap[selectedServerId] ?? [];
   const selectedChannel = channels.find((c) => c.id === selectedChannelId) ?? channels[0];
   const messages = messageMap[selectedChannelId] ?? [];
@@ -648,6 +670,7 @@ export default function App() {
           isQuery={isQuery}
           isDCC={selectedChannel?.isDCC}
           dccStatus={selectedChannel?.isDCC ? statusMap[selectedChannelId] : undefined}
+          onExport={selectedChannel?.isDCC ? undefined : handleExportChannel}
         />
         <div className="flex flex-1 overflow-hidden">
           <div className="flex flex-col flex-1 overflow-hidden">

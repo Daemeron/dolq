@@ -412,7 +412,22 @@ will hang the UI.
       does double duty), so clicking one can jump straight to that
       channel - the search icon lives in `ChannelList`'s header, next to
       the server name it's implicitly scoped to by default
-- [ ] Export channel/server logs (plain text, maybe JSON)
+- [x] Export channel/server logs (plain text, maybe JSON) - both formats,
+      via a small dropdown (⬇, reusing the same context-menu component
+      everything else's right-click menus already use, just left-click
+      triggered here) in `TopicBar`, next to whichever channel/Log/query is
+      currently selected - a DCC session doesn't get one, its history isn't
+      persisted at all (see the "DCC CHAT" item above). No new backend
+      endpoint needed: the renderer already had `getHistory`'s paging
+      cursor for scrollback, so exporting is just that same loop (see
+      `loadOlderHistory`) run to completion instead of one page at a time,
+      formatted (`formatEntry`, one line per entry - most event types get a
+      human-readable line, anything without a dedicated case falls back to
+      raw JSON rather than needing to enumerate every event type a log
+      export essentially never actually surfaces) or left as-is for JSON.
+      `fs`/the save dialog aren't reachable from the renderer either, so
+      the actual write goes through one more small main-process handler
+      (`saveTextFile`), same shape as `openExternal` above it
 - [ ] ChanServ/NickServ-aware helpers (e.g. detect registration prompts, auth
       flow shortcuts)
 - [ ] Multiple identities per network (e.g. separate work/personal nick on the

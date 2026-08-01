@@ -127,6 +127,10 @@ export type IrcApi = {
   // main/index.ts's handler, which checks again rather than trusting the
   // renderer's own regex as the only guard.
   openExternal: (url: string) => Promise<void>;
+  // Prompts a native save dialog (defaultName pre-filled) and writes content
+  // to wherever the user picks - fs isn't reachable from the renderer
+  // either. Resolves false (not rejects) if the user cancels the dialog.
+  saveTextFile: (defaultName: string, content: string) => Promise<boolean>;
   onLine: (callback: (serverId: string, line: string) => void) => () => void;
   onEvent: (callback: (serverId: string, event: IrcEvent) => void) => () => void;
   onStatus: (callback: (serverId: string, status: ConnectionStatus) => void) => () => void;
@@ -152,6 +156,7 @@ export enum IrcMessages {
   dccSend = 'irc:dccSend',
   dccClose = 'irc:dccClose',
   openExternal = 'irc:openExternal',
+  saveTextFile = 'irc:saveTextFile',
   line = 'irc:line',
   event = 'irc:event',
   status = 'irc:status',

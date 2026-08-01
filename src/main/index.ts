@@ -1,6 +1,7 @@
 import { installExtension, REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';
-import { app, BrowserWindow, ipcMain, shell } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron';
 import { join } from 'path';
+import fs from 'fs';
 import { ConnectionStatus, IrcMessages, Settings } from '../shared/ipc';
 import { BackendClient } from './irc/BackendClient';
 import { loadSettings, saveSettings } from './settings';
@@ -57,6 +58,13 @@ function registerShellHandlers(): void {
       throw new Error(`refusing to open non-http(s) link: ${url}`);
     }
     return shell.openExternal(url);
+  });
+
+  ipcMain.handle(IrcMessages.saveTextFile, async (_event, defaultName: string, content: string) => {
+    const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, { defaultPath: defaultName });
+    if (canceled || !filePath) return false;
+    await fs.promises.writeFile(filePath, content, 'utf-8');
+    return true;
   });
 }
 

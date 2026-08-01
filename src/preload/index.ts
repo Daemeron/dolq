@@ -50,6 +50,9 @@ contextBridge.exposeInMainWorld('irc', {
 
   openExternal: (url: string) => ipcRenderer.invoke(IrcMessages.openExternal, url),
 
+  saveTextFile: (defaultName: string, content: string) =>
+    ipcRenderer.invoke(IrcMessages.saveTextFile, defaultName, content),
+
   onLine: (callback: (serverId: string, line: string) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, serverId: string, line: string) => callback(serverId, line);
     ipcRenderer.on(IrcMessages.line, handler);
