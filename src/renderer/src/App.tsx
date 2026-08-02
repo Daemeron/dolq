@@ -13,6 +13,8 @@ import { PreferencesModal } from './components/PreferencesModal';
 import { WhoisModal } from './components/WhoisModal';
 import { DCCOfferModal } from './components/DCCOfferModal';
 import { SearchModal } from './components/SearchModal';
+import { NickServIdentifyModal } from './components/NickServIdentifyModal';
+import { isNickServIdentifyPrompt } from './utils/nickserv';
 import { UserPanel } from './components/UserPanel';
 import { buildServerId, parseServerId } from './utils/server';
 import { mentionsNick } from './utils/mentions';
@@ -91,6 +93,9 @@ export default function App() {
   // An incoming DCC CHAT offer awaiting accept/decline - see the
   // DCCCHATOFFER case below and DCCOfferModal.
   const [pendingDCCOffer, setPendingDCCOffer] = useState<{ serverId: string; nick: string; ip: string; port: number } | null>(null);
+  // The server a NickServ identify prompt (see utils/nickserv.ts) most
+  // recently arrived on, if it hasn't been dismissed/actioned yet.
+  const [pendingIdentifyServerId, setPendingIdentifyServerId] = useState<string | null>(null);
   const nextMsgId = useRef(Date.now());
   const historyPages = useRef(new Map<string, HistoryPage>());
 
@@ -256,6 +261,9 @@ export default function App() {
             appendMessage(event.target, {
               id: nextMsgId.current++, nick: event.nick, text: event.text, timestamp: new Date(), notice: true,
             });
+          }
+          if (isNickServIdentifyPrompt(event.nick, event.text)) {
+            setPendingIdentifyServerId(serverId);
           }
           break;
         case 'JOIN':
@@ -491,6 +499,12 @@ export default function App() {
     setPendingDCCOffer(null);
   }
 
+  function handleIdentify(password: string) {
+    if (!pendingIdentifyServerId) return;
+    window.irc.sendLine(pendingIdentifyServerId, `PRIVMSG NickServ :identify ${password}`);
+    setPendingIdentifyServerId(null);
+  }
+
   // A search result's channel is the backend key (see backendChannelFor) -
   // "__log__" for the Log, needing the same reverse lookup the search
   // preload path never had to do since it's always scoped to one channel
@@ -624,6 +638,12 @@ export default function App() {
           defaultChannelLabel={isLog ? 'Log' : isQuery ? (selectedChannel?.name ?? '') : `#${selectedChannel?.name ?? ''}`}
           onJump={handleJumpToSearchResult}
           onClose={() => setShowSearch(false)}
+        />
+      )}
+      {pendingIdentifyServerId && (
+        <NickServIdentifyModal
+          onIdentify={handleIdentify}
+          onDismiss={() => setPendingIdentifyServerId(null)}
         />
       )}
       <div className="relative flex flex-col shrink-0">

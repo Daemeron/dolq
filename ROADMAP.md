@@ -428,8 +428,22 @@ will hang the UI.
       `fs`/the save dialog aren't reachable from the renderer either, so
       the actual write goes through one more small main-process handler
       (`saveTextFile`), same shape as `openExternal` above it
-- [ ] ChanServ/NickServ-aware helpers (e.g. detect registration prompts, auth
-      flow shortcuts)
+- [x] ChanServ/NickServ-aware helpers (e.g. detect registration prompts, auth
+      flow shortcuts) - scoped to NickServ identify prompts specifically:
+      that's the concrete, common pain point ("nick already registered,
+      please identify") the roadmap's own example names; nothing about
+      ChanServ had an actual pattern worth hardcoding without a real need
+      driving what it should even do. `isNickServIdentifyPrompt` matches
+      loosely on the words that matter ("identify" + "registered"/
+      "reserved") rather than one network's exact sentence, since services
+      packages (atheme, anope, ergo's built-in NickServ) all phrase this
+      slightly differently. A matching NOTICE pops a small modal - the
+      "auth flow shortcut" - that sends `/msg NickServ identify <password>`
+      for you instead of typing the whole thing out, with a tip pointing at
+      SASL (already fully supported, see "Per-server identity defaults")
+      as the real fix for not wanting to see this prompt at all: nothing
+      here is remembered anywhere, on purpose, since SASL already is
+      dolq's actual answer to "identify automatically next time"
 - [ ] Multiple identities per network (e.g. separate work/personal nick on the
       same server)
 - [ ] Away status (`/away`, marking away in the UI)
