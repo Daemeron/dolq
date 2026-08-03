@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildServerId, parseServerId } from './server';
+import { buildServerId, parseServerId, resolveHostPort } from './server';
 
 describe('buildServerId', () => {
   it('joins a regular hostname and port', () => {
@@ -35,5 +35,17 @@ describe('parseServerId', () => {
   it('round-trips through buildServerId for an IPv6 host', () => {
     const id = buildServerId('2001:db8::1', 6697);
     expect(parseServerId(id)).toEqual({ host: '2001:db8::1', port: 6697 });
+  });
+});
+
+describe('resolveHostPort', () => {
+  it('uses the explicit host/port fields when present', () => {
+    expect(resolveHostPort({ id: 'some-uuid', host: 'irc.libera.chat', port: 6697 })).toEqual({
+      host: 'irc.libera.chat', port: 6697,
+    });
+  });
+
+  it('falls back to parsing the id when host/port are missing (a Server persisted before they existed)', () => {
+    expect(resolveHostPort({ id: 'irc.libera.chat:6697' })).toEqual({ host: 'irc.libera.chat', port: 6697 });
   });
 });

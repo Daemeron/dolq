@@ -1,10 +1,21 @@
 import type { PrivilegeLevel } from '../../shared/ipc';
 
 export type Server = {
+  // Opaque and freshly generated per connection (crypto.randomUUID()) -
+  // deliberately *not* derived from host:port, unlike before "Multiple
+  // identities per network" existed: two Servers can now point at the same
+  // host:port (different nick/SASL/etc. each, e.g. work vs. personal), and
+  // reusing a deterministic id would collide the moment a second one was
+  // added. host/port are explicit fields for exactly that reason - nothing
+  // can be parsed back out of the id anymore. See utils/server.ts for the
+  // fallback that still parses id the old way, for a Server persisted
+  // before this existed and so missing these.
   id: string;
   name: string;
   initial: string;
   secure: boolean;
+  host?: string;
+  port?: number;
   // Per-server identity defaults, all optional - empty/missing behaves
   // exactly as before these existed (ircclient defaults username/realname
   // from nick, altNicks unused, autojoinChannels nothing to join).

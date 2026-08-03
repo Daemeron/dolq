@@ -444,8 +444,26 @@ will hang the UI.
       as the real fix for not wanting to see this prompt at all: nothing
       here is remembered anywhere, on purpose, since SASL already is
       dolq's actual answer to "identify automatically next time"
-- [ ] Multiple identities per network (e.g. separate work/personal nick on the
-      same server)
+- [x] Multiple identities per network (e.g. separate work/personal nick on the
+      same server) - root cause of why this didn't already work: `Server.id`
+      was `host:port` (`buildServerId`), so connecting a second identity to
+      a network you'd already added just silently replaced the first one's
+      live session (`bouncer.Connect` explicitly disconnects any existing
+      session for the same id first) rather than running both. `Server.id`
+      is now opaque (`crypto.randomUUID()`), with `host`/`port` promoted to
+      explicit fields instead of being parsed back out of it - the backend
+      never actually cared what shape a serverId was (always treated as a
+      plain lookup key), so this needed zero backend changes, only the
+      frontend's own id-generation convention. `nickMap`/`saslMap`/
+      `channelMap`/etc. were already keyed by that id, so per-identity
+      nick/SASL/history "just worked" once ids stopped colliding - the
+      actual fix is genuinely that small. Two things stay `host:port`,
+      deliberately: `ServerPreset.id` (the quick-pick list is "networks
+      you've connected to before", still deduped per-network regardless of
+      how many identities you've since added for one) and a fallback
+      (`resolveHostPort`) for a `Server` persisted before this existed and
+      so still only has the old `host:port`-shaped id to recover them from -
+      no migration needed, old and new entries coexist fine
 - [ ] Away status (`/away`, marking away in the UI)
 - [ ] Scripting/aliases (basic `/alias` command shortcuts)
 

@@ -16,7 +16,7 @@ import { SearchModal } from './components/SearchModal';
 import { NickServIdentifyModal } from './components/NickServIdentifyModal';
 import { isNickServIdentifyPrompt } from './utils/nickserv';
 import { UserPanel } from './components/UserPanel';
-import { buildServerId, parseServerId } from './utils/server';
+import { buildServerId, normalizeHost, resolveHostPort } from './utils/server';
 import { mentionsNick } from './utils/mentions';
 import { formatEntry } from './utils/exportFormat';
 
@@ -115,6 +115,22 @@ export default function App() {
   function backendChannelFor(serverId: string, channelId: string): string {
     const channel = channelMap[serverId]?.find((c) => c.id === channelId);
     return channel?.isLog ? '__log__' : channelId;
+  }
+
+  // ConnectModal's "pick a preset -> prefill last-used nick" convenience
+  // needs a preset (host:port)-keyed map, but nickMap is keyed by identity
+  // (Server.id) - not the same thing since a preset's network can now have
+  // more than one identity/id pointing at it. Rebuilt from whichever
+  // identity happens to be last in `servers` for that network, a fine tie-
+  // break for what's just a form-prefill convenience.
+  function presetNickMap(): Record<string, string> {
+    const map: Record<string, string> = {};
+    for (const s of servers) {
+      if (!s.host || !s.port) continue;
+      const nick = nickMap[s.id];
+      if (nick) map[buildServerId(s.host, s.port)] = nick;
+    }
+    return map;
   }
 
   useEffect(() => {
@@ -387,18 +403,27 @@ export default function App() {
   }, [selectedServerId, selectedChannelId, channelMap, setHistory]);
 
   async function handleConnect(form: ConnectForm) {
-    const id = buildServerId(form.host, form.port);
-    const { host, port } = parseServerId(id);
+    // Freshly generated, not derived from host:port - see types.ts's
+    // Server.id doc. Multiple identities on the same network end up as
+    // multiple Server entries with different ids, all pointing at the same
+    // host/port; nickMap/saslMap/channelMap/etc. are already keyed by id,
+    // so they naturally stay per-identity without any further change.
+    const id = crypto.randomUUID();
+    const host = normalizeHost(form.host);
+    const port = Number(form.port);
     const altNicks = parseList(form.altNicks);
     const autojoinChannels = parseList(form.autojoinChannels);
     addServer(
       {
-        id, name: form.name, initial: form.name[0]?.toUpperCase() ?? '?', secure: form.secure,
+        id, name: form.name, initial: form.name[0]?.toUpperCase() ?? '?', secure: form.secure, host, port,
         altNicks, username: form.username || undefined, realname: form.realname || undefined, autojoinChannels,
       },
       { id: `${id}:__log__`, name: 'Log', isLog: true },
     );
-    addPreset({ id, name: form.name, host, port, secure: form.secure });
+    // Unlike id, still host:port - the preset list is "networks you've
+    // connected to before", deduped per-network regardless of how many
+    // identities you've since added for one (see addPreset in store.ts).
+    addPreset({ id: buildServerId(host, port), name: form.name, host, port, secure: form.secure });
     setNick(id, form.nick);
     setSaslCreds(id, form.saslUser, form.saslPass);
     setConnectionStatus(id, 'connecting');
@@ -414,7 +439,7 @@ export default function App() {
   async function connectToServer() {
     const server = servers.find((s) => s.id === selectedServerId);
     if (!server) return;
-    const { host, port } = parseServerId(server.id);
+    const { host, port } = resolveHostPort(server);
     const nick = nickMap[server.id] ?? 'dolq_user';
     const sasl = saslMap[server.id];
     setConnectionStatus(server.id, 'connecting');
@@ -595,7 +620,7 @@ export default function App() {
       {showModal && (
         <ConnectModal
           presets={presets}
-          nickMap={nickMap}
+          nickMap={presetNickMap()}
           onConnect={handleConnect}
           onCancel={() => setShowModal(false)}
         />
