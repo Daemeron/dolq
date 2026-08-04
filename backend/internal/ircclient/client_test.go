@@ -679,6 +679,119 @@ func TestWhoisAccumulation(t *testing.T) {
 			t.Fatal("timed out waiting for bob's whois event")
 		}
 	})
+
+	t.Run("folds a 301 into an in-flight whois", func(t *testing.T) {
+		c, server, r := pipeClient(t, "testnick")
+		events := make(chan any, 10)
+		c.AddEventListener(func(e any) { events <- e })
+		c.Start()
+		drainHandshake(t, r)
+
+		writeLine(t, server, ":irc.example.net 311 testnick alice a a.example.net * :Alice")
+		writeLine(t, server, ":irc.example.net 301 testnick alice :gone fishing")
+		writeLine(t, server, ":irc.example.net 318 testnick alice :End of /WHOIS list.")
+		select {
+		case e := <-events:
+			want := ircparse.WhoisEvent{
+				Type: "whois", Nick: "alice", User: "a", Host: "a.example.net", Realname: "Alice", Away: "gone fishing",
+			}
+			if !reflect.DeepEqual(e, want) {
+				t.Errorf("got %#v want %#v", e, want)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("timed out waiting for the whois event")
+		}
+	})
+
+	t.Run("emits a standalone AwayEvent for a 301 with no whois in flight", func(t *testing.T) {
+		c, server, r := pipeClient(t, "testnick")
+		events := make(chan any, 10)
+		c.AddEventListener(func(e any) { events <- e })
+		c.Start()
+		drainHandshake(t, r)
+
+		// e.g. from PRIVMSGing someone who's away - no preceding 311 for them.
+		writeLine(t, server, ":irc.example.net 301 testnick alice :gone fishing")
+		select {
+		case e := <-events:
+			want := ircparse.AwayEvent{Type: "AWAY", Nick: "alice", Away: true, Message: "gone fishing"}
+			if !reflect.DeepEqual(e, want) {
+				t.Errorf("got %#v want %#v", e, want)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("timed out waiting for the AwayEvent")
+		}
+	})
+}
+
+func TestAwayStatus(t *testing.T) {
+	t.Run("passes through an away-notify AWAY as going away", func(t *testing.T) {
+		c, server, r := pipeClient(t, "testnick")
+		events := make(chan any, 10)
+		c.AddEventListener(func(e any) { events <- e })
+		c.Start()
+		drainHandshake(t, r)
+
+		writeLine(t, server, ":alice!u@host AWAY :lunch")
+		select {
+		case e := <-events:
+			want := ircparse.AwayEvent{Type: "AWAY", Nick: "alice", Away: true, Message: "lunch"}
+			if !reflect.DeepEqual(e, want) {
+				t.Errorf("got %#v want %#v", e, want)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("timed out waiting for the AwayEvent")
+		}
+	})
+
+	t.Run("passes through a bare away-notify AWAY as coming back", func(t *testing.T) {
+		c, server, r := pipeClient(t, "testnick")
+		events := make(chan any, 10)
+		c.AddEventListener(func(e any) { events <- e })
+		c.Start()
+		drainHandshake(t, r)
+
+		writeLine(t, server, ":alice!u@host AWAY")
+		select {
+		case e := <-events:
+			want := ircparse.AwayEvent{Type: "AWAY", Nick: "alice", Away: false}
+			if !reflect.DeepEqual(e, want) {
+				t.Errorf("got %#v want %#v", e, want)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("timed out waiting for the AwayEvent")
+		}
+	})
+
+	t.Run("passes through our own 306/305 as SelfAwayEvent", func(t *testing.T) {
+		c, server, r := pipeClient(t, "testnick")
+		events := make(chan any, 10)
+		c.AddEventListener(func(e any) { events <- e })
+		c.Start()
+		drainHandshake(t, r)
+
+		writeLine(t, server, ":irc.example.net 306 testnick :You have been marked as being away")
+		select {
+		case e := <-events:
+			want := ircparse.SelfAwayEvent{Type: "SELFAWAY", Away: true}
+			if !reflect.DeepEqual(e, want) {
+				t.Errorf("got %#v want %#v", e, want)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("timed out waiting for the SelfAwayEvent")
+		}
+
+		writeLine(t, server, ":irc.example.net 305 testnick :You are no longer marked as being away")
+		select {
+		case e := <-events:
+			want := ircparse.SelfAwayEvent{Type: "SELFAWAY", Away: false}
+			if !reflect.DeepEqual(e, want) {
+				t.Errorf("got %#v want %#v", e, want)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("timed out waiting for the SelfAwayEvent")
+		}
+	})
 }
 
 func TestNickTracking(t *testing.T) {

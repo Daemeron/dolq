@@ -31,6 +31,11 @@ type State = {
   // ignore list - purely a client-side display filter, nothing sent to the
   // server (IRC has no native "ignore").
   ignoredNicks: Record<string, string[]>;
+  // Whether *we* are marked away, per server - not persisted, same as
+  // statusMap: it reflects the live connection's actual state, which a
+  // fresh session starts not knowing (there's no away-status equivalent of
+  // getStatus/getJoinedChannels to reconcile it from on reload).
+  selfAwayMap: Record<string, boolean>;
 };
 
 type Actions = {
@@ -60,6 +65,8 @@ type Actions = {
   setMessageDensity: (density: 'cozy' | 'compact') => void;
   addIgnore: (serverId: string, nick: string) => void;
   removeIgnore: (serverId: string, nick: string) => void;
+  applyAwayEverywhere: (nick: string, away: boolean) => void;
+  setSelfAway: (serverId: string, away: boolean) => void;
 };
 
 export const useStore = create<State & Actions>()(
@@ -80,6 +87,7 @@ export const useStore = create<State & Actions>()(
       timestampFormat: '12h',
       messageDensity: 'cozy',
       ignoredNicks: {},
+      selfAwayMap: {},
 
       addServer: (server, logChannel) =>
         set((s) => ({
@@ -109,9 +117,11 @@ export const useStore = create<State & Actions>()(
           delete saslMap[id];
           const ignoredNicks = { ...s.ignoredNicks };
           delete ignoredNicks[id];
+          const selfAwayMap = { ...s.selfAwayMap };
+          delete selfAwayMap[id];
 
           if (s.selectedServerId !== id) {
-            return { servers, channelMap, messageMap, userMap, nickMap, statusMap, saslMap, ignoredNicks };
+            return { servers, channelMap, messageMap, userMap, nickMap, statusMap, saslMap, ignoredNicks, selfAwayMap };
           }
 
           const selectedServerId = servers[0]?.id ?? '';
@@ -119,7 +129,7 @@ export const useStore = create<State & Actions>()(
           const logCh = remainingChannels.find((c) => c.isLog);
           const selectedChannelId = logCh?.id ?? remainingChannels[0]?.id ?? '__log__';
           return {
-            servers, channelMap, messageMap, userMap, nickMap, statusMap, saslMap, ignoredNicks,
+            servers, channelMap, messageMap, userMap, nickMap, statusMap, saslMap, ignoredNicks, selfAwayMap,
             selectedServerId, selectedChannelId,
           };
         }),
@@ -242,6 +252,16 @@ export const useStore = create<State & Actions>()(
           ),
         })),
 
+      applyAwayEverywhere: (nick, away) =>
+        set((s) => ({
+          userMap: Object.fromEntries(
+            Object.entries(s.userMap).map(([cid, users]) => [
+              cid,
+              users.map((u) => (u.nick === nick ? { ...u, away } : u)),
+            ]),
+          ),
+        })),
+
       setNick: (serverId, nick) =>
         set((s) => ({ nickMap: { ...s.nickMap, [serverId]: nick } })),
 
@@ -267,6 +287,9 @@ export const useStore = create<State & Actions>()(
 
       setConnectionStatus: (serverId, status) =>
         set((s) => ({ statusMap: { ...s.statusMap, [serverId]: status } })),
+
+      setSelfAway: (serverId, away) =>
+        set((s) => ({ selfAwayMap: { ...s.selfAwayMap, [serverId]: away } })),
 
       markMentioned: (channelId) =>
         set((s) => ({ mentionedChannels: { ...s.mentionedChannels, [channelId]: true } })),

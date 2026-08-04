@@ -464,7 +464,25 @@ will hang the UI.
       (`resolveHostPort`) for a `Server` persisted before this existed and
       so still only has the old `host:port`-shaped id to recover them from -
       no migration needed, old and new entries coexist fine
-- [ ] Away status (`/away`, marking away in the UI)
+- [x] Away status (`/away`, marking away in the UI) - `/away [message]`
+      sends `AWAY [:message]` (bare `/away` clears it, matching the RFC).
+      `away-notify` (already negotiated, see CAP negotiation above) reports
+      real-time away/back for anyone sharing a channel with us -
+      `ircparse.AwayEvent` covers both directions, "back" distinguished
+      from "away" by the wire form carrying no trailing param at all rather
+      than an empty one. Also fixed the exact gap the WHOIS panel item
+      above called out: a standalone `301` (e.g. from messaging an away
+      user, not part of any WHOIS) used to get silently absorbed into
+      `whoisBuffer` regardless of whether a WHOIS was actually in flight -
+      a real pre-existing bug once away status started needing that same
+      numeric for something else, now only folded in when a `311` already
+      opened an entry for that nick, otherwise emitted as a standalone
+      `AwayEvent`. UI: dimmed + "(away)" in `UserList` for anyone away in a
+      shared channel, and in `UserPanel` for your own status (confirmed via
+      `305`/`306`). Known IRCv3 limitation, not solved here: away-notify
+      only reports *changes*, not who's already away when you join a
+      channel or first connect - NAMES has no away flag, so that only shows
+      up once they toggle it (or you WHOIS them) while you're watching
 - [ ] Scripting/aliases (basic `/alias` command shortcuts)
 
 ---

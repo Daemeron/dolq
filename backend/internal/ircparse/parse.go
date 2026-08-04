@@ -243,9 +243,9 @@ type WhoisAccountEvent struct {
 }
 
 // WhoisAwayEvent is RPL_AWAY (301) - also sent standalone (outside any
-// WHOIS) when messaging an away user, but this client only parses it as
-// part of a WHOIS reply for now; see the "Away status" ROADMAP item for the
-// standalone case.
+// WHOIS) when messaging an away user. ircclient tells the two apart itself
+// (a whois actually in flight for that nick, or not - see
+// Client.handleLine) and turns a standalone one into an AwayEvent instead.
 type WhoisAwayEvent struct {
 	Nick, Message string
 }
@@ -256,6 +256,26 @@ type ErrNoSuchNickEvent struct {
 
 type EndOfWhoisEvent struct {
 	Nick string
+}
+
+// AwayEvent is either a real-time away-notify update (someone in a shared
+// channel just went away or came back - Message is only meaningful when
+// Away is true, away-notify's "back" form carries no message at all) or a
+// one-shot "they're away" learned from messaging someone (see
+// WhoisAwayEvent's doc) - both are "here's this nick's away status right
+// now" from the UI's point of view, so they share a shape.
+type AwayEvent struct {
+	Type    string `json:"type"`
+	Nick    string `json:"nick"`
+	Away    bool   `json:"away"`
+	Message string `json:"message,omitempty"`
+}
+
+// SelfAwayEvent is RPL_UNAWAY (305, no longer away) or RPL_NOWAWAY (306,
+// now away) - the server confirming our own AWAY command took effect.
+type SelfAwayEvent struct {
+	Type string `json:"type"`
+	Away bool   `json:"away"`
 }
 
 // With `multi-prefix` negotiated, a NAMES entry can stack every prefix a
@@ -559,6 +579,35 @@ var rules = []rule{
 		pattern: regexp.MustCompile(`^:\S+ 318 \S+ (\S+) :`),
 		build: func(m []string) any {
 			return EndOfWhoisEvent{Nick: m[1]}
+		},
+	},
+	{
+		// away-notify: they just went away. Checked before the bare "AWAY"
+		// (came back) rule below since this one requires the " :message"
+		// suffix that rule's absence of a match relies on.
+		pattern: regexp.MustCompile(`^:([^!\s]+)!\S+ AWAY :(.*)$`),
+		build: func(m []string) any {
+			return AwayEvent{Type: "AWAY", Nick: m[1], Away: true, Message: m[2]}
+		},
+	},
+	{
+		// away-notify: they just came back - no trailing parameter at all,
+		// unlike the away form above.
+		pattern: regexp.MustCompile(`^:([^!\s]+)!\S+ AWAY$`),
+		build: func(m []string) any {
+			return AwayEvent{Type: "AWAY", Nick: m[1], Away: false}
+		},
+	},
+	{
+		pattern: regexp.MustCompile(`^:\S+ 305 \S+ :`), // RPL_UNAWAY
+		build: func(m []string) any {
+			return SelfAwayEvent{Type: "SELFAWAY", Away: false}
+		},
+	},
+	{
+		pattern: regexp.MustCompile(`^:\S+ 306 \S+ :`), // RPL_NOWAWAY
+		build: func(m []string) any {
+			return SelfAwayEvent{Type: "SELFAWAY", Away: true}
 		},
 	},
 }

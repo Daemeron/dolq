@@ -1,12 +1,13 @@
 type Props = {
   currentNick: string;
   connectionStatus: 'disconnected' | 'connecting' | 'connected';
+  away: boolean;
   onConnect: () => void;
   onDisconnect: () => void;
   onOpenPreferences: () => void;
 };
 
-export function UserPanel({ currentNick, connectionStatus, onConnect, onDisconnect, onOpenPreferences }: Props) {
+export function UserPanel({ currentNick, connectionStatus, away, onConnect, onDisconnect, onOpenPreferences }: Props) {
   const btnColor = connectionStatus === 'connected'
     ? 'bg-[#50fa7b] hover:bg-[#ff5555]'
     : connectionStatus === 'connecting'
@@ -33,10 +34,13 @@ export function UserPanel({ currentNick, connectionStatus, onConnect, onDisconne
         )}
       </button>
       <div className="flex items-center gap-3 px-4 py-3.5 bg-[#262626] rounded-b-lg">
-        <div className="w-9 h-9 rounded-full bg-[#c792ea] text-white text-shadow-sm flex items-center justify-center font-bold text-sm shrink-0">
+        <div className={`w-9 h-9 rounded-full text-white text-shadow-sm flex items-center justify-center font-bold text-sm shrink-0 ${away ? 'bg-[#6b6b6b]' : 'bg-[#c792ea]'}`}>
           {currentNick[0]?.toUpperCase() ?? '?'}
         </div>
-        <span className="text-[14px] font-semibold text-white truncate flex-1">{currentNick}</span>
+        <span className="text-[14px] font-semibold text-white truncate flex-1">
+          {currentNick}
+          {away && <span className="text-[#909090] font-normal"> (away)</span>}
+        </span>
         <button
           onClick={onOpenPreferences}
           title="Preferences"

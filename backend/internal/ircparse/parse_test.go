@@ -271,6 +271,26 @@ func TestParseLine(t *testing.T) {
 			line: ":irc.example.net 318 dolq_user alice :End of /WHOIS list.",
 			want: EndOfWhoisEvent{Nick: "alice"},
 		},
+		{
+			name: "parses an away-notify AWAY with a message as going away",
+			line: ":alice!u@host AWAY :gone fishing",
+			want: AwayEvent{Type: "AWAY", Nick: "alice", Away: true, Message: "gone fishing"},
+		},
+		{
+			name: "parses a bare away-notify AWAY as coming back",
+			line: ":alice!u@host AWAY",
+			want: AwayEvent{Type: "AWAY", Nick: "alice", Away: false},
+		},
+		{
+			name: "parses a 305 RPL_UNAWAY reply as our own away status clearing",
+			line: ":irc.example.net 305 dolq_user :You are no longer marked as being away",
+			want: SelfAwayEvent{Type: "SELFAWAY", Away: false},
+		},
+		{
+			name: "parses a 306 RPL_NOWAWAY reply as our own away status being set",
+			line: ":irc.example.net 306 dolq_user :You have been marked as being away",
+			want: SelfAwayEvent{Type: "SELFAWAY", Away: true},
+		},
 		{name: "returns nil for an unrecognized PING line", line: "PING :irc.example.net", want: nil},
 		{name: "returns nil for an unrecognized numeric", line: ":irc.example.net 002 me :Your host is irc.example.net", want: nil},
 		{name: "returns nil for garbage", line: "garbage", want: nil},

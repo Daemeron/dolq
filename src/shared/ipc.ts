@@ -30,6 +30,12 @@ export type IrcEvent =
   | { type: 'NICK'; oldNick: string; newNick: string }
   | { type: 'WELCOME'; nick: string }
   | { type: 'NICKINUSE'; nick: string; retrying?: string }
+  // A real-time away-notify update (message only meaningful when away is
+  // true - "back" carries none) or a one-shot "they're away" learned from
+  // messaging someone (see backend/internal/ircparse.AwayEvent's doc).
+  | { type: 'AWAY'; nick: string; away: boolean; message?: string }
+  // The server confirming our own AWAY command took effect.
+  | { type: 'SELFAWAY'; away: boolean }
   | {
       type: 'MODE';
       channel: string;

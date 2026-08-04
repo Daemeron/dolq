@@ -57,4 +57,10 @@ export type Message = {
 export type User = {
   nick: string;
   privileges: PrivilegeLevel[];
+  // Only ever set true by an away-notify update or a WHOIS reply after this
+  // app has actually seen one - a user who was already away before either
+  // happens shows as present until then, an IRCv3 away-notify limitation
+  // (it only reports *changes*, not current state at NAMES time) this
+  // doesn't try to work around.
+  away?: boolean;
 };

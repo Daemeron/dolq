@@ -70,11 +70,11 @@ export default function App() {
   const {
     servers, presets, channelMap, messageMap, userMap, nickMap, saslMap,
     selectedServerId, selectedChannelId, statusMap, mentionedChannels, notificationsEnabled,
-    timestampFormat, messageDensity, ignoredNicks,
+    timestampFormat, messageDensity, ignoredNicks, selfAwayMap,
     addServer, removeServer, addPreset, addChannel, removeChannel, setTopic, setTopicWhoTime, appendMessage, setHistory, setNick, setSaslCreds,
     selectServer, selectChannel, setConnectionStatus, setUsers, addUser, removeUser, removeUserEverywhere,
     renameUserEverywhere, applyModeChanges, markMentioned, setNotificationsEnabled, setTimestampFormat, setMessageDensity,
-    addIgnore, removeIgnore,
+    addIgnore, removeIgnore, applyAwayEverywhere, setSelfAway,
   } = useStore();
 
   const [showModal, setShowModal] = useState(false);
@@ -357,13 +357,19 @@ export default function App() {
           // resolved - a real edge case, not worth a queue for.
           setPendingDCCOffer({ serverId, nick: event.nick, ip: event.ip, port: event.port });
           break;
+        case 'AWAY':
+          applyAwayEverywhere(event.nick, event.away);
+          break;
+        case 'SELFAWAY':
+          setSelfAway(serverId, event.away);
+          break;
       }
     });
   }, [
     appendMessage, addChannel, selectChannel, addUser, removeUser,
     removeUserEverywhere, renameUserEverywhere, applyModeChanges, setUsers, setTopic, setTopicWhoTime, nickMap,
     channelMap, setNick, servers, selectedChannelId, selectServer, markMentioned, notificationsEnabled, whoisNick,
-    ignoredNicks,
+    ignoredNicks, applyAwayEverywhere, setSelfAway,
   ]);
 
   // Preload scrollback the first time a channel is actually opened - once
@@ -579,6 +585,7 @@ export default function App() {
     const joinMatch = text.match(/^\/join\s+(#\S+)$/);
     const meMatch = text.match(/^\/me\s+(.+)$/);
     const msgMatch = text.match(/^\/msg\s+(\S+)\s+(.+)$/);
+    const awayMatch = text.match(/^\/away(?:\s+(.+))?$/);
 
     if (text === '/connect') {
       if (connectionStatus === 'disconnected') connectToServer();
@@ -586,6 +593,10 @@ export default function App() {
       handleDisconnect();
     } else if (joinMatch) {
       await window.irc.sendLine(selectedServerId, `JOIN ${joinMatch[1]}`);
+    } else if (awayMatch) {
+      // No message clears it (RFC: bare AWAY marks you back), same as
+      // typing plain "/away".
+      await window.irc.sendLine(selectedServerId, awayMatch[1] ? `AWAY :${awayMatch[1]}` : 'AWAY');
     } else if (msgMatch) {
       const [, nick, msg] = msgMatch;
       await window.irc.sendLine(selectedServerId, `PRIVMSG ${nick} :${msg}`);
@@ -699,6 +710,7 @@ export default function App() {
           <UserPanel
             currentNick={currentNick}
             connectionStatus={connectionStatus}
+            away={selfAwayMap[selectedServerId] ?? false}
             onConnect={connectToServer}
             onDisconnect={handleDisconnect}
             onOpenPreferences={() => setShowPreferences(true)}

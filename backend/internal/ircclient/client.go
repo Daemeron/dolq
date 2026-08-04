@@ -576,7 +576,18 @@ func (c *Client) handleLine(line string) {
 		c.updateWhois(e.Nick, func(w *ircparse.WhoisEvent) { w.Account = e.Account })
 		return
 	case ircparse.WhoisAwayEvent:
-		c.updateWhois(e.Nick, func(w *ircparse.WhoisEvent) { w.Away = e.Message })
+		// A whois already has an entry buffered (from its 311, which always
+		// arrives first per RFC ordering) exactly when one is actually in
+		// flight for this nick - anything else is a standalone 301, e.g.
+		// from messaging someone who's away, with nothing to fold it into.
+		c.mu.Lock()
+		_, whoisInFlight := c.whoisBuffer[e.Nick]
+		c.mu.Unlock()
+		if whoisInFlight {
+			c.updateWhois(e.Nick, func(w *ircparse.WhoisEvent) { w.Away = e.Message })
+			return
+		}
+		c.emitEvent(ircparse.AwayEvent{Type: "AWAY", Nick: e.Nick, Away: true, Message: e.Message})
 		return
 	case ircparse.ErrNoSuchNickEvent:
 		c.updateWhois(e.Nick, func(w *ircparse.WhoisEvent) { w.NoSuchNick = true })
