@@ -36,6 +36,10 @@ type State = {
   // fresh session starts not knowing (there's no away-status equivalent of
   // getStatus/getJoinedChannels to reconcile it from on reload).
   selfAwayMap: Record<string, boolean>;
+  // /alias shortcuts (see utils/aliases.ts) - global, not per-server: a
+  // typing shortcut isn't a protocol/network concept the way SASL creds or
+  // autojoin are, so there's no reason to scope it to one.
+  aliases: Record<string, string>;
 };
 
 type Actions = {
@@ -67,6 +71,8 @@ type Actions = {
   removeIgnore: (serverId: string, nick: string) => void;
   applyAwayEverywhere: (nick: string, away: boolean) => void;
   setSelfAway: (serverId: string, away: boolean) => void;
+  setAlias: (name: string, template: string) => void;
+  removeAlias: (name: string) => void;
 };
 
 export const useStore = create<State & Actions>()(
@@ -88,6 +94,7 @@ export const useStore = create<State & Actions>()(
       messageDensity: 'cozy',
       ignoredNicks: {},
       selfAwayMap: {},
+      aliases: {},
 
       addServer: (server, logChannel) =>
         set((s) => ({
@@ -311,6 +318,16 @@ export const useStore = create<State & Actions>()(
         set((s) => ({
           ignoredNicks: { ...s.ignoredNicks, [serverId]: (s.ignoredNicks[serverId] ?? []).filter((n) => n !== nick) },
         })),
+
+      setAlias: (name, template) =>
+        set((s) => ({ aliases: { ...s.aliases, [name]: template } })),
+
+      removeAlias: (name) =>
+        set((s) => {
+          const aliases = { ...s.aliases };
+          delete aliases[name];
+          return { aliases };
+        }),
     }),
     {
       name: 'dolq',
@@ -327,6 +344,7 @@ export const useStore = create<State & Actions>()(
         timestampFormat: s.timestampFormat,
         messageDensity: s.messageDensity,
         ignoredNicks: s.ignoredNicks,
+        aliases: s.aliases,
       }),
     },
   ),

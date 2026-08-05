@@ -15,6 +15,7 @@ import { DCCOfferModal } from './components/DCCOfferModal';
 import { SearchModal } from './components/SearchModal';
 import { NickServIdentifyModal } from './components/NickServIdentifyModal';
 import { isNickServIdentifyPrompt } from './utils/nickserv';
+import { expandAlias } from './utils/aliases';
 import { UserPanel } from './components/UserPanel';
 import { buildServerId, normalizeHost, resolveHostPort } from './utils/server';
 import { mentionsNick } from './utils/mentions';
@@ -24,6 +25,11 @@ import { formatEntry } from './utils/exportFormat';
 // and each scroll-up-triggered older page. Also doubles as the "is there
 // more?" signal: fewer than this many back means we've hit the beginning.
 const HISTORY_PAGE_SIZE = 100;
+
+// An alias expanding to another (or, worse, back to itself) could recurse
+// forever - this is the ceiling, not a real limit anyone should hit with
+// normal aliases, just a guard against a self-inflicted infinite loop.
+const MAX_ALIAS_DEPTH = 8;
 
 // The backend persists every raw line and every parsed event, not just
 // what's renderable today - same as the live onLine/onEvent handlers below,
@@ -70,11 +76,11 @@ export default function App() {
   const {
     servers, presets, channelMap, messageMap, userMap, nickMap, saslMap,
     selectedServerId, selectedChannelId, statusMap, mentionedChannels, notificationsEnabled,
-    timestampFormat, messageDensity, ignoredNicks, selfAwayMap,
+    timestampFormat, messageDensity, ignoredNicks, selfAwayMap, aliases,
     addServer, removeServer, addPreset, addChannel, removeChannel, setTopic, setTopicWhoTime, appendMessage, setHistory, setNick, setSaslCreds,
     selectServer, selectChannel, setConnectionStatus, setUsers, addUser, removeUser, removeUserEverywhere,
     renameUserEverywhere, applyModeChanges, markMentioned, setNotificationsEnabled, setTimestampFormat, setMessageDensity,
-    addIgnore, removeIgnore, applyAwayEverywhere, setSelfAway,
+    addIgnore, removeIgnore, applyAwayEverywhere, setSelfAway, setAlias, removeAlias,
   } = useStore();
 
   const [showModal, setShowModal] = useState(false);
@@ -581,11 +587,18 @@ export default function App() {
   const currentNick = nickMap[selectedServerId] ?? 'dolq_user';
   const connectionStatus = statusMap[selectedServerId] ?? 'disconnected';
 
-  async function handleSend(text: string): Promise<void> {
+  async function handleSend(text: string, aliasDepth = 0): Promise<void> {
     const joinMatch = text.match(/^\/join\s+(#\S+)$/);
     const meMatch = text.match(/^\/me\s+(.+)$/);
     const msgMatch = text.match(/^\/msg\s+(\S+)\s+(.+)$/);
     const awayMatch = text.match(/^\/away(?:\s+(.+))?$/);
+    const aliasDefMatch = text.match(/^\/alias\s+(\S+)\s+(.+)$/);
+    const unaliasMatch = text.match(/^\/unalias\s+(\S+)$/);
+    // Checked last, as a fallback - a built-in command above always wins
+    // even if someone names an alias the same thing (that alias just never
+    // becomes reachable, same as it not existing).
+    const aliasInvokeMatch = text.match(/^\/(\S+)(?:\s+(.*))?$/);
+    const aliasName = aliasInvokeMatch?.[1].toLowerCase();
 
     if (text === '/connect') {
       if (connectionStatus === 'disconnected') connectToServer();
@@ -602,6 +615,19 @@ export default function App() {
       await window.irc.sendLine(selectedServerId, `PRIVMSG ${nick} :${msg}`);
       handleOpenQuery(nick);
       appendMessage(nick, { id: nextMsgId.current++, nick: currentNick, text: msg, timestamp: new Date() });
+    } else if (aliasDefMatch) {
+      setAlias(aliasDefMatch[1].toLowerCase(), aliasDefMatch[2]);
+    } else if (unaliasMatch) {
+      removeAlias(unaliasMatch[1].toLowerCase());
+    } else if (aliasName && aliases[aliasName]) {
+      if (aliasDepth >= MAX_ALIAS_DEPTH) {
+        console.warn(`alias expansion too deep, stopping at "/${aliasName}"`);
+        return;
+      }
+      // Re-enters this same function with the expanded text, so an alias
+      // expanding to e.g. "/me waves" or another alias goes through every
+      // check above exactly as if it had been typed directly.
+      await handleSend(expandAlias(aliases[aliasName], aliasInvokeMatch?.[2] ?? ''), aliasDepth + 1);
     } else if (selectedChannel?.isLog) {
       await window.irc.sendLine(selectedServerId, text);
     } else if (selectedChannel?.isDCC) {
@@ -650,6 +676,8 @@ export default function App() {
           servers={servers}
           ignoredNicks={ignoredNicks}
           onRemoveIgnore={removeIgnore}
+          aliases={aliases}
+          onRemoveAlias={removeAlias}
         />
       )}
       {whoisNick && (

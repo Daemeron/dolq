@@ -22,6 +22,11 @@ type Props = {
   servers: Server[];
   ignoredNicks: Record<string, string[]>;
   onRemoveIgnore: (serverId: string, nick: string) => void;
+  // /alias shortcuts are defined/redefined by typing "/alias name ..." (see
+  // App.tsx's handleSend) - this is view+remove only, same as Ignored Users
+  // above, not a place to add one from scratch.
+  aliases: Record<string, string>;
+  onRemoveAlias: (name: string) => void;
 };
 
 const inputClass =
@@ -32,12 +37,13 @@ const labelClass =
 export function PreferencesModal({
   settings, onSave, onCancel, notificationsEnabled, onNotificationsEnabledChange,
   timestampFormat, onTimestampFormatChange, messageDensity, onMessageDensityChange,
-  servers, ignoredNicks, onRemoveIgnore,
+  servers, ignoredNicks, onRemoveIgnore, aliases, onRemoveAlias,
 }: Props) {
   const [retentionDays, setRetentionDays] = useState(String(settings.retentionDays));
   const ignoredEntries = Object.entries(ignoredNicks).flatMap(([serverId, nicks]) =>
     nicks.map((nick) => ({ serverId, nick })),
   );
+  const aliasEntries = Object.entries(aliases);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -116,6 +122,35 @@ export function PreferencesModal({
                     className="shrink-0 text-[#ff5555] text-[12px] font-medium bg-transparent border-0 cursor-pointer hover:underline"
                   >
                     Unignore
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {aliasEntries.length > 0 && (
+          <div className="flex flex-col gap-1.5 mb-5">
+            <span className="text-[11px] font-bold uppercase tracking-[0.5px] text-[#b0b0b0]">
+              Aliases
+            </span>
+            <p className="text-[#6b6b6b] text-[12px] -mt-0.5">
+              Defined with <code>/alias name command</code> (<code>$1</code>, <code>$2</code>... for args,{' '}
+              <code>$*</code> for all of them) - typing <code>/name</code> sends the expansion.
+            </p>
+            <div className="flex flex-col gap-1 max-h-32 overflow-y-auto scroll-thin pr-1 mt-1">
+              {aliasEntries.map(([name, template]) => (
+                <div key={name} className="flex items-center justify-between gap-3 px-3 py-1.5 rounded bg-[#333333]">
+                  <span className="text-[#e6e6e6] text-[13px] truncate">
+                    <span className="font-semibold">/{name}</span>{' '}
+                    <span className="text-[#6b6b6b]">{template}</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => onRemoveAlias(name)}
+                    className="shrink-0 text-[#ff5555] text-[12px] font-medium bg-transparent border-0 cursor-pointer hover:underline"
+                  >
+                    Remove
                   </button>
                 </div>
               ))}

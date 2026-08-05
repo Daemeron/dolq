@@ -483,7 +483,23 @@ will hang the UI.
       only reports *changes*, not who's already away when you join a
       channel or first connect - NAMES has no away flag, so that only shows
       up once they toggle it (or you WHOIS them) while you're watching
-- [ ] Scripting/aliases (basic `/alias` command shortcuts)
+- [x] Scripting/aliases (basic `/alias` command shortcuts) - `/alias name
+      command template` defines one (`$1`/`$2`/... for individual args,
+      `$*` for all of them unsplit - `expandAlias`), `/unalias name` removes
+      it; typing `/name ...` later re-enters `handleSend` with the expanded
+      text, so an alias expanding to `/me waves` or another alias goes
+      through every existing check exactly as if it had been typed
+      directly - no separate execution path to keep in sync with the real
+      one. A built-in command always wins if an alias happens to share its
+      name (checked last, as a fallback) rather than ever being able to
+      shadow `/join` etc. Global, not per-server - a typing shortcut isn't
+      a protocol/network concept the way SASL creds or autojoin are.
+      Guarded against runaway recursion (an alias expanding back to itself,
+      directly or through another one) with a small fixed depth ceiling,
+      not a real limit normal aliases should ever hit. Defining/removing is
+      command-only; the Preferences panel is view-and-remove, same
+      treatment as Ignored Users above - not a place to add one from
+      scratch either
 
 ---
 
