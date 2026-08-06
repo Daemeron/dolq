@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { Message } from './types';
+import type { Message, Server } from './types';
 import type { HistoryEntry, IrcEvent, Settings } from '../../shared/ipc';
 import { useStore } from './store';
 import { ServerList } from './components/ServerList';
@@ -154,18 +154,39 @@ export default function App() {
   // because persist rehydration is always async, even with synchronous
   // localStorage - a `[]`-deps effect fires before it resolves, so the closed-over
   // `servers` would still be the pre-hydration empty array.
+  //
+  // A genuine app restart (as opposed to a renderer-only reload) means dolqd
+  // itself is a fresh process with no sessions at all, so getStatus comes back
+  // 'disconnected' for every server regardless of whether it was connected when
+  // the app last quit - `before-quit` PARTs/QUITs everything on the way out,
+  // there's nothing left to reconcile against. Rather than add a persisted
+  // "was connected" flag just to tell that apart from a server that was never
+  // successfully connected, auto-reconnect treats every configured server the
+  // same way a fresh launch of most IRC clients does: dial them all, same as
+  // clicking Connect would.
   useEffect(() => {
     async function reconcile() {
       const { servers, channelMap } = useStore.getState();
       for (const s of servers) {
         const status = await window.irc.getStatus(s.id);
         setConnectionStatus(s.id, status);
-        if (status !== 'connected') continue;
 
-        const joined = new Set(await window.irc.getJoinedChannels(s.id));
-        (channelMap[s.id] ?? []).forEach((ch) => {
-          if (!ch.isLog && joined.has(ch.id)) window.irc.sendLine(s.id, `NAMES ${ch.id}`);
-        });
+        if (status === 'connected') {
+          const joined = new Set(await window.irc.getJoinedChannels(s.id));
+          (channelMap[s.id] ?? []).forEach((ch) => {
+            if (!ch.isLog && joined.has(ch.id)) window.irc.sendLine(s.id, `NAMES ${ch.id}`);
+          });
+          continue;
+        }
+
+        try {
+          await connectServer(s);
+        } catch {
+          // Same failure a manual Connect click can hit (bad host, network
+          // down) - leave it 'disconnected' so the user can retry, and don't
+          // let it stop the rest of servers from being attempted.
+          setConnectionStatus(s.id, 'disconnected');
+        }
       }
     }
     if (useStore.persist.hasHydrated()) {
@@ -448,10 +469,13 @@ export default function App() {
     setShowModal(false);
   }
 
-  async function connectToServer() {
-    const server = servers.find((s) => s.id === selectedServerId);
-    if (!server) return;
+  // Shared by the manual "Connect" button (connectToServer) and the
+  // reconcile-on-hydration auto-reconnect above. Reads nick/SASL via
+  // getState() rather than the destructured nickMap/saslMap for the same
+  // reason reconcile does - it can run before a post-hydration re-render.
+  async function connectServer(server: Server) {
     const { host, port } = resolveHostPort(server);
+    const { nickMap, saslMap } = useStore.getState();
     const nick = nickMap[server.id] ?? 'dolq_user';
     const sasl = saslMap[server.id];
     setConnectionStatus(server.id, 'connecting');
@@ -460,6 +484,12 @@ export default function App() {
       server.username, server.realname, server.altNicks,
     );
     setConnectionStatus(server.id, 'connected');
+  }
+
+  async function connectToServer() {
+    const server = servers.find((s) => s.id === selectedServerId);
+    if (!server) return;
+    await connectServer(server);
   }
 
   async function handleDisconnect() {

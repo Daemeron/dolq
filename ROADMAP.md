@@ -549,10 +549,27 @@ will hang the UI.
 
 ## Known bugs / tech debt (not milestone-specific)
 
-- [ ] Chat history and connection status don't survive an app restart at all
+- [x] Chat history and connection status don't survive an app restart at all
       today (`messageMap`/`statusMap` aren't in `store.ts`'s `partialize`) -
-      largely subsumed by Milestone 1's persistence work, but worth tracking as
-      the concrete user-visible symptom in the meantime
+      chat history turned out to already be covered by Milestone 1's
+      persistence work (SQLite + `getHistory`, preloaded off the persisted
+      `selectedChannelId`, not `messageMap`); connection status was the real
+      remaining gap. `dolqd` itself doesn't survive a restart the way it
+      survives a renderer-only reload (`before-quit` PARTs/QUITs every
+      session on the way out), so the existing hydration-reconcile effect's
+      `getStatus` check came back `disconnected` for every server, and
+      nothing ever turned that into a new connection. That effect now
+      auto-reconnects: any server that isn't already `connected` gets dialed
+      with its persisted host/nick/SASL/etc., the same `connect()` call
+      `connectToServer` (the manual Connect button) makes - pulled into a
+      shared `connectServer` helper so both paths stay identical. No new
+      "was connected at quit" flag - since a real restart always starts
+      every server `disconnected` regardless of whether it was connected or
+      manually left disconnected before quitting, there'd be nothing to key
+      it off; every configured server just gets dialed on launch, same as
+      most IRC clients' default. A dial failure (bad host, network down) is
+      caught per-server so one dead network doesn't stop the rest from being
+      attempted, leaving it `disconnected` for the user to retry manually
 - [x] `MODE` parsing only handles lines where every letter is a privilege letter
       (`qaohv`); lines mixing in other channel modes (`+k`, `+b`, ...) are
       silently dropped (see the comment in `parseLine.ts`) - now extracts
