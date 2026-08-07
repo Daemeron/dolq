@@ -11,6 +11,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - run: go build ./...
+        working-directory: backend
+      - run: go vet ./...
+        working-directory: backend
+      - run: test -z "$(gofmt -l .)"
+        working-directory: backend
+      - run: go test -race ./...
+        working-directory: backend
+
       - uses: actions/setup-node@v4
         with:
           node-version: 20

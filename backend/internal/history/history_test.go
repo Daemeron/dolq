@@ -103,16 +103,29 @@ func TestRetentionPrunesOldEntries(t *testing.T) {
 	old := time.Now().AddDate(0, 0, -2) // past the 1-day cutoff
 	s.AppendLine("srv", "__log__", "old line", old)
 	s.AppendLine("srv", "__log__", "recent line", time.Now())
-	waitForCount(t, s, "srv", "__log__", 2)
 
-	// pruneLoop already ran one sweep at startup (before these entries even
-	// existed) and won't run another for an hour, so drive it directly
-	// rather than waiting on the real ticker.
-	s.prune()
-
-	entries, err := s.Recent("srv", "__log__", 0, 10)
-	if err != nil {
-		t.Fatalf("recent: %v", err)
+	// Two unsynchronized races make this trickier than the other tests'
+	// plain waitForCount: Open's own background pruneLoop goroutine already
+	// runs one sweep at startup, racing the writer goroutine that lands
+	// these just-queued appends - "old line" can still be in flight (not
+	// yet prunable) or already pruned by the time any single prune() call
+	// here runs. So there's no single "call prune, then check once" point
+	// that's guaranteed correct - keep re-pruning across the same poll
+	// waitForCount uses elsewhere, so a prune always runs again after the
+	// write actually lands, whichever order they happened in.
+	deadline := time.Now().Add(time.Second)
+	var entries []Entry
+	for time.Now().Before(deadline) {
+		s.prune()
+		var err error
+		entries, err = s.Recent("srv", "__log__", 0, 10)
+		if err != nil {
+			t.Fatalf("recent: %v", err)
+		}
+		if len(entries) == 1 {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
 	}
 	if len(entries) != 1 || entries[0].Line != "recent line" {
 		t.Fatalf("prune kept the wrong entries: %+v", entries)
