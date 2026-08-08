@@ -52,6 +52,9 @@ export type Message = {
   system?: boolean;
   action?: boolean;
   notice?: boolean;
+  // A parsed XDCC pack-listing row (see IrcEvent's XDCCPACK) - rendered as
+  // a distinct line, not the bot's raw NOTICE text.
+  xdccPack?: boolean;
 };
 
 export type User = {

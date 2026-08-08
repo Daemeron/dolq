@@ -116,6 +116,24 @@ type DCCChatOfferEvent struct {
 	Port int    `json:"port"`
 }
 
+// XDCCPackEvent is one row of an XDCC bot's pack listing, recognized inside
+// an ordinary NOTICE or PRIVMSG's text (see ircclient's dispatch and
+// xdcc.ParseListLine) - XDCC itself is just a text convention, not
+// something the IRC protocol knows about. Emitted alongside the underlying
+// NoticeEvent/PrivmsgEvent, not instead of it, so the raw listing still
+// shows up as ordinary chat even where the pattern misses. Nick/Target
+// carry the same meaning as NoticeEvent's - the bot, and whoever it sent
+// the line to (us, for a typical private LIST reply).
+type XDCCPackEvent struct {
+	Type     string `json:"type"`
+	Nick     string `json:"nick"`
+	Target   string `json:"target"`
+	Number   int    `json:"number"`
+	Gets     int    `json:"gets"`
+	Size     string `json:"size"`
+	Filename string `json:"filename"`
+}
+
 type JoinEvent struct {
 	Type    string `json:"type"`
 	Nick    string `json:"nick"`

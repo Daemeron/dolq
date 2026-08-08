@@ -39,6 +39,14 @@ describe('formatEntry', () => {
     );
   });
 
+  it('formats an XDCCPACK as <nick> #n details', () => {
+    expect(
+      formatEntry(
+        entry({ event: { type: 'XDCCPACK', nick: 'bot', target: 'me', number: 1, gets: 5, size: '340M', filename: 'file.mkv' } }),
+      ),
+    ).toBe(`[${ts}] <bot> #1 · 5x sent · 340M · file.mkv`);
+  });
+
   it('falls back to raw JSON for an event type without a dedicated format', () => {
     expect(
       formatEntry(entry({ event: { type: 'names', channel: '#general', users: [] } })),

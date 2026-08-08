@@ -35,6 +35,12 @@ func eventChannel(event any) string {
 		return dmOrChannel(e.Target, e.Nick)
 	case ircparse.ActionEvent:
 		return dmOrChannel(e.Target, e.Nick)
+	case ircparse.XDCCPackEvent:
+		// Bucketed like PRIVMSG/ACTION (by sender, for a private reply), not
+		// like NoticeEvent's own default-to-log - the frontend routes a live
+		// XDCCPACK into the bot's query the same way, so history matches what
+		// reopening that query later shows.
+		return dmOrChannel(e.Target, e.Nick)
 	case ircparse.NoticeEvent:
 		// Unlike PRIVMSG/ACTION, a private NOTICE doesn't bucket by sender -
 		// it's frequently a bare server hostname, not a nick worth opening a

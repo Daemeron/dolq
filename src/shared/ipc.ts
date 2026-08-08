@@ -59,7 +59,11 @@ export type IrcEvent =
       away?: string;
       noSuchNick?: boolean;
     }
-  | { type: 'DCCCHATOFFER'; nick: string; ip: string; port: number };
+  | { type: 'DCCCHATOFFER'; nick: string; ip: string; port: number }
+  // One row of an XDCC bot's pack listing, recognized inside an ordinary
+  // NOTICE/PRIVMSG's text - see backend/internal/xdcc. Delivered alongside
+  // that underlying NOTICE/PRIVMSG event, not instead of it.
+  | { type: 'XDCCPACK'; nick: string; target: string; number: number; gets: number; size: string; filename: string };
 
 // One persisted line, as returned by getHistory/search - mirrors
 // backend/internal/history.Entry's JSON shape: everything that flowed

@@ -17,6 +17,7 @@ import (
 
 	"github.com/Daemeron/dolq/backend/internal/dcc"
 	"github.com/Daemeron/dolq/backend/internal/ircparse"
+	"github.com/Daemeron/dolq/backend/internal/xdcc"
 )
 
 // Servers ping idle clients every minute or two; if nothing at all has been received
@@ -603,6 +604,20 @@ func (c *Client) handleLine(line string) {
 		w.Type = "whois"
 		c.emitEvent(w)
 		return
+	case ircparse.NoticeEvent:
+		if pack, ok := xdcc.ParseListLine(e.Text); ok {
+			c.emitEvent(ircparse.XDCCPackEvent{
+				Type: "XDCCPACK", Nick: e.Nick, Target: e.Target,
+				Number: pack.Number, Gets: pack.Gets, Size: pack.Size, Filename: pack.Filename,
+			})
+		}
+	case ircparse.PrivmsgEvent:
+		if pack, ok := xdcc.ParseListLine(e.Text); ok {
+			c.emitEvent(ircparse.XDCCPackEvent{
+				Type: "XDCCPACK", Nick: e.Nick, Target: e.Target,
+				Number: pack.Number, Gets: pack.Gets, Size: pack.Size, Filename: pack.Filename,
+			})
+		}
 	case ircparse.WelcomeEvent:
 		c.mu.Lock()
 		c.nick = e.Nick

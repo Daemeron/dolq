@@ -505,7 +505,19 @@ will hang the UI.
 
 ## Milestone 3 — XDCC file transfers
 
-- [ ] XDCC LIST request + parse pack listings
+- [x] XDCC LIST request + parse pack listings - the request half needed no
+      new code at all: XDCC is just a text convention over ordinary PRIVMSG,
+      not a protocol extension, so `/msg <bot> XDCC LIST` already worked
+      through the existing `/msg` command. Parsing is new: `xdcc.ParseListLine`
+      (`backend/internal/xdcc`) recognizes the `#<n>  <gets>x [<size>]
+      <filename>` row shape essentially every XDCC bot (iroffer and its many
+      forks) uses, leaving header/footer lines ("** 12 packs **", "Total
+      Offered: ...") as plain text since they don't match. ircclient emits a
+      parsed `XDCCPackEvent` alongside the underlying NOTICE/PRIVMSG (not
+      instead of it, so the raw listing still shows up as ordinary chat
+      wherever the pattern misses), which the UI renders as a distinct 📦 row
+      in the bot's query instead of raw bot-formatted text. GET/DCC SEND (next
+      item) is what turns a parsed pack into something you can actually click
 - [ ] XDCC GET / DCC SEND, with passive and active mode
 - [ ] Transfer manager UI - queue, progress, speed, pause/resume
 - [ ] Resume partial downloads

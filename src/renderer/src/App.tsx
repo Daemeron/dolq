@@ -54,6 +54,12 @@ function toMessages(entries: HistoryEntry[]): Message[] {
       messages.push({ id: e.id, nick: e.event.nick, text: e.event.text, timestamp, action: true });
     } else if (e.event?.type === 'NOTICE' && e.event.target.startsWith('#')) {
       messages.push({ id: e.id, nick: e.event.nick, text: e.event.text, timestamp, notice: true });
+    } else if (e.event?.type === 'XDCCPACK') {
+      const p = e.event;
+      messages.push({
+        id: e.id, nick: p.nick, timestamp, xdccPack: true,
+        text: `#${p.number} · ${p.gets}x sent · ${p.size} · ${p.filename}`,
+      });
     }
   }
   return messages;
@@ -309,6 +315,21 @@ export default function App() {
             setPendingIdentifyServerId(serverId);
           }
           break;
+        case 'XDCCPACK': {
+          // Unlike a private NOTICE, this is worth surfacing somewhere
+          // findable - the whole point of parsing it - so route it the same
+          // way a DM would land: the bot's own query, auto-opened if needed.
+          if (isIgnored(serverId, event.nick)) break;
+          const key = dmKey(serverId, event.target, event.nick);
+          appendMessage(key, {
+            id: nextMsgId.current++,
+            nick: event.nick,
+            text: `#${event.number} · ${event.gets}x sent · ${event.size} · ${event.filename}`,
+            timestamp: new Date(),
+            xdccPack: true,
+          });
+          break;
+        }
         case 'JOIN':
           if (event.nick === nickMap[serverId]) {
             addChannel(serverId, { id: event.channel, name: event.channel.slice(1), isLog: false });

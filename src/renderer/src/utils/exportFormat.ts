@@ -28,6 +28,8 @@ export function formatEntry(entry: HistoryEntry): string {
       return `[${ts}] ${e.nick} was kicked by ${e.by}${e.reason ? ` (${e.reason})` : ''}`;
     case 'TOPIC':
       return `[${ts}] ${e.nick ? `${e.nick} set` : 'Topic is'} the topic: ${e.topic}`;
+    case 'XDCCPACK':
+      return `[${ts}] <${e.nick}> #${e.number} · ${e.gets}x sent · ${e.size} · ${e.filename}`;
     default:
       return `[${ts}] ${e ? JSON.stringify(e) : ''}`;
   }
