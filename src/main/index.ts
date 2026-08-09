@@ -110,6 +110,14 @@ function registerIrcHandlers(mainWindow: BrowserWindow, backend: BackendClient):
 
   ipcMain.handle(IrcMessages.dccClose, (_event, dccId: string) => backend.dccClose(dccId));
 
+  ipcMain.handle(
+    IrcMessages.xdccAccept,
+    (_event, serverId: string, nick: string, ip: string, port: number, filename: string, size: number, token?: string) =>
+      backend.xdccAccept(serverId, nick, ip, port, filename, size, token, app.getPath('downloads')),
+  );
+
+  ipcMain.handle(IrcMessages.xdccClose, (_event, dccId: string) => backend.xdccClose(dccId));
+
   // The backend already tags every unsolicited frame with the serverId it
   // belongs to, so a single subscription per frame type covers every server
   // - no per-connect listener wiring needed.

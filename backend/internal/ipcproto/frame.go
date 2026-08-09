@@ -17,6 +17,8 @@ const (
 	ActionDCCAccept         = "dccAccept" // dials a peer's offered DCC CHAT listener
 	ActionDCCSend           = "dccSend"
 	ActionDCCClose          = "dccClose"
+	ActionXDCCAccept        = "xdccAccept" // accepts a DCC SEND offer (see bouncer/xdcc.go) and downloads it
+	ActionXDCCClose         = "xdccClose"  // cancels an in-progress transfer
 )
 
 // Server -> client frame types.
@@ -50,8 +52,16 @@ type ClientFrame struct {
 	// connection to send the CTCP over) and Nick (the target); dccAccept
 	// reuses Host/Port (the peer's announced address, from a
 	// DCCChatOfferEvent); dccSend/dccClose use DCCID (dccOffer/dccAccept's
-	// result) and, for dccSend, Line.
-	DCCID string `json:"dccId,omitempty"`
+	// result) and, for dccSend, Line. xdccAccept/xdccClose reuse DCCID the
+	// same way (ids are just distinguished by their "dcc:"/"xdcc:" prefix);
+	// xdccAccept also reuses ServerID/Host/Port/Nick (an XDCCSendOfferEvent's
+	// own IP/Port/Nick) plus Filename/Size/Token from that same event and
+	// DestDir for where to save it.
+	DCCID    string `json:"dccId,omitempty"`
+	Filename string `json:"filename,omitempty"`
+	Size     int64  `json:"size,omitempty"`
+	Token    string `json:"token,omitempty"`
+	DestDir  string `json:"destDir,omitempty"`
 }
 
 // ServerFrame is one line the backend sends back.

@@ -474,7 +474,7 @@ func TestCTCP(t *testing.T) {
 		}
 	})
 
-	t.Run("ignores a non-CHAT DCC request (e.g. SEND - that's a file transfer, not this)", func(t *testing.T) {
+	t.Run("emits an XDCCSendOfferEvent for an active-mode DCC SEND request", func(t *testing.T) {
 		c, server, r := pipeClient(t, "testnick")
 		events := make(chan any, 1)
 		c.AddEventListener(func(e any) { events <- e })
@@ -482,6 +482,68 @@ func TestCTCP(t *testing.T) {
 		drainHandshake(t, r)
 
 		writeLine(t, server, ":alice!u@host PRIVMSG testnick :\x01DCC SEND file.txt 3232235777 5000 1024\x01")
+		select {
+		case e := <-events:
+			want := ircparse.XDCCSendOfferEvent{
+				Type: "XDCCSENDOFFER", Nick: "alice", Filename: "file.txt", IP: "192.168.1.1", Port: 5000, Size: 1024,
+			}
+			if !reflect.DeepEqual(e, want) {
+				t.Errorf("got %#v, want %#v", e, want)
+			}
+		case <-time.After(2 * time.Second):
+			t.Fatal("timed out waiting for the XDCCSendOfferEvent")
+		}
+	})
+
+	t.Run("emits an XDCCSendOfferEvent for a passive/reverse DCC SEND request, port 0 and a token", func(t *testing.T) {
+		c, server, r := pipeClient(t, "testnick")
+		events := make(chan any, 1)
+		c.AddEventListener(func(e any) { events <- e })
+		c.Start()
+		drainHandshake(t, r)
+
+		writeLine(t, server, `:alice!u@host PRIVMSG testnick :`+"\x01"+`DCC SEND "my file.txt" 3232235777 0 1024 7`+"\x01")
+		select {
+		case e := <-events:
+			want := ircparse.XDCCSendOfferEvent{
+				Type: "XDCCSENDOFFER", Nick: "alice", Filename: "my file.txt", IP: "192.168.1.1", Size: 1024, Token: "7",
+			}
+			if !reflect.DeepEqual(e, want) {
+				t.Errorf("got %#v, want %#v", e, want)
+			}
+		case <-time.After(2 * time.Second):
+			t.Fatal("timed out waiting for the XDCCSendOfferEvent")
+		}
+	})
+
+	t.Run("does not auto-reply to a DCC SEND request", func(t *testing.T) {
+		c, server, r := pipeClient(t, "testnick")
+		c.Start()
+		drainHandshake(t, r)
+		writeLine(t, server, ":alice!u@host PRIVMSG testnick :\x01DCC SEND file.txt 3232235777 5000 1024\x01")
+
+		ch := make(chan string, 1)
+		go func() {
+			line, err := r.ReadString('\n')
+			if err == nil {
+				ch <- line
+			}
+		}()
+		select {
+		case line := <-ch:
+			t.Errorf("unexpected line written by client: %q", line)
+		case <-time.After(100 * time.Millisecond):
+		}
+	})
+
+	t.Run("ignores an unrecognized DCC subcommand", func(t *testing.T) {
+		c, server, r := pipeClient(t, "testnick")
+		events := make(chan any, 1)
+		c.AddEventListener(func(e any) { events <- e })
+		c.Start()
+		drainHandshake(t, r)
+
+		writeLine(t, server, ":alice!u@host PRIVMSG testnick :\x01DCC RESUME file.txt 5000 512\x01")
 		select {
 		case e := <-events:
 			t.Errorf("expected no event, got %#v", e)

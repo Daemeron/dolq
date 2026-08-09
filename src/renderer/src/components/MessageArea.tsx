@@ -10,6 +10,10 @@ type Props = {
   onLoadOlder?: () => void;
   timestampFormat: '12h' | '24h';
   density: 'cozy' | 'compact';
+  // Requests the pack a 📦 row announced - see App.tsx's handleGetPack.
+  // Optional only because the Log view (isLog) never renders one of these
+  // rows to begin with.
+  onGetPack?: (nick: string, packNumber: number) => void;
 };
 
 const NICK_COLORS = [
@@ -32,7 +36,7 @@ function formatTime(d: Date, timestampFormat: '12h' | '24h'): string {
 const AT_BOTTOM_THRESHOLD = 40;
 const LOAD_OLDER_THRESHOLD = 100;
 
-export function MessageArea({ messages, isLog, channelId, onLoadOlder, timestampFormat, density }: Props) {
+export function MessageArea({ messages, isLog, channelId, onLoadOlder, timestampFormat, density, onGetPack }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const prevChannelId = useRef(channelId);
   const scrollTop = useRef<Map<string, number>>(new Map());
@@ -142,7 +146,15 @@ export function MessageArea({ messages, isLog, channelId, onLoadOlder, timestamp
                   </span>
                 </div>
               ) : m.xdccPack ? (
-                <div className={`flex items-baseline gap-3 px-2 ${compact ? 'py-0' : 'py-0.5'}`}>
+                <div
+                  className={`flex items-baseline gap-3 px-2 rounded ${compact ? 'py-0' : 'py-0.5'} ${
+                    onGetPack && m.xdccPackNumber != null ? 'cursor-pointer hover:bg-[rgba(4,4,5,0.07)]' : ''
+                  }`}
+                  onClick={() => {
+                    if (onGetPack && m.xdccPackNumber != null) onGetPack(m.nick, m.xdccPackNumber);
+                  }}
+                  title={onGetPack ? 'Click to request this pack' : undefined}
+                >
                   <span className="text-[11px] text-[#6b6b6b] shrink-0 w-10 text-right">
                     {formatTime(m.timestamp, timestampFormat)}
                   </span>

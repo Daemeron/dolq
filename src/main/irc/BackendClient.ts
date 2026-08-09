@@ -138,6 +138,26 @@ export class BackendClient extends EventEmitter {
     return this.call('dccClose', { dccId });
   }
 
+  // destDir isn't a parameter here - it's always the OS Downloads folder
+  // (app.getPath('downloads')), resolved in registerIrcHandlers rather than
+  // trusting the renderer to pick a directory (it can't reach fs to
+  // validate one anyway). filename/size/token are the offer's own fields,
+  // passed straight through for dolqd to build the save path from (see
+  // bouncer.safeFilename for why the filename itself is never trusted
+  // beyond its base name).
+  async xdccAccept(
+    serverId: string, nick: string, ip: string, port: number, filename: string, size: number, token: string | undefined,
+    destDir: string,
+  ): Promise<string> {
+    const f = await this.request('xdccAccept', { serverId, nick, host: ip, port, filename, size, token, destDir });
+    if (!f.ok) throw new Error(f.error);
+    return f.dccId ?? '';
+  }
+
+  xdccClose(dccId: string): Promise<void> {
+    return this.call('xdccClose', { dccId });
+  }
+
   // Signals dolqd to shut down (which itself disconnects every session,
   // flushes any still-queued history writes, and prunes its socket file
   // cleanly - see bouncer.Shutdown and history.Store.Close) and waits for it

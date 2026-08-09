@@ -516,9 +516,26 @@ will hang the UI.
       parsed `XDCCPackEvent` alongside the underlying NOTICE/PRIVMSG (not
       instead of it, so the raw listing still shows up as ordinary chat
       wherever the pattern misses), which the UI renders as a distinct 📦 row
-      in the bot's query instead of raw bot-formatted text. GET/DCC SEND (next
-      item) is what turns a parsed pack into something you can actually click
-- [ ] XDCC GET / DCC SEND, with passive and active mode
+      in the bot's query instead of raw bot-formatted text. Clicking one now
+      requests it - see the next item
+- [x] XDCC GET / DCC SEND, with passive and active mode - clicking a parsed
+      pack row sends the bot's own "XDCC SEND #n" convention (plain PRIVMSG,
+      same as LIST needed no new protocol code); its CTCP DCC SEND reply is
+      parsed into a new `XDCCSendOfferEvent` (`dcc.ParseSendOffer`, handling
+      both active and passive/reverse - port 0 - offers, and the quoted-
+      filename convention bots use for names with spaces) and shown as an
+      explicit accept/decline prompt, same "connects straight to an address
+      you didn't choose" reasoning as the existing DCC CHAT offer prompt.
+      Accepting streams the file straight to disk in the Go backend
+      (`bouncer.XDCCAccept`/`dcc.ReceiveFile`) - never through IPC as message
+      payloads, and never trusting the offer's own filename beyond its base
+      name (`safeFilename`), since it's chosen by whatever's on the other
+      end of the network. Saves into the OS Downloads folder (no directory
+      picker yet - that's the "configurable download directory" item below)
+      with browser-style " (1)", " (2)" collision suffixes, and never deletes
+      a partial file on failure so a future "resume" has something to resume
+      from. Progress shows as a minimal status strip, not the queue/speed/
+      pause-resume "Transfer manager UI" that's still its own item next
 - [ ] Transfer manager UI - queue, progress, speed, pause/resume
 - [ ] Resume partial downloads
 - [ ] Configurable download directory and port range (for active mode/NAT)

@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/Daemeron/dolq/backend/internal/bouncer"
+	"github.com/Daemeron/dolq/backend/internal/ircparse"
 )
 
 // Listen removes any stale file at path (safe: only one live instance is
@@ -159,6 +160,18 @@ func (s *Server) handleFrame(c *conn, f ClientFrame) {
 		c.writeResult(f.ID, s.b.DCCSend(f.DCCID, f.Line))
 	case ActionDCCClose:
 		c.writeResult(f.ID, s.b.DCCClose(f.DCCID))
+	case ActionXDCCAccept:
+		offer := ircparse.XDCCSendOfferEvent{
+			Nick: f.Nick, Filename: f.Filename, IP: f.Host, Port: f.Port, Size: f.Size, Token: f.Token,
+		}
+		id, err := s.b.XDCCAccept(f.ServerID, offer, f.DestDir, c)
+		if err != nil {
+			c.writeFrame(ServerFrame{ID: f.ID, Type: FrameResult, OK: false, Error: err.Error()})
+			return
+		}
+		c.writeFrame(ServerFrame{ID: f.ID, Type: FrameResult, OK: true, DCCID: id})
+	case ActionXDCCClose:
+		c.writeResult(f.ID, s.b.XDCCClose(f.DCCID))
 	default:
 		c.writeFrame(ServerFrame{ID: f.ID, Type: FrameResult, OK: false, Error: "unknown action: " + f.Action})
 	}

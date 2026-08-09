@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net"
 	"strings"
 	"sync"
 	"time"
@@ -158,11 +159,12 @@ type Bouncer struct {
 	sessions map[string]*session
 	store    *history.Store // nil is fine, see history.Store's nil receivers
 
-	// dccMu guards dccSessions separately from mu - DCC bookkeeping (see
-	// dcc.go) has nothing to do with IRC session state and there's no
-	// reason for the two to contend with each other.
+	// dccMu guards dccSessions/xdccConns separately from mu - DCC/XDCC
+	// bookkeeping (see dcc.go, xdcc.go) has nothing to do with IRC session
+	// state and there's no reason for the two to contend with each other.
 	dccMu       sync.Mutex
 	dccSessions map[string]*dcc.Session
+	xdccConns   map[string]net.Conn
 
 	// Overridable before any Connect() call - tests shrink these so a
 	// reconnect test doesn't have to sit through a real backoff.
@@ -178,6 +180,7 @@ func New(store *history.Store) *Bouncer {
 	return &Bouncer{
 		sessions:             make(map[string]*session),
 		dccSessions:          make(map[string]*dcc.Session),
+		xdccConns:            make(map[string]net.Conn),
 		store:                store,
 		ReconnectBackoffBase: 2 * time.Second,
 		ReconnectBackoffMax:  60 * time.Second,
@@ -473,6 +476,7 @@ func (b *Bouncer) Send(serverID, line string) error {
 // done - used on SIGINT/SIGTERM.
 func (b *Bouncer) Shutdown(ctx context.Context) {
 	b.closeAllDCC()
+	b.closeAllXDCC()
 
 	b.mu.Lock()
 	sessions := make([]*session, 0, len(b.sessions))

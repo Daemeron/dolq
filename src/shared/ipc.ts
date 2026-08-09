@@ -63,7 +63,16 @@ export type IrcEvent =
   // One row of an XDCC bot's pack listing, recognized inside an ordinary
   // NOTICE/PRIVMSG's text - see backend/internal/xdcc. Delivered alongside
   // that underlying NOTICE/PRIVMSG event, not instead of it.
-  | { type: 'XDCCPACK'; nick: string; target: string; number: number; gets: number; size: string; filename: string };
+  | { type: 'XDCCPACK'; nick: string; target: string; number: number; gets: number; size: string; filename: string }
+  // A parsed CTCP "DCC SEND" request - a bot answering "XDCC SEND #n" with
+  // an offer to actually send the file. Port 0 means passive/reverse (see
+  // backend/internal/ircparse.XDCCSendOfferEvent); accepting either shape
+  // is xdccAccept, same "explicit user decision" as DCCCHATOFFER.
+  | { type: 'XDCCSENDOFFER'; nick: string; filename: string; ip: string; port: number; size: number; token?: string }
+  // Progress on a transfer xdccAccept started, delivered under that call's
+  // own id the same way DCC CHAT's status is (see dccAccept's doc) - not a
+  // real serverId.
+  | { type: 'XDCCTRANSFER'; received: number; total: number; path: string; done?: boolean; error?: string };
 
 // One persisted line, as returned by getHistory/search - mirrors
 // backend/internal/history.Entry's JSON shape: everything that flowed
@@ -130,6 +139,15 @@ export type IrcApi = {
   dccAccept: (ip: string, port: number) => Promise<string>;
   dccSend: (dccId: string, line: string) => Promise<void>;
   dccClose: (dccId: string) => Promise<void>;
+  // Accepts a DCC SEND offer (see XDCCSENDOFFER) and downloads it into the
+  // OS Downloads folder (main resolves that, not the renderer - fs isn't
+  // reachable from here either); the returned id is where XDCCTRANSFER
+  // progress and connecting/connected/disconnected status arrive under,
+  // same "some id" genericity as a DCC CHAT session's.
+  xdccAccept: (
+    serverId: string, nick: string, ip: string, port: number, filename: string, size: number, token?: string,
+  ) => Promise<string>;
+  xdccClose: (xdccId: string) => Promise<void>;
   // Opens url in the OS's default browser (Electron's shell.openExternal) -
   // not something the renderer can do directly (no direct Node/Electron API
   // access, by design). Rejects for anything that isn't http(s) - see
@@ -165,6 +183,8 @@ export enum IrcMessages {
   dccAccept = 'irc:dccAccept',
   dccSend = 'irc:dccSend',
   dccClose = 'irc:dccClose',
+  xdccAccept = 'irc:xdccAccept',
+  xdccClose = 'irc:xdccClose',
   openExternal = 'irc:openExternal',
   saveTextFile = 'irc:saveTextFile',
   line = 'irc:line',

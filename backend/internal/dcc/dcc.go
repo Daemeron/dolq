@@ -1,9 +1,10 @@
-// Package dcc implements the peer-to-peer half of DCC CHAT: once an offer
-// is made and accepted (that handshake rides over CTCP, on the ordinary IRC
+// Package dcc implements the peer-to-peer half of DCC: once an offer is
+// made and accepted (that handshake rides over CTCP, on the ordinary IRC
 // connection - see ircclient's CTCP DCC handling and bouncer's DCCOffer/
-// DCCAccept), everything after is a plain direct TCP connection between the
-// two clients, carrying newline-delimited text with no more IRC framing at
-// all - that's what Session wraps.
+// DCCAccept/XDCCAccept), everything after is a plain direct TCP connection
+// between the two clients. For CHAT that's newline-delimited text, which
+// Session wraps; for SEND (see send.go) it's a raw byte stream with a known
+// length, nothing this package tries to force into Session's line shape.
 package dcc
 
 import (
@@ -39,11 +40,18 @@ func newSession(conn net.Conn) *Session {
 // Dial connects out to a peer's announced DCC CHAT listener - the path an
 // offer's *recipient* takes once they accept.
 func Dial(ip string, port int) (*Session, error) {
-	conn, err := net.Dial("tcp", net.JoinHostPort(ip, strconv.Itoa(port)))
+	conn, err := DialRaw(ip, port)
 	if err != nil {
 		return nil, err
 	}
 	return newSession(conn), nil
+}
+
+// DialRaw is Dial without CHAT's line-oriented Session wrapper - what
+// accepting an active-mode SEND offer dials with instead (see
+// ReceiveFile).
+func DialRaw(ip string, port int) (net.Conn, error) {
+	return net.Dial("tcp", net.JoinHostPort(ip, strconv.Itoa(port)))
 }
 
 // Listen opens a TCP listener on an OS-chosen port - the path an offer's
@@ -58,6 +66,16 @@ func Listen() (net.Listener, error) {
 // caller connecting late, or not at all, isn't this client's problem once
 // the window's passed).
 func AcceptOnce(ln net.Listener, timeout time.Duration) (*Session, error) {
+	conn, err := AcceptOnceRaw(ln, timeout)
+	if err != nil {
+		return nil, err
+	}
+	return newSession(conn), nil
+}
+
+// AcceptOnceRaw is AcceptOnce without CHAT's Session wrapper - what
+// accepting a passive-mode SEND offer's callback connection uses instead.
+func AcceptOnceRaw(ln net.Listener, timeout time.Duration) (net.Conn, error) {
 	defer ln.Close()
 	type result struct {
 		conn net.Conn
@@ -70,10 +88,7 @@ func AcceptOnce(ln net.Listener, timeout time.Duration) (*Session, error) {
 	}()
 	select {
 	case r := <-ch:
-		if r.err != nil {
-			return nil, r.err
-		}
-		return newSession(r.conn), nil
+		return r.conn, r.err
 	case <-time.After(timeout):
 		return nil, errors.New("dcc: timed out waiting for the peer to connect")
 	}

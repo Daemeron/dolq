@@ -116,6 +116,25 @@ type DCCChatOfferEvent struct {
 	Port int    `json:"port"`
 }
 
+// DCCSendOfferEvent is a parsed CTCP "DCC SEND" request - someone (usually
+// an XDCC bot, answering an "XDCC SEND #n" request - see xdcc.ParseListLine
+// for the other half of that exchange) offering to send a file. Accepting
+// or declining is a user decision the UI makes, same as DCCChatOfferEvent -
+// nothing here starts a transfer on its own, see bouncer.XDCCAccept. IP is
+// already decoded the same way DCCChatOfferEvent's is; Filename/Size are
+// exactly what the offer announced and haven't been validated against
+// anything yet (an untrusted string a network peer chose - see
+// bouncer.safeFilename for where that actually matters).
+type XDCCSendOfferEvent struct {
+	Type     string `json:"type"`
+	Nick     string `json:"nick"`
+	Filename string `json:"filename"`
+	IP       string `json:"ip"`
+	Port     int    `json:"port"`
+	Size     int64  `json:"size"`
+	Token    string `json:"token,omitempty"`
+}
+
 // XDCCPackEvent is one row of an XDCC bot's pack listing, recognized inside
 // an ordinary NOTICE or PRIVMSG's text (see ircclient's dispatch and
 // xdcc.ParseListLine) - XDCC itself is just a text convention, not

@@ -12,6 +12,8 @@ import { ConnectModal, parseList, type ConnectForm } from './components/ConnectM
 import { PreferencesModal } from './components/PreferencesModal';
 import { WhoisModal } from './components/WhoisModal';
 import { DCCOfferModal } from './components/DCCOfferModal';
+import { XDCCOfferModal } from './components/XDCCOfferModal';
+import { TransferStatus } from './components/TransferStatus';
 import { SearchModal } from './components/SearchModal';
 import { NickServIdentifyModal } from './components/NickServIdentifyModal';
 import { isNickServIdentifyPrompt } from './utils/nickserv';
@@ -57,7 +59,7 @@ function toMessages(entries: HistoryEntry[]): Message[] {
     } else if (e.event?.type === 'XDCCPACK') {
       const p = e.event;
       messages.push({
-        id: e.id, nick: p.nick, timestamp, xdccPack: true,
+        id: e.id, nick: p.nick, timestamp, xdccPack: true, xdccPackNumber: p.number,
         text: `#${p.number} · ${p.gets}x sent · ${p.size} · ${p.filename}`,
       });
     }
@@ -105,6 +107,20 @@ export default function App() {
   // An incoming DCC CHAT offer awaiting accept/decline - see the
   // DCCCHATOFFER case below and DCCOfferModal.
   const [pendingDCCOffer, setPendingDCCOffer] = useState<{ serverId: string; nick: string; ip: string; port: number } | null>(null);
+  // An incoming DCC SEND offer (an XDCC bot answering "XDCC SEND #n")
+  // awaiting accept/decline - same reasoning as pendingDCCOffer, a file
+  // transfer connects straight to the sender's address too.
+  const [pendingXDCCOffer, setPendingXDCCOffer] = useState<
+    { serverId: string; nick: string; filename: string; ip: string; port: number; size: number; token?: string } | null
+  >(null);
+  // Transfers xdccAccept has started, keyed by its own id - not a channel,
+  // just enough state to show progress until it finishes (see the
+  // XDCCTRANSFER case below and the status strip near MessageArea).
+  // Milestone 3's "Transfer manager UI" item is what eventually replaces
+  // this with something richer (queue, pause/resume, speed).
+  const [transfers, setTransfers] = useState<
+    Record<string, { serverId: string; nick: string; filename: string; received: number; total: number; path: string; error?: string }>
+  >({});
   // The server a NickServ identify prompt (see utils/nickserv.ts) most
   // recently arrived on, if it hasn't been dismissed/actioned yet.
   const [pendingIdentifyServerId, setPendingIdentifyServerId] = useState<string | null>(null);
@@ -327,6 +343,7 @@ export default function App() {
             text: `#${event.number} · ${event.gets}x sent · ${event.size} · ${event.filename}`,
             timestamp: new Date(),
             xdccPack: true,
+            xdccPackNumber: event.number,
           });
           break;
         }
@@ -404,6 +421,31 @@ export default function App() {
           // Last offer wins if more than one arrives before this is
           // resolved - a real edge case, not worth a queue for.
           setPendingDCCOffer({ serverId, nick: event.nick, ip: event.ip, port: event.port });
+          break;
+        case 'XDCCSENDOFFER':
+          setPendingXDCCOffer({
+            serverId, nick: event.nick, filename: event.filename, ip: event.ip, port: event.port,
+            size: event.size, token: event.token,
+          });
+          break;
+        case 'XDCCTRANSFER':
+          // serverId here is really the xdccAccept-returned transfer id
+          // (see xdccAccept's doc) - onEvent is generic over "some id" the
+          // same way onLine/onStatus already are for DCC CHAT.
+          setTransfers((prev) => {
+            const t = prev[serverId];
+            if (!t) return prev; // finished/cancelled locally already
+            if (event.done || event.error) {
+              const { [serverId]: _done, ...rest } = prev;
+              const text = event.error
+                ? `Download of ${t.filename} failed: ${event.error}`
+                : `Downloaded ${t.filename} to ${event.path}`;
+              ensureQuery(t.serverId, t.nick);
+              appendMessage(t.nick, { id: nextMsgId.current++, nick: '', text, timestamp: new Date(), system: true });
+              return rest;
+            }
+            return { ...prev, [serverId]: { ...t, received: event.received, total: event.total } };
+          });
           break;
         case 'AWAY':
           applyAwayEverywhere(event.nick, event.away);
@@ -587,6 +629,33 @@ export default function App() {
     setPendingDCCOffer(null);
   }
 
+  // Requesting a pack is just the bot's own convention over plain PRIVMSG -
+  // the reply (an XDCCSENDOFFER, if the bot answers at all) is what
+  // actually needs handling, above.
+  function handleGetPack(nick: string, packNumber: number) {
+    window.irc.sendLine(selectedServerId, `PRIVMSG ${nick} :XDCC SEND #${packNumber}`);
+  }
+
+  async function handleAcceptXDCCOffer() {
+    if (!pendingXDCCOffer) return;
+    const { serverId, nick, filename, ip, port, size, token } = pendingXDCCOffer;
+    setPendingXDCCOffer(null);
+    const id = await window.irc.xdccAccept(serverId, nick, ip, port, filename, size, token);
+    setTransfers((prev) => ({ ...prev, [id]: { serverId, nick, filename, received: 0, total: size, path: '' } }));
+  }
+
+  function handleDeclineXDCCOffer() {
+    setPendingXDCCOffer(null);
+  }
+
+  function handleCancelTransfer(id: string) {
+    window.irc.xdccClose(id);
+    setTransfers((prev) => {
+      const { [id]: _cancelled, ...rest } = prev;
+      return rest;
+    });
+  }
+
   function handleIdentify(password: string) {
     if (!pendingIdentifyServerId) return;
     window.irc.sendLine(pendingIdentifyServerId, `PRIVMSG NickServ :identify ${password}`);
@@ -745,6 +814,16 @@ export default function App() {
           onDecline={handleDeclineDCCOffer}
         />
       )}
+      {pendingXDCCOffer && (
+        <XDCCOfferModal
+          nick={pendingXDCCOffer.nick}
+          filename={pendingXDCCOffer.filename}
+          size={pendingXDCCOffer.size}
+          onAccept={handleAcceptXDCCOffer}
+          onDecline={handleDeclineXDCCOffer}
+        />
+      )}
+      <TransferStatus transfers={transfers} onCancel={handleCancelTransfer} />
       {showSearch && (
         <SearchModal
           servers={servers}
@@ -817,6 +896,7 @@ export default function App() {
               onLoadOlder={loadOlderHistory}
               timestampFormat={timestampFormat}
               density={messageDensity}
+              onGetPack={handleGetPack}
             />
             <MessageInput
               channelName={selectedChannel?.name ?? ''}

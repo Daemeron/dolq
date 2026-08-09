@@ -677,28 +677,44 @@ func (c *Client) handleCTCPRequest(e ircparse.CTCPRequestEvent) {
 	}
 }
 
-// handleDCCRequest parses a CTCP DCC request's param and, for CHAT
-// specifically, emits a DCCChatOfferEvent for the UI to accept or decline -
-// unlike VERSION/PING, nothing here answers automatically, and unlike every
-// other CTCP request, this one *does* leave ircclient as an event (there's
-// something to actually show: an offer, not just a reply to send).
-// Anything other than CHAT (e.g. SEND, a file transfer offer) is ignored -
-// that's Milestone 3's XDCC/DCC item, not this one.
+// handleDCCRequest parses a CTCP DCC request's param and emits an offer
+// event for the UI to accept or decline - unlike VERSION/PING, nothing here
+// answers automatically, and unlike every other CTCP request, this one
+// *does* leave ircclient as an event (there's something to actually show:
+// an offer, not just a reply to send). CHAT and SEND (the latter is how an
+// XDCC bot answers "XDCC SEND #n" - see xdcc.ParseListLine) are the only
+// subcommands handled; anything else is silently ignored, same as an
+// unrecognized CTCP command anywhere else in this file.
 func (c *Client) handleDCCRequest(nick, param string) {
 	fields := strings.Fields(param)
-	if len(fields) < 4 || fields[0] != "CHAT" {
+	if len(fields) == 0 {
 		return
 	}
-	ipNum, err := strconv.ParseUint(fields[2], 10, 32)
-	if err != nil {
-		return
+	switch fields[0] {
+	case "CHAT":
+		if len(fields) < 4 {
+			return
+		}
+		ipNum, err := strconv.ParseUint(fields[2], 10, 32)
+		if err != nil {
+			return
+		}
+		port, err := strconv.Atoi(fields[3])
+		if err != nil {
+			return
+		}
+		ip := dcc.DecodeIP(uint32(ipNum))
+		c.emitEvent(ircparse.DCCChatOfferEvent{Type: "DCCCHATOFFER", Nick: nick, IP: ip.String(), Port: port})
+	case "SEND":
+		offer, ok := dcc.ParseSendOffer(param)
+		if !ok {
+			return
+		}
+		c.emitEvent(ircparse.XDCCSendOfferEvent{
+			Type: "XDCCSENDOFFER", Nick: nick, Filename: offer.Filename,
+			IP: offer.IP, Port: offer.Port, Size: offer.Size, Token: offer.Token,
+		})
 	}
-	port, err := strconv.Atoi(fields[3])
-	if err != nil {
-		return
-	}
-	ip := dcc.DecodeIP(uint32(ipNum))
-	c.emitEvent(ircparse.DCCChatOfferEvent{Type: "DCCCHATOFFER", Nick: nick, IP: ip.String(), Port: port})
 }
 
 func (c *Client) sendCTCPReply(nick, payload string) {
