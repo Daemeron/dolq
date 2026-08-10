@@ -158,6 +158,14 @@ export class BackendClient extends EventEmitter {
     return this.call('xdccClose', { dccId });
   }
 
+  xdccPause(dccId: string): Promise<void> {
+    return this.call('xdccPause', { dccId });
+  }
+
+  xdccResume(dccId: string): Promise<void> {
+    return this.call('xdccResume', { dccId });
+  }
+
   // Signals dolqd to shut down (which itself disconnects every session,
   // flushes any still-queued history writes, and prunes its socket file
   // cleanly - see bouncer.Shutdown and history.Store.Close) and waits for it

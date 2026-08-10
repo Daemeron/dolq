@@ -172,6 +172,10 @@ func (s *Server) handleFrame(c *conn, f ClientFrame) {
 		c.writeFrame(ServerFrame{ID: f.ID, Type: FrameResult, OK: true, DCCID: id})
 	case ActionXDCCClose:
 		c.writeResult(f.ID, s.b.XDCCClose(f.DCCID))
+	case ActionXDCCPause:
+		c.writeResult(f.ID, s.b.XDCCPause(f.DCCID))
+	case ActionXDCCResume:
+		c.writeResult(f.ID, s.b.XDCCResume(f.DCCID))
 	default:
 		c.writeFrame(ServerFrame{ID: f.ID, Type: FrameResult, OK: false, Error: "unknown action: " + f.Action})
 	}

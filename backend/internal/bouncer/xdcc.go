@@ -34,6 +34,14 @@ type XDCCTransferEvent struct {
 // redraw a progress bar.
 const progressInterval = 250 * time.Millisecond
 
+// xdccTransfer is the bookkeeping runXDCCTransfer registers under an id -
+// enough for XDCCClose/XDCCPause/XDCCResume/closeAllXDCC to reach an
+// in-progress transfer from outside its own goroutine.
+type xdccTransfer struct {
+	conn  net.Conn
+	pause *dcc.PauseGate
+}
+
 // XDCCAccept accepts a parsed XDCC/DCC SEND offer (see XDCCSendOfferEvent)
 // and downloads it into destDir, returning immediately with an id the
 // caller receives XDCCTransferEvent updates under - same shape as
@@ -119,8 +127,9 @@ func (b *Bouncer) XDCCAccept(serverID string, offer ircparse.XDCCSendOfferEvent,
 // one is a separate roadmap item, and there's nothing to resume from if
 // this deletes it first.
 func (b *Bouncer) runXDCCTransfer(id string, conn net.Conn, f *os.File, destPath string, size int64, sub Subscriber) {
+	t := &xdccTransfer{conn: conn, pause: dcc.NewPauseGate()}
 	b.dccMu.Lock()
-	b.xdccConns[id] = conn
+	b.xdccConns[id] = t
 	b.dccMu.Unlock()
 	defer func() {
 		b.dccMu.Lock()
@@ -132,7 +141,7 @@ func (b *Bouncer) runXDCCTransfer(id string, conn net.Conn, f *os.File, destPath
 
 	sub.SendStatus(id, "connected")
 	last := time.Now()
-	err := dcc.ReceiveFile(conn, f, size, func(received int64) {
+	err := dcc.ReceiveFile(conn, f, size, t.pause, func(received int64) {
 		if received < size && time.Since(last) < progressInterval {
 			return
 		}
@@ -151,15 +160,44 @@ func (b *Bouncer) runXDCCTransfer(id string, conn net.Conn, f *os.File, destPath
 // XDCCClose cancels an in-progress transfer - a no-op if it's already gone
 // (finished or never started). Closing conn is enough: ReceiveFile's Read
 // unblocks with an error and runXDCCTransfer's own cleanup takes it from
-// there, same shutdown shape as DCCClose.
+// there, same shutdown shape as DCCClose. Also resumes first - closing a
+// connection a PauseGate is currently blocking on wouldn't otherwise wake
+// ReceiveFile up to notice.
 func (b *Bouncer) XDCCClose(id string) error {
-	b.dccMu.Lock()
-	conn := b.xdccConns[id]
-	b.dccMu.Unlock()
-	if conn == nil {
+	t := b.xdccTransfer(id)
+	if t == nil {
 		return nil
 	}
-	return conn.Close()
+	t.pause.Resume()
+	return t.conn.Close()
+}
+
+// XDCCPause and XDCCResume pause/resume an in-progress transfer in place -
+// see dcc.PauseGate. Erroring on an unknown id (unlike XDCCClose's
+// already-gone no-op) because a pause/resume that silently did nothing
+// would leave the UI showing a state that never actually took effect.
+func (b *Bouncer) XDCCPause(id string) error {
+	t := b.xdccTransfer(id)
+	if t == nil {
+		return fmt.Errorf("bouncer: no transfer %q", id)
+	}
+	t.pause.Pause()
+	return nil
+}
+
+func (b *Bouncer) XDCCResume(id string) error {
+	t := b.xdccTransfer(id)
+	if t == nil {
+		return fmt.Errorf("bouncer: no transfer %q", id)
+	}
+	t.pause.Resume()
+	return nil
+}
+
+func (b *Bouncer) xdccTransfer(id string) *xdccTransfer {
+	b.dccMu.Lock()
+	defer b.dccMu.Unlock()
+	return b.xdccConns[id]
 }
 
 // closeAllXDCC aborts every still-running transfer - part of Shutdown, so
@@ -167,13 +205,14 @@ func (b *Bouncer) XDCCClose(id string) error {
 // with nothing left to ever report progress to).
 func (b *Bouncer) closeAllXDCC() {
 	b.dccMu.Lock()
-	conns := make([]net.Conn, 0, len(b.xdccConns))
-	for _, c := range b.xdccConns {
-		conns = append(conns, c)
+	transfers := make([]*xdccTransfer, 0, len(b.xdccConns))
+	for _, t := range b.xdccConns {
+		transfers = append(transfers, t)
 	}
 	b.dccMu.Unlock()
-	for _, c := range conns {
-		c.Close()
+	for _, t := range transfers {
+		t.pause.Resume() // a paused transfer would otherwise never notice conn.Close and hang Shutdown's wait
+		t.conn.Close()
 	}
 }
 

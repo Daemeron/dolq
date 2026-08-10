@@ -3,6 +3,7 @@ package dcc
 import (
 	"bytes"
 	"encoding/binary"
+	"io"
 	"net"
 	"testing"
 	"time"
@@ -81,7 +82,7 @@ func TestReceiveFile(t *testing.T) {
 
 	var out bytes.Buffer
 	var lastProgress int64
-	if err := ReceiveFile(conn, &out, int64(len(payload)), func(total int64) { lastProgress = total }); err != nil {
+	if err := ReceiveFile(conn, &out, int64(len(payload)), nil, func(total int64) { lastProgress = total }); err != nil {
 		t.Fatalf("ReceiveFile: %v", err)
 	}
 	if !bytes.Equal(out.Bytes(), payload) {
@@ -98,5 +99,58 @@ func TestReceiveFile(t *testing.T) {
 		}
 	case <-time.After(time.Second):
 		t.Fatal("no ack ever arrived")
+	}
+}
+
+// TestReceiveFilePause checks that a paused transfer genuinely stops making
+// progress until Resume, rather than just racing ahead regardless.
+func TestReceiveFilePause(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	defer ln.Close()
+
+	payload := bytes.Repeat([]byte("x"), 256*1024) // several 64KB chunks
+	go func() {
+		conn, err := ln.Accept()
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+		conn.Write(payload)
+		io.Copy(io.Discard, conn) // drain acks, otherwise a full send buffer could stall the sender
+	}()
+
+	conn, err := net.DialTimeout("tcp", ln.Addr().String(), time.Second)
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	defer conn.Close()
+
+	gate := NewPauseGate()
+	gate.Pause()
+
+	done := make(chan error, 1)
+	var out bytes.Buffer
+	go func() { done <- ReceiveFile(conn, &out, int64(len(payload)), gate, nil) }()
+
+	select {
+	case err := <-done:
+		t.Fatalf("ReceiveFile finished while paused (err=%v) - pause did not hold it up", err)
+	case <-time.After(100 * time.Millisecond):
+	}
+
+	gate.Resume()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("ReceiveFile: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("ReceiveFile never finished after Resume")
+	}
+	if out.Len() != len(payload) {
+		t.Fatalf("got %d bytes, want %d", out.Len(), len(payload))
 	}
 }

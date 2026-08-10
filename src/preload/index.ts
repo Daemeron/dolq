@@ -53,6 +53,10 @@ contextBridge.exposeInMainWorld('irc', {
 
   xdccClose: (xdccId: string) => ipcRenderer.invoke(IrcMessages.xdccClose, xdccId),
 
+  xdccPause: (xdccId: string) => ipcRenderer.invoke(IrcMessages.xdccPause, xdccId),
+
+  xdccResume: (xdccId: string) => ipcRenderer.invoke(IrcMessages.xdccResume, xdccId),
+
   openExternal: (url: string) => ipcRenderer.invoke(IrcMessages.openExternal, url),
 
   saveTextFile: (defaultName: string, content: string) =>

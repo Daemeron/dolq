@@ -19,6 +19,8 @@ const (
 	ActionDCCClose          = "dccClose"
 	ActionXDCCAccept        = "xdccAccept" // accepts a DCC SEND offer (see bouncer/xdcc.go) and downloads it
 	ActionXDCCClose         = "xdccClose"  // cancels an in-progress transfer
+	ActionXDCCPause         = "xdccPause"
+	ActionXDCCResume        = "xdccResume"
 )
 
 // Server -> client frame types.

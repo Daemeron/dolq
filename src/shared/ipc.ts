@@ -148,6 +148,11 @@ export type IrcApi = {
     serverId: string, nick: string, ip: string, port: number, filename: string, size: number, token?: string,
   ) => Promise<string>;
   xdccClose: (xdccId: string) => Promise<void>;
+  // Pause/resume an in-progress transfer in place - see
+  // backend/internal/dcc.PauseGate. Rejects if xdccId is unknown (already
+  // finished/closed), unlike xdccClose's quieter no-op.
+  xdccPause: (xdccId: string) => Promise<void>;
+  xdccResume: (xdccId: string) => Promise<void>;
   // Opens url in the OS's default browser (Electron's shell.openExternal) -
   // not something the renderer can do directly (no direct Node/Electron API
   // access, by design). Rejects for anything that isn't http(s) - see
@@ -185,6 +190,8 @@ export enum IrcMessages {
   dccClose = 'irc:dccClose',
   xdccAccept = 'irc:xdccAccept',
   xdccClose = 'irc:xdccClose',
+  xdccPause = 'irc:xdccPause',
+  xdccResume = 'irc:xdccResume',
   openExternal = 'irc:openExternal',
   saveTextFile = 'irc:saveTextFile',
   line = 'irc:line',

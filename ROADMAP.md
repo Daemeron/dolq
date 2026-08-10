@@ -536,7 +536,21 @@ will hang the UI.
       a partial file on failure so a future "resume" has something to resume
       from. Progress shows as a minimal status strip, not the queue/speed/
       pause-resume "Transfer manager UI" that's still its own item next
-- [ ] Transfer manager UI - queue, progress, speed, pause/resume
+- [x] Transfer manager UI - queue, progress, speed, pause/resume - the status
+      strip from the previous item is now a real queue: every transfer
+      xdccAccept starts stays listed, active or finished, until explicitly
+      dismissed (separate from cancelling one still in progress), instead of
+      vanishing the instant it completes. Speed is a plain bytes-since-last-
+      update/seconds-since-last-update calculation in the renderer (nothing
+      backend-side needed - XDCCTRANSFER already carries a timestamped byte
+      count). Pause/resume is `dcc.PauseGate` on the backend: pausing doesn't
+      send anything or touch the connection at all, it just stops the read
+      loop between chunks - TCP's own flow control backs up the sender on
+      its end automatically, which is all "pause" has ever needed to mean
+      here. Deliberately not the same as the next item: a paused transfer's
+      connection is still open and its progress still in memory, so nothing
+      here helps if the app restarts or the connection actually drops - see
+      "Resume partial downloads" for that
 - [ ] Resume partial downloads
 - [ ] Configurable download directory and port range (for active mode/NAT)
 - [ ] Basic pack-list browsing quality-of-life (search across known XDCC bots,

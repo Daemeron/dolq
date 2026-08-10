@@ -13,7 +13,7 @@ import { PreferencesModal } from './components/PreferencesModal';
 import { WhoisModal } from './components/WhoisModal';
 import { DCCOfferModal } from './components/DCCOfferModal';
 import { XDCCOfferModal } from './components/XDCCOfferModal';
-import { TransferStatus } from './components/TransferStatus';
+import { TransferStatus, type Transfer } from './components/TransferStatus';
 import { SearchModal } from './components/SearchModal';
 import { NickServIdentifyModal } from './components/NickServIdentifyModal';
 import { isNickServIdentifyPrompt } from './utils/nickserv';
@@ -114,13 +114,17 @@ export default function App() {
     { serverId: string; nick: string; filename: string; ip: string; port: number; size: number; token?: string } | null
   >(null);
   // Transfers xdccAccept has started, keyed by its own id - not a channel,
-  // just enough state to show progress until it finishes (see the
-  // XDCCTRANSFER case below and the status strip near MessageArea).
-  // Milestone 3's "Transfer manager UI" item is what eventually replaces
-  // this with something richer (queue, pause/resume, speed).
+  // just the transfer manager's own queue (see TransferStatus and the
+  // XDCCTRANSFER case below). Kept around (not deleted) once done/errored,
+  // until the user dismisses it - see handleDismissTransfer.
   const [transfers, setTransfers] = useState<
-    Record<string, { serverId: string; nick: string; filename: string; received: number; total: number; path: string; error?: string }>
+    Record<string, Transfer & { serverId: string; path: string }>
   >({});
+  // Per-transfer bookkeeping for the speed shown in TransferStatus - not
+  // render state itself (nothing reads it directly), just what the next
+  // XDCCTRANSFER needs to compute a bytes/sec delta against. A ref, not
+  // state, so updating it doesn't itself trigger a re-render.
+  const transferSpeedTrack = useRef<Record<string, { received: number; at: number }>>({});
   // The server a NickServ identify prompt (see utils/nickserv.ts) most
   // recently arrived on, if it hasn't been dismissed/actioned yet.
   const [pendingIdentifyServerId, setPendingIdentifyServerId] = useState<string | null>(null);
@@ -428,25 +432,37 @@ export default function App() {
             size: event.size, token: event.token,
           });
           break;
-        case 'XDCCTRANSFER':
+        case 'XDCCTRANSFER': {
           // serverId here is really the xdccAccept-returned transfer id
           // (see xdccAccept's doc) - onEvent is generic over "some id" the
           // same way onLine/onStatus already are for DCC CHAT.
-          setTransfers((prev) => {
-            const t = prev[serverId];
-            if (!t) return prev; // finished/cancelled locally already
-            if (event.done || event.error) {
-              const { [serverId]: _done, ...rest } = prev;
+          const id = serverId;
+          if (event.done || event.error) {
+            delete transferSpeedTrack.current[id];
+            setTransfers((prev) => {
+              const t = prev[id];
+              if (!t) return prev; // dismissed/cancelled locally already
               const text = event.error
                 ? `Download of ${t.filename} failed: ${event.error}`
                 : `Downloaded ${t.filename} to ${event.path}`;
               ensureQuery(t.serverId, t.nick);
               appendMessage(t.nick, { id: nextMsgId.current++, nick: '', text, timestamp: new Date(), system: true });
-              return rest;
-            }
-            return { ...prev, [serverId]: { ...t, received: event.received, total: event.total } };
+              return { ...prev, [id]: { ...t, received: event.received, total: event.total, path: event.path, done: event.done, error: event.error } };
+            });
+            break;
+          }
+          const now = Date.now();
+          const prevTrack = transferSpeedTrack.current[id];
+          const dt = prevTrack ? (now - prevTrack.at) / 1000 : 0;
+          const speedBps = dt > 0 ? (event.received - prevTrack.received) / dt : undefined;
+          transferSpeedTrack.current[id] = { received: event.received, at: now };
+          setTransfers((prev) => {
+            const t = prev[id];
+            if (!t) return prev;
+            return { ...prev, [id]: { ...t, received: event.received, total: event.total, speedBps: speedBps ?? t.speedBps } };
           });
           break;
+        }
         case 'AWAY':
           applyAwayEverywhere(event.nick, event.away);
           break;
@@ -650,10 +666,31 @@ export default function App() {
 
   function handleCancelTransfer(id: string) {
     window.irc.xdccClose(id);
+    delete transferSpeedTrack.current[id];
     setTransfers((prev) => {
       const { [id]: _cancelled, ...rest } = prev;
       return rest;
     });
+  }
+
+  // Dismisses a finished (done or errored) entry from the transfer manager
+  // - unlike handleCancelTransfer, there's nothing left running to tell the
+  // backend about, this is purely local list bookkeeping.
+  function handleDismissTransfer(id: string) {
+    setTransfers((prev) => {
+      const { [id]: _dismissed, ...rest } = prev;
+      return rest;
+    });
+  }
+
+  function handlePauseTransfer(id: string) {
+    window.irc.xdccPause(id);
+    setTransfers((prev) => (prev[id] ? { ...prev, [id]: { ...prev[id], paused: true } } : prev));
+  }
+
+  function handleResumeTransfer(id: string) {
+    window.irc.xdccResume(id);
+    setTransfers((prev) => (prev[id] ? { ...prev, [id]: { ...prev[id], paused: false } } : prev));
   }
 
   function handleIdentify(password: string) {
@@ -823,7 +860,13 @@ export default function App() {
           onDecline={handleDeclineXDCCOffer}
         />
       )}
-      <TransferStatus transfers={transfers} onCancel={handleCancelTransfer} />
+      <TransferStatus
+        transfers={transfers}
+        onPause={handlePauseTransfer}
+        onResume={handleResumeTransfer}
+        onCancel={handleCancelTransfer}
+        onDismiss={handleDismissTransfer}
+      />
       {showSearch && (
         <SearchModal
           servers={servers}

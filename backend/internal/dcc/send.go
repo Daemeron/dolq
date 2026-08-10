@@ -6,6 +6,7 @@ import (
 	"net"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 // SendOffer is a parsed CTCP "DCC SEND" request - see ParseSendOffer.
@@ -65,6 +66,50 @@ func ParseSendOffer(param string) (SendOffer, bool) {
 	return offer, true
 }
 
+// PauseGate lets a caller pause and resume a ReceiveFile transfer in
+// progress without closing the underlying connection. Pausing doesn't send
+// anything - it just stops reading, and TCP's own flow control does the
+// rest: the sender's writes back up and block on their end automatically,
+// no protocol-level "pause" message DCC has ever had. The zero value isn't
+// usable - construct with NewPauseGate.
+type PauseGate struct {
+	mu     sync.Mutex
+	paused bool
+	resume chan struct{}
+}
+
+func NewPauseGate() *PauseGate {
+	return &PauseGate{resume: make(chan struct{})}
+}
+
+func (g *PauseGate) Pause() {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.paused = true
+}
+
+func (g *PauseGate) Resume() {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if g.paused {
+		g.paused = false
+		close(g.resume)
+		g.resume = make(chan struct{})
+	}
+}
+
+// wait blocks for as long as the gate is paused at the moment it's called -
+// checked once per chunk in ReceiveFile's loop, not mid-read (a single
+// conn.Read call is never long enough to matter).
+func (g *PauseGate) wait() {
+	g.mu.Lock()
+	paused, ch := g.paused, g.resume
+	g.mu.Unlock()
+	if paused {
+		<-ch
+	}
+}
+
 // ReceiveFile copies exactly size bytes from conn into w, calling
 // onProgress after each chunk with the running total. After each chunk it
 // also writes a 4-byte big-endian running total back to conn - the original
@@ -73,11 +118,14 @@ func ParseSendOffer(param string) (SendOffer, bool) {
 // That 4-byte width is a real ceiling inherited from the spec (wraps past
 // 4GB); not worked around here since a receiver-side ack format is only
 // useful if the sender speaks the same extension, which isn't something
-// this client controls.
-func ReceiveFile(conn net.Conn, w io.Writer, size int64, onProgress func(total int64)) error {
+// this client controls. pause may be nil (never pauses).
+func ReceiveFile(conn net.Conn, w io.Writer, size int64, pause *PauseGate, onProgress func(total int64)) error {
 	buf := make([]byte, 64*1024)
 	var total int64
 	for total < size {
+		if pause != nil {
+			pause.wait()
+		}
 		n, err := conn.Read(buf)
 		if n > 0 {
 			if _, werr := w.Write(buf[:n]); werr != nil {

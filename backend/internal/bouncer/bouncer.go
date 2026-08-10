@@ -7,7 +7,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"net"
 	"strings"
 	"sync"
 	"time"
@@ -164,7 +163,7 @@ type Bouncer struct {
 	// state and there's no reason for the two to contend with each other.
 	dccMu       sync.Mutex
 	dccSessions map[string]*dcc.Session
-	xdccConns   map[string]net.Conn
+	xdccConns   map[string]*xdccTransfer
 
 	// Overridable before any Connect() call - tests shrink these so a
 	// reconnect test doesn't have to sit through a real backoff.
@@ -180,7 +179,7 @@ func New(store *history.Store) *Bouncer {
 	return &Bouncer{
 		sessions:             make(map[string]*session),
 		dccSessions:          make(map[string]*dcc.Session),
-		xdccConns:            make(map[string]net.Conn),
+		xdccConns:            make(map[string]*xdccTransfer),
 		store:                store,
 		ReconnectBackoffBase: 2 * time.Second,
 		ReconnectBackoffMax:  60 * time.Second,
