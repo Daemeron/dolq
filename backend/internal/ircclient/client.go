@@ -682,9 +682,11 @@ func (c *Client) handleCTCPRequest(e ircparse.CTCPRequestEvent) {
 // answers automatically, and unlike every other CTCP request, this one
 // *does* leave ircclient as an event (there's something to actually show:
 // an offer, not just a reply to send). CHAT and SEND (the latter is how an
-// XDCC bot answers "XDCC SEND #n" - see xdcc.ParseListLine) are the only
-// subcommands handled; anything else is silently ignored, same as an
-// unrecognized CTCP command anywhere else in this file.
+// XDCC bot answers "XDCC SEND #n" - see xdcc.ParseListLine) and ACCEPT (a
+// bot's answer to our own "DCC RESUME" request - see
+// bouncer.requestResume) are the only subcommands handled; anything else is
+// silently ignored, same as an unrecognized CTCP command anywhere else in
+// this file.
 func (c *Client) handleDCCRequest(nick, param string) {
 	fields := strings.Fields(param)
 	if len(fields) == 0 {
@@ -713,6 +715,15 @@ func (c *Client) handleDCCRequest(nick, param string) {
 		c.emitEvent(ircparse.XDCCSendOfferEvent{
 			Type: "XDCCSENDOFFER", Nick: nick, Filename: offer.Filename,
 			IP: offer.IP, Port: offer.Port, Size: offer.Size, Token: offer.Token,
+		})
+	case "ACCEPT":
+		accept, ok := dcc.ParseResumeAccept(param)
+		if !ok {
+			return
+		}
+		c.emitEvent(ircparse.XDCCResumeAcceptEvent{
+			Type: "XDCCRESUMEACCEPT", Nick: nick, Filename: accept.Filename,
+			Port: accept.Port, Position: accept.Position, Token: accept.Token,
 		})
 	}
 }

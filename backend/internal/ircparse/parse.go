@@ -153,6 +153,21 @@ type XDCCPackEvent struct {
 	Filename string `json:"filename"`
 }
 
+// XDCCResumeAcceptEvent is a parsed CTCP "DCC ACCEPT" reply - a bot
+// confirming the byte offset it'll resume sending from, answering an earlier
+// "DCC RESUME" request of ours (see bouncer.requestResume). Position is the
+// bot's own word on where the file's contents actually diverge, which is
+// what a resumed transfer picks up from - not necessarily whatever we asked
+// for, if the bot's copy of the file differs.
+type XDCCResumeAcceptEvent struct {
+	Type     string `json:"type"`
+	Nick     string `json:"nick"`
+	Filename string `json:"filename"`
+	Port     int    `json:"port"`
+	Position int64  `json:"position"`
+	Token    string `json:"token,omitempty"`
+}
+
 type JoinEvent struct {
 	Type    string `json:"type"`
 	Nick    string `json:"nick"`

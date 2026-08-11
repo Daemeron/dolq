@@ -551,7 +551,25 @@ will hang the UI.
       connection is still open and its progress still in memory, so nothing
       here helps if the app restarts or the connection actually drops - see
       "Resume partial downloads" for that
-- [ ] Resume partial downloads
+- [x] Resume partial downloads - accepting a pack whose filename already has
+      a same-named, smaller file sitting in the download directory (left
+      over from an earlier attempt that never finished - a partial file is
+      never deleted on failure, see the XDCC GET item above) now tries a
+      standard CTCP `DCC RESUME`/`DCC ACCEPT` handshake with the bot before
+      connecting (`bouncer.requestResume`, `ircparse.XDCCResumeAcceptEvent`),
+      appending the remaining bytes onto the existing file instead of
+      re-downloading it whole or uniquePath-ing a second copy next to it.
+      Entirely automatic - no new UI, no separate "resume" action - clicking
+      the same pack again is what starts it. A bot that doesn't answer the
+      resume request within `ResumeAcceptTimeout` (many don't support it at
+      all) just falls back to downloading fresh, same as before this
+      existed. `dcc.ReceiveFile` grew a `base` offset so the wire's byte
+      counting - both the running-total ack and progress reporting - can
+      stay in terms of the whole file's absolute position, not just what
+      one connection itself transferred. Distinct from pause/resume in the
+      previous item: this is a *new* connection continuing an *old* file
+      after the transfer stopped entirely (app restart, dropped connection,
+      crash), not one already-open connection being told to keep going
 - [ ] Configurable download directory and port range (for active mode/NAT)
 - [ ] Basic pack-list browsing quality-of-life (search across known XDCC bots,
       if feasible without violating any bot's own rules)

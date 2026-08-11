@@ -2,6 +2,7 @@ package bouncer
 
 import (
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"os"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	"github.com/Daemeron/dolq/backend/internal/dcc"
+	"github.com/Daemeron/dolq/backend/internal/ircclient"
 	"github.com/Daemeron/dolq/backend/internal/ircparse"
 	"github.com/google/uuid"
 )
@@ -42,16 +44,41 @@ type xdccTransfer struct {
 	pause *dcc.PauseGate
 }
 
+// DefaultResumeAcceptTimeout bounds how long XDCCAccept waits for a bot's
+// CTCP DCC ACCEPT reply to a DCC RESUME request before giving up and
+// starting the pack over from scratch instead - a bot that doesn't support
+// resume just never replies, same "give up and move on" shape as every
+// other handshake timeout in this codebase (see ircclient.DefaultCapTimeout).
+// Overridable per-Bouncer - see ResumeAcceptTimeout.
+const DefaultResumeAcceptTimeout = 10 * time.Second
+
 // XDCCAccept accepts a parsed XDCC/DCC SEND offer (see XDCCSendOfferEvent)
-// and downloads it into destDir, returning immediately with an id the
-// caller receives XDCCTransferEvent updates under - same shape as
-// DCCOffer/DCCAccept, the transfer itself runs on its own goroutine.
+// and downloads it into destDir, returning an id the caller receives
+// XDCCTransferEvent updates under - same shape as DCCOffer/DCCAccept.
 // offer.Filename is untrusted (a network peer chose it) so it's never used
 // as anything but a base name within destDir - see safeFilename.
+//
+// If a partial download of the same name is already sitting in destDir
+// (left behind by an earlier attempt that never finished - see
+// runXDCCTransfer's doc), this first tries to resume it via a CTCP DCC
+// RESUME/ACCEPT handshake (requestResume) before connecting, appending onto
+// it rather than starting over. That handshake blocks this call for up to
+// ResumeAcceptTimeout; harmless since ipcproto handles every frame on its
+// own goroutine (see Server.handleConn).
 func (b *Bouncer) XDCCAccept(serverID string, offer ircparse.XDCCSendOfferEvent, destDir string, sub Subscriber) (string, error) {
 	id := "xdcc:" + uuid.NewString()
-	destPath := uniquePath(destDir, safeFilename(offer.Filename))
-	f, err := os.Create(destPath)
+
+	b.mu.Lock()
+	sess := b.sessions[serverID]
+	b.mu.Unlock()
+	if sess == nil {
+		return "", fmt.Errorf("bouncer: no session for %q", serverID)
+	}
+	sess.mu.Lock()
+	client := sess.client
+	sess.mu.Unlock()
+
+	destPath, base, f, err := openDestination(client, offer, destDir, b.ResumeAcceptTimeout)
 	if err != nil {
 		return "", err
 	}
@@ -67,7 +94,7 @@ func (b *Bouncer) XDCCAccept(serverID string, offer ircparse.XDCCSendOfferEvent,
 				f.Close()
 				return
 			}
-			b.runXDCCTransfer(id, conn, f, destPath, offer.Size, sub)
+			b.runXDCCTransfer(id, conn, f, destPath, base, offer.Size, sub)
 		}()
 		return id, nil
 	}
@@ -75,17 +102,6 @@ func (b *Bouncer) XDCCAccept(serverID string, offer ircparse.XDCCSendOfferEvent,
 	// Passive/reverse: the sender can't accept a connection (usually NAT),
 	// so we listen instead and tell them our address - same handshake shape
 	// as DCCOffer, just replying to an offer instead of making one.
-	b.mu.Lock()
-	sess := b.sessions[serverID]
-	b.mu.Unlock()
-	if sess == nil {
-		f.Close()
-		return "", fmt.Errorf("bouncer: no session for %q", serverID)
-	}
-	sess.mu.Lock()
-	client := sess.client
-	sess.mu.Unlock()
-
 	ln, err := dcc.Listen()
 	if err != nil {
 		f.Close()
@@ -115,18 +131,96 @@ func (b *Bouncer) XDCCAccept(serverID string, offer ircparse.XDCCSendOfferEvent,
 			f.Close()
 			return
 		}
-		b.runXDCCTransfer(id, conn, f, destPath, offer.Size, sub)
+		b.runXDCCTransfer(id, conn, f, destPath, base, offer.Size, sub)
 	}()
 	return id, nil
 }
 
+// openDestination decides where offer's bytes land and opens it: if a
+// partial download of the same name already exists in destDir and a resume
+// handshake succeeds (requestResume), that file is reopened for append and
+// base is how much of it to keep; otherwise (no partial file, or the bot
+// didn't answer the resume request) a fresh file is created via uniquePath,
+// same as before resume support existed, and base is 0.
+func openDestination(client *ircclient.Client, offer ircparse.XDCCSendOfferEvent, destDir string, acceptTimeout time.Duration) (destPath string, base int64, f *os.File, err error) {
+	natural := filepath.Join(destDir, safeFilename(offer.Filename))
+	if stat, statErr := os.Stat(natural); statErr == nil && stat.Size() > 0 && stat.Size() < offer.Size {
+		if position, ok := requestResume(client, offer, stat.Size(), acceptTimeout); ok {
+			f, err := os.OpenFile(natural, os.O_WRONLY, 0o644)
+			if err != nil {
+				return "", 0, nil, err
+			}
+			if err := f.Truncate(position); err != nil {
+				f.Close()
+				return "", 0, nil, err
+			}
+			if _, err := f.Seek(0, io.SeekEnd); err != nil {
+				f.Close()
+				return "", 0, nil, err
+			}
+			return natural, position, f, nil
+		}
+	}
+
+	destPath = uniquePath(destDir, safeFilename(offer.Filename))
+	f, err = os.Create(destPath)
+	if err != nil {
+		return "", 0, nil, err
+	}
+	return destPath, 0, f, nil
+}
+
+// requestResume asks offer.Nick to resume offer.Filename at existing bytes
+// in via CTCP DCC RESUME, blocking for its DCC ACCEPT reply (or
+// acceptTimeout, whichever comes first). ok is false if the bot never
+// replies at all, or replies for a different transfer - either way the
+// caller falls back to a fresh download.
+//
+// Known ceiling: the event listener this registers on client is never
+// removed - ircclient has no API for that (nothing else in this codebase
+// removes one either). One extra listener per resume attempt is negligible
+// for a session's lifetime; revisit if that ever stops being true.
+func requestResume(client *ircclient.Client, offer ircparse.XDCCSendOfferEvent, existing int64, acceptTimeout time.Duration) (position int64, ok bool) {
+	accepted := make(chan ircparse.XDCCResumeAcceptEvent, 1)
+	client.AddEventListener(func(event any) {
+		e, ok := event.(ircparse.XDCCResumeAcceptEvent)
+		if !ok || e.Nick != offer.Nick || e.Filename != offer.Filename {
+			return
+		}
+		select {
+		case accepted <- e:
+		default:
+		}
+	})
+
+	// Token only ever appears in a passive/reverse RESUME (matching a
+	// passive offer's own token) - an active offer never had one to echo
+	// back, and a trailing empty field could confuse a strict bot's parser.
+	resume := fmt.Sprintf("DCC RESUME %s %d %d", quoteIfSpaced(offer.Filename), offer.Port, existing)
+	if offer.Token != "" {
+		resume += " " + offer.Token
+	}
+	line := fmt.Sprintf("PRIVMSG %s :\x01%s\x01", offer.Nick, resume)
+	if err := client.SendPaced(line); err != nil {
+		return 0, false
+	}
+
+	select {
+	case e := <-accepted:
+		return e.Position, true
+	case <-time.After(acceptTimeout):
+		return 0, false
+	}
+}
+
 // runXDCCTransfer drives one accepted transfer to completion - registering
-// it (so Shutdown/XDCCClose can reach it), streaming bytes to disk, and
-// reporting progress/completion/error, in every case leaving whatever was
-// written on disk in place rather than deleting a partial file: resuming
-// one is a separate roadmap item, and there's nothing to resume from if
-// this deletes it first.
-func (b *Bouncer) runXDCCTransfer(id string, conn net.Conn, f *os.File, destPath string, size int64, sub Subscriber) {
+// it (so Shutdown/XDCCClose can reach it), streaming bytes to disk from
+// base onward (0 for a fresh download, or however much of a partial file
+// openDestination resumed from), and reporting progress/completion/error.
+// It leaves whatever ends up on disk in place on failure rather than
+// deleting it - a future XDCCAccept for the same pack has something to
+// resume from (see openDestination) instead of starting over.
+func (b *Bouncer) runXDCCTransfer(id string, conn net.Conn, f *os.File, destPath string, base, size int64, sub Subscriber) {
 	t := &xdccTransfer{conn: conn, pause: dcc.NewPauseGate()}
 	b.dccMu.Lock()
 	b.xdccConns[id] = t
@@ -141,7 +235,7 @@ func (b *Bouncer) runXDCCTransfer(id string, conn net.Conn, f *os.File, destPath
 
 	sub.SendStatus(id, "connected")
 	last := time.Now()
-	err := dcc.ReceiveFile(conn, f, size, t.pause, func(received int64) {
+	err := dcc.ReceiveFile(conn, f, base, size, t.pause, func(received int64) {
 		if received < size && time.Since(last) < progressInterval {
 			return
 		}

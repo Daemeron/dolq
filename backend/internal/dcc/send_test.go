@@ -9,6 +9,40 @@ import (
 	"time"
 )
 
+func TestParseResumeAccept(t *testing.T) {
+	cases := []struct {
+		name  string
+		param string
+		want  ResumeAccept
+		ok    bool
+	}{
+		{
+			"active, unquoted filename",
+			"ACCEPT file.txt 5000 1024",
+			ResumeAccept{Filename: "file.txt", Port: 5000, Position: 1024}, true,
+		},
+		{
+			"passive, quoted filename with a space, and a token",
+			`ACCEPT "my file.txt" 0 1024 7`,
+			ResumeAccept{Filename: "my file.txt", Position: 1024, Token: "7"}, true,
+		},
+		{"not an ACCEPT at all", "SEND file.txt 3232235777 5000 1024", ResumeAccept{}, false},
+		{"too few fields", "ACCEPT file.txt 5000", ResumeAccept{}, false},
+		{"non-numeric position", "ACCEPT file.txt 5000 notaposition", ResumeAccept{}, false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got, ok := ParseResumeAccept(c.param)
+			if ok != c.ok {
+				t.Fatalf("ok = %v, want %v", ok, c.ok)
+			}
+			if ok && got != c.want {
+				t.Fatalf("got %+v, want %+v", got, c.want)
+			}
+		})
+	}
+}
+
 func TestParseSendOffer(t *testing.T) {
 	cases := []struct {
 		name  string
@@ -82,7 +116,7 @@ func TestReceiveFile(t *testing.T) {
 
 	var out bytes.Buffer
 	var lastProgress int64
-	if err := ReceiveFile(conn, &out, int64(len(payload)), nil, func(total int64) { lastProgress = total }); err != nil {
+	if err := ReceiveFile(conn, &out, 0, int64(len(payload)), nil, func(total int64) { lastProgress = total }); err != nil {
 		t.Fatalf("ReceiveFile: %v", err)
 	}
 	if !bytes.Equal(out.Bytes(), payload) {
@@ -99,6 +133,50 @@ func TestReceiveFile(t *testing.T) {
 		}
 	case <-time.After(time.Second):
 		t.Fatal("no ack ever arrived")
+	}
+}
+
+// TestReceiveFileResume checks a non-zero base: only the bytes the sender
+// actually writes count toward size, acks/onProgress report the file's
+// absolute position (base-relative, not just what this call wrote), and w
+// only ever receives the resumed portion - the caller (openDestination) is
+// the one responsible for w already containing the first base bytes.
+func TestReceiveFileResume(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	defer ln.Close()
+
+	const base = 1024
+	rest := bytes.Repeat([]byte("y"), 4096)
+	go func() {
+		conn, err := ln.Accept()
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+		conn.Write(rest)
+		io.Copy(io.Discard, conn)
+	}()
+
+	conn, err := net.DialTimeout("tcp", ln.Addr().String(), time.Second)
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	defer conn.Close()
+
+	var out bytes.Buffer
+	var lastProgress int64
+	size := int64(base + len(rest))
+	if err := ReceiveFile(conn, &out, base, size, nil, func(total int64) { lastProgress = total }); err != nil {
+		t.Fatalf("ReceiveFile: %v", err)
+	}
+	if !bytes.Equal(out.Bytes(), rest) {
+		t.Fatalf("w received %d bytes, want exactly the %d-byte resumed portion", out.Len(), len(rest))
+	}
+	if lastProgress != size {
+		t.Fatalf("final onProgress total = %d, want %d (base + resumed bytes)", lastProgress, size)
 	}
 }
 
@@ -133,7 +211,7 @@ func TestReceiveFilePause(t *testing.T) {
 
 	done := make(chan error, 1)
 	var out bytes.Buffer
-	go func() { done <- ReceiveFile(conn, &out, int64(len(payload)), gate, nil) }()
+	go func() { done <- ReceiveFile(conn, &out, 0, int64(len(payload)), gate, nil) }()
 
 	select {
 	case err := <-done:

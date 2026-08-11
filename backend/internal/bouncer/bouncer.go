@@ -173,6 +173,11 @@ type Bouncer struct {
 	// Overridable before any DCCOffer() call - tests shrink this so an
 	// unaccepted-offer test doesn't have to sit through the real timeout.
 	DCCAcceptTimeout time.Duration
+
+	// Overridable before any XDCCAccept() call - tests shrink this so a
+	// bot-never-replies resume test doesn't have to sit through the real
+	// timeout. See requestResume.
+	ResumeAcceptTimeout time.Duration
 }
 
 func New(store *history.Store) *Bouncer {
@@ -184,6 +189,7 @@ func New(store *history.Store) *Bouncer {
 		ReconnectBackoffBase: 2 * time.Second,
 		ReconnectBackoffMax:  60 * time.Second,
 		DCCAcceptTimeout:     DefaultDCCAcceptTimeout,
+		ResumeAcceptTimeout:  DefaultResumeAcceptTimeout,
 	}
 }
 

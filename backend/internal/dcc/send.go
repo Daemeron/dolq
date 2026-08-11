@@ -28,18 +28,8 @@ func ParseSendOffer(param string) (SendOffer, bool) {
 	if !ok {
 		return SendOffer{}, false
 	}
-	rest = strings.TrimSpace(rest)
-
-	var filename string
-	if strings.HasPrefix(rest, `"`) {
-		end := strings.IndexByte(rest[1:], '"')
-		if end < 0 {
-			return SendOffer{}, false
-		}
-		filename, rest = rest[1:1+end], strings.TrimSpace(rest[1+end+1:])
-	} else if sp := strings.IndexByte(rest, ' '); sp >= 0 {
-		filename, rest = rest[:sp], strings.TrimSpace(rest[sp+1:])
-	} else {
+	filename, rest, ok := cutFilename(rest)
+	if !ok {
 		return SendOffer{}, false
 	}
 
@@ -64,6 +54,66 @@ func ParseSendOffer(param string) (SendOffer, bool) {
 		offer.Token = fields[3]
 	}
 	return offer, true
+}
+
+// ResumeAccept is a parsed CTCP "DCC ACCEPT" reply - a bot's answer to our
+// DCC RESUME request, confirming the byte offset it'll actually resume
+// sending from (see bouncer.requestResume).
+type ResumeAccept struct {
+	Filename string
+	Port     int
+	Position int64
+	Token    string
+}
+
+// ParseResumeAccept parses a CTCP DCC ACCEPT reply's param: "ACCEPT
+// <filename> <port> <position> [token]" - the same filename-quoting
+// convention ParseSendOffer handles.
+func ParseResumeAccept(param string) (ResumeAccept, bool) {
+	rest, ok := strings.CutPrefix(param, "ACCEPT ")
+	if !ok {
+		return ResumeAccept{}, false
+	}
+	filename, rest, ok := cutFilename(rest)
+	if !ok {
+		return ResumeAccept{}, false
+	}
+
+	fields := strings.Fields(rest)
+	if len(fields) < 2 {
+		return ResumeAccept{}, false
+	}
+	port, err := strconv.Atoi(fields[0])
+	if err != nil {
+		return ResumeAccept{}, false
+	}
+	position, err := strconv.ParseInt(fields[1], 10, 64)
+	if err != nil {
+		return ResumeAccept{}, false
+	}
+	accept := ResumeAccept{Filename: filename, Port: port, Position: position}
+	if len(fields) >= 3 {
+		accept.Token = fields[2]
+	}
+	return accept, true
+}
+
+// cutFilename splits a DCC SEND/RESUME/ACCEPT param's leading filename off
+// the rest of it - double-quoted if it contains spaces, a single bare token
+// otherwise (see ParseSendOffer).
+func cutFilename(rest string) (filename, remainder string, ok bool) {
+	rest = strings.TrimSpace(rest)
+	if strings.HasPrefix(rest, `"`) {
+		end := strings.IndexByte(rest[1:], '"')
+		if end < 0 {
+			return "", "", false
+		}
+		return rest[1 : 1+end], strings.TrimSpace(rest[1+end+1:]), true
+	}
+	if name, remainder, found := strings.Cut(rest, " "); found {
+		return name, strings.TrimSpace(remainder), true
+	}
+	return "", "", false
 }
 
 // PauseGate lets a caller pause and resume a ReceiveFile transfer in
@@ -110,18 +160,25 @@ func (g *PauseGate) wait() {
 	}
 }
 
-// ReceiveFile copies exactly size bytes from conn into w, calling
-// onProgress after each chunk with the running total. After each chunk it
-// also writes a 4-byte big-endian running total back to conn - the original
-// DCC SEND spec's own flow-control/completion ack, which most bot software
-// still expects even though TCP already provides flow control on its own.
-// That 4-byte width is a real ceiling inherited from the spec (wraps past
-// 4GB); not worked around here since a receiver-side ack format is only
-// useful if the sender speaks the same extension, which isn't something
-// this client controls. pause may be nil (never pauses).
-func ReceiveFile(conn net.Conn, w io.Writer, size int64, pause *PauseGate, onProgress func(total int64)) error {
+// ReceiveFile copies from conn into w until size total bytes have been
+// written, calling onProgress after each chunk with the running total.
+// After each chunk it also writes a 4-byte big-endian running total back to
+// conn - the original DCC SEND spec's own flow-control/completion ack,
+// which most bot software still expects even though TCP already provides
+// flow control on its own. That 4-byte width is a real ceiling inherited
+// from the spec (wraps past 4GB); not worked around here since a receiver-
+// side ack format is only useful if the sender speaks the same extension,
+// which isn't something this client controls. pause may be nil (never
+// pauses).
+//
+// base is how much of the file is already on disk (0 for a fresh
+// download) - conn is expected to start delivering at that offset, exactly
+// as a bot that's ACCEPTed a DCC RESUME request does, and both the acks and
+// onProgress report the file's absolute position rather than just what
+// this call itself wrote.
+func ReceiveFile(conn net.Conn, w io.Writer, base, size int64, pause *PauseGate, onProgress func(total int64)) error {
 	buf := make([]byte, 64*1024)
-	var total int64
+	total := base
 	for total < size {
 		if pause != nil {
 			pause.wait()

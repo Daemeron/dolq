@@ -536,6 +536,27 @@ func TestCTCP(t *testing.T) {
 		}
 	})
 
+	t.Run("emits an XDCCResumeAcceptEvent for a DCC ACCEPT reply", func(t *testing.T) {
+		c, server, r := pipeClient(t, "testnick")
+		events := make(chan any, 1)
+		c.AddEventListener(func(e any) { events <- e })
+		c.Start()
+		drainHandshake(t, r)
+
+		writeLine(t, server, `:alice!u@host PRIVMSG testnick :`+"\x01"+`DCC ACCEPT "my file.txt" 5000 512 7`+"\x01")
+		select {
+		case e := <-events:
+			want := ircparse.XDCCResumeAcceptEvent{
+				Type: "XDCCRESUMEACCEPT", Nick: "alice", Filename: "my file.txt", Port: 5000, Position: 512, Token: "7",
+			}
+			if e != want {
+				t.Errorf("got %#v, want %#v", e, want)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("timed out waiting for the XDCCResumeAcceptEvent")
+		}
+	})
+
 	t.Run("ignores an unrecognized DCC subcommand", func(t *testing.T) {
 		c, server, r := pipeClient(t, "testnick")
 		events := make(chan any, 1)
