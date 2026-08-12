@@ -58,12 +58,16 @@ type ClientFrame struct {
 	// same way (ids are just distinguished by their "dcc:"/"xdcc:" prefix);
 	// xdccAccept also reuses ServerID/Host/Port/Nick (an XDCCSendOfferEvent's
 	// own IP/Port/Nick) plus Filename/Size/Token from that same event and
-	// DestDir for where to save it.
+	// DestDir for where to save it. PortMin/PortMax constrain the listener
+	// dccOffer and xdccAccept's passive branch open (see dcc.Listen) - both
+	// 0 lets the OS pick any free port.
 	DCCID    string `json:"dccId,omitempty"`
 	Filename string `json:"filename,omitempty"`
 	Size     int64  `json:"size,omitempty"`
 	Token    string `json:"token,omitempty"`
 	DestDir  string `json:"destDir,omitempty"`
+	PortMin  int    `json:"portMin,omitempty"`
+	PortMax  int    `json:"portMax,omitempty"`
 }
 
 // ServerFrame is one line the backend sends back.

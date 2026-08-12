@@ -143,7 +143,7 @@ func (s *Server) handleFrame(c *conn, f ClientFrame) {
 		}
 		c.writeFrame(ServerFrame{ID: f.ID, Type: FrameResult, OK: true, Messages: entries})
 	case ActionDCCOffer:
-		id, err := s.b.DCCOffer(f.ServerID, f.Nick, c)
+		id, err := s.b.DCCOffer(f.ServerID, f.Nick, f.PortMin, f.PortMax, c)
 		if err != nil {
 			c.writeFrame(ServerFrame{ID: f.ID, Type: FrameResult, OK: false, Error: err.Error()})
 			return
@@ -164,7 +164,7 @@ func (s *Server) handleFrame(c *conn, f ClientFrame) {
 		offer := ircparse.XDCCSendOfferEvent{
 			Nick: f.Nick, Filename: f.Filename, IP: f.Host, Port: f.Port, Size: f.Size, Token: f.Token,
 		}
-		id, err := s.b.XDCCAccept(f.ServerID, offer, f.DestDir, c)
+		id, err := s.b.XDCCAccept(f.ServerID, offer, f.DestDir, f.PortMin, f.PortMax, c)
 		if err != nil {
 			c.writeFrame(ServerFrame{ID: f.ID, Type: FrameResult, OK: false, Error: err.Error()})
 			return

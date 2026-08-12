@@ -101,6 +101,18 @@ export type Settings = {
   // own default). Takes effect on the next launch, not live - it's a launch
   // flag, not something dolqd can be told to change mid-run.
   retentionDays: number;
+  // Where xdccAccept saves finished downloads - empty/undefined defaults to
+  // the OS Downloads folder, resolved in main (see registerIrcHandlers).
+  // Unlike retentionDays, this applies immediately: it's read fresh out of
+  // Settings on every xdccAccept call, not baked into a launch flag.
+  downloadDir?: string;
+  // Constrains the port dccOffer/xdccAccept's passive branch listen on -
+  // both empty/0 (the default) lets the OS pick any free one, same as
+  // before this existed. A fixed range is what a user behind NAT actually
+  // forwards in their router; a random OS-chosen port can't be forwarded
+  // ahead of time. Same "read fresh on every call" immediacy as downloadDir.
+  dccPortMin?: number;
+  dccPortMax?: number;
 };
 
 export type IrcApi = {
@@ -164,6 +176,9 @@ export type IrcApi = {
   // to wherever the user picks - fs isn't reachable from the renderer
   // either. Resolves false (not rejects) if the user cancels the dialog.
   saveTextFile: (defaultName: string, content: string) => Promise<boolean>;
+  // Prompts a native directory picker (Preferences' download-directory
+  // field) - resolves null, not rejects, if the user cancels.
+  chooseDirectory: (defaultPath?: string) => Promise<string | null>;
   onLine: (callback: (serverId: string, line: string) => void) => () => void;
   onEvent: (callback: (serverId: string, event: IrcEvent) => void) => () => void;
   onStatus: (callback: (serverId: string, status: ConnectionStatus) => void) => () => void;
@@ -194,6 +209,7 @@ export enum IrcMessages {
   xdccResume = 'irc:xdccResume',
   openExternal = 'irc:openExternal',
   saveTextFile = 'irc:saveTextFile',
+  chooseDirectory = 'irc:chooseDirectory',
   line = 'irc:line',
   event = 'irc:event',
   status = 'irc:status',

@@ -111,7 +111,7 @@ func TestXDCCAcceptResumesPartialFile(t *testing.T) {
 
 	idCh := make(chan string, 1)
 	go func() {
-		id, err := b.XDCCAccept("server-a", offer, dir, sub)
+		id, err := b.XDCCAccept("server-a", offer, dir, 0, 0, sub)
 		if err != nil {
 			t.Errorf("XDCCAccept: %v", err)
 			return
@@ -192,7 +192,7 @@ func TestXDCCAcceptFallsBackToFreshWhenBotIgnoresResume(t *testing.T) {
 	}
 	idCh := make(chan string, 1)
 	go func() {
-		id, err := b.XDCCAccept("server-a", offer, dir, sub)
+		id, err := b.XDCCAccept("server-a", offer, dir, 0, 0, sub)
 		if err != nil {
 			t.Errorf("XDCCAccept: %v", err)
 			return

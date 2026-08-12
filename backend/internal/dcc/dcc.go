@@ -11,6 +11,7 @@ import (
 	"bufio"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"log"
 	"net"
 	"strconv"
@@ -54,11 +55,29 @@ func DialRaw(ip string, port int) (net.Conn, error) {
 	return net.Dial("tcp", net.JoinHostPort(ip, strconv.Itoa(port)))
 }
 
-// Listen opens a TCP listener on an OS-chosen port - the path an offer's
-// *sender* takes: listen first, then announce the port (and LocalIP) in the
-// CTCP request, then AcceptOnce.
-func Listen() (net.Listener, error) {
-	return net.Listen("tcp", ":0")
+// Listen opens a TCP listener - the path an offer's *sender* takes: listen
+// first, then announce the port (and LocalIP) in the CTCP request, then
+// AcceptOnce. minPort/maxPort constrain which port it binds: both zero (the
+// default) lets the OS pick any free one, otherwise ports from minPort to
+// maxPort are tried in order and the first free one wins - the fixed range
+// a user behind NAT can actually forward in their router, unlike a random
+// OS-chosen port that changes every time.
+func Listen(minPort, maxPort int) (net.Listener, error) {
+	if minPort == 0 && maxPort == 0 {
+		return net.Listen("tcp", ":0")
+	}
+	if minPort <= 0 || maxPort < minPort {
+		return nil, fmt.Errorf("dcc: invalid port range %d-%d", minPort, maxPort)
+	}
+	var lastErr error
+	for port := minPort; port <= maxPort; port++ {
+		ln, err := net.Listen("tcp", ":"+strconv.Itoa(port))
+		if err == nil {
+			return ln, nil
+		}
+		lastErr = err
+	}
+	return nil, fmt.Errorf("dcc: no free port in %d-%d: %w", minPort, maxPort, lastErr)
 }
 
 // AcceptOnce accepts exactly one connection from ln - a DCC offer is only

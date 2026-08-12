@@ -62,6 +62,8 @@ contextBridge.exposeInMainWorld('irc', {
   saveTextFile: (defaultName: string, content: string) =>
     ipcRenderer.invoke(IrcMessages.saveTextFile, defaultName, content),
 
+  chooseDirectory: (defaultPath?: string) => ipcRenderer.invoke(IrcMessages.chooseDirectory, defaultPath),
+
   onLine: (callback: (serverId: string, line: string) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, serverId: string, line: string) => callback(serverId, line);
     ipcRenderer.on(IrcMessages.line, handler);

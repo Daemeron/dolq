@@ -570,7 +570,21 @@ will hang the UI.
       previous item: this is a *new* connection continuing an *old* file
       after the transfer stopped entirely (app restart, dropped connection,
       crash), not one already-open connection being told to keep going
-- [ ] Configurable download directory and port range (for active mode/NAT)
+- [x] Configurable download directory and port range (for active mode/NAT) -
+      both live in Preferences and, unlike retentionDays, apply immediately
+      rather than needing a restart: download directory (empty defaults to
+      the OS Downloads folder, same as before this existed) and a DCC port
+      range for the listener DCC CHAT offers and passive/reverse XDCC
+      accepts open (`dcc.Listen` now tries ports across a min-max range
+      instead of always taking whatever the OS hands out), letting a user
+      behind NAT forward one fixed range in their router instead of a
+      different random port every time. Neither is pushed to the Go backend
+      as standing config - both are read fresh out of Settings in Electron's
+      main process and passed as plain arguments on each `dccOffer`/
+      `xdccAccept` call, the same way `destDir` already worked before this.
+      Doesn't touch `LocalIP`'s own known limitation (still announces the
+      LAN address, not the actual public one) - a fixed port range is what
+      makes forwarding *possible*, not a fix for NAT traversal itself
 - [ ] Basic pack-list browsing quality-of-life (search across known XDCC bots,
       if feasible without violating any bot's own rules)
 

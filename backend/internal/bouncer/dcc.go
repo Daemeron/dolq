@@ -21,14 +21,16 @@ const DefaultDCCAcceptTimeout = 3 * time.Minute
 // connection and starts listening for them to connect back. Returns
 // immediately with the session id sub will receive lines/status under (see
 // Subscriber, and wireDCC) - the actual connection, or a timeout, happens
-// on its own goroutine.
+// on its own goroutine. portMin/portMax constrain the listener the same way
+// XDCCAccept's passive branch does (see dcc.Listen) - both 0 lets the OS
+// pick any free port, same as before this existed.
 //
 // Unlike IRC sessions, a DCC session isn't kept in the bouncer's own
 // survives-a-subscriber-disconnect sense - it's handed straight to
 // whichever Subscriber made this call and forgotten once that connection
 // closes (see wireDCC/Shutdown). Simpler, and fine in practice: this app
 // only ever has the one Electron main-process connection at a time.
-func (b *Bouncer) DCCOffer(serverID, nick string, sub Subscriber) (string, error) {
+func (b *Bouncer) DCCOffer(serverID, nick string, portMin, portMax int, sub Subscriber) (string, error) {
 	b.mu.Lock()
 	sess := b.sessions[serverID]
 	b.mu.Unlock()
@@ -39,7 +41,7 @@ func (b *Bouncer) DCCOffer(serverID, nick string, sub Subscriber) (string, error
 	client := sess.client
 	sess.mu.Unlock()
 
-	ln, err := dcc.Listen()
+	ln, err := dcc.Listen(portMin, portMax)
 	if err != nil {
 		return "", err
 	}

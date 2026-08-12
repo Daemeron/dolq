@@ -28,7 +28,7 @@ func TestDCCOffer(t *testing.T) {
 		}
 		offerCh := make(chan offerResult, 1)
 		go func() {
-			id, err := b.DCCOffer("server-a", "alice", sub)
+			id, err := b.DCCOffer("server-a", "alice", 0, 0, sub)
 			offerCh <- offerResult{id, err}
 		}()
 
@@ -95,7 +95,7 @@ func TestDCCOffer(t *testing.T) {
 
 	t.Run("errors when there's no IRC session for serverID to send the offer over", func(t *testing.T) {
 		b := New(nil)
-		if _, err := b.DCCOffer("no-such-server", "alice", &fakeSubscriber{}); err == nil {
+		if _, err := b.DCCOffer("no-such-server", "alice", 0, 0, &fakeSubscriber{}); err == nil {
 			t.Error("expected an error, got nil")
 		}
 	})
@@ -108,7 +108,7 @@ func TestDCCOffer(t *testing.T) {
 
 		errCh := make(chan error, 1)
 		go func() {
-			_, err := b.DCCOffer("server-a", "alice", sub)
+			_, err := b.DCCOffer("server-a", "alice", 0, 0, sub)
 			errCh <- err
 		}()
 		if _, err := r.ReadString('\n'); err != nil {
@@ -124,7 +124,7 @@ func TestDCCOffer(t *testing.T) {
 
 func TestDCCAccept(t *testing.T) {
 	t.Run("dials the peer's listener and exchanges lines", func(t *testing.T) {
-		ln, err := dcc.Listen()
+		ln, err := dcc.Listen(0, 0)
 		if err != nil {
 			t.Fatalf("Listen: %v", err)
 		}

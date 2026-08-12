@@ -29,8 +29,50 @@ func TestEncodeDecodeIP(t *testing.T) {
 	}
 }
 
+func TestListenPortRange(t *testing.T) {
+	t.Run("binds within the requested range", func(t *testing.T) {
+		// Find a free port first so the range test itself doesn't flake on a
+		// port something else already holds.
+		probe, err := net.Listen("tcp", ":0")
+		if err != nil {
+			t.Fatalf("probe listen: %v", err)
+		}
+		port := probe.Addr().(*net.TCPAddr).Port
+		probe.Close()
+
+		ln, err := Listen(port, port+5)
+		if err != nil {
+			t.Fatalf("Listen: %v", err)
+		}
+		defer ln.Close()
+		got := ln.Addr().(*net.TCPAddr).Port
+		if got < port || got > port+5 {
+			t.Errorf("bound port %d, want within [%d, %d]", got, port, port+5)
+		}
+	})
+
+	t.Run("errors when every port in the range is already taken", func(t *testing.T) {
+		probe, err := net.Listen("tcp", ":0")
+		if err != nil {
+			t.Fatalf("probe listen: %v", err)
+		}
+		defer probe.Close()
+		port := probe.Addr().(*net.TCPAddr).Port
+
+		if _, err := Listen(port, port); err == nil {
+			t.Error("expected an error, got nil")
+		}
+	})
+
+	t.Run("rejects a backwards range", func(t *testing.T) {
+		if _, err := Listen(5000, 4000); err == nil {
+			t.Error("expected an error, got nil")
+		}
+	})
+}
+
 func TestSessionRoundTrip(t *testing.T) {
-	ln, err := Listen()
+	ln, err := Listen(0, 0)
 	if err != nil {
 		t.Fatalf("Listen: %v", err)
 	}
@@ -103,7 +145,7 @@ func TestSessionRoundTrip(t *testing.T) {
 }
 
 func TestAcceptOnceTimesOut(t *testing.T) {
-	ln, err := Listen()
+	ln, err := Listen(0, 0)
 	if err != nil {
 		t.Fatalf("Listen: %v", err)
 	}
@@ -113,7 +155,7 @@ func TestAcceptOnceTimesOut(t *testing.T) {
 }
 
 func TestSessionOnCloseFiresOnDisconnect(t *testing.T) {
-	ln, err := Listen()
+	ln, err := Listen(0, 0)
 	if err != nil {
 		t.Fatalf("Listen: %v", err)
 	}

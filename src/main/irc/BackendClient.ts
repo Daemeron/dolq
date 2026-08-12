@@ -118,8 +118,11 @@ export class BackendClient extends EventEmitter {
     return f.messages ?? [];
   }
 
-  async dccOffer(serverId: string, nick: string): Promise<string> {
-    const f = await this.request('dccOffer', { serverId, nick });
+  // portMin/portMax constrain the listener dolqd opens for the CTCP DCC
+  // CHAT reply - both 0 (the default) lets the OS pick any free port, see
+  // Settings.dccPortMin/dccPortMax's doc for why a fixed range matters.
+  async dccOffer(serverId: string, nick: string, portMin: number, portMax: number): Promise<string> {
+    const f = await this.request('dccOffer', { serverId, nick, portMin, portMax });
     if (!f.ok) throw new Error(f.error);
     return f.dccId ?? '';
   }
@@ -138,18 +141,20 @@ export class BackendClient extends EventEmitter {
     return this.call('dccClose', { dccId });
   }
 
-  // destDir isn't a parameter here - it's always the OS Downloads folder
-  // (app.getPath('downloads')), resolved in registerIrcHandlers rather than
-  // trusting the renderer to pick a directory (it can't reach fs to
-  // validate one anyway). filename/size/token are the offer's own fields,
-  // passed straight through for dolqd to build the save path from (see
-  // bouncer.safeFilename for why the filename itself is never trusted
-  // beyond its base name).
+  // destDir/portMin/portMax aren't renderer-supplied - registerIrcHandlers
+  // resolves them from Settings (falling back to the OS Downloads folder
+  // for destDir) rather than trusting the renderer to pick a directory (it
+  // can't reach fs to validate one anyway). filename/size/token are the
+  // offer's own fields, passed straight through for dolqd to build the save
+  // path from (see bouncer.safeFilename for why the filename itself is
+  // never trusted beyond its base name).
   async xdccAccept(
     serverId: string, nick: string, ip: string, port: number, filename: string, size: number, token: string | undefined,
-    destDir: string,
+    destDir: string, portMin: number, portMax: number,
   ): Promise<string> {
-    const f = await this.request('xdccAccept', { serverId, nick, host: ip, port, filename, size, token, destDir });
+    const f = await this.request('xdccAccept', {
+      serverId, nick, host: ip, port, filename, size, token, destDir, portMin, portMax,
+    });
     if (!f.ok) throw new Error(f.error);
     return f.dccId ?? '';
   }

@@ -40,8 +40,13 @@ app.whenReady().then(async () => {
 
   const settings = loadSettings();
   const backend = new BackendClient(settings.retentionDays);
-  registerIrcHandlers(mainWindow, backend);
-  registerSettingsHandlers(settings);
+  // A plain mutable box, not a fresh `settings` binding per read - so
+  // registerIrcHandlers' closures see whatever Preferences last saved
+  // (registerSettingsHandlers writes into the same box) instead of the
+  // value that was current when the app started.
+  const settingsBox = { current: settings };
+  registerIrcHandlers(mainWindow, backend, settingsBox);
+  registerSettingsHandlers(settingsBox);
   registerShellHandlers();
   await installReactDevTools();
   registerAppLifecycleHandlers(backend);
@@ -66,9 +71,16 @@ function registerShellHandlers(): void {
     await fs.promises.writeFile(filePath, content, 'utf-8');
     return true;
   });
+
+  ipcMain.handle(IrcMessages.chooseDirectory, async (_event, defaultPath?: string) => {
+    const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
+      defaultPath, properties: ['openDirectory', 'createDirectory'],
+    });
+    return canceled || !filePaths[0] ? null : filePaths[0];
+  });
 }
 
-function registerIrcHandlers(mainWindow: BrowserWindow, backend: BackendClient): void {
+function registerIrcHandlers(mainWindow: BrowserWindow, backend: BackendClient, settingsBox: { current: Settings }): void {
   ipcMain.handle(
     IrcMessages.connect,
     (
@@ -102,7 +114,10 @@ function registerIrcHandlers(mainWindow: BrowserWindow, backend: BackendClient):
     backend.search(serverId, channel, query, limit),
   );
 
-  ipcMain.handle(IrcMessages.dccOffer, (_event, serverId: string, nick: string) => backend.dccOffer(serverId, nick));
+  ipcMain.handle(IrcMessages.dccOffer, (_event, serverId: string, nick: string) => {
+    const { dccPortMin, dccPortMax } = settingsBox.current;
+    return backend.dccOffer(serverId, nick, dccPortMin ?? 0, dccPortMax ?? 0);
+  });
 
   ipcMain.handle(IrcMessages.dccAccept, (_event, ip: string, port: number) => backend.dccAccept(ip, port));
 
@@ -112,8 +127,13 @@ function registerIrcHandlers(mainWindow: BrowserWindow, backend: BackendClient):
 
   ipcMain.handle(
     IrcMessages.xdccAccept,
-    (_event, serverId: string, nick: string, ip: string, port: number, filename: string, size: number, token?: string) =>
-      backend.xdccAccept(serverId, nick, ip, port, filename, size, token, app.getPath('downloads')),
+    (_event, serverId: string, nick: string, ip: string, port: number, filename: string, size: number, token?: string) => {
+      const { downloadDir, dccPortMin, dccPortMax } = settingsBox.current;
+      return backend.xdccAccept(
+        serverId, nick, ip, port, filename, size, token,
+        downloadDir || app.getPath('downloads'), dccPortMin ?? 0, dccPortMax ?? 0,
+      );
+    },
   );
 
   ipcMain.handle(IrcMessages.xdccClose, (_event, dccId: string) => backend.xdccClose(dccId));
@@ -132,16 +152,17 @@ function registerIrcHandlers(mainWindow: BrowserWindow, backend: BackendClient):
   );
 }
 
-// Settings live for the process's lifetime in `current`, not re-read from
-// disk on every get - saveSettings persists it, but retentionDays only
-// actually takes effect on the next launch (it's dolqd's launch flag, not
-// something it can be told to change mid-run), so there's nothing to apply
-// live here either way.
-function registerSettingsHandlers(initial: Settings): void {
-  let current = initial;
-  ipcMain.handle(IrcMessages.getSettings, () => current);
+// Settings live for the process's lifetime in settingsBox.current (shared
+// with registerIrcHandlers' closures - see app.whenReady), not re-read from
+// disk on every get. saveSettings persists it; retentionDays only actually
+// takes effect on the next launch (it's dolqd's launch flag, not something
+// it can be told to change mid-run), but downloadDir/dccPortMin/dccPortMax
+// apply immediately, since registerIrcHandlers reads them fresh out of this
+// same box on every dccOffer/xdccAccept call.
+function registerSettingsHandlers(settingsBox: { current: Settings }): void {
+  ipcMain.handle(IrcMessages.getSettings, () => settingsBox.current);
   ipcMain.handle(IrcMessages.setSettings, (_event, settings: Settings) => {
-    current = settings;
+    settingsBox.current = settings;
     saveSettings(settings);
   });
 }

@@ -65,7 +65,14 @@ const DefaultResumeAcceptTimeout = 10 * time.Second
 // it rather than starting over. That handshake blocks this call for up to
 // ResumeAcceptTimeout; harmless since ipcproto handles every frame on its
 // own goroutine (see Server.handleConn).
-func (b *Bouncer) XDCCAccept(serverID string, offer ircparse.XDCCSendOfferEvent, destDir string, sub Subscriber) (string, error) {
+//
+// portMin/portMax constrain the listener a passive/reverse offer opens (see
+// dcc.Listen) - ignored for an active offer, which dials out instead of
+// listening at all. Both 0 lets the OS pick any free port, same as before
+// this existed.
+func (b *Bouncer) XDCCAccept(
+	serverID string, offer ircparse.XDCCSendOfferEvent, destDir string, portMin, portMax int, sub Subscriber,
+) (string, error) {
 	id := "xdcc:" + uuid.NewString()
 
 	b.mu.Lock()
@@ -102,7 +109,7 @@ func (b *Bouncer) XDCCAccept(serverID string, offer ircparse.XDCCSendOfferEvent,
 	// Passive/reverse: the sender can't accept a connection (usually NAT),
 	// so we listen instead and tell them our address - same handshake shape
 	// as DCCOffer, just replying to an offer instead of making one.
-	ln, err := dcc.Listen()
+	ln, err := dcc.Listen(portMin, portMax)
 	if err != nil {
 		f.Close()
 		return "", err

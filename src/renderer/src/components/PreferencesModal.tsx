@@ -40,6 +40,9 @@ export function PreferencesModal({
   servers, ignoredNicks, onRemoveIgnore, aliases, onRemoveAlias,
 }: Props) {
   const [retentionDays, setRetentionDays] = useState(String(settings.retentionDays));
+  const [downloadDir, setDownloadDir] = useState(settings.downloadDir ?? '');
+  const [dccPortMin, setDccPortMin] = useState(settings.dccPortMin ? String(settings.dccPortMin) : '');
+  const [dccPortMax, setDccPortMax] = useState(settings.dccPortMax ? String(settings.dccPortMax) : '');
   const ignoredEntries = Object.entries(ignoredNicks).flatMap(([serverId, nicks]) =>
     nicks.map((nick) => ({ serverId, nick })),
   );
@@ -53,10 +56,29 @@ export function PreferencesModal({
     return () => window.removeEventListener('keydown', onKey);
   }, [onCancel]);
 
+  async function handleBrowseDownloadDir() {
+    const chosen = await window.irc.chooseDirectory(downloadDir || undefined);
+    if (chosen) setDownloadDir(chosen);
+  }
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const parsed = parseInt(retentionDays, 10);
-    onSave({ retentionDays: Number.isFinite(parsed) && parsed > 0 ? parsed : 0 });
+    let portMin = parseInt(dccPortMin, 10);
+    let portMax = parseInt(dccPortMax, 10);
+    // Anything that isn't a sane forward range just falls back to "unset"
+    // (OS-picks-any-port, same as before this setting existed) rather than
+    // blocking the save on a form error.
+    if (!Number.isFinite(portMin) || !Number.isFinite(portMax) || portMin <= 0 || portMax < portMin) {
+      portMin = 0;
+      portMax = 0;
+    }
+    onSave({
+      retentionDays: Number.isFinite(parsed) && parsed > 0 ? parsed : 0,
+      downloadDir: downloadDir || undefined,
+      dccPortMin: portMin || undefined,
+      dccPortMax: portMax || undefined,
+    });
   }
 
   return (
@@ -172,6 +194,60 @@ export function PreferencesModal({
           </label>
           <p className="text-[#6b6b6b] text-[12px] -mt-2.5">
             How long to keep chat history. 0 keeps it forever. Takes effect the next time Dolq starts.
+          </p>
+
+          <label className={labelClass}>
+            Download Directory
+            <div className="flex gap-2">
+              <input
+                className={`${inputClass} flex-1`}
+                type="text"
+                value={downloadDir}
+                onChange={(e) => setDownloadDir(e.target.value)}
+                placeholder="Downloads (default)"
+              />
+              <button
+                type="button"
+                onClick={handleBrowseDownloadDir}
+                className="shrink-0 px-3 rounded text-[#e6e6e6] text-[13px] font-medium bg-[#333333] border-0 cursor-pointer hover:bg-[#3d3d3d]"
+              >
+                Browse…
+              </button>
+            </div>
+          </label>
+          <p className="text-[#6b6b6b] text-[12px] -mt-2.5">
+            Where XDCC downloads are saved. Empty uses the OS Downloads folder.
+          </p>
+
+          <div className="flex gap-3">
+            <label className={`${labelClass} flex-1`}>
+              DCC Port Range (min)
+              <input
+                className={inputClass}
+                type="number"
+                value={dccPortMin}
+                onChange={(e) => setDccPortMin(e.target.value)}
+                placeholder="Any"
+                min={1}
+                max={65535}
+              />
+            </label>
+            <label className={`${labelClass} flex-1`}>
+              DCC Port Range (max)
+              <input
+                className={inputClass}
+                type="number"
+                value={dccPortMax}
+                onChange={(e) => setDccPortMax(e.target.value)}
+                placeholder="Any"
+                min={1}
+                max={65535}
+              />
+            </label>
+          </div>
+          <p className="text-[#6b6b6b] text-[12px] -mt-2.5">
+            Ports DCC CHAT offers and passive XDCC downloads listen on. Leave both empty to let the OS pick any free
+            port - set this if you're behind a router/firewall and want to forward a fixed range to receive them.
           </p>
 
           <div className="flex gap-3 justify-end mt-2">
