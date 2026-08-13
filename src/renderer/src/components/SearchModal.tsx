@@ -9,32 +9,55 @@ type Props = {
   defaultChannel: string; // backend channel key for "this channel" scope - see App.tsx's backendChannelFor
   defaultChannelLabel: string; // display name for that scope, e.g. "#general" or "Log"
   onJump: (serverId: string, channel: string) => void;
+  // Requests a pack a search hit turned up - see App.tsx's handleGetPackFrom.
+  // Unlike MessageArea's onGetPack, this needs serverId too: a search result
+  // isn't necessarily on whatever server is currently selected.
+  onGetPack: (serverId: string, nick: string, packNumber: number) => void;
   onClose: () => void;
 };
 
 const inputClass =
   'w-full bg-[#333333] border-0 rounded text-[#e6e6e6] text-[14px] px-3 py-2.5 outline-none focus:ring-2 focus:ring-[#c792ea] placeholder:text-[#6b6b6b]';
 
+// "Packs only" filters client-side rather than in the query itself - the
+// backend's search is a plain payload LIKE match (see
+// history.Store.Search), with no notion of an event's type to filter on.
+// Fetching a wider limit when this is on compensates for that: filtering
+// after a 100-row fetch could easily come back empty even when more packs
+// exist further back.
+const PACKS_ONLY_LIMIT = 300;
+const DEFAULT_LIMIT = 100;
+
+function isPack(entry: HistoryEntry): boolean {
+  return !entry.isRaw && entry.event?.type === 'XDCCPACK';
+}
+
 // A search result's payload can be a raw line or any parsed event - most
 // real hits will be chat text (PRIVMSG/ACTION/NOTICE) or a raw line, so
 // that's what gets a proper nick+text preview; anything else (a JOIN a
 // search term happened to match inside, say) just falls back to its raw
 // JSON rather than needing a case for every event type search barely ever
-// actually matches.
+// actually matches. XDCCPACK gets its own case, matching MessageArea's
+// 📦 row - handled by the caller instead, since it also needs a different
+// click action (request the pack, not just jump to it).
 function preview(entry: HistoryEntry): { nick: string; text: string } {
   if (entry.isRaw) return { nick: '', text: entry.line ?? '' };
   const e = entry.event;
   if (e?.type === 'PRIVMSG' || e?.type === 'ACTION' || e?.type === 'NOTICE') {
     return { nick: e.nick, text: e.text };
   }
+  if (e?.type === 'XDCCPACK') {
+    return { nick: e.nick, text: `#${e.number} · ${e.gets}x sent · ${e.size} · ${e.filename}` };
+  }
   return { nick: '', text: e ? JSON.stringify(e) : '' };
 }
 
 export function SearchModal({
-  servers, defaultServerId, defaultChannel, defaultChannelLabel, onJump, onClose,
+  servers, defaultServerId, defaultChannel, defaultChannelLabel, onJump, onGetPack, onClose,
 }: Props) {
   const [query, setQuery] = useState('');
   const [global, setGlobal] = useState(false);
+  const [packsOnly, setPacksOnly] = useState(false);
   const [results, setResults] = useState<HistoryEntry[] | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -43,9 +66,10 @@ export function SearchModal({
     if (!query.trim()) return;
     setLoading(true);
     const [serverId, channel] = global ? ['', ''] : [defaultServerId, defaultChannel];
-    const found = await window.irc.search(serverId, channel, query.trim(), 100);
+    const limit = packsOnly ? PACKS_ONLY_LIMIT : DEFAULT_LIMIT;
+    const found = await window.irc.search(serverId, channel, query.trim(), limit);
     setLoading(false);
-    setResults(found);
+    setResults(packsOnly ? found.filter(isPack) : found);
   }
 
   return (
@@ -65,10 +89,16 @@ export function SearchModal({
             autoFocus
           />
           <div className="flex items-center justify-between">
-            <label className="flex items-center gap-2 text-[13px] text-[#e6e6e6] cursor-pointer select-none">
-              <input type="checkbox" checked={global} onChange={(e) => setGlobal(e.target.checked)} className="accent-[#c792ea]" />
-              Search everywhere, not just {defaultChannelLabel}
-            </label>
+            <div className="flex items-center gap-4">
+              <label className="flex items-center gap-2 text-[13px] text-[#e6e6e6] cursor-pointer select-none">
+                <input type="checkbox" checked={global} onChange={(e) => setGlobal(e.target.checked)} className="accent-[#c792ea]" />
+                Search everywhere, not just {defaultChannelLabel}
+              </label>
+              <label className="flex items-center gap-2 text-[13px] text-[#e6e6e6] cursor-pointer select-none">
+                <input type="checkbox" checked={packsOnly} onChange={(e) => setPacksOnly(e.target.checked)} className="accent-[#c792ea]" />
+                📦 Packs only
+              </label>
+            </div>
             <button
               type="submit"
               disabled={loading}
@@ -88,18 +118,26 @@ export function SearchModal({
                 const { nick, text } = preview(entry);
                 const serverName = servers.find((s) => s.id === entry.serverId)?.name ?? entry.serverId;
                 const channelLabel = entry.channel === '__log__' ? 'Log' : entry.channel;
+                const pack = isPack(entry) && entry.event?.type === 'XDCCPACK' ? entry.event : null;
                 return (
                   <button
                     key={entry.id}
-                    onClick={() => onJump(entry.serverId, entry.channel)}
+                    onClick={() => (pack ? onGetPack(entry.serverId, pack.nick, pack.number) : onJump(entry.serverId, entry.channel))}
+                    title={pack ? 'Click to request this pack' : undefined}
                     className="flex flex-col items-start gap-0.5 w-full px-3 py-2 rounded border-0 bg-[#262626] text-left cursor-pointer hover:bg-[#303030]"
                   >
                     <span className="text-[11px] text-[#6b6b6b]">
                       {serverName} / {channelLabel} · {new Date(entry.timestamp).toLocaleString()}
                     </span>
-                    <span className="text-[14px] text-[#e6e6e6] truncate w-full">
-                      {nick && <span className="font-semibold mr-1.5">{nick}</span>}
-                      <IrcText text={text} />
+                    <span className={`text-[14px] truncate w-full ${pack ? 'font-mono text-[#a0a0a0]' : 'text-[#e6e6e6]'}`}>
+                      {pack ? (
+                        `📦 ${text}`
+                      ) : (
+                        <>
+                          {nick && <span className="font-semibold mr-1.5">{nick}</span>}
+                          <IrcText text={text} />
+                        </>
+                      )}
                     </span>
                   </button>
                 );

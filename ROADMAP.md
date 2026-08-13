@@ -585,8 +585,25 @@ will hang the UI.
       Doesn't touch `LocalIP`'s own known limitation (still announces the
       LAN address, not the actual public one) - a fixed port range is what
       makes forwarding *possible*, not a fix for NAT traversal itself
-- [ ] Basic pack-list browsing quality-of-life (search across known XDCC bots,
-      if feasible without violating any bot's own rules)
+- [x] Basic pack-list browsing quality-of-life (search across known XDCC bots,
+      if feasible without violating any bot's own rules) - reuses the
+      existing history Search wholesale rather than adding a second search
+      path: every XDCCPACK a bot's LIST reply produced is already a
+      structured, persisted history row (see the XDCC LIST item above), so
+      it was already reachable by plain text search, just rendered as raw
+      JSON and only "jump to this bot's query" on click. Now a hit renders
+      as the same 📦 row MessageArea shows live, and clicking one requests
+      the pack directly (switching to that server/bot first, since a global
+      hit isn't necessarily on the currently selected one) instead of just
+      navigating. A new "Packs only" toggle filters to just those hits
+      client-side (the backend search has no notion of an event's type to
+      filter by - see history.Store.Search) and asks for a wider result
+      limit to compensate for filtering after the fetch. Never contacts a
+      bot beyond LIST requests the user already made themselves - this
+      searches what's already been received and kept, nothing scraped or
+      requested fresh - which is what keeps it inside "without violating
+      any bot's own rules": no bot is being LIST-spammed or fetched from
+      behind the scenes on the search's behalf
 
 ---
 

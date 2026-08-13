@@ -652,6 +652,18 @@ export default function App() {
     window.irc.sendLine(selectedServerId, `PRIVMSG ${nick} :XDCC SEND #${packNumber}`);
   }
 
+  // Same request, for a pack a global search hit turned up (see
+  // SearchModal's "Packs only" filter) - unlike handleGetPack, serverId
+  // isn't necessarily the currently selected one, so this also switches to
+  // it and opens the bot's query first, same as accepting an offer does.
+  function handleGetPackFrom(serverId: string, nick: string, packNumber: number) {
+    ensureQuery(serverId, nick);
+    selectServer(serverId);
+    selectChannel(nick);
+    window.irc.sendLine(serverId, `PRIVMSG ${nick} :XDCC SEND #${packNumber}`);
+    setShowSearch(false);
+  }
+
   async function handleAcceptXDCCOffer() {
     if (!pendingXDCCOffer) return;
     const { serverId, nick, filename, ip, port, size, token } = pendingXDCCOffer;
@@ -874,6 +886,7 @@ export default function App() {
           defaultChannel={backendChannelFor(selectedServerId, selectedChannelId)}
           defaultChannelLabel={isLog ? 'Log' : isQuery ? (selectedChannel?.name ?? '') : `#${selectedChannel?.name ?? ''}`}
           onJump={handleJumpToSearchResult}
+          onGetPack={handleGetPackFrom}
           onClose={() => setShowSearch(false)}
         />
       )}
