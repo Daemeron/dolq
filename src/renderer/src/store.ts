@@ -24,6 +24,13 @@ type State = {
   // meaningful to restore from a previous session; excluded from partialize.
   mentionedChannels: Record<string, boolean>;
   notificationsEnabled: boolean;
+  // Channels that never mark mentionedChannels or fire a desktop
+  // notification, no matter what's said in them - see App.tsx's
+  // checkMention. Keyed by bare channel id, same as mentionedChannels
+  // (so, like it, two different servers' same-named channels share one
+  // entry - an existing simplification, not new here). Persisted like
+  // ignoredNicks, since it's a standing preference, not per-session state.
+  mutedChannels: Record<string, boolean>;
   timestampFormat: '12h' | '24h';
   messageDensity: 'cozy' | 'compact';
   // Per-server (see ROADMAP's "per-network" - serverId is this app's only
@@ -64,6 +71,7 @@ type Actions = {
   selectChannel: (id: string) => void;
   setConnectionStatus: (serverId: string, status: 'disconnected' | 'connecting' | 'connected') => void;
   markMentioned: (channelId: string) => void;
+  toggleMuteChannel: (channelId: string) => void;
   setNotificationsEnabled: (enabled: boolean) => void;
   setTimestampFormat: (format: '12h' | '24h') => void;
   setMessageDensity: (density: 'cozy' | 'compact') => void;
@@ -90,6 +98,7 @@ export const useStore = create<State & Actions>()(
       saslMap: {},
       mentionedChannels: {},
       notificationsEnabled: true,
+      mutedChannels: {},
       timestampFormat: '12h',
       messageDensity: 'cozy',
       ignoredNicks: {},
@@ -301,6 +310,17 @@ export const useStore = create<State & Actions>()(
       markMentioned: (channelId) =>
         set((s) => ({ mentionedChannels: { ...s.mentionedChannels, [channelId]: true } })),
 
+      toggleMuteChannel: (channelId) =>
+        set((s) => {
+          const mutedChannels = { ...s.mutedChannels };
+          if (mutedChannels[channelId]) {
+            delete mutedChannels[channelId];
+          } else {
+            mutedChannels[channelId] = true;
+          }
+          return { mutedChannels };
+        }),
+
       setNotificationsEnabled: (enabled) => set({ notificationsEnabled: enabled }),
 
       setTimestampFormat: (format) => set({ timestampFormat: format }),
@@ -341,6 +361,7 @@ export const useStore = create<State & Actions>()(
         selectedServerId: s.selectedServerId,
         selectedChannelId: s.selectedChannelId,
         notificationsEnabled: s.notificationsEnabled,
+        mutedChannels: s.mutedChannels,
         timestampFormat: s.timestampFormat,
         messageDensity: s.messageDensity,
         ignoredNicks: s.ignoredNicks,

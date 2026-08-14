@@ -10,6 +10,8 @@ type Props = {
   currentNick: string;
   userMap: Record<string, User[]>;
   mentionedChannels: Record<string, boolean>;
+  mutedChannels: Record<string, boolean>;
+  onToggleMuteChannel: (id: string) => void;
   onJoinChannel: (id: string) => void;
   onLeaveChannel: (id: string) => void;
   onRemoveChannel: (id: string) => void;
@@ -18,8 +20,8 @@ type Props = {
 };
 
 export function ChannelList({
-  serverName, channels, selectedId, onSelect, currentNick, userMap, mentionedChannels,
-  onJoinChannel, onLeaveChannel, onRemoveChannel, onCloseQuery, onOpenSearch,
+  serverName, channels, selectedId, onSelect, currentNick, userMap, mentionedChannels, mutedChannels,
+  onToggleMuteChannel, onJoinChannel, onLeaveChannel, onRemoveChannel, onCloseQuery, onOpenSearch,
 }: Props) {
   const logChannel = channels.find((c) => c.isLog);
   const regularChannels = channels.filter((c) => !c.isLog && !c.isQuery);
@@ -74,6 +76,7 @@ export function ChannelList({
         {regularChannels.map((ch) => {
           const joined = (userMap[ch.id] ?? []).some((u) => u.nick === currentNick);
           const mentioned = !!mentionedChannels[ch.id];
+          const muted = !!mutedChannels[ch.id];
           return (
             <button
               key={ch.id}
@@ -90,6 +93,7 @@ export function ChannelList({
             >
               <span className="text-[16px] mr-1.5 opacity-50">#</span>
               <span className="flex-1 truncate">{ch.name}</span>
+              {muted && <span className="text-[12px] opacity-50 shrink-0">🔕</span>}
               {mentioned && <span className="w-2 h-2 rounded-full bg-[#ffcb6b] shrink-0" />}
             </button>
           );
@@ -150,6 +154,9 @@ export function ChannelList({
               Join Channel
             </ContextMenuItem>
           )}
+          <ContextMenuItem onClick={() => { onToggleMuteChannel(menuChannel.id); close(); }}>
+            {mutedChannels[menuChannel.id] ? 'Unmute Channel' : 'Mute Channel'}
+          </ContextMenuItem>
           <ContextMenuItem danger onClick={() => { onRemoveChannel(menuChannel.id); close(); }}>
             Remove Channel
           </ContextMenuItem>

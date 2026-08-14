@@ -612,7 +612,21 @@ will hang the UI.
 - [ ] Preferences beyond M1's basics: keybinding customization, sound alerts,
       per-server color overrides, font size/family
 - [ ] System tray icon (minimize to tray, unread badge count)
-- [ ] Desktop notifications with per-channel mute
+- [x] Desktop notifications with per-channel mute - picked as the smallest,
+      most self-contained item in this milestone: desktop notifications
+      already existed (M1's mention detection), this just adds a per-channel
+      override. `toggleMuteChannel` (store.ts) tracks muted channels the
+      same way mentionedChannels already does - bare channel id, persisted
+      like ignoredNicks since it's a standing preference. A muted channel's
+      checkMention (App.tsx) returns before doing anything at all, not just
+      before the notification - same as Discord, muting also suppresses the
+      sidebar's unread highlight, not only the popup. Toggled from a
+      channel's right-click menu (ChannelList), which already had the same
+      shape of per-channel action for Join/Leave/Remove; a 🔕 shows next to
+      a muted channel's name the same way a mention already shows its own
+      dot. Scoped to channels only (not queries/DMs) since that's the only
+      place checkMention/notify ever fire from today - a mute toggle for
+      queries would mute something that can't notify in the first place
 - [ ] Accessibility pass (keyboard navigation, screen reader labels, focus
       management in modals)
 - [ ] Emoji picker (optional, since this is "Discord-like")

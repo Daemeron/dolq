@@ -83,11 +83,11 @@ function notify(title: string, body: string, onClick: () => void): void {
 export default function App() {
   const {
     servers, presets, channelMap, messageMap, userMap, nickMap, saslMap,
-    selectedServerId, selectedChannelId, statusMap, mentionedChannels, notificationsEnabled,
+    selectedServerId, selectedChannelId, statusMap, mentionedChannels, notificationsEnabled, mutedChannels,
     timestampFormat, messageDensity, ignoredNicks, selfAwayMap, aliases,
     addServer, removeServer, addPreset, addChannel, removeChannel, setTopic, setTopicWhoTime, appendMessage, setHistory, setNick, setSaslCreds,
     selectServer, selectChannel, setConnectionStatus, setUsers, addUser, removeUser, removeUserEverywhere,
-    renameUserEverywhere, applyModeChanges, markMentioned, setNotificationsEnabled, setTimestampFormat, setMessageDensity,
+    renameUserEverywhere, applyModeChanges, markMentioned, toggleMuteChannel, setNotificationsEnabled, setTimestampFormat, setMessageDensity,
     addIgnore, removeIgnore, applyAwayEverywhere, setSelfAway, setAlias, removeAlias,
   } = useStore();
 
@@ -281,9 +281,11 @@ export default function App() {
   // Own-nick mention in a channel (not a query - see the ROADMAP note)
   // you're not currently looking at: highlights it in the sidebar
   // (markMentioned, cleared on selecting it - see store.ts) and, if enabled,
-  // fires a desktop notification that jumps you straight there.
+  // fires a desktop notification that jumps you straight there. A muted
+  // channel (see toggleMuteChannel) skips both - not just the notification -
+  // same as Discord's own mute suppressing the unread highlight too.
   function checkMention(serverId: string, channelId: string, target: string, text: string) {
-    if (!target.startsWith('#') || channelId === selectedChannelId) return;
+    if (!target.startsWith('#') || channelId === selectedChannelId || mutedChannels[channelId]) return;
     if (!mentionsNick(text, nickMap[serverId])) return;
     markMentioned(channelId);
     if (notificationsEnabled) {
@@ -474,7 +476,7 @@ export default function App() {
   }, [
     appendMessage, addChannel, selectChannel, addUser, removeUser,
     removeUserEverywhere, renameUserEverywhere, applyModeChanges, setUsers, setTopic, setTopicWhoTime, nickMap,
-    channelMap, setNick, servers, selectedChannelId, selectServer, markMentioned, notificationsEnabled, whoisNick,
+    channelMap, setNick, servers, selectedChannelId, selectServer, markMentioned, notificationsEnabled, mutedChannels, whoisNick,
     ignoredNicks, applyAwayEverywhere, setSelfAway,
   ]);
 
@@ -913,6 +915,8 @@ export default function App() {
             currentNick={currentNick}
             userMap={userMap}
             mentionedChannels={mentionedChannels}
+            mutedChannels={mutedChannels}
+            onToggleMuteChannel={toggleMuteChannel}
             onJoinChannel={handleJoinChannel}
             onLeaveChannel={handleLeaveChannel}
             onRemoveChannel={handleRemoveChannel}
