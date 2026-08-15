@@ -135,6 +135,14 @@ export default function App() {
     window.irc.getSettings().then(setSettingsState);
   }, []);
 
+  // Reflects unread-mention count on the dock icon (see main/index.ts's
+  // tray/setBadgeCount handler). mentionedChannels is the only "unread"-
+  // shaped signal this app tracks at all, so the badge just mirrors its
+  // size rather than a separate count kept only for this.
+  useEffect(() => {
+    window.irc.setBadgeCount(Object.keys(mentionedChannels).length);
+  }, [mentionedChannels]);
+
   async function handleSavePreferences(next: Settings) {
     await window.irc.setSettings(next);
     setSettingsState(next);

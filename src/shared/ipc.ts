@@ -179,6 +179,12 @@ export type IrcApi = {
   // Prompts a native directory picker (Preferences' download-directory
   // field) - resolves null, not rejects, if the user cancels.
   chooseDirectory: (defaultPath?: string) => Promise<string | null>;
+  // Reflects unread-mention count on the dock icon (app.setBadgeCount) -
+  // macOS and Linux (Unity) only, a silent no-op elsewhere (Windows needs a
+  // taskbar overlay icon instead, a different API - not implemented, same
+  // "unverified beyond macOS" gap ROADMAP's Windows/Linux parity item
+  // already tracks). Called from App.tsx whenever mentionedChannels changes.
+  setBadgeCount: (count: number) => Promise<void>;
   onLine: (callback: (serverId: string, line: string) => void) => () => void;
   onEvent: (callback: (serverId: string, event: IrcEvent) => void) => () => void;
   onStatus: (callback: (serverId: string, status: ConnectionStatus) => void) => () => void;
@@ -210,6 +216,7 @@ export enum IrcMessages {
   openExternal = 'irc:openExternal',
   saveTextFile = 'irc:saveTextFile',
   chooseDirectory = 'irc:chooseDirectory',
+  setBadgeCount = 'irc:setBadgeCount',
   line = 'irc:line',
   event = 'irc:event',
   status = 'irc:status',

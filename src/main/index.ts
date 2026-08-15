@@ -1,5 +1,5 @@
 import { installExtension, REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';
-import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Menu, shell, Tray } from 'electron';
 import { join } from 'path';
 import fs from 'fs';
 import { ConnectionStatus, IrcMessages, Settings } from '../shared/ipc';
@@ -7,8 +7,23 @@ import { BackendClient } from './irc/BackendClient';
 import { loadSettings, saveSettings } from './settings';
 
 let mainWindow: BrowserWindow;
+let tray: Tray;
+
+// Set the moment a real quit is actually underway (Cmd+Q, the tray's Quit
+// item, or window-all-closed on non-mac) - createWindow's own 'close'
+// listener checks this to tell "the user clicked the close button" (hide to
+// tray) apart from "the window is closing because the app is quitting" (let
+// it). Shares this one flag with before-quit's own idempotency guard below
+// rather than inventing a second one - by the time any window's 'close'
+// fires during a real quit, before-quit has already run and set it.
+let quitting = false;
 
 const ICON_PATH = join(__dirname, '../../resources/icon.png');
+// A full 512x512 dock/window icon is the wrong size for a menu bar/taskbar
+// tray icon - reuses one of the small variants already sitting in
+// resources/icons/ (electron-builder's own Linux icon-set convention)
+// rather than adding a new icon asset just for this.
+const TRAY_ICON_PATH = join(__dirname, '../../resources/icons/32x32.png');
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
@@ -28,6 +43,47 @@ function createWindow(): void {
   } else {
     mainWindow.loadFile(join(__dirname, '../renderer/index.html'));
   }
+
+  // Minimize-to-tray: the close ("X"/red traffic light) button hides
+  // instead of destroying the window, same as most tray-icon apps - the
+  // window (and its scroll position, unsent draft, etc.) survives, and
+  // showWindow just un-hides the same instance rather than createWindow
+  // building a fresh one. Skipped entirely once a real quit is underway
+  // (see `quitting`'s doc), or this would also block Cmd+Q/tray Quit from
+  // ever actually closing anything.
+  mainWindow.on('close', (event) => {
+    if (quitting) return;
+    event.preventDefault();
+    mainWindow.hide();
+  });
+}
+
+function showWindow(): void {
+  mainWindow.show();
+  mainWindow.focus();
+}
+
+// A tray icon exists for the app's whole lifetime, not tied to any one
+// window - registers its own click/menu behavior plus the setBadgeCount IPC
+// handler (App.tsx calls it whenever mentionedChannels changes), since both
+// are "OS integration" rather than IRC traffic.
+function createTray(): void {
+  tray = new Tray(TRAY_ICON_PATH);
+  tray.setToolTip('Dolq');
+  tray.setContextMenu(
+    Menu.buildFromTemplate([
+      { label: 'Show Dolq', click: showWindow },
+      { type: 'separator' },
+      { label: 'Quit', click: () => app.quit() },
+    ]),
+  );
+  // Right-click already opens the context menu above (setContextMenu's own
+  // behavior); a plain click toggles the window the way most tray apps do.
+  tray.on('click', () => (mainWindow.isVisible() ? mainWindow.hide() : showWindow()));
+
+  ipcMain.handle(IrcMessages.setBadgeCount, (_event, count: number) => {
+    app.setBadgeCount(count);
+  });
 }
 
 app.whenReady().then(async () => {
@@ -37,6 +93,7 @@ app.whenReady().then(async () => {
   // has no effect on macOS, unlike Windows/Linux).
   if (!app.isPackaged) app.dock?.setIcon(ICON_PATH);
   createWindow();
+  createTray();
 
   const settings = loadSettings();
   const backend = new BackendClient(settings.retentionDays);
@@ -168,8 +225,16 @@ function registerSettingsHandlers(settingsBox: { current: Settings }): void {
 }
 
 function registerAppLifecycleHandlers(backend: BackendClient): void {
+  // The window now survives a close (see createWindow's 'close' listener -
+  // it hides instead), so there's always at least one to just re-show;
+  // getAllWindows().length === 0 only happens if something else destroyed
+  // it outright, same fallback as before this existed.
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    if (BrowserWindow.getAllWindows().length === 0) {
+      createWindow();
+    } else {
+      showWindow();
+    }
   });
 
   app.on('window-all-closed', () => {
@@ -178,11 +243,13 @@ function registerAppLifecycleHandlers(backend: BackendClient): void {
 
   // dolqd's own shutdown path (bouncer.Shutdown) already PARTs every joined
   // channel and QUITs before exiting, so quitting here is just: stop the
-  // backend, then quit. before-quit fires for Cmd+Q, app.quit(), and
-  // (non-mac) the quit triggered by window-all-closed above - but not for a
-  // mac user just closing the window, since the app and its connections are
-  // still alive in that case.
-  let quitting = false;
+  // backend, then quit. before-quit fires for Cmd+Q, app.quit() (including
+  // the tray's own Quit item), and (non-mac) the quit triggered by
+  // window-all-closed above - but never from just closing the window
+  // anymore, on any platform (see createWindow's 'close' listener). Sets
+  // the module-level `quitting` flag that listener checks, so a window
+  // close that's actually part of this shutdown is allowed through instead
+  // of being redirected to hide().
   app.on('before-quit', (event) => {
     if (quitting) return;
     quitting = true;

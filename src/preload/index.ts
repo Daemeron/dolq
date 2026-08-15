@@ -64,6 +64,8 @@ contextBridge.exposeInMainWorld('irc', {
 
   chooseDirectory: (defaultPath?: string) => ipcRenderer.invoke(IrcMessages.chooseDirectory, defaultPath),
 
+  setBadgeCount: (count: number) => ipcRenderer.invoke(IrcMessages.setBadgeCount, count),
+
   onLine: (callback: (serverId: string, line: string) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, serverId: string, line: string) => callback(serverId, line);
     ipcRenderer.on(IrcMessages.line, handler);

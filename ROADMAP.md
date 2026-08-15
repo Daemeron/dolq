@@ -611,7 +611,26 @@ will hang the UI.
 
 - [ ] Preferences beyond M1's basics: keybinding customization, sound alerts,
       per-server color overrides, font size/family
-- [ ] System tray icon (minimize to tray, unread badge count)
+- [x] System tray icon (minimize to tray, unread badge count) - the window's
+      close ("X"/red traffic light) button now hides instead of destroying
+      it (`createWindow`'s own `close` listener, main/index.ts), same shape
+      most tray apps use; a click on the tray icon toggles it back, and its
+      context menu offers "Show Dolq"/"Quit" explicitly. This also fixes a
+      pre-existing rough edge on macOS: without this, closing the window
+      actually destroyed it (Electron's default), so reopening via the dock
+      icon built a brand new one - now the same instance survives, kept
+      alive rather than recreated. A single module-level `quitting` flag
+      (set by `before-quit`, already idempotent from before this existed)
+      is what tells "the user clicked close" apart from "the app is
+      actually quitting" - reused rather than adding a second one. Unread
+      badge count reuses `mentionedChannels` (the only "unread"-shaped
+      signal this app tracks) via `app.setBadgeCount` - macOS/Linux(Unity)
+      only; Windows needs a taskbar overlay icon instead (a different API),
+      not implemented here, same gap the Windows/Linux parity item already
+      tracks. Verified end to end with a scripted Playwright `_electron`
+      run (headless, no real menu bar to screenshot): setBadgeCount round-
+      trips through the real IPC path, closing the window leaves it un-
+      destroyed and hidden, and showing it again brings it back
 - [x] Desktop notifications with per-channel mute - picked as the smallest,
       most self-contained item in this milestone: desktop notifications
       already existed (M1's mention detection), this just adds a per-channel
