@@ -85,4 +85,13 @@ contextBridge.exposeInMainWorld('irc', {
     ipcRenderer.on(IrcMessages.status, handler);
     return () => ipcRenderer.removeListener(IrcMessages.status, handler);
   },
+
+  onOpenIrcUrl: (callback) => {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      prefill: { host: string; port: number; secure: boolean; channel?: string },
+    ) => callback(prefill);
+    ipcRenderer.on(IrcMessages.openIrcUrl, handler);
+    return () => ipcRenderer.removeListener(IrcMessages.openIrcUrl, handler);
+  },
 } satisfies IrcApi);

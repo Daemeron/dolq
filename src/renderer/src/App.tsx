@@ -92,6 +92,12 @@ export default function App() {
   } = useStore();
 
   const [showModal, setShowModal] = useState(false);
+  // Prefill for the connect form from a clicked irc(s):// link (see the
+  // onOpenIrcUrl effect below) - null opens the form with its plain
+  // defaults, same as clicking "Add a Server" normally does.
+  const [connectPrefill, setConnectPrefill] = useState<
+    { host: string; port: number; secure: boolean; channel?: string } | null
+  >(null);
   const [showPreferences, setShowPreferences] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   // Not in the zustand store: unlike everything else there, these belong to
@@ -176,6 +182,18 @@ export default function App() {
   useEffect(() => {
     return window.irc.onStatus((serverId, status) => setConnectionStatus(serverId, status));
   }, [setConnectionStatus]);
+
+  // A clicked irc(s):// link (see main/index.ts's handleIrcUrl/parseIrcUrl)
+  // opens the same "Add a Server" form a manual click would, just pre-
+  // filled - connecting from it is still the user's own explicit action,
+  // same "don't auto-connect to an address you didn't choose" posture as
+  // accepting a DCC/XDCC offer.
+  useEffect(() => {
+    return window.irc.onOpenIrcUrl((prefill) => {
+      setConnectPrefill(prefill);
+      setShowModal(true);
+    });
+  }, []);
 
   // statusMap AND userMap aren't persisted, so both reset to empty on any
   // renderer-only reload (e.g. dev-mode HMR) even though the main process's live
@@ -556,6 +574,7 @@ export default function App() {
     setConnectionStatus(id, 'connected');
     selectServer(id);
     setShowModal(false);
+    setConnectPrefill(null);
   }
 
   // Shared by the manual "Connect" button (connectToServer) and the
@@ -838,7 +857,8 @@ export default function App() {
           presets={presets}
           nickMap={presetNickMap()}
           onConnect={handleConnect}
-          onCancel={() => setShowModal(false)}
+          onCancel={() => { setShowModal(false); setConnectPrefill(null); }}
+          initial={connectPrefill ?? undefined}
         />
       )}
       {showPreferences && (

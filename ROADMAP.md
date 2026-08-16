@@ -651,11 +651,26 @@ will hang the UI.
 - [ ] Emoji picker (optional, since this is "Discord-like")
 - [ ] Light theme (the `2e` icon variant is already sitting in `resources/`
       waiting for this)
-- [ ] `irc://`/`ircs://` link handling - register dolq as the OS protocol
-      handler (`app.setAsDefaultProtocolClient`) and parse the incoming URL
-      (macOS `open-url`, Windows/Linux second-instance argv) into a
-      host/port/channel/secure prefill for the connect flow, so clicking an
-      IRC link elsewhere opens straight into dolq
+- [x] `irc://`/`ircs://` link handling - `main/ircUrl.ts`'s `parseIrcUrl`
+      reads the loose convention most IRC clients already use for these
+      (`irc[s]://<host>[:<port>][/[<channel>][,<modifier>...]]`, both the
+      percent-encoded and the technically-wrong-but-extremely-common bare
+      "#channel" forms), deliberately not attempting to pull a password out
+      of one - there's no standard, non-OS-history-visible place for a real
+      link to carry one. Registered as dolq's protocol handler
+      (`app.setAsDefaultProtocolClient`) for both schemes; a single-instance
+      lock (`app.requestSingleInstanceLock`) means a link clicked while
+      already running reaches the one running copy via `second-instance`'s
+      argv (Windows/Linux) or `open-url` (macOS) instead of spawning a
+      second dolq, and a cold start via a link is caught by scanning
+      `process.argv` once at launch. The parsed host/port/secure/channel
+      prefill the same "Add a Server" form a manual click already opens
+      (`ConnectModal`'s new `initial` prop, channel going into
+      autojoinChannels) - connecting is still the user's own explicit
+      action from there, same posture as accepting a DCC/XDCC offer, not an
+      auto-connect. `parseIrcUrl` has its own test suite; the full path
+      (a real `open-url` event through to the form actually pre-filled) was
+      also checked end-to-end with a scripted Playwright `_electron` run
 
 ---
 

@@ -1,10 +1,11 @@
 import { installExtension, REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';
 import { app, BrowserWindow, dialog, ipcMain, Menu, shell, Tray } from 'electron';
-import { join } from 'path';
+import { join, resolve } from 'path';
 import fs from 'fs';
 import { ConnectionStatus, IrcMessages, Settings } from '../shared/ipc';
 import { BackendClient } from './irc/BackendClient';
 import { loadSettings, saveSettings } from './settings';
+import { parseIrcUrl } from './ircUrl';
 
 let mainWindow: BrowserWindow;
 let tray: Tray;
@@ -18,12 +19,19 @@ let tray: Tray;
 // fires during a real quit, before-quit has already run and set it.
 let quitting = false;
 
+// An irc(s):// link that arrived (open-url, second-instance, or a cold-
+// start argv - see handleIrcUrl/findIrcUrl) before the window's first load
+// finished has nowhere to send its prefill yet - queued here, flushed by
+// createWindow's 'did-finish-load' listener once there is one.
+let pendingIrcUrl: string | null = null;
+
 const ICON_PATH = join(__dirname, '../../resources/icon.png');
 // A full 512x512 dock/window icon is the wrong size for a menu bar/taskbar
 // tray icon - reuses one of the small variants already sitting in
 // resources/icons/ (electron-builder's own Linux icon-set convention)
 // rather than adding a new icon asset just for this.
 const TRAY_ICON_PATH = join(__dirname, '../../resources/icons/32x32.png');
+const IRC_URL_SCHEMES = ['irc', 'ircs'];
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
@@ -56,11 +64,52 @@ function createWindow(): void {
     event.preventDefault();
     mainWindow.hide();
   });
+
+  // Catches an irc(s):// link that arrived before this load finished (a
+  // cold start via the link itself) - see pendingIrcUrl's doc. Left as a
+  // persistent listener, not `.once`: flushPendingIrcUrl is already a
+  // no-op once the queue is empty, and a real page load (as opposed to
+  // just showing/hiding the same one) is the only time this fires again.
+  mainWindow.webContents.on('did-finish-load', flushPendingIrcUrl);
 }
 
 function showWindow(): void {
   mainWindow.show();
   mainWindow.focus();
+}
+
+// findIrcUrl picks the irc(s):// argument out of a process argv list - the
+// shape both a Windows/Linux cold-start launch (process.argv) and a
+// relaunch caught by 'second-instance' (its own argv) hand over. Unlike
+// macOS's open-url event, there's no dedicated event for this on those
+// platforms - the OS just launches/relaunches dolq with the link as a
+// plain command-line argument instead.
+function findIrcUrl(argv: string[]): string | undefined {
+  return argv.find((a) => IRC_URL_SCHEMES.some((scheme) => a.startsWith(`${scheme}://`)));
+}
+
+// Queues url and, if the window's already done loading, immediately parses
+// (see ircUrl.ts) and delivers it - a malformed link (not a well-formed
+// irc(s):// URL at all) is logged and dropped rather than ever reaching the
+// renderer. Safe to call before mainWindow exists at all (a cold start):
+// it just sits in pendingIrcUrl until createWindow's 'did-finish-load'
+// listener calls flushPendingIrcUrl itself.
+function handleIrcUrl(url: string): void {
+  pendingIrcUrl = url;
+  flushPendingIrcUrl();
+}
+
+function flushPendingIrcUrl(): void {
+  if (!pendingIrcUrl || !mainWindow || mainWindow.webContents.isLoadingMainFrame()) return;
+  const url = pendingIrcUrl;
+  pendingIrcUrl = null;
+  const prefill = parseIrcUrl(url);
+  if (!prefill) {
+    console.error(`ignoring malformed irc(s):// URL: ${url}`);
+    return;
+  }
+  mainWindow.webContents.send(IrcMessages.openIrcUrl, prefill);
+  showWindow();
 }
 
 // A tray icon exists for the app's whole lifetime, not tied to any one
@@ -86,28 +135,75 @@ function createTray(): void {
   });
 }
 
-app.whenReady().then(async () => {
-  // packaged macOS builds get their Dock icon from icon.icns automatically -
-  // this only matters for `npm run dev`/`electron .`, where macOS would
-  // otherwise show the generic Electron icon (BrowserWindow's `icon` option
-  // has no effect on macOS, unlike Windows/Linux).
-  if (!app.isPackaged) app.dock?.setIcon(ICON_PATH);
-  createWindow();
-  createTray();
+// Must be requested before anything else touches app - a second instance
+// (e.g. the OS relaunching dolq to open a Windows/Linux irc:// link while
+// it's already running - see findIrcUrl) quits immediately here, deferring
+// entirely to the 'second-instance' event this fires on the *first*
+// instance instead. Everything else in this file only ever runs for that
+// first instance - a doomed second one has nothing left to set up.
+if (!app.requestSingleInstanceLock()) {
+  app.quit();
+} else {
+  app.on('second-instance', (_event, argv) => {
+    const url = findIrcUrl(argv);
+    if (url) handleIrcUrl(url);
+    else showWindow();
+  });
 
-  const settings = loadSettings();
-  const backend = new BackendClient(settings.retentionDays);
-  // A plain mutable box, not a fresh `settings` binding per read - so
-  // registerIrcHandlers' closures see whatever Preferences last saved
-  // (registerSettingsHandlers writes into the same box) instead of the
-  // value that was current when the app started.
-  const settingsBox = { current: settings };
-  registerIrcHandlers(mainWindow, backend, settingsBox);
-  registerSettingsHandlers(settingsBox);
-  registerShellHandlers();
-  await installReactDevTools();
-  registerAppLifecycleHandlers(backend);
-});
+  // macOS never launches a second process for this at all - the OS
+  // delivers the link straight to the already-running app as this event
+  // instead. Registered outside whenReady() (per Electron's own docs)
+  // since a cold start via the link can fire this before 'ready' does.
+  app.on('open-url', (event, url) => {
+    event.preventDefault();
+    handleIrcUrl(url);
+  });
+
+  app.whenReady().then(async () => {
+    // packaged macOS builds get their Dock icon from icon.icns automatically -
+    // this only matters for `npm run dev`/`electron .`, where macOS would
+    // otherwise show the generic Electron icon (BrowserWindow's `icon` option
+    // has no effect on macOS, unlike Windows/Linux).
+    if (!app.isPackaged) app.dock?.setIcon(ICON_PATH);
+
+    // Windows needs the running script's own path re-supplied in dev (an
+    // unpackaged app launches through the bare electron.exe, which
+    // otherwise has no idea which project to reopen) - process.defaultApp
+    // is Electron's own documented way to tell dev and packaged apart for
+    // exactly this, not app.isPackaged (that flag doesn't exist yet this
+    // early relative to how this call needs to be made).
+    for (const scheme of IRC_URL_SCHEMES) {
+      if (process.defaultApp && process.argv.length >= 2) {
+        app.setAsDefaultProtocolClient(scheme, process.execPath, [resolve(process.argv[1])]);
+      } else {
+        app.setAsDefaultProtocolClient(scheme);
+      }
+    }
+
+    createWindow();
+    createTray();
+
+    // Windows/Linux cold start via a link: unlike 'second-instance', the
+    // very first launch's own argv never fires that event - checked here
+    // once, directly. (macOS's equivalent is 'open-url', already listening
+    // above regardless of whenReady.)
+    const coldStartUrl = findIrcUrl(process.argv);
+    if (coldStartUrl) handleIrcUrl(coldStartUrl);
+
+    const settings = loadSettings();
+    const backend = new BackendClient(settings.retentionDays);
+    // A plain mutable box, not a fresh `settings` binding per read - so
+    // registerIrcHandlers' closures see whatever Preferences last saved
+    // (registerSettingsHandlers writes into the same box) instead of the
+    // value that was current when the app started.
+    const settingsBox = { current: settings };
+    registerIrcHandlers(mainWindow, backend, settingsBox);
+    registerSettingsHandlers(settingsBox);
+    registerShellHandlers();
+    await installReactDevTools();
+    registerAppLifecycleHandlers(backend);
+  });
+}
 
 // Not IRC-backend traffic at all - shell.openExternal is only reachable
 // from the main process, so a clicked link in the renderer (see IrcText)

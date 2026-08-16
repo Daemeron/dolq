@@ -188,6 +188,11 @@ export type IrcApi = {
   onLine: (callback: (serverId: string, line: string) => void) => () => void;
   onEvent: (callback: (serverId: string, event: IrcEvent) => void) => () => void;
   onStatus: (callback: (serverId: string, status: ConnectionStatus) => void) => () => void;
+  // Fires when the OS hands dolq an irc(s):// link to open (registered as
+  // its protocol handler - see main/index.ts's registerIrcUrlHandlers and
+  // main/ircUrl.ts's parseIrcUrl) - host/port/secure/channel prefill the
+  // "Add a Server" form the same shape a picked preset already does.
+  onOpenIrcUrl: (callback: (prefill: { host: string; port: number; secure: boolean; channel?: string }) => void) => () => void;
 };
 
 // 'connecting' covers both a fresh manual connect and the backend
@@ -220,4 +225,5 @@ export enum IrcMessages {
   line = 'irc:line',
   event = 'irc:event',
   status = 'irc:status',
+  openIrcUrl = 'irc:openIrcUrl',
 }

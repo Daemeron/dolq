@@ -31,6 +31,10 @@ type Props = {
   nickMap: Record<string, string>;
   onConnect: (form: ConnectForm) => void;
   onCancel: () => void;
+  // Prefills from a clicked irc(s):// link (see App.tsx's onOpenIrcUrl) -
+  // channel goes into autojoinChannels, the same field a manually-typed
+  // one would, so it's joined the same way once connected.
+  initial?: { host: string; port: number; secure: boolean; channel?: string };
 };
 
 const DEFAULTS: ConnectForm = {
@@ -53,8 +57,19 @@ const inputClass =
 const labelClass =
   'flex flex-col gap-1.5 text-[11px] font-bold uppercase tracking-[0.5px] text-[#b0b0b0]';
 
-export function ConnectModal({ presets, nickMap, onConnect, onCancel }: Props) {
-  const [form, setForm] = useState<ConnectForm>(DEFAULTS);
+export function ConnectModal({ presets, nickMap, onConnect, onCancel, initial }: Props) {
+  const [form, setForm] = useState<ConnectForm>(() =>
+    initial
+      ? {
+          ...DEFAULTS,
+          name: initial.host,
+          host: initial.host,
+          port: String(initial.port),
+          secure: initial.secure,
+          autojoinChannels: initial.channel ?? '',
+        }
+      : DEFAULTS,
+  );
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
