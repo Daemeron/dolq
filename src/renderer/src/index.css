@@ -1,7 +1,14 @@
 @import "tailwindcss";
 
+:root {
+  /* Preferences' Font Family overrides this via App.tsx's effect (see
+     store.ts's fontFamily) - the fallback here is what always applied
+     before that setting existed, so leaving it untouched looks identical. */
+  --dolq-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: var(--dolq-font-family);
   background: #212121;
   color: #e6e6e6;
   height: 100vh;

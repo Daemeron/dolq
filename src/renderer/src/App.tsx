@@ -33,6 +33,24 @@ const HISTORY_PAGE_SIZE = 100;
 // normal aliases, just a guard against a self-inflicted infinite loop.
 const MAX_ALIAS_DEPTH = 8;
 
+// Preferences' Font Size, as Electron page-zoom factors (see the fontSize
+// effect above) - modest values, not a browser tab's full zoom range, so
+// "large" doesn't start clipping the sidebar's fixed-width panels.
+const FONT_SIZE_ZOOM: Record<'small' | 'medium' | 'large', number> = {
+  small: 0.9,
+  medium: 1,
+  large: 1.15,
+};
+
+// Preferences' Font Family presets - 'system' is exactly index.css's own
+// default stack (see :root there), so picking it back after trying another
+// preset looks identical to never having changed it at all.
+const FONT_FAMILY_STACKS: Record<'system' | 'serif' | 'monospace', string> = {
+  system: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+  serif: "Georgia, 'Times New Roman', Times, serif",
+  monospace: "'JetBrains Mono', 'Fira Code', 'Courier New', monospace",
+};
+
 // The backend persists every raw line and every parsed event, not just
 // what's renderable today - same as the live onLine/onEvent handlers below,
 // only PRIVMSG/ACTION/NOTICE (and raw lines, for the Log channel) currently
@@ -84,11 +102,11 @@ export default function App() {
   const {
     servers, presets, channelMap, messageMap, userMap, nickMap, saslMap,
     selectedServerId, selectedChannelId, statusMap, mentionedChannels, notificationsEnabled, mutedChannels,
-    timestampFormat, messageDensity, ignoredNicks, selfAwayMap, aliases,
+    timestampFormat, messageDensity, fontSize, fontFamily, ignoredNicks, selfAwayMap, aliases,
     addServer, removeServer, addPreset, addChannel, removeChannel, setTopic, setTopicWhoTime, appendMessage, setHistory, setNick, setSaslCreds,
     selectServer, selectChannel, setConnectionStatus, setUsers, addUser, removeUser, removeUserEverywhere,
     renameUserEverywhere, applyModeChanges, markMentioned, toggleMuteChannel, setNotificationsEnabled, setTimestampFormat, setMessageDensity,
-    addIgnore, removeIgnore, applyAwayEverywhere, setSelfAway, setAlias, removeAlias,
+    setFontSize, setFontFamily, addIgnore, removeIgnore, applyAwayEverywhere, setSelfAway, setAlias, removeAlias,
   } = useStore();
 
   const [showModal, setShowModal] = useState(false);
@@ -148,6 +166,18 @@ export default function App() {
   useEffect(() => {
     window.irc.setBadgeCount(Object.keys(mentionedChannels).length);
   }, [mentionedChannels]);
+
+  // Preferences' Font Size - see store.ts's fontSize doc for why this is a
+  // whole-window zoom rather than a CSS font-size.
+  useEffect(() => {
+    window.irc.setZoomFactor(FONT_SIZE_ZOOM[fontSize]);
+  }, [fontSize]);
+
+  // Preferences' Font Family - a plain CSS custom property (see index.css),
+  // unlike fontSize this doesn't need main-process involvement at all.
+  useEffect(() => {
+    document.documentElement.style.setProperty('--dolq-font-family', FONT_FAMILY_STACKS[fontFamily]);
+  }, [fontFamily]);
 
   async function handleSavePreferences(next: Settings) {
     await window.irc.setSettings(next);
@@ -872,6 +902,10 @@ export default function App() {
           onTimestampFormatChange={setTimestampFormat}
           messageDensity={messageDensity}
           onMessageDensityChange={setMessageDensity}
+          fontSize={fontSize}
+          onFontSizeChange={setFontSize}
+          fontFamily={fontFamily}
+          onFontFamilyChange={setFontFamily}
           servers={servers}
           ignoredNicks={ignoredNicks}
           onRemoveIgnore={removeIgnore}

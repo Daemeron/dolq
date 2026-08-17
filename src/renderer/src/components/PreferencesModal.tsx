@@ -16,6 +16,10 @@ type Props = {
   onTimestampFormatChange: (format: '12h' | '24h') => void;
   messageDensity: 'cozy' | 'compact';
   onMessageDensityChange: (density: 'cozy' | 'compact') => void;
+  fontSize: 'small' | 'medium' | 'large';
+  onFontSizeChange: (size: 'small' | 'medium' | 'large') => void;
+  fontFamily: 'system' | 'serif' | 'monospace';
+  onFontFamilyChange: (family: 'system' | 'serif' | 'monospace') => void;
   // Ignored nicks are normally managed from a user's context menu
   // (UserList), but that only works while they're actually visible in a
   // shared channel - this is the only way to remove one once they aren't.
@@ -37,6 +41,7 @@ const labelClass =
 export function PreferencesModal({
   settings, onSave, onCancel, notificationsEnabled, onNotificationsEnabledChange,
   timestampFormat, onTimestampFormatChange, messageDensity, onMessageDensityChange,
+  fontSize, onFontSizeChange, fontFamily, onFontFamilyChange,
   servers, ignoredNicks, onRemoveIgnore, aliases, onRemoveAlias,
 }: Props) {
   const [retentionDays, setRetentionDays] = useState(String(settings.retentionDays));
@@ -123,6 +128,33 @@ export function PreferencesModal({
             >
               <option value="cozy">Cozy</option>
               <option value="compact">Compact</option>
+            </select>
+          </label>
+        </div>
+
+        <div className="flex gap-3 mb-5">
+          <label className={`${labelClass} flex-1`}>
+            Font Size
+            <select
+              className={inputClass}
+              value={fontSize}
+              onChange={(e) => onFontSizeChange(e.target.value as 'small' | 'medium' | 'large')}
+            >
+              <option value="small">Small</option>
+              <option value="medium">Medium</option>
+              <option value="large">Large</option>
+            </select>
+          </label>
+          <label className={`${labelClass} flex-1`}>
+            Font Family
+            <select
+              className={inputClass}
+              value={fontFamily}
+              onChange={(e) => onFontFamilyChange(e.target.value as 'system' | 'serif' | 'monospace')}
+            >
+              <option value="system">System Default</option>
+              <option value="serif">Serif</option>
+              <option value="monospace">Monospace</option>
             </select>
           </label>
         </div>

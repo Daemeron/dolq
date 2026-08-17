@@ -33,6 +33,17 @@ type State = {
   mutedChannels: Record<string, boolean>;
   timestampFormat: '12h' | '24h';
   messageDensity: 'cozy' | 'compact';
+  // Applied via Electron's page zoom (App.tsx's effect calling
+  // window.irc.setZoomFactor - see FONT_SIZE_ZOOM in App.tsx), not a CSS
+  // font-size - virtually every text size in this app is a fixed Tailwind
+  // px value, not rem/em, so a root font-size change would visibly do
+  // nothing to most of it. Whole-page zoom scales everything (text *and*
+  // layout) uniformly instead, same as a browser's own Cmd/Ctrl +/-.
+  fontSize: 'small' | 'medium' | 'large';
+  // Applied as a CSS custom property (App.tsx's effect, see index.css's
+  // body rule) - unlike fontSize this really is just a font-family swap,
+  // no layout-scale concern, so plain CSS is enough.
+  fontFamily: 'system' | 'serif' | 'monospace';
   // Per-server (see ROADMAP's "per-network" - serverId is this app's only
   // notion of a network boundary already, same as nickMap/saslMap/etc.)
   // ignore list - purely a client-side display filter, nothing sent to the
@@ -75,6 +86,8 @@ type Actions = {
   setNotificationsEnabled: (enabled: boolean) => void;
   setTimestampFormat: (format: '12h' | '24h') => void;
   setMessageDensity: (density: 'cozy' | 'compact') => void;
+  setFontSize: (size: 'small' | 'medium' | 'large') => void;
+  setFontFamily: (family: 'system' | 'serif' | 'monospace') => void;
   addIgnore: (serverId: string, nick: string) => void;
   removeIgnore: (serverId: string, nick: string) => void;
   applyAwayEverywhere: (nick: string, away: boolean) => void;
@@ -101,6 +114,8 @@ export const useStore = create<State & Actions>()(
       mutedChannels: {},
       timestampFormat: '12h',
       messageDensity: 'cozy',
+      fontSize: 'medium',
+      fontFamily: 'system',
       ignoredNicks: {},
       selfAwayMap: {},
       aliases: {},
@@ -327,6 +342,10 @@ export const useStore = create<State & Actions>()(
 
       setMessageDensity: (density) => set({ messageDensity: density }),
 
+      setFontSize: (size) => set({ fontSize: size }),
+
+      setFontFamily: (family) => set({ fontFamily: family }),
+
       addIgnore: (serverId, nick) =>
         set((s) => {
           const existing = s.ignoredNicks[serverId] ?? [];
@@ -364,6 +383,8 @@ export const useStore = create<State & Actions>()(
         mutedChannels: s.mutedChannels,
         timestampFormat: s.timestampFormat,
         messageDensity: s.messageDensity,
+        fontSize: s.fontSize,
+        fontFamily: s.fontFamily,
         ignoredNicks: s.ignoredNicks,
         aliases: s.aliases,
       }),

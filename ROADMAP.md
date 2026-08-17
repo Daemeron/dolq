@@ -610,7 +610,28 @@ will hang the UI.
 ## Milestone 4 — Customization & polish
 
 - [ ] Preferences beyond M1's basics: keybinding customization, sound alerts,
-      per-server color overrides, font size/family
+      per-server color overrides, font size/family - four distinct enough
+      preferences that this is being worked through one at a time rather
+      than as a single pass; the parent box checks once all four are done.
+      - [x] Font size/family - Font Size is Electron's own whole-window page
+            zoom (`webContents.setZoomFactor`, via a new `setZoomFactor` IPC
+            action), not a CSS font-size: almost every text size in this app
+            is a fixed Tailwind px value, not rem/em, so a root font-size
+            change would visibly do nothing to most of the UI - zoom scales
+            text *and* layout uniformly instead, same as a browser's own
+            Cmd/Ctrl +/-. Font Family (System Default/Serif/Monospace) is a
+            plain CSS custom property instead (`--dolq-font-family`,
+            index.css) - no layout-scale concern there, so plain CSS is
+            enough. Both are renderer/zustand-store state applying live,
+            same pattern Timestamp Format/Message Density already use, not
+            part of the main-process-owned `Settings` object's save/cancel
+            flow. Verified against the real running app (Playwright
+            `_electron`): picking "Large"/"Monospace" from the real
+            Preferences selects actually changed the window's live zoom
+            factor and the CSS variable, not just local component state
+      - [ ] Sound alerts
+      - [ ] Per-server color overrides
+      - [ ] Keybinding customization
 - [x] System tray icon (minimize to tray, unread badge count) - the window's
       close ("X"/red traffic light) button now hides instead of destroying
       it (`createWindow`'s own `close` listener, main/index.ts), same shape

@@ -231,6 +231,10 @@ function registerShellHandlers(): void {
     });
     return canceled || !filePaths[0] ? null : filePaths[0];
   });
+
+  ipcMain.handle(IrcMessages.setZoomFactor, (_event, factor: number) => {
+    mainWindow.webContents.setZoomFactor(factor);
+  });
 }
 
 function registerIrcHandlers(mainWindow: BrowserWindow, backend: BackendClient, settingsBox: { current: Settings }): void {

@@ -66,6 +66,8 @@ contextBridge.exposeInMainWorld('irc', {
 
   setBadgeCount: (count: number) => ipcRenderer.invoke(IrcMessages.setBadgeCount, count),
 
+  setZoomFactor: (factor: number) => ipcRenderer.invoke(IrcMessages.setZoomFactor, factor),
+
   onLine: (callback: (serverId: string, line: string) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, serverId: string, line: string) => callback(serverId, line);
     ipcRenderer.on(IrcMessages.line, handler);

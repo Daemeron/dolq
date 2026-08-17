@@ -185,6 +185,12 @@ export type IrcApi = {
   // "unverified beyond macOS" gap ROADMAP's Windows/Linux parity item
   // already tracks). Called from App.tsx whenever mentionedChannels changes.
   setBadgeCount: (count: number) => Promise<void>;
+  // Whole-window Chromium page zoom (Preferences' font size) - scales text
+  // *and* layout uniformly, same as a browser's own Cmd/Ctrl +/-. Not a
+  // renderer-side CSS change: most of this app's text sizes are fixed
+  // Tailwind px values, not rem/em, so nothing here would visibly respond
+  // to a root font-size otherwise.
+  setZoomFactor: (factor: number) => Promise<void>;
   onLine: (callback: (serverId: string, line: string) => void) => () => void;
   onEvent: (callback: (serverId: string, event: IrcEvent) => void) => () => void;
   onStatus: (callback: (serverId: string, status: ConnectionStatus) => void) => () => void;
@@ -222,6 +228,7 @@ export enum IrcMessages {
   saveTextFile = 'irc:saveTextFile',
   chooseDirectory = 'irc:chooseDirectory',
   setBadgeCount = 'irc:setBadgeCount',
+  setZoomFactor = 'irc:setZoomFactor',
   line = 'irc:line',
   event = 'irc:event',
   status = 'irc:status',
