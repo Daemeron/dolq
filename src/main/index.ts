@@ -235,6 +235,10 @@ function registerShellHandlers(): void {
   ipcMain.handle(IrcMessages.setZoomFactor, (_event, factor: number) => {
     mainWindow.webContents.setZoomFactor(factor);
   });
+
+  ipcMain.handle(IrcMessages.playAlertSound, () => {
+    shell.beep();
+  });
 }
 
 function registerIrcHandlers(mainWindow: BrowserWindow, backend: BackendClient, settingsBox: { current: Settings }): void {

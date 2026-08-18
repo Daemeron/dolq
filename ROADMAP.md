@@ -629,7 +629,19 @@ will hang the UI.
             `_electron`): picking "Large"/"Monospace" from the real
             Preferences selects actually changed the window's live zoom
             factor and the CSS variable, not just local component state
-      - [ ] Sound alerts
+      - [x] Sound alerts - the OS's own system alert sound (Electron's
+            `shell.beep()`, via a new `playAlertSound` IPC action), not a
+            bundled audio asset or a synthesized Web Audio tone - both
+            unnecessary when the platform already has one the user can
+            already control/replace at the OS level, same reasoning as
+            reusing `app.setBadgeCount` over a hand-drawn tray badge. A
+            separate `soundAlertsEnabled` toggle from `notificationsEnabled`
+            (some people want one but not the other), same trigger point in
+            `checkMention` though, so it inherits per-channel mute for free.
+            Verified against the real running app: spied on `shell.beep` in
+            the main process and confirmed `window.irc.playAlertSound()`
+            actually reaches it, and that the new Preferences checkbox
+            renders and toggles
       - [ ] Per-server color overrides
       - [ ] Keybinding customization
 - [x] System tray icon (minimize to tray, unread badge count) - the window's

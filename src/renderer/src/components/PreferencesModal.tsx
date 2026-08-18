@@ -12,6 +12,8 @@ type Props = {
   // of the form's own save/cancel flow.
   notificationsEnabled: boolean;
   onNotificationsEnabledChange: (enabled: boolean) => void;
+  soundAlertsEnabled: boolean;
+  onSoundAlertsEnabledChange: (enabled: boolean) => void;
   timestampFormat: '12h' | '24h';
   onTimestampFormatChange: (format: '12h' | '24h') => void;
   messageDensity: 'cozy' | 'compact';
@@ -40,6 +42,7 @@ const labelClass =
 
 export function PreferencesModal({
   settings, onSave, onCancel, notificationsEnabled, onNotificationsEnabledChange,
+  soundAlertsEnabled, onSoundAlertsEnabledChange,
   timestampFormat, onTimestampFormatChange, messageDensity, onMessageDensityChange,
   fontSize, onFontSizeChange, fontFamily, onFontFamilyChange,
   servers, ignoredNicks, onRemoveIgnore, aliases, onRemoveAlias,
@@ -97,7 +100,7 @@ export function PreferencesModal({
           Applies to every server. Some settings need a restart to take effect.
         </p>
 
-        <label className="flex items-center gap-2 text-[13px] text-[#e6e6e6] cursor-pointer select-none mb-4">
+        <label className="flex items-center gap-2 text-[13px] text-[#e6e6e6] cursor-pointer select-none mb-3">
           <input
             type="checkbox"
             checked={notificationsEnabled}
@@ -105,6 +108,16 @@ export function PreferencesModal({
             className="accent-[#c792ea]"
           />
           Desktop notifications when mentioned in a channel you're not viewing
+        </label>
+
+        <label className="flex items-center gap-2 text-[13px] text-[#e6e6e6] cursor-pointer select-none mb-4">
+          <input
+            type="checkbox"
+            checked={soundAlertsEnabled}
+            onChange={(e) => onSoundAlertsEnabledChange(e.target.checked)}
+            className="accent-[#c792ea]"
+          />
+          Play a sound on the same mentions - independent of the notification above
         </label>
 
         <div className="flex gap-3 mb-5">

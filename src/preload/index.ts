@@ -68,6 +68,8 @@ contextBridge.exposeInMainWorld('irc', {
 
   setZoomFactor: (factor: number) => ipcRenderer.invoke(IrcMessages.setZoomFactor, factor),
 
+  playAlertSound: () => ipcRenderer.invoke(IrcMessages.playAlertSound),
+
   onLine: (callback: (serverId: string, line: string) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, serverId: string, line: string) => callback(serverId, line);
     ipcRenderer.on(IrcMessages.line, handler);

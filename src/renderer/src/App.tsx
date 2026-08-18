@@ -101,12 +101,12 @@ function notify(title: string, body: string, onClick: () => void): void {
 export default function App() {
   const {
     servers, presets, channelMap, messageMap, userMap, nickMap, saslMap,
-    selectedServerId, selectedChannelId, statusMap, mentionedChannels, notificationsEnabled, mutedChannels,
+    selectedServerId, selectedChannelId, statusMap, mentionedChannels, notificationsEnabled, soundAlertsEnabled, mutedChannels,
     timestampFormat, messageDensity, fontSize, fontFamily, ignoredNicks, selfAwayMap, aliases,
     addServer, removeServer, addPreset, addChannel, removeChannel, setTopic, setTopicWhoTime, appendMessage, setHistory, setNick, setSaslCreds,
     selectServer, selectChannel, setConnectionStatus, setUsers, addUser, removeUser, removeUserEverywhere,
-    renameUserEverywhere, applyModeChanges, markMentioned, toggleMuteChannel, setNotificationsEnabled, setTimestampFormat, setMessageDensity,
-    setFontSize, setFontFamily, addIgnore, removeIgnore, applyAwayEverywhere, setSelfAway, setAlias, removeAlias,
+    renameUserEverywhere, applyModeChanges, markMentioned, toggleMuteChannel, setNotificationsEnabled, setSoundAlertsEnabled, setTimestampFormat,
+    setMessageDensity, setFontSize, setFontFamily, addIgnore, removeIgnore, applyAwayEverywhere, setSelfAway, setAlias, removeAlias,
   } = useStore();
 
   const [showModal, setShowModal] = useState(false);
@@ -350,6 +350,9 @@ export default function App() {
         selectChannel(channelId);
       });
     }
+    // A separate toggle from notificationsEnabled (see store.ts's doc) -
+    // same trigger, independent on/off.
+    if (soundAlertsEnabled) window.irc.playAlertSound();
   }
 
   // A message never even reaches dmKey - an ignored nick DMing you doesn't
@@ -532,8 +535,8 @@ export default function App() {
   }, [
     appendMessage, addChannel, selectChannel, addUser, removeUser,
     removeUserEverywhere, renameUserEverywhere, applyModeChanges, setUsers, setTopic, setTopicWhoTime, nickMap,
-    channelMap, setNick, servers, selectedChannelId, selectServer, markMentioned, notificationsEnabled, mutedChannels, whoisNick,
-    ignoredNicks, applyAwayEverywhere, setSelfAway,
+    channelMap, setNick, servers, selectedChannelId, selectServer, markMentioned, notificationsEnabled, soundAlertsEnabled, mutedChannels,
+    whoisNick, ignoredNicks, applyAwayEverywhere, setSelfAway,
   ]);
 
   // Preload scrollback the first time a channel is actually opened - once
@@ -898,6 +901,8 @@ export default function App() {
           onCancel={() => setShowPreferences(false)}
           notificationsEnabled={notificationsEnabled}
           onNotificationsEnabledChange={setNotificationsEnabled}
+          soundAlertsEnabled={soundAlertsEnabled}
+          onSoundAlertsEnabledChange={setSoundAlertsEnabled}
           timestampFormat={timestampFormat}
           onTimestampFormatChange={setTimestampFormat}
           messageDensity={messageDensity}

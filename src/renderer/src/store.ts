@@ -24,6 +24,10 @@ type State = {
   // meaningful to restore from a previous session; excluded from partialize.
   mentionedChannels: Record<string, boolean>;
   notificationsEnabled: boolean;
+  // A separate toggle from notificationsEnabled, not folded into it - same
+  // trigger point (checkMention), but some people want the desktop
+  // notification without an audible beep, or vice versa.
+  soundAlertsEnabled: boolean;
   // Channels that never mark mentionedChannels or fire a desktop
   // notification, no matter what's said in them - see App.tsx's
   // checkMention. Keyed by bare channel id, same as mentionedChannels
@@ -84,6 +88,7 @@ type Actions = {
   markMentioned: (channelId: string) => void;
   toggleMuteChannel: (channelId: string) => void;
   setNotificationsEnabled: (enabled: boolean) => void;
+  setSoundAlertsEnabled: (enabled: boolean) => void;
   setTimestampFormat: (format: '12h' | '24h') => void;
   setMessageDensity: (density: 'cozy' | 'compact') => void;
   setFontSize: (size: 'small' | 'medium' | 'large') => void;
@@ -111,6 +116,7 @@ export const useStore = create<State & Actions>()(
       saslMap: {},
       mentionedChannels: {},
       notificationsEnabled: true,
+      soundAlertsEnabled: true,
       mutedChannels: {},
       timestampFormat: '12h',
       messageDensity: 'cozy',
@@ -338,6 +344,8 @@ export const useStore = create<State & Actions>()(
 
       setNotificationsEnabled: (enabled) => set({ notificationsEnabled: enabled }),
 
+      setSoundAlertsEnabled: (enabled) => set({ soundAlertsEnabled: enabled }),
+
       setTimestampFormat: (format) => set({ timestampFormat: format }),
 
       setMessageDensity: (density) => set({ messageDensity: density }),
@@ -380,6 +388,7 @@ export const useStore = create<State & Actions>()(
         selectedServerId: s.selectedServerId,
         selectedChannelId: s.selectedChannelId,
         notificationsEnabled: s.notificationsEnabled,
+        soundAlertsEnabled: s.soundAlertsEnabled,
         mutedChannels: s.mutedChannels,
         timestampFormat: s.timestampFormat,
         messageDensity: s.messageDensity,

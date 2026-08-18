@@ -191,6 +191,13 @@ export type IrcApi = {
   // Tailwind px values, not rem/em, so nothing here would visibly respond
   // to a root font-size otherwise.
   setZoomFactor: (factor: number) => Promise<void>;
+  // Preferences' sound alerts: the OS's own system alert sound
+  // (Electron's shell.beep(), a thin native passthrough - not a bundled
+  // audio asset or a synthesized tone, both unnecessary when the platform
+  // already has one users can already control/replace at the OS level).
+  // A silent no-op on a Linux desktop with no sound daemon configured,
+  // same "some platforms don't do the thing" shape as setBadgeCount.
+  playAlertSound: () => Promise<void>;
   onLine: (callback: (serverId: string, line: string) => void) => () => void;
   onEvent: (callback: (serverId: string, event: IrcEvent) => void) => () => void;
   onStatus: (callback: (serverId: string, status: ConnectionStatus) => void) => () => void;
@@ -229,6 +236,7 @@ export enum IrcMessages {
   chooseDirectory = 'irc:chooseDirectory',
   setBadgeCount = 'irc:setBadgeCount',
   setZoomFactor = 'irc:setZoomFactor',
+  playAlertSound = 'irc:playAlertSound',
   line = 'irc:line',
   event = 'irc:event',
   status = 'irc:status',
