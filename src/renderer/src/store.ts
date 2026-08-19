@@ -62,6 +62,19 @@ type State = {
   // typing shortcut isn't a protocol/network concept the way SASL creds or
   // autojoin are, so there's no reason to scope it to one.
   aliases: Record<string, string>;
+  // Global shortcuts (see App.tsx's keydown effect and utils/keybind.ts) -
+  // not per-server, a keybinding is a UI-level thing like fontSize/timestamp
+  // format, not a network concept.
+  keybindings: Record<KeybindAction, string>;
+};
+
+export type KeybindAction = 'nextChannel' | 'prevChannel' | 'closeChannel' | 'toggleMute';
+
+export const DEFAULT_KEYBINDINGS: Record<KeybindAction, string> = {
+  nextChannel: 'Alt+ArrowDown',
+  prevChannel: 'Alt+ArrowUp',
+  closeChannel: 'Alt+W',
+  toggleMute: 'Alt+M',
 };
 
 type Actions = {
@@ -99,6 +112,7 @@ type Actions = {
   setSelfAway: (serverId: string, away: boolean) => void;
   setAlias: (name: string, template: string) => void;
   removeAlias: (name: string) => void;
+  setKeybinding: (action: KeybindAction, combo: string) => void;
 };
 
 export const useStore = create<State & Actions>()(
@@ -125,6 +139,7 @@ export const useStore = create<State & Actions>()(
       ignoredNicks: {},
       selfAwayMap: {},
       aliases: {},
+      keybindings: DEFAULT_KEYBINDINGS,
 
       addServer: (server, logChannel) =>
         set((s) => ({
@@ -375,6 +390,9 @@ export const useStore = create<State & Actions>()(
           delete aliases[name];
           return { aliases };
         }),
+
+      setKeybinding: (action, combo) =>
+        set((s) => ({ keybindings: { ...s.keybindings, [action]: combo } })),
     }),
     {
       name: 'dolq',
@@ -396,6 +414,7 @@ export const useStore = create<State & Actions>()(
         fontFamily: s.fontFamily,
         ignoredNicks: s.ignoredNicks,
         aliases: s.aliases,
+        keybindings: s.keybindings,
       }),
     },
   ),

@@ -643,7 +643,24 @@ will hang the UI.
             actually reaches it, and that the new Preferences checkbox
             renders and toggles
       - [ ] Per-server color overrides
-      - [ ] Keybinding customization
+      - [x] Keybinding customization - four global shortcuts (Next/Previous
+            Channel, Close Current Channel, Toggle Mute), the actions this
+            app already exposes via click/context-menu that make sense to
+            fire from anywhere; not a general-purpose remapper for every
+            existing shortcut. Default bindings all use Alt (`Alt+ArrowDown`
+            etc.) so they never collide with normal typing in the message
+            box. A shared `comboFromEvent` (utils/keybind.ts) requires a
+            modifier key and builds the same combo string used both to
+            record a new binding in Preferences and to match a keypress in
+            App.tsx's listener, one definition for both. Rebinding is a
+            click-then-press-keys row per action, Esc cancels; no collision
+            check if two actions end up on the same combo (see the
+            `note:` comment at the call site) and no reset-to-default
+            button - both are easy to add later if anyone hits them. Verified
+            against the real running app (Playwright `_electron`): opened
+            the real Preferences panel, entered recording mode on "Next
+            Channel", pressed Alt+N, and confirmed the button's label
+            actually updated to the new combo
 - [x] System tray icon (minimize to tray, unread badge count) - the window's
       close ("X"/red traffic light) button now hides instead of destroying
       it (`createWindow`'s own `close` listener, main/index.ts), same shape

@@ -22,6 +22,7 @@ import { UserPanel } from './components/UserPanel';
 import { buildServerId, normalizeHost, resolveHostPort } from './utils/server';
 import { mentionsNick } from './utils/mentions';
 import { formatEntry } from './utils/exportFormat';
+import { comboFromEvent } from './utils/keybind';
 
 // How many rows getHistory fetches per page - both for the initial preload
 // and each scroll-up-triggered older page. Also doubles as the "is there
@@ -102,11 +103,11 @@ export default function App() {
   const {
     servers, presets, channelMap, messageMap, userMap, nickMap, saslMap,
     selectedServerId, selectedChannelId, statusMap, mentionedChannels, notificationsEnabled, soundAlertsEnabled, mutedChannels,
-    timestampFormat, messageDensity, fontSize, fontFamily, ignoredNicks, selfAwayMap, aliases,
+    timestampFormat, messageDensity, fontSize, fontFamily, ignoredNicks, selfAwayMap, aliases, keybindings,
     addServer, removeServer, addPreset, addChannel, removeChannel, setTopic, setTopicWhoTime, appendMessage, setHistory, setNick, setSaslCreds,
     selectServer, selectChannel, setConnectionStatus, setUsers, addUser, removeUser, removeUserEverywhere,
     renameUserEverywhere, applyModeChanges, markMentioned, toggleMuteChannel, setNotificationsEnabled, setSoundAlertsEnabled, setTimestampFormat,
-    setMessageDensity, setFontSize, setFontFamily, addIgnore, removeIgnore, applyAwayEverywhere, setSelfAway, setAlias, removeAlias,
+    setMessageDensity, setFontSize, setFontFamily, addIgnore, removeIgnore, applyAwayEverywhere, setSelfAway, setAlias, removeAlias, setKeybinding,
   } = useStore();
 
   const [showModal, setShowModal] = useState(false);
@@ -178,6 +179,42 @@ export default function App() {
   useEffect(() => {
     document.documentElement.style.setProperty('--dolq-font-family', FONT_FAMILY_STACKS[fontFamily]);
   }, [fontFamily]);
+
+  // Preferences' keybinding customization - global shortcuts for channel
+  // navigation/close/mute. comboFromEvent (utils/keybind.ts) requires a
+  // modifier key, so this never intercepts plain typing in the message box.
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      const combo = comboFromEvent(e);
+      if (!combo) return;
+      const action = (Object.keys(keybindings) as (keyof typeof keybindings)[]).find(
+        (a) => keybindings[a] === combo,
+      );
+      if (!action) return;
+      const list = channelMap[selectedServerId] ?? [];
+      if (list.length === 0) return;
+      e.preventDefault();
+      switch (action) {
+        case 'nextChannel':
+        case 'prevChannel': {
+          const dir = action === 'nextChannel' ? 1 : -1;
+          const idx = list.findIndex((c) => c.id === selectedChannelId);
+          selectChannel(list[(idx + dir + list.length) % list.length].id);
+          break;
+        }
+        case 'closeChannel': {
+          const current = list.find((c) => c.id === selectedChannelId);
+          if (current && !current.isLog) handleRemoveChannel(current.id);
+          break;
+        }
+        case 'toggleMute':
+          toggleMuteChannel(selectedChannelId);
+          break;
+      }
+    }
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [keybindings, channelMap, userMap, nickMap, selectedServerId, selectedChannelId, selectChannel, toggleMuteChannel]);
 
   async function handleSavePreferences(next: Settings) {
     await window.irc.setSettings(next);
@@ -916,6 +953,8 @@ export default function App() {
           onRemoveIgnore={removeIgnore}
           aliases={aliases}
           onRemoveAlias={removeAlias}
+          keybindings={keybindings}
+          onKeybindingChange={setKeybinding}
         />
       )}
       {whoisNick && (

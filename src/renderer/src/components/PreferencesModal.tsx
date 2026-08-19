@@ -1,6 +1,15 @@
 import { useEffect, useState } from 'react';
 import type { Settings } from '../../../shared/ipc';
 import type { Server } from '../types';
+import { type KeybindAction } from '../store';
+import { comboFromEvent } from '../utils/keybind';
+
+const KEYBIND_LABELS: Record<KeybindAction, string> = {
+  nextChannel: 'Next Channel',
+  prevChannel: 'Previous Channel',
+  closeChannel: 'Close Current Channel',
+  toggleMute: 'Toggle Mute on Current Channel',
+};
 
 type Props = {
   settings: Settings;
@@ -33,6 +42,8 @@ type Props = {
   // above, not a place to add one from scratch.
   aliases: Record<string, string>;
   onRemoveAlias: (name: string) => void;
+  keybindings: Record<KeybindAction, string>;
+  onKeybindingChange: (action: KeybindAction, combo: string) => void;
 };
 
 const inputClass =
@@ -45,7 +56,7 @@ export function PreferencesModal({
   soundAlertsEnabled, onSoundAlertsEnabledChange,
   timestampFormat, onTimestampFormatChange, messageDensity, onMessageDensityChange,
   fontSize, onFontSizeChange, fontFamily, onFontFamilyChange,
-  servers, ignoredNicks, onRemoveIgnore, aliases, onRemoveAlias,
+  servers, ignoredNicks, onRemoveIgnore, aliases, onRemoveAlias, keybindings, onKeybindingChange,
 }: Props) {
   const [retentionDays, setRetentionDays] = useState(String(settings.retentionDays));
   const [downloadDir, setDownloadDir] = useState(settings.downloadDir ?? '');
@@ -55,14 +66,41 @@ export function PreferencesModal({
     nicks.map((nick) => ({ serverId, nick })),
   );
   const aliasEntries = Object.entries(aliases);
+  // The action currently "listening" for its next keypress to rebind to -
+  // null means no rebind row is in recording mode.
+  const [recording, setRecording] = useState<KeybindAction | null>(null);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onCancel();
+      if (e.key !== 'Escape') return;
+      if (recording) {
+        setRecording(null);
+        return;
+      }
+      onCancel();
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [onCancel]);
+  }, [onCancel, recording]);
+
+  useEffect(() => {
+    if (!recording) return;
+    const action = recording;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') return; // handled by the effect above
+      e.preventDefault();
+      const combo = comboFromEvent(e);
+      if (!combo) return; // needs a modifier - keep listening
+      // note: no duplicate-combo guard - binding two actions to the same
+      // combo just makes App.tsx's lookup silently favor whichever comes
+      // first in keybindings' key order. Add a collision check if that ever
+      // surprises someone.
+      onKeybindingChange(action, combo);
+      setRecording(null);
+    }
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [recording, onKeybindingChange]);
 
   async function handleBrowseDownloadDir() {
     const chosen = await window.irc.chooseDirectory(downloadDir || undefined);
@@ -170,6 +208,30 @@ export function PreferencesModal({
               <option value="monospace">Monospace</option>
             </select>
           </label>
+        </div>
+
+        <div className="flex flex-col gap-1.5 mb-5">
+          <span className="text-[11px] font-bold uppercase tracking-[0.5px] text-[#b0b0b0]">
+            Keybindings
+          </span>
+          <div className="flex flex-col gap-1">
+            {(Object.keys(KEYBIND_LABELS) as KeybindAction[]).map((action) => (
+              <div key={action} className="flex items-center justify-between gap-3 px-3 py-1.5 rounded bg-[#333333]">
+                <span className="text-[#e6e6e6] text-[13px]">{KEYBIND_LABELS[action]}</span>
+                <button
+                  type="button"
+                  onClick={() => setRecording(action)}
+                  className={`shrink-0 px-2.5 py-1 rounded text-[12px] font-medium border-0 cursor-pointer ${
+                    recording === action
+                      ? 'bg-[#c792ea] text-white'
+                      : 'bg-[#242424] text-[#e6e6e6] hover:bg-[#2b2b2b]'
+                  }`}
+                >
+                  {recording === action ? 'Press keys… (Esc to cancel)' : keybindings[action]}
+                </button>
+              </div>
+            ))}
+          </div>
         </div>
 
         {ignoredEntries.length > 0 && (
