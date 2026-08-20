@@ -1,5 +1,5 @@
 import { installExtension, REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';
-import { app, BrowserWindow, dialog, ipcMain, Menu, shell, Tray } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, shell, Tray } from 'electron';
 import { join, resolve } from 'path';
 import fs from 'fs';
 import { ConnectionStatus, IrcMessages, Settings } from '../shared/ipc';
@@ -35,11 +35,19 @@ let quitting = false;
 let pendingIrcUrl: string | null = null;
 
 const ICON_PATH = join(__dirname, '../../resources/icon.png');
-// A full 512x512 dock/window icon is the wrong size for a menu bar/taskbar
-// tray icon - reuses one of the small variants already sitting in
-// resources/icons/ (electron-builder's own Linux icon-set convention)
-// rather than adding a new icon asset just for this.
-const TRAY_ICON_PATH = join(__dirname, '../../resources/icons/32x32.png');
+// macOS menu bar icons are their own convention, not just a small app icon:
+// a black glyph on a transparent background (no colored square, no rounded
+// corners), marked as a "template image" so the OS re-tints it for light/
+// dark menu bars and the highlighted/clicked state automatically - a
+// colorful square there reads as an unpolished Windows-style tray icon, not
+// a native Mac one. trayIconTemplate.png/@2x.png (resources/) are a
+// generated, transparent-background crop of the dagger from the app icon;
+// the "Template" suffix is also Electron/macOS's own filename convention
+// for auto-detecting this, on top of the explicit setTemplateImage below.
+// Elsewhere, no such convention exists, so this stays the full-color icon.
+const TRAY_ICON_PATH = process.platform === 'darwin'
+  ? join(__dirname, '../../resources/trayIconTemplate.png')
+  : join(__dirname, '../../resources/icons/32x32.png');
 const IRC_URL_SCHEMES = ['irc', 'ircs'];
 
 function createWindow(): void {
@@ -126,7 +134,9 @@ function flushPendingIrcUrl(): void {
 // handler (App.tsx calls it whenever mentionedChannels changes), since both
 // are "OS integration" rather than IRC traffic.
 function createTray(): void {
-  tray = new Tray(TRAY_ICON_PATH);
+  const trayIcon = nativeImage.createFromPath(TRAY_ICON_PATH);
+  if (process.platform === 'darwin') trayIcon.setTemplateImage(true);
+  tray = new Tray(trayIcon);
   tray.setToolTip('Dolq');
   tray.setContextMenu(
     Menu.buildFromTemplate([

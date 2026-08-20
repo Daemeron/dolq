@@ -699,7 +699,23 @@ will hang the UI.
       tracks. Verified end to end with a scripted Playwright `_electron`
       run (headless, no real menu bar to screenshot): setBadgeCount round-
       trips through the real IPC path, closing the window leaves it un-
-      destroyed and hidden, and showing it again brings it back
+      destroyed and hidden, and showing it again brings it back. The tray
+      icon itself was later redone for macOS specifically: a colored
+      rounded-square icon there reads as a ported Windows tray icon, not a
+      native menu bar one - macOS's own convention is a black glyph on a
+      transparent background marked as a "template image", which the OS
+      re-tints for light/dark menu bars and the clicked/highlighted state
+      automatically. `trayIconTemplate.png`/`@2x.png` (resources/) are a
+      generated crop of the dagger from the app icon (luminance-thresholded
+      to alpha - background pixels become transparent, the dagger becomes
+      opaque black, edges keep a soft alpha gradient instead of going
+      jagged), loaded via `nativeImage` and `setTemplateImage(true)` (on top
+      of Electron's own "Template"-suffix filename convention already
+      doing the same detection). Windows/Linux keep the previous full-color
+      icon - no such macOS-only convention applies there. Verified against
+      the real running app: loaded the actual generated file through
+      `nativeImage` and confirmed `isTemplateImage()` and its pixel
+      dimensions come back correct
 - [x] Desktop notifications with per-channel mute - picked as the smallest,
       most self-contained item in this milestone: desktop notifications
       already existed (M1's mention detection), this just adds a per-channel
