@@ -37,9 +37,15 @@ type Props = {
   initial?: { host: string; port: number; secure: boolean; channel?: string };
 };
 
+// name/host start empty (real placeholders below, not prefilled values) -
+// a live default like "localhost" looked like a real, connectable value and
+// silently submitted if someone didn't notice they still needed to pick a
+// preset or type their own host. handleSubmit already refuses an empty
+// host, so this is enough to make that mistake impossible instead of just
+// less likely.
 const DEFAULTS: ConnectForm = {
-  name: 'Localhost',
-  host: 'localhost',
+  name: '',
+  host: '',
   port: String(IRC_TLS_PORT),
   nick: 'dolq_user',
   password: '',

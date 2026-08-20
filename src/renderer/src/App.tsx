@@ -631,9 +631,13 @@ export default function App() {
     const port = Number(form.port);
     const altNicks = parseList(form.altNicks);
     const autojoinChannels = parseList(form.autojoinChannels);
+    // A picked preset always fills this in, but a manually-typed host with
+    // no name given (Name has no default anymore - see ConnectModal's
+    // DEFAULTS) would otherwise leave the server unnamed in the rail.
+    const name = form.name.trim() || host;
     addServer(
       {
-        id, name: form.name, initial: form.name[0]?.toUpperCase() ?? '?', secure: form.secure, host, port,
+        id, name, initial: name[0]?.toUpperCase() ?? '?', secure: form.secure, host, port,
         altNicks, username: form.username || undefined, realname: form.realname || undefined, autojoinChannels,
       },
       { id: `${id}:__log__`, name: 'Log', isLog: true },
@@ -641,7 +645,7 @@ export default function App() {
     // Unlike id, still host:port - the preset list is "networks you've
     // connected to before", deduped per-network regardless of how many
     // identities you've since added for one (see addPreset in store.ts).
-    addPreset({ id: buildServerId(host, port), name: form.name, host, port, secure: form.secure });
+    addPreset({ id: buildServerId(host, port), name, host, port, secure: form.secure });
     setNick(id, form.nick);
     setSaslCreds(id, form.saslUser, form.saslPass);
     setConnectionStatus(id, 'connecting');

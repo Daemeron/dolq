@@ -826,6 +826,19 @@ will hang the UI.
       unhandled-rejection warning found in the process: the handshake's
       `Promise.all` could leave sibling `send()` rejections unobserved when a
       bad connection failed more than one of them
+- [x] "Add a Server" defaulted Name/Host to a real, silently-connectable
+      value (`Localhost`/`localhost`) instead of an empty field - clicking
+      Connect without editing anything (easy to do without noticing, e.g.
+      after typing just a nickname) dialed `localhost:6697` instead of
+      whatever the user actually meant to connect to, surfacing as an
+      opaque `dial tcp [::1]:6697: connect: connection refused` with no clue
+      it was a form-default problem rather than a real connection failure.
+      Both fields now start empty behind their existing placeholder text;
+      the form's own empty-host submit guard turns "forgot to fill it in"
+      into "can't submit" instead of "connects to the wrong thing." A
+      manually-typed host with no Name given (a preset always fills Name
+      in, so this only affects custom entries) now falls back to the host
+      itself rather than leaving the server unnamed in the rail
 
 ---
 
