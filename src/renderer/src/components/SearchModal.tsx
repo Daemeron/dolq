@@ -17,7 +17,7 @@ type Props = {
 };
 
 const inputClass =
-  'w-full bg-[#333333] border-0 rounded text-[#e6e6e6] text-[14px] px-3 py-2.5 outline-none focus:ring-2 focus:ring-[#c792ea] placeholder:text-[#6b6b6b]';
+  'w-full bg-[var(--dolq-bg-input)] border-0 rounded text-[var(--dolq-text)] text-[14px] px-3 py-2.5 outline-none focus:ring-2 focus:ring-[#c792ea] placeholder:text-[var(--dolq-text-faint)]';
 
 // "Packs only" filters client-side rather than in the query itself - the
 // backend's search is a plain payload LIKE match (see
@@ -75,10 +75,10 @@ export function SearchModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
       <div
-        className="bg-[#1c1c1c] rounded-lg p-6 w-140 max-h-[80vh] flex flex-col shadow-[0_8px_32px_rgba(0,0,0,0.5)]"
+        className="bg-[var(--dolq-bg-panel)] rounded-lg p-6 w-140 max-h-[80vh] flex flex-col shadow-[0_8px_32px_rgba(0,0,0,0.5)]"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 className="text-white text-[18px] font-bold mb-4 shrink-0">Search History</h2>
+        <h2 className="text-[var(--dolq-text)] text-[18px] font-bold mb-4 shrink-0">Search History</h2>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-3 shrink-0">
           <input
@@ -90,11 +90,11 @@ export function SearchModal({
           />
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <label className="flex items-center gap-2 text-[13px] text-[#e6e6e6] cursor-pointer select-none">
+              <label className="flex items-center gap-2 text-[13px] text-[var(--dolq-text)] cursor-pointer select-none">
                 <input type="checkbox" checked={global} onChange={(e) => setGlobal(e.target.checked)} className="accent-[#c792ea]" />
                 Search everywhere, not just {defaultChannelLabel}
               </label>
-              <label className="flex items-center gap-2 text-[13px] text-[#e6e6e6] cursor-pointer select-none">
+              <label className="flex items-center gap-2 text-[13px] text-[var(--dolq-text)] cursor-pointer select-none">
                 <input type="checkbox" checked={packsOnly} onChange={(e) => setPacksOnly(e.target.checked)} className="accent-[#c792ea]" />
                 📦 Packs only
               </label>
@@ -111,7 +111,7 @@ export function SearchModal({
 
         <div className="flex-1 min-h-0 overflow-y-auto scroll-thin mt-4 -mx-1 px-1">
           {results === null ? null : results.length === 0 ? (
-            <p className="text-[#6b6b6b] text-[14px] text-center mt-4">No matches.</p>
+            <p className="text-[var(--dolq-text-faint)] text-[14px] text-center mt-4">No matches.</p>
           ) : (
             <div className="flex flex-col gap-1">
               {results.map((entry) => {
@@ -124,12 +124,12 @@ export function SearchModal({
                     key={entry.id}
                     onClick={() => (pack ? onGetPack(entry.serverId, pack.nick, pack.number) : onJump(entry.serverId, entry.channel))}
                     title={pack ? 'Click to request this pack' : undefined}
-                    className="flex flex-col items-start gap-0.5 w-full px-3 py-2 rounded border-0 bg-[#262626] text-left cursor-pointer hover:bg-[#303030]"
+                    className="flex flex-col items-start gap-0.5 w-full px-3 py-2 rounded border-0 bg-[var(--dolq-bg-raised)] text-left cursor-pointer hover:bg-[var(--dolq-bg-hover)]"
                   >
-                    <span className="text-[11px] text-[#6b6b6b]">
+                    <span className="text-[11px] text-[var(--dolq-text-faint)]">
                       {serverName} / {channelLabel} · {new Date(entry.timestamp).toLocaleString()}
                     </span>
-                    <span className={`text-[14px] truncate w-full ${pack ? 'font-mono text-[#a0a0a0]' : 'text-[#e6e6e6]'}`}>
+                    <span className={`text-[14px] truncate w-full ${pack ? 'font-mono text-[var(--dolq-text-muted)]' : 'text-[var(--dolq-text)]'}`}>
                       {pack ? (
                         `📦 ${text}`
                       ) : (
@@ -149,7 +149,7 @@ export function SearchModal({
         <div className="flex justify-end mt-4 shrink-0">
           <button
             onClick={onClose}
-            className="px-4 py-2 rounded text-[#b0b0b0] text-[14px] font-medium bg-transparent border-0 cursor-pointer hover:text-white"
+            className="px-4 py-2 rounded text-[var(--dolq-text-muted)] text-[14px] font-medium bg-transparent border-0 cursor-pointer hover:text-[var(--dolq-text)]"
           >
             Close
           </button>

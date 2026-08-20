@@ -12,18 +12,18 @@ export function DCCOfferModal({ nick, onAccept, onDecline }: Props) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onDecline}>
       <div
-        className="bg-[#1c1c1c] rounded-lg p-6 w-90 shadow-[0_8px_32px_rgba(0,0,0,0.5)]"
+        className="bg-[var(--dolq-bg-panel)] rounded-lg p-6 w-90 shadow-[0_8px_32px_rgba(0,0,0,0.5)]"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 className="text-white text-[18px] font-bold mb-2">DCC Chat Request</h2>
-        <p className="text-[#b0b0b0] text-[14px] mb-5">
-          <span className="text-[#e6e6e6] font-semibold">{nick}</span> wants to start a direct chat with you,
+        <h2 className="text-[var(--dolq-text)] text-[18px] font-bold mb-2">DCC Chat Request</h2>
+        <p className="text-[var(--dolq-text-muted)] text-[14px] mb-5">
+          <span className="text-[var(--dolq-text)] font-semibold">{nick}</span> wants to start a direct chat with you,
           outside the server. Only accept this from someone you trust - it connects straight to their address.
         </p>
         <div className="flex gap-3 justify-end">
           <button
             onClick={onDecline}
-            className="px-4 py-2 rounded text-[#b0b0b0] text-[14px] font-medium bg-transparent border-0 cursor-pointer hover:text-white"
+            className="px-4 py-2 rounded text-[var(--dolq-text-muted)] text-[14px] font-medium bg-transparent border-0 cursor-pointer hover:text-[var(--dolq-text)]"
           >
             Decline
           </button>

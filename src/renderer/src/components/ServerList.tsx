@@ -37,7 +37,7 @@ export function ServerList({ servers, selectedId, onSelect, onAddServer, onRemov
 
   return (
     <aside
-      className="relative flex flex-col w-18 bg-[#18191a] shrink-0 overflow-hidden"
+      className="relative flex flex-col w-18 bg-[var(--dolq-bg-panel-alt)] shrink-0 overflow-hidden"
       onContextMenu={dismissIfUnhandled}
     >
       <div className="flex-1 min-h-0 overflow-y-auto scroll-invisible flex flex-col items-center gap-2 px-3 pt-3 pb-3 mb-30">
@@ -51,19 +51,19 @@ export function ServerList({ servers, selectedId, onSelect, onAddServer, onRemov
             className={`w-12 h-12 text-[18px] font-bold cursor-pointer select-none border-0 rounded-[30%] transition-[background] duration-150 ${
               s.id === selectedId
                 ? 'bg-[var(--server-accent)] text-white text-shadow-sm'
-                : 'bg-[#212121] text-[#e6e6e6] hover:bg-[var(--server-accent)] hover:text-white hover:text-shadow-sm'
+                : 'bg-[var(--dolq-bg)] text-[var(--dolq-text)] hover:bg-[var(--server-accent)] hover:text-white hover:text-shadow-sm'
             }`}
           >
             {s.initial}
           </button>
         ))}
         {servers.length !== 0 && (
-          <div className="w-8 h-px bg-[#212121] my-1" />
+          <div className="w-8 h-px bg-[var(--dolq-bg)] my-1" />
         )}
         <button
           title="Add server"
           onClick={onAddServer}
-          className="w-12 h-12 rounded-full bg-[#212121] text-[#50fa7b] flex items-center justify-center cursor-pointer border-0 hover:bg-[#50fa7b] hover:text-white hover:text-shadow-sm transition-[border-radius,background] duration-150 select-none"
+          className="w-12 h-12 rounded-full bg-[var(--dolq-bg)] text-[#50fa7b] flex items-center justify-center cursor-pointer border-0 hover:bg-[#50fa7b] hover:text-white hover:text-shadow-sm transition-[border-radius,background] duration-150 select-none"
         >
           <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
             <line x1="10" y1="3" x2="10" y2="17" />

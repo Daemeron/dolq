@@ -48,6 +48,11 @@ type State = {
   // body rule) - unlike fontSize this really is just a font-family swap,
   // no layout-scale concern, so plain CSS is enough.
   fontFamily: 'system' | 'serif' | 'monospace';
+  // Applied via a `[data-theme]` attribute on <html> (App.tsx's effect, see
+  // index.css's :root[data-theme='light'] overrides) - dark is the app's
+  // original palette and stays the unthemed default, so this only ever
+  // needs to opt IN to light, not the other way round.
+  theme: 'dark' | 'light';
   // Per-server (see ROADMAP's "per-network" - serverId is this app's only
   // notion of a network boundary already, same as nickMap/saslMap/etc.)
   // ignore list - purely a client-side display filter, nothing sent to the
@@ -106,6 +111,7 @@ type Actions = {
   setMessageDensity: (density: 'cozy' | 'compact') => void;
   setFontSize: (size: 'small' | 'medium' | 'large') => void;
   setFontFamily: (family: 'system' | 'serif' | 'monospace') => void;
+  setTheme: (theme: 'dark' | 'light') => void;
   addIgnore: (serverId: string, nick: string) => void;
   removeIgnore: (serverId: string, nick: string) => void;
   applyAwayEverywhere: (nick: string, away: boolean) => void;
@@ -137,6 +143,7 @@ export const useStore = create<State & Actions>()(
       messageDensity: 'cozy',
       fontSize: 'medium',
       fontFamily: 'system',
+      theme: 'dark',
       ignoredNicks: {},
       selfAwayMap: {},
       aliases: {},
@@ -370,6 +377,8 @@ export const useStore = create<State & Actions>()(
 
       setFontFamily: (family) => set({ fontFamily: family }),
 
+      setTheme: (theme) => set({ theme }),
+
       addIgnore: (serverId, nick) =>
         set((s) => {
           const existing = s.ignoredNicks[serverId] ?? [];
@@ -418,6 +427,7 @@ export const useStore = create<State & Actions>()(
         messageDensity: s.messageDensity,
         fontSize: s.fontSize,
         fontFamily: s.fontFamily,
+        theme: s.theme,
         ignoredNicks: s.ignoredNicks,
         aliases: s.aliases,
         keybindings: s.keybindings,

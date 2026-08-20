@@ -38,15 +38,15 @@ export function ChannelList({
 
   return (
     <aside
-      className="relative flex flex-col w-60 bg-[#1c1c1c] shrink-0 overflow-hidden"
+      className="relative flex flex-col w-60 bg-[var(--dolq-bg-panel)] shrink-0 overflow-hidden"
       onContextMenu={dismissIfUnhandled}
     >
-      <div className="px-4 h-12 flex items-center justify-between font-bold text-[15px] text-white border-b border-[#2a2a2a] shrink-0 shadow-[0_1px_0_rgba(0,0,0,0.2)]">
+      <div className="px-4 h-12 flex items-center justify-between font-bold text-[15px] text-[var(--dolq-text)] border-b border-[var(--dolq-border)] shrink-0 shadow-[0_1px_0_rgba(0,0,0,0.2)]">
         <span className="truncate">{serverName}</span>
         <button
           onClick={onOpenSearch}
           title="Search history"
-          className="shrink-0 w-7 h-7 flex items-center justify-center rounded border-0 bg-transparent text-[#909090] cursor-pointer hover:text-white hover:bg-[rgba(90,90,90,0.35)]"
+          className="shrink-0 w-7 h-7 flex items-center justify-center rounded border-0 bg-transparent text-[var(--dolq-text-dim)] cursor-pointer hover:text-[var(--dolq-text)] hover:bg-[var(--dolq-bg-row-hover)]"
         >
           🔍
         </button>
@@ -58,8 +58,8 @@ export function ChannelList({
             onClick={() => onSelect(logChannel.id)}
             className={`flex items-center gap-2 w-full py-1.5 px-2 rounded border-0 text-[14px] cursor-pointer text-left font-medium transition-[background,color] duration-100 ${
               selectedId === logChannel.id
-                ? 'bg-[rgba(90,90,90,0.55)] text-white'
-                : 'bg-transparent text-[#909090] hover:bg-[rgba(90,90,90,0.35)] hover:text-[#e6e6e6]'
+                ? 'bg-[var(--dolq-bg-row-selected)] text-[var(--dolq-text)]'
+                : 'bg-transparent text-[var(--dolq-text-dim)] hover:bg-[var(--dolq-bg-row-hover)] hover:text-[var(--dolq-text)]'
             }`}
           >
             <span className="font-mono text-[11px] opacity-60">▤</span>
@@ -68,7 +68,7 @@ export function ChannelList({
         </div>
       )}
 
-      <div className="pt-3 pb-1 px-4 text-[11px] font-bold uppercase tracking-[0.5px] text-[#6b6b6b]">
+      <div className="pt-3 pb-1 px-4 text-[11px] font-bold uppercase tracking-[0.5px] text-[var(--dolq-text-faint)]">
         Text Channels
       </div>
 
@@ -85,22 +85,22 @@ export function ChannelList({
               title={joined ? undefined : 'Not currently in this channel'}
               className={`flex items-center w-full py-1.5 px-2 my-px rounded border-0 text-[15px] cursor-pointer text-left transition-[background,color] duration-100 ${
                 ch.id === selectedId
-                  ? 'bg-[rgba(90,90,90,0.55)] text-white'
+                  ? 'bg-[var(--dolq-bg-row-selected)] text-[var(--dolq-text)]'
                   : mentioned
-                  ? 'bg-transparent text-[#ffcb6b] font-semibold hover:bg-[rgba(90,90,90,0.35)]'
-                  : 'bg-transparent text-[#909090] hover:bg-[rgba(90,90,90,0.35)] hover:text-[#e6e6e6]'
+                  ? 'bg-transparent text-[var(--dolq-mention)] font-semibold hover:bg-[var(--dolq-bg-row-hover)]'
+                  : 'bg-transparent text-[var(--dolq-text-dim)] hover:bg-[var(--dolq-bg-row-hover)] hover:text-[var(--dolq-text)]'
               } ${joined ? '' : 'opacity-50 italic'}`}
             >
               <span className="text-[16px] mr-1.5 opacity-50">#</span>
               <span className="flex-1 truncate">{ch.name}</span>
               {muted && <span className="text-[12px] opacity-50 shrink-0">🔕</span>}
-              {mentioned && <span className="w-2 h-2 rounded-full bg-[#ffcb6b] shrink-0" />}
+              {mentioned && <span className="w-2 h-2 rounded-full bg-[var(--dolq-mention)] shrink-0" />}
             </button>
           );
         })}
 
         {plainQueries.length > 0 && (
-          <div className="pt-3 pb-1 px-2 text-[11px] font-bold uppercase tracking-[0.5px] text-[#6b6b6b]">
+          <div className="pt-3 pb-1 px-2 text-[11px] font-bold uppercase tracking-[0.5px] text-[var(--dolq-text-faint)]">
             Direct Messages
           </div>
         )}
@@ -111,8 +111,8 @@ export function ChannelList({
             onContextMenu={(e) => open(ch.id, e)}
             className={`flex items-center w-full py-1.5 px-2 my-px rounded border-0 text-[15px] cursor-pointer text-left transition-[background,color] duration-100 ${
               ch.id === selectedId
-                ? 'bg-[rgba(90,90,90,0.55)] text-white'
-                : 'bg-transparent text-[#909090] hover:bg-[rgba(90,90,90,0.35)] hover:text-[#e6e6e6]'
+                ? 'bg-[var(--dolq-bg-row-selected)] text-[var(--dolq-text)]'
+                : 'bg-transparent text-[var(--dolq-text-dim)] hover:bg-[var(--dolq-bg-row-hover)] hover:text-[var(--dolq-text)]'
             }`}
           >
             <span className="text-[16px] mr-1.5 opacity-50">@</span>
@@ -121,7 +121,7 @@ export function ChannelList({
         ))}
 
         {dccChats.length > 0 && (
-          <div className="pt-3 pb-1 px-2 text-[11px] font-bold uppercase tracking-[0.5px] text-[#6b6b6b]">
+          <div className="pt-3 pb-1 px-2 text-[11px] font-bold uppercase tracking-[0.5px] text-[var(--dolq-text-faint)]">
             DCC Chats
           </div>
         )}
@@ -132,8 +132,8 @@ export function ChannelList({
             onContextMenu={(e) => open(ch.id, e)}
             className={`flex items-center w-full py-1.5 px-2 my-px rounded border-0 text-[15px] cursor-pointer text-left transition-[background,color] duration-100 ${
               ch.id === selectedId
-                ? 'bg-[rgba(90,90,90,0.55)] text-white'
-                : 'bg-transparent text-[#909090] hover:bg-[rgba(90,90,90,0.35)] hover:text-[#e6e6e6]'
+                ? 'bg-[var(--dolq-bg-row-selected)] text-[var(--dolq-text)]'
+                : 'bg-transparent text-[var(--dolq-text-dim)] hover:bg-[var(--dolq-bg-row-hover)] hover:text-[var(--dolq-text)]'
             }`}
           >
             <span className="text-[16px] mr-1.5 opacity-50">⚡</span>

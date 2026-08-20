@@ -104,7 +104,7 @@ export function MessageArea({ messages, isLog, channelId, onLoadOlder, timestamp
   if (messages.length === 0) {
     return (
       <div ref={containerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto px-4 py-4 scroll-thin">
-        <p className={isLog ? 'text-[#6b6b6b] text-[14px]' : 'text-[#6b6b6b] text-[14px] text-center mt-8'}>
+        <p className={isLog ? 'text-[var(--dolq-text-faint)] text-[14px]' : 'text-[var(--dolq-text-faint)] text-[14px] text-center mt-8'}>
           {isLog ? 'No traffic yet.' : 'No messages yet.'}
         </p>
       </div>
@@ -124,23 +124,23 @@ export function MessageArea({ messages, isLog, channelId, onLoadOlder, timestamp
               style={{ position: 'absolute', top: 0, left: 0, right: 0, transform: `translateY(${virtualRow.start}px)` }}
             >
               {isLog ? (
-                <div className="font-mono text-[12px] leading-5 text-[#e6e6e6] whitespace-pre-wrap break-all">
-                  <span className="text-[#6b6b6b] mr-3">{formatTime(m.timestamp, timestampFormat)}</span>
+                <div className="font-mono text-[12px] leading-5 text-[var(--dolq-text)] whitespace-pre-wrap break-all">
+                  <span className="text-[var(--dolq-text-faint)] mr-3">{formatTime(m.timestamp, timestampFormat)}</span>
                   <IrcText text={m.text} />
                 </div>
               ) : m.system ? (
                 <div className={`flex items-baseline gap-3 px-2 ${compact ? 'py-0' : 'py-1'}`}>
-                  <span className="text-[11px] text-[#6b6b6b] shrink-0 w-10 text-right">
+                  <span className="text-[11px] text-[var(--dolq-text-faint)] shrink-0 w-10 text-right">
                     {formatTime(m.timestamp, timestampFormat)}
                   </span>
-                  <span className="text-[#6b6b6b] text-[13px] italic"><IrcText text={m.text} /></span>
+                  <span className="text-[var(--dolq-text-faint)] text-[13px] italic"><IrcText text={m.text} /></span>
                 </div>
               ) : m.notice ? (
                 <div className={`flex items-baseline gap-3 px-2 ${compact ? 'py-0' : 'py-0.5'}`}>
-                  <span className="text-[11px] text-[#6b6b6b] shrink-0 w-10 text-right">
+                  <span className="text-[11px] text-[var(--dolq-text-faint)] shrink-0 w-10 text-right">
                     {formatTime(m.timestamp, timestampFormat)}
                   </span>
-                  <span className="text-[13px] italic text-[#909090]">
+                  <span className="text-[13px] italic text-[var(--dolq-text-dim)]">
                     <span style={{ color: nickColor(m.nick) }}>-{m.nick}-</span>{' '}
                     <IrcText text={m.text} />
                   </span>
@@ -155,30 +155,30 @@ export function MessageArea({ messages, isLog, channelId, onLoadOlder, timestamp
                   }}
                   title={onGetPack ? 'Click to request this pack' : undefined}
                 >
-                  <span className="text-[11px] text-[#6b6b6b] shrink-0 w-10 text-right">
+                  <span className="text-[11px] text-[var(--dolq-text-faint)] shrink-0 w-10 text-right">
                     {formatTime(m.timestamp, timestampFormat)}
                   </span>
-                  <span className="text-[13px] font-mono text-[#a0a0a0]">📦 {m.text}</span>
+                  <span className="text-[13px] font-mono text-[var(--dolq-text-muted)]">📦 {m.text}</span>
                 </div>
               ) : m.action ? (
                 <div className={`flex items-baseline gap-3 group hover:bg-[rgba(4,4,5,0.07)] px-2 rounded ${compact ? 'py-0' : 'py-0.5'}`}>
-                  <span className="text-[11px] text-[#6b6b6b] shrink-0 w-10 text-right opacity-0 group-hover:opacity-100">
+                  <span className="text-[11px] text-[var(--dolq-text-faint)] shrink-0 w-10 text-right opacity-0 group-hover:opacity-100">
                     {formatTime(m.timestamp, timestampFormat)}
                   </span>
                   <span className="text-[15px] leading-relaxed italic">
                     <span style={{ color: nickColor(m.nick) }}>* {m.nick}</span>{' '}
-                    <span className="text-[#e6e6e6]"><IrcText text={m.text} /></span>
+                    <span className="text-[var(--dolq-text)]"><IrcText text={m.text} /></span>
                   </span>
                 </div>
               ) : (
                 <div className={`flex items-baseline gap-3 group hover:bg-[rgba(4,4,5,0.07)] px-2 rounded ${compact ? 'py-0' : 'py-0.5'}`}>
-                  <span className="text-[11px] text-[#6b6b6b] shrink-0 w-10 text-right opacity-0 group-hover:opacity-100">
+                  <span className="text-[11px] text-[var(--dolq-text-faint)] shrink-0 w-10 text-right opacity-0 group-hover:opacity-100">
                     {formatTime(m.timestamp, timestampFormat)}
                   </span>
                   <span className="font-semibold text-[14px] shrink-0" style={{ color: nickColor(m.nick) }}>
                     {m.nick}
                   </span>
-                  <span className="text-[#e6e6e6] text-[15px] leading-relaxed"><IrcText text={m.text} /></span>
+                  <span className="text-[var(--dolq-text)] text-[15px] leading-relaxed"><IrcText text={m.text} /></span>
                 </div>
               )}
             </div>

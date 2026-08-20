@@ -47,16 +47,16 @@ export function TransferStatus({ transfers, onPause, onResume, onCancel, onDismi
         const pct = t.total > 0 ? Math.min(100, Math.round((t.received / t.total) * 100)) : 0;
         const finished = t.done || !!t.error;
         return (
-          <div key={id} className="bg-[#1c1c1c] rounded-lg p-3 shadow-[0_4px_16px_rgba(0,0,0,0.4)]">
+          <div key={id} className="bg-[var(--dolq-bg-panel)] rounded-lg p-3 shadow-[0_4px_16px_rgba(0,0,0,0.4)]">
             <div className="flex items-center justify-between gap-2 mb-1.5">
-              <span className="text-[13px] text-[#e6e6e6] truncate" title={t.filename}>
+              <span className="text-[13px] text-[var(--dolq-text)] truncate" title={t.filename}>
                 {t.filename}
               </span>
               <div className="flex items-center gap-2 shrink-0">
                 {!finished && (
                   <button
                     onClick={() => (t.paused ? onResume(id) : onPause(id))}
-                    className="text-[#6b6b6b] hover:text-white bg-transparent border-0 cursor-pointer text-[13px]"
+                    className="text-[var(--dolq-text-faint)] hover:text-[var(--dolq-text)] bg-transparent border-0 cursor-pointer text-[13px]"
                     title={t.paused ? 'Resume' : 'Pause'}
                   >
                     {t.paused ? '▶' : '⏸'}
@@ -64,20 +64,20 @@ export function TransferStatus({ transfers, onPause, onResume, onCancel, onDismi
                 )}
                 <button
                   onClick={() => (finished ? onDismiss(id) : onCancel(id))}
-                  className="text-[#6b6b6b] hover:text-white bg-transparent border-0 cursor-pointer text-[13px]"
+                  className="text-[var(--dolq-text-faint)] hover:text-[var(--dolq-text)] bg-transparent border-0 cursor-pointer text-[13px]"
                   title={finished ? 'Dismiss' : 'Cancel'}
                 >
                   ✕
                 </button>
               </div>
             </div>
-            <div className="h-1.5 rounded-full bg-[#333] overflow-hidden">
+            <div className="h-1.5 rounded-full bg-[var(--dolq-bg-input)] overflow-hidden">
               <div
                 className={`h-full transition-[width] ${t.error ? 'bg-[#ff5555]' : 'bg-[#c792ea]'}`}
                 style={{ width: `${pct}%` }}
               />
             </div>
-            <div className="text-[11px] text-[#6b6b6b] mt-1">
+            <div className="text-[11px] text-[var(--dolq-text-faint)] mt-1">
               {t.error ? (
                 <span className="text-[#ff5555]">Failed: {t.error}</span>
               ) : t.done ? (

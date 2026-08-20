@@ -103,11 +103,11 @@ export default function App() {
   const {
     servers, presets, channelMap, messageMap, userMap, nickMap, saslMap,
     selectedServerId, selectedChannelId, statusMap, mentionedChannels, notificationsEnabled, soundAlertsEnabled, mutedChannels,
-    timestampFormat, messageDensity, fontSize, fontFamily, ignoredNicks, selfAwayMap, aliases, keybindings,
+    timestampFormat, messageDensity, fontSize, fontFamily, theme, ignoredNicks, selfAwayMap, aliases, keybindings,
     addServer, removeServer, addPreset, addChannel, removeChannel, setTopic, setTopicWhoTime, appendMessage, setHistory, setNick, setSaslCreds,
     selectServer, selectChannel, setConnectionStatus, setUsers, addUser, removeUser, removeUserEverywhere,
     renameUserEverywhere, applyModeChanges, markMentioned, toggleMuteChannel, setNotificationsEnabled, setSoundAlertsEnabled, setTimestampFormat,
-    setMessageDensity, setFontSize, setFontFamily, addIgnore, removeIgnore, applyAwayEverywhere, setSelfAway, setAlias, removeAlias, setKeybinding,
+    setMessageDensity, setFontSize, setFontFamily, setTheme, addIgnore, removeIgnore, applyAwayEverywhere, setSelfAway, setAlias, removeAlias, setKeybinding,
     setServerColor,
   } = useStore();
 
@@ -180,6 +180,13 @@ export default function App() {
   useEffect(() => {
     document.documentElement.style.setProperty('--dolq-font-family', FONT_FAMILY_STACKS[fontFamily]);
   }, [fontFamily]);
+
+  // Preferences' Light theme - index.css's :root[data-theme='light'] does
+  // the actual color swap, this just sets/clears the attribute driving it.
+  useEffect(() => {
+    if (theme === 'light') document.documentElement.setAttribute('data-theme', 'light');
+    else document.documentElement.removeAttribute('data-theme');
+  }, [theme]);
 
   // Preferences' keybinding customization - global shortcuts for channel
   // navigation/close/mute. comboFromEvent (utils/keybind.ts) requires a
@@ -949,6 +956,8 @@ export default function App() {
           onFontSizeChange={setFontSize}
           fontFamily={fontFamily}
           onFontFamilyChange={setFontFamily}
+          theme={theme}
+          onThemeChange={setTheme}
           servers={servers}
           ignoredNicks={ignoredNicks}
           onRemoveIgnore={removeIgnore}
@@ -1043,7 +1052,7 @@ export default function App() {
           />
         </div>
       </div>
-      <main className="flex flex-col flex-1 bg-[#212121] overflow-hidden">
+      <main className="flex flex-col flex-1 bg-[var(--dolq-bg)] overflow-hidden">
         <TopicBar
           channelName={selectedChannel?.name ?? ''}
           topic={selectedChannel?.topic}
@@ -1073,7 +1082,7 @@ export default function App() {
               onSend={handleSend}
             />
           </div>
-          <aside className="w-52 bg-[#1c1c1c] border-l border-[#2a2a2a] shrink-0 flex flex-col overflow-hidden">
+          <aside className="w-52 bg-[var(--dolq-bg-panel)] border-l border-[var(--dolq-border)] shrink-0 flex flex-col overflow-hidden">
             {!isLog && !isQuery && (
               <UserList
                 users={users}

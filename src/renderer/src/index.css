@@ -5,12 +5,57 @@
      store.ts's fontFamily) - the fallback here is what always applied
      before that setting existed, so leaving it untouched looks identical. */
   --dolq-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+
+  /* Preferences' Light theme (App.tsx's effect toggling [data-theme] off
+     store.ts's `theme`) - dark is the app's original palette and stays the
+     :root default, so an unset/pre-this-setting persisted store still looks
+     identical. Only the structural chrome (backgrounds/text/borders) is
+     themed here; accent purple, success/danger/mention-dot colors, nick
+     colors, privilege-role colors and the mIRC palette (IrcText.tsx) are
+     left as plain hex - they're saturated enough to already read fine on
+     both backgrounds, and giving all of those a matching light-mode
+     variant too is real palette-design work this pass doesn't need. */
+  --dolq-bg: #212121;
+  --dolq-bg-panel: #1c1c1c;
+  --dolq-bg-panel-alt: #18191a;
+  --dolq-bg-input: #333333;
+  --dolq-bg-hover: #3d3d3d;
+  --dolq-bg-raised: #262626;
+  --dolq-bg-row-hover: rgba(90, 90, 90, 0.35);
+  --dolq-bg-row-selected: rgba(90, 90, 90, 0.55);
+  --dolq-border: #2a2a2a;
+  --dolq-text: #e6e6e6;
+  --dolq-text-muted: #b0b0b0;
+  --dolq-text-dim: #909090;
+  --dolq-text-faint: #6b6b6b;
+  /* Only the mention *text* color needs its own light variant (ChannelList) -
+     it's the one place one of the saturated colors above doubles as body
+     text rather than a background/dot/badge, so the pale-yellow dark-mode
+     value would fail contrast on a light sidebar. */
+  --dolq-mention: #ffcb6b;
+}
+
+:root[data-theme='light'] {
+  --dolq-bg: #ffffff;
+  --dolq-bg-panel: #f2f2f4;
+  --dolq-bg-panel-alt: #e7e7ea;
+  --dolq-bg-input: #e9e9ec;
+  --dolq-bg-hover: #dedee2;
+  --dolq-bg-raised: #eeeeef;
+  --dolq-bg-row-hover: rgba(0, 0, 0, 0.06);
+  --dolq-bg-row-selected: rgba(0, 0, 0, 0.1);
+  --dolq-border: #dcdce0;
+  --dolq-text: #1a1a1a;
+  --dolq-text-muted: #4a4a4e;
+  --dolq-text-dim: #6a6a6e;
+  --dolq-text-faint: #8a8a8e;
+  --dolq-mention: #a3690a;
 }
 
 body {
   font-family: var(--dolq-font-family);
-  background: #212121;
-  color: #e6e6e6;
+  background: var(--dolq-bg);
+  color: var(--dolq-text);
   height: 100vh;
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
@@ -24,16 +69,16 @@ body {
 code {
   font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
   font-size: 0.85em;
-  background: #1c1c1c;
+  background: var(--dolq-bg-panel);
   padding: 2px 5px;
   border-radius: 3px;
   color: #ff6e6e;
 }
 
-/* Thin dark scrollbar for scrollable sidebars/panes */
+/* Thin scrollbar for scrollable sidebars/panes */
 .scroll-thin::-webkit-scrollbar        { width: 8px; }
 .scroll-thin::-webkit-scrollbar-track  { background: transparent; }
-.scroll-thin::-webkit-scrollbar-thumb  { background: #18191a; border-radius: 4px; }
+.scroll-thin::-webkit-scrollbar-thumb  { background: var(--dolq-bg-panel-alt); border-radius: 4px; }
 
 /* Scrollable but no visible scrollbar (server list is too narrow for one) */
 .scroll-invisible                      { scrollbar-width: none; }

@@ -53,9 +53,9 @@ const DEFAULTS: ConnectForm = {
 };
 
 const inputClass =
-  'w-full bg-[#333333] border-0 rounded text-[#e6e6e6] text-[14px] px-3 py-2.5 outline-none focus:ring-2 focus:ring-[#c792ea] placeholder:text-[#6b6b6b]';
+  'w-full bg-[var(--dolq-bg-input)] border-0 rounded text-[var(--dolq-text)] text-[14px] px-3 py-2.5 outline-none focus:ring-2 focus:ring-[#c792ea] placeholder:text-[var(--dolq-text-faint)]';
 const labelClass =
-  'flex flex-col gap-1.5 text-[11px] font-bold uppercase tracking-[0.5px] text-[#b0b0b0]';
+  'flex flex-col gap-1.5 text-[11px] font-bold uppercase tracking-[0.5px] text-[var(--dolq-text-muted)]';
 
 export function ConnectModal({ presets, nickMap, onConnect, onCancel, initial }: Props) {
   const [form, setForm] = useState<ConnectForm>(() =>
@@ -119,11 +119,11 @@ export function ConnectModal({ presets, nickMap, onConnect, onCancel, initial }:
       onClick={onCancel}
     >
       <div
-        className="bg-[#1c1c1c] rounded-lg p-8 w-110 shadow-[0_8px_32px_rgba(0,0,0,0.5)]"
+        className="bg-[var(--dolq-bg-panel)] rounded-lg p-8 w-110 shadow-[0_8px_32px_rgba(0,0,0,0.5)]"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 className="text-white text-[22px] font-bold mb-1">Add a Server</h2>
-        <p className="text-[#b0b0b0] text-[14px] mb-3">Pick a server, or fill in a custom one below.</p>
+        <h2 className="text-[var(--dolq-text)] text-[22px] font-bold mb-1">Add a Server</h2>
+        <p className="text-[var(--dolq-text-muted)] text-[14px] mb-3">Pick a server, or fill in a custom one below.</p>
 
         <div className="flex flex-col gap-1 max-h-40 overflow-y-auto scroll-thin mb-5 pr-1">
           {presets.map((preset) => (
@@ -131,10 +131,10 @@ export function ConnectModal({ presets, nickMap, onConnect, onCancel, initial }:
               key={preset.id}
               type="button"
               onClick={() => pickPreset(preset)}
-              className="flex items-baseline justify-between gap-3 px-3 py-2 rounded bg-[#333333] border-0 text-left cursor-pointer hover:bg-[#3d3d3d]"
+              className="flex items-baseline justify-between gap-3 px-3 py-2 rounded bg-[var(--dolq-bg-input)] border-0 text-left cursor-pointer hover:bg-[var(--dolq-bg-hover)]"
             >
-              <span className="text-[#e6e6e6] text-[14px] font-medium">{preset.name}</span>
-              <span className="text-[#6b6b6b] text-[12px] shrink-0">{preset.host}:{preset.port}</span>
+              <span className="text-[var(--dolq-text)] text-[14px] font-medium">{preset.name}</span>
+              <span className="text-[var(--dolq-text-faint)] text-[12px] shrink-0">{preset.host}:{preset.port}</span>
             </button>
           ))}
         </div>
@@ -164,7 +164,7 @@ export function ConnectModal({ presets, nickMap, onConnect, onCancel, initial }:
             </label>
           </div>
 
-          <label className="flex items-center gap-2 text-[13px] text-[#e6e6e6] cursor-pointer select-none">
+          <label className="flex items-center gap-2 text-[13px] text-[var(--dolq-text)] cursor-pointer select-none">
             <input type="checkbox" checked={form.secure} onChange={toggleSecure} className="accent-[#c792ea]" />
             Use SSL/TLS
           </label>
@@ -186,7 +186,7 @@ export function ConnectModal({ presets, nickMap, onConnect, onCancel, initial }:
           </label>
 
           <details className="flex flex-col gap-4">
-            <summary className="text-[11px] font-bold uppercase tracking-[0.5px] text-[#b0b0b0] cursor-pointer select-none">
+            <summary className="text-[11px] font-bold uppercase tracking-[0.5px] text-[var(--dolq-text-muted)] cursor-pointer select-none">
               Advanced
             </summary>
 
@@ -223,10 +223,10 @@ export function ConnectModal({ presets, nickMap, onConnect, onCancel, initial }:
           </details>
 
           <div className="flex flex-col gap-1.5">
-            <span className="text-[11px] font-bold uppercase tracking-[0.5px] text-[#b0b0b0]">
+            <span className="text-[11px] font-bold uppercase tracking-[0.5px] text-[var(--dolq-text-muted)]">
               SASL Login
             </span>
-            <p className="text-[#6b6b6b] text-[12px] -mt-0.5">
+            <p className="text-[var(--dolq-text-faint)] text-[12px] -mt-0.5">
               Optional - authenticates your registered account before joining, instead of
               relying on NickServ IDENTIFY after connecting. Leave both blank to skip it.
             </p>
@@ -253,7 +253,7 @@ export function ConnectModal({ presets, nickMap, onConnect, onCancel, initial }:
             <button
               type="button"
               onClick={onCancel}
-              className="px-4 py-2 rounded text-[#b0b0b0] text-[14px] font-medium bg-transparent border-0 cursor-pointer hover:text-white"
+              className="px-4 py-2 rounded text-[var(--dolq-text-muted)] text-[14px] font-medium bg-transparent border-0 cursor-pointer hover:text-[var(--dolq-text)]"
             >
               Cancel
             </button>

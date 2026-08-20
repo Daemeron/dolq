@@ -49,15 +49,15 @@ function UserRow(
       onClick={onOpenQuery && (() => onOpenQuery(user.nick))}
       onContextMenu={onContextMenu}
       title={onOpenQuery ? `Message ${user.nick}` : undefined}
-      className={`flex items-center gap-2 w-full px-2 py-1 rounded border-0 bg-transparent text-left hover:bg-[rgba(90,90,90,0.35)] cursor-pointer ${ignored || user.away ? 'opacity-40' : ''}`}
+      className={`flex items-center gap-2 w-full px-2 py-1 rounded border-0 bg-transparent text-left hover:bg-[var(--dolq-bg-row-hover)] cursor-pointer ${ignored || user.away ? 'opacity-40' : ''}`}
     >
-      <div className="w-8 h-8 rounded-full bg-[#212121] text-[#e6e6e6] flex items-center justify-center text-[13px] font-semibold shrink-0">
+      <div className="w-8 h-8 rounded-full bg-[var(--dolq-bg)] text-[var(--dolq-text)] flex items-center justify-center text-[13px] font-semibold shrink-0">
         {user.nick[0]?.toUpperCase() ?? '?'}
       </div>
-      <span className={`text-[14px] truncate ${ignored ? 'line-through text-[#6b6b6b]' : privilege === 'none' ? 'text-[#909090]' : 'text-[#e6e6e6]'}`}>
+      <span className={`text-[14px] truncate ${ignored ? 'line-through text-[var(--dolq-text-faint)]' : privilege === 'none' ? 'text-[var(--dolq-text-dim)]' : 'text-[var(--dolq-text)]'}`}>
         {SYMBOL[privilege] && <span className="mr-0.5" style={{ color }}>{SYMBOL[privilege]}</span>}
         {user.nick}
-        {user.away && !ignored && <span className="text-[#909090]"> (away)</span>}
+        {user.away && !ignored && <span className="text-[var(--dolq-text-dim)]"> (away)</span>}
       </span>
     </button>
   );
@@ -109,7 +109,7 @@ export function UserList({
             >
               {row.type === 'header' ? (
                 <div className={row.first ? 'px-2 pb-1' : 'px-2 pb-1 mt-3'}>
-                  <div className="text-[11px] font-bold uppercase tracking-[0.5px] text-[#6b6b6b]">
+                  <div className="text-[11px] font-bold uppercase tracking-[0.5px] text-[var(--dolq-text-faint)]">
                     {GROUP_LABEL[row.privilege]} — {row.count}
                   </div>
                 </div>

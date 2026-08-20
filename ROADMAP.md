@@ -718,8 +718,37 @@ will hang the UI.
 - [ ] Accessibility pass (keyboard navigation, screen reader labels, focus
       management in modals)
 - [ ] Emoji picker (optional, since this is "Discord-like")
-- [ ] Light theme (the `2e` icon variant is already sitting in `resources/`
-      waiting for this)
+- [x] Light theme - the note this item used to have about a `2e` icon
+      variant already sitting in `resources/` waiting for this didn't hold
+      up: no such file exists (`resources/` only ever had the one icon set),
+      so the app icon/tray icon stay theme-agnostic, same as before. The UI
+      itself never had a theming abstraction to begin with - every color was
+      a literal hex baked into each component's Tailwind classes - so this
+      is a `--dolq-*` CSS custom property per structural role (backgrounds,
+      borders, primary/secondary/dim/faint text), dark values on `:root`
+      matching the app's original palette exactly (an unset/pre-this-setting
+      persisted store still looks identical), light overrides under
+      `:root[data-theme='light']` toggled by a new `theme` store field via
+      App.tsx's effect. Accent purple, success/danger colors, the mention
+      dot, nick colors, privilege-role colors and the mIRC color palette
+      (IrcText.tsx) are deliberately left as plain hex, not themed - they're
+      saturated enough to already read fine on both backgrounds, and a
+      matching light-mode variant for all ~20 of those is real palette
+      design work this pass didn't need, not just a mechanical var swap.
+      The one exception: the mention *text* color (ChannelList) needed its
+      own light value, since it's the one place one of those colors doubles
+      as body text rather than a background/dot/badge - the dark-mode pale
+      yellow fails contrast on a light sidebar. Caught and fixed the same
+      class of bug more broadly for `text-white` (added for exactly one
+      dark palette, hardcoded independent of the new tokens): kept literal
+      on solid accent/semantic backgrounds where it stays legible either
+      way, retheme everywhere else (headings, selected-row text, hover
+      icons) that sits on a surface now going light. Verified against the
+      real running app in both themes (Playwright `_electron`, seeded
+      multi-server data through the store directly): confirmed dark mode
+      renders unchanged and light mode is fully legible end to end -
+      sidebar, topic bar, message area with nick colors, user list, and the
+      full Preferences panel including a mentioned-channel row
 - [x] `irc://`/`ircs://` link handling - `main/ircUrl.ts`'s `parseIrcUrl`
       reads the loose convention most IRC clients already use for these
       (`irc[s]://<host>[:<port>][/[<channel>][,<modifier>...]]`, both the

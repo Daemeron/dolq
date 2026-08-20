@@ -31,6 +31,8 @@ type Props = {
   onFontSizeChange: (size: 'small' | 'medium' | 'large') => void;
   fontFamily: 'system' | 'serif' | 'monospace';
   onFontFamilyChange: (family: 'system' | 'serif' | 'monospace') => void;
+  theme: 'dark' | 'light';
+  onThemeChange: (theme: 'dark' | 'light') => void;
   // Ignored nicks are normally managed from a user's context menu
   // (UserList), but that only works while they're actually visible in a
   // shared channel - this is the only way to remove one once they aren't.
@@ -47,15 +49,15 @@ type Props = {
 };
 
 const inputClass =
-  'w-full bg-[#333333] border-0 rounded text-[#e6e6e6] text-[14px] px-3 py-2.5 outline-none focus:ring-2 focus:ring-[#c792ea] placeholder:text-[#6b6b6b]';
+  'w-full bg-[var(--dolq-bg-input)] border-0 rounded text-[var(--dolq-text)] text-[14px] px-3 py-2.5 outline-none focus:ring-2 focus:ring-[#c792ea] placeholder:text-[var(--dolq-text-faint)]';
 const labelClass =
-  'flex flex-col gap-1.5 text-[11px] font-bold uppercase tracking-[0.5px] text-[#b0b0b0]';
+  'flex flex-col gap-1.5 text-[11px] font-bold uppercase tracking-[0.5px] text-[var(--dolq-text-muted)]';
 
 export function PreferencesModal({
   settings, onSave, onCancel, notificationsEnabled, onNotificationsEnabledChange,
   soundAlertsEnabled, onSoundAlertsEnabledChange,
   timestampFormat, onTimestampFormatChange, messageDensity, onMessageDensityChange,
-  fontSize, onFontSizeChange, fontFamily, onFontFamilyChange,
+  fontSize, onFontSizeChange, fontFamily, onFontFamilyChange, theme, onThemeChange,
   servers, ignoredNicks, onRemoveIgnore, aliases, onRemoveAlias, keybindings, onKeybindingChange,
 }: Props) {
   const [retentionDays, setRetentionDays] = useState(String(settings.retentionDays));
@@ -130,15 +132,15 @@ export function PreferencesModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onCancel}>
       <div
-        className="bg-[#1c1c1c] rounded-lg p-8 w-110 shadow-[0_8px_32px_rgba(0,0,0,0.5)]"
+        className="bg-[var(--dolq-bg-panel)] rounded-lg p-8 w-110 shadow-[0_8px_32px_rgba(0,0,0,0.5)]"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 className="text-white text-[22px] font-bold mb-1">Preferences</h2>
-        <p className="text-[#b0b0b0] text-[14px] mb-5">
+        <h2 className="text-[var(--dolq-text)] text-[22px] font-bold mb-1">Preferences</h2>
+        <p className="text-[var(--dolq-text-muted)] text-[14px] mb-5">
           Applies to every server. Some settings need a restart to take effect.
         </p>
 
-        <label className="flex items-center gap-2 text-[13px] text-[#e6e6e6] cursor-pointer select-none mb-3">
+        <label className="flex items-center gap-2 text-[13px] text-[var(--dolq-text)] cursor-pointer select-none mb-3">
           <input
             type="checkbox"
             checked={notificationsEnabled}
@@ -148,7 +150,7 @@ export function PreferencesModal({
           Desktop notifications when mentioned in a channel you're not viewing
         </label>
 
-        <label className="flex items-center gap-2 text-[13px] text-[#e6e6e6] cursor-pointer select-none mb-4">
+        <label className="flex items-center gap-2 text-[13px] text-[var(--dolq-text)] cursor-pointer select-none mb-4">
           <input
             type="checkbox"
             checked={soundAlertsEnabled}
@@ -210,21 +212,36 @@ export function PreferencesModal({
           </label>
         </div>
 
+        <div className="flex gap-3 mb-5">
+          <label className={`${labelClass} flex-1`}>
+            Theme
+            <select
+              className={inputClass}
+              value={theme}
+              onChange={(e) => onThemeChange(e.target.value as 'dark' | 'light')}
+            >
+              <option value="dark">Dark</option>
+              <option value="light">Light</option>
+            </select>
+          </label>
+          <div className="flex-1" />
+        </div>
+
         <div className="flex flex-col gap-1.5 mb-5">
-          <span className="text-[11px] font-bold uppercase tracking-[0.5px] text-[#b0b0b0]">
+          <span className="text-[11px] font-bold uppercase tracking-[0.5px] text-[var(--dolq-text-muted)]">
             Keybindings
           </span>
           <div className="flex flex-col gap-1">
             {(Object.keys(KEYBIND_LABELS) as KeybindAction[]).map((action) => (
-              <div key={action} className="flex items-center justify-between gap-3 px-3 py-1.5 rounded bg-[#333333]">
-                <span className="text-[#e6e6e6] text-[13px]">{KEYBIND_LABELS[action]}</span>
+              <div key={action} className="flex items-center justify-between gap-3 px-3 py-1.5 rounded bg-[var(--dolq-bg-input)]">
+                <span className="text-[var(--dolq-text)] text-[13px]">{KEYBIND_LABELS[action]}</span>
                 <button
                   type="button"
                   onClick={() => setRecording(action)}
                   className={`shrink-0 px-2.5 py-1 rounded text-[12px] font-medium border-0 cursor-pointer ${
                     recording === action
                       ? 'bg-[#c792ea] text-white'
-                      : 'bg-[#242424] text-[#e6e6e6] hover:bg-[#2b2b2b]'
+                      : 'bg-[var(--dolq-bg-input)] text-[var(--dolq-text)] hover:bg-[var(--dolq-bg-hover)]'
                   }`}
                 >
                   {recording === action ? 'Press keys… (Esc to cancel)' : keybindings[action]}
@@ -236,14 +253,14 @@ export function PreferencesModal({
 
         {ignoredEntries.length > 0 && (
           <div className="flex flex-col gap-1.5 mb-5">
-            <span className="text-[11px] font-bold uppercase tracking-[0.5px] text-[#b0b0b0]">
+            <span className="text-[11px] font-bold uppercase tracking-[0.5px] text-[var(--dolq-text-muted)]">
               Ignored Users
             </span>
             <div className="flex flex-col gap-1 max-h-32 overflow-y-auto scroll-thin pr-1">
               {ignoredEntries.map(({ serverId, nick }) => (
-                <div key={`${serverId}:${nick}`} className="flex items-center justify-between gap-3 px-3 py-1.5 rounded bg-[#333333]">
-                  <span className="text-[#e6e6e6] text-[13px] truncate">
-                    {nick} <span className="text-[#6b6b6b]">on {servers.find((s) => s.id === serverId)?.name ?? serverId}</span>
+                <div key={`${serverId}:${nick}`} className="flex items-center justify-between gap-3 px-3 py-1.5 rounded bg-[var(--dolq-bg-input)]">
+                  <span className="text-[var(--dolq-text)] text-[13px] truncate">
+                    {nick} <span className="text-[var(--dolq-text-faint)]">on {servers.find((s) => s.id === serverId)?.name ?? serverId}</span>
                   </span>
                   <button
                     type="button"
@@ -260,19 +277,19 @@ export function PreferencesModal({
 
         {aliasEntries.length > 0 && (
           <div className="flex flex-col gap-1.5 mb-5">
-            <span className="text-[11px] font-bold uppercase tracking-[0.5px] text-[#b0b0b0]">
+            <span className="text-[11px] font-bold uppercase tracking-[0.5px] text-[var(--dolq-text-muted)]">
               Aliases
             </span>
-            <p className="text-[#6b6b6b] text-[12px] -mt-0.5">
+            <p className="text-[var(--dolq-text-faint)] text-[12px] -mt-0.5">
               Defined with <code>/alias name command</code> (<code>$1</code>, <code>$2</code>... for args,{' '}
               <code>$*</code> for all of them) - typing <code>/name</code> sends the expansion.
             </p>
             <div className="flex flex-col gap-1 max-h-32 overflow-y-auto scroll-thin pr-1 mt-1">
               {aliasEntries.map(([name, template]) => (
-                <div key={name} className="flex items-center justify-between gap-3 px-3 py-1.5 rounded bg-[#333333]">
-                  <span className="text-[#e6e6e6] text-[13px] truncate">
+                <div key={name} className="flex items-center justify-between gap-3 px-3 py-1.5 rounded bg-[var(--dolq-bg-input)]">
+                  <span className="text-[var(--dolq-text)] text-[13px] truncate">
                     <span className="font-semibold">/{name}</span>{' '}
-                    <span className="text-[#6b6b6b]">{template}</span>
+                    <span className="text-[var(--dolq-text-faint)]">{template}</span>
                   </span>
                   <button
                     type="button"
@@ -299,7 +316,7 @@ export function PreferencesModal({
               min={0}
             />
           </label>
-          <p className="text-[#6b6b6b] text-[12px] -mt-2.5">
+          <p className="text-[var(--dolq-text-faint)] text-[12px] -mt-2.5">
             How long to keep chat history. 0 keeps it forever. Takes effect the next time Dolq starts.
           </p>
 
@@ -316,13 +333,13 @@ export function PreferencesModal({
               <button
                 type="button"
                 onClick={handleBrowseDownloadDir}
-                className="shrink-0 px-3 rounded text-[#e6e6e6] text-[13px] font-medium bg-[#333333] border-0 cursor-pointer hover:bg-[#3d3d3d]"
+                className="shrink-0 px-3 rounded text-[var(--dolq-text)] text-[13px] font-medium bg-[var(--dolq-bg-input)] border-0 cursor-pointer hover:bg-[var(--dolq-bg-hover)]"
               >
                 Browse…
               </button>
             </div>
           </label>
-          <p className="text-[#6b6b6b] text-[12px] -mt-2.5">
+          <p className="text-[var(--dolq-text-faint)] text-[12px] -mt-2.5">
             Where XDCC downloads are saved. Empty uses the OS Downloads folder.
           </p>
 
@@ -352,7 +369,7 @@ export function PreferencesModal({
               />
             </label>
           </div>
-          <p className="text-[#6b6b6b] text-[12px] -mt-2.5">
+          <p className="text-[var(--dolq-text-faint)] text-[12px] -mt-2.5">
             Ports DCC CHAT offers and passive XDCC downloads listen on. Leave both empty to let the OS pick any free
             port - set this if you're behind a router/firewall and want to forward a fixed range to receive them.
           </p>
@@ -361,7 +378,7 @@ export function PreferencesModal({
             <button
               type="button"
               onClick={onCancel}
-              className="px-4 py-2 rounded text-[#b0b0b0] text-[14px] font-medium bg-transparent border-0 cursor-pointer hover:text-white"
+              className="px-4 py-2 rounded text-[var(--dolq-text-muted)] text-[14px] font-medium bg-transparent border-0 cursor-pointer hover:text-[var(--dolq-text)]"
             >
               Cancel
             </button>
