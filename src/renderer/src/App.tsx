@@ -270,6 +270,12 @@ export default function App() {
     });
   }, []);
 
+  // The macOS app menu's "Dolq > Preferences…" (Cmd+,) - same modal the
+  // sidebar's gear icon already opens, see main/index.ts's createAppMenu.
+  useEffect(() => {
+    return window.irc.onOpenPreferences(() => setShowPreferences(true));
+  }, []);
+
   // statusMap AND userMap aren't persisted, so both reset to empty on any
   // renderer-only reload (e.g. dev-mode HMR) even though the main process's live
   // connections (and their joined channels) survive it untouched. Reconcile once

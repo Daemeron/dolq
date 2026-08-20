@@ -213,6 +213,11 @@ export type IrcApi = {
   // main/ircUrl.ts's parseIrcUrl) - host/port/secure/channel prefill the
   // "Add a Server" form the same shape a picked preset already does.
   onOpenIrcUrl: (callback: (prefill: { host: string; port: number; secure: boolean; channel?: string }) => void) => () => void;
+  // Fires from the macOS app menu's "Dolq > Preferences…" item (Cmd+,) -
+  // the menu itself lives in main/index.ts (Electron menus are main-process
+  // only), so opening the modal has to cross back over into the renderer
+  // the same way an irc(s):// link's prefill already does.
+  onOpenPreferences: (callback: () => void) => () => void;
 };
 
 // 'connecting' covers both a fresh manual connect and the backend
@@ -248,4 +253,5 @@ export enum IrcMessages {
   event = 'irc:event',
   status = 'irc:status',
   openIrcUrl = 'irc:openIrcUrl',
+  openPreferences = 'irc:openPreferences',
 }

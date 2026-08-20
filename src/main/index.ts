@@ -7,6 +7,15 @@ import { BackendClient } from './irc/BackendClient';
 import { loadSettings, saveSettings } from './settings';
 import { parseIrcUrl } from './ircUrl';
 
+// A packaged build already gets this from electron-builder's own
+// `productName` (electron-builder.json5), but that's a packaging-time
+// concept Electron itself never reads at runtime - unpackaged (`npm run
+// dev`) falls back to package.json's `name`, which is lowercase for the
+// npm package itself ("dolq"). Set explicitly, as early as possible per
+// Electron's own docs, so the app menu/About panel/Dock say "Dolq" in dev
+// too, not just in a packaged build.
+app.setName('Dolq');
+
 let mainWindow: BrowserWindow;
 let tray: Tray;
 
@@ -135,6 +144,44 @@ function createTray(): void {
   });
 }
 
+// Replaces Electron's own default menu (which has no idea Preferences
+// exists) with one just like it, plus a "Preferences…" item in the macOS
+// app menu - the conventional spot, not the renderer's own gear icon-only
+// path. Edit/View/Window/Help stay the default role-based menus (Cut/Copy/
+// Paste, DevTools, zoom, etc.) so nothing already working for free is lost
+// by taking over the menu at all.
+function createAppMenu(): void {
+  const openPreferences = () => {
+    showWindow();
+    mainWindow.webContents.send(IrcMessages.openPreferences);
+  };
+
+  const template: Electron.MenuItemConstructorOptions[] = [
+    ...(process.platform === 'darwin'
+      ? [{
+          label: app.name,
+          submenu: [
+            { role: 'about' as const },
+            { type: 'separator' as const },
+            { label: 'Preferences…', accelerator: 'Cmd+,', click: openPreferences },
+            { type: 'separator' as const },
+            { role: 'services' as const },
+            { type: 'separator' as const },
+            { role: 'hide' as const },
+            { role: 'hideOthers' as const },
+            { role: 'unhide' as const },
+            { type: 'separator' as const },
+            { role: 'quit' as const },
+          ],
+        }]
+      : []),
+    { role: 'editMenu' },
+    { role: 'viewMenu' },
+    { role: 'windowMenu' },
+  ];
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+}
+
 // Must be requested before anything else touches app - a second instance
 // (e.g. the OS relaunching dolq to open a Windows/Linux irc:// link while
 // it's already running - see findIrcUrl) quits immediately here, deferring
@@ -182,6 +229,7 @@ if (!app.requestSingleInstanceLock()) {
 
     createWindow();
     createTray();
+    createAppMenu();
 
     // Windows/Linux cold start via a link: unlike 'second-instance', the
     // very first launch's own argv never fires that event - checked here

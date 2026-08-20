@@ -98,4 +98,10 @@ contextBridge.exposeInMainWorld('irc', {
     ipcRenderer.on(IrcMessages.openIrcUrl, handler);
     return () => ipcRenderer.removeListener(IrcMessages.openIrcUrl, handler);
   },
+
+  onOpenPreferences: (callback) => {
+    const handler = () => callback();
+    ipcRenderer.on(IrcMessages.openPreferences, handler);
+    return () => ipcRenderer.removeListener(IrcMessages.openPreferences, handler);
+  },
 } satisfies IrcApi);

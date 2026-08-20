@@ -769,6 +769,26 @@ will hang the UI.
       auto-connect. `parseIrcUrl` has its own test suite; the full path
       (a real `open-url` event through to the form actually pre-filled) was
       also checked end-to-end with a scripted Playwright `_electron` run
+- [x] Preferences reachable from the macOS app menu (`Dolq > Preferences…`,
+      Cmd+,), not just the sidebar's gear icon - the conventional spot on
+      macOS, and Electron's default menu (used until now) has no idea
+      Preferences exists at all. Building a menu at all meant taking over
+      `Menu.setApplicationMenu` outright, so Edit/View/Window stay Electron's
+      own role-based menus (Cut/Copy/Paste, DevTools, zoom, fullscreen, ...)
+      alongside the custom app menu, rather than losing everything the
+      default menu already covered for free. `app.setName('Dolq')` also
+      added - unpackaged (`npm run dev`) had been falling back to
+      package.json's lowercase `dolq` for the menu/About panel/Dock, since
+      that's an npm package-name field, not the display name; a packaged
+      build already got this right via electron-builder's own
+      `productName`. Opening Preferences reuses the exact same modal/state
+      the gear icon does - a new `openPreferences` IPC push (menus are
+      main-process only) - so there's no second definition of "Preferences
+      is open" to keep in sync. Verified against the real running app: the
+      built application menu actually has the item at the right spot with
+      the right accelerator, and clicking it (Playwright driving the real
+      `Menu` object in the main process) opens the real modal in the
+      renderer
 
 ---
 
