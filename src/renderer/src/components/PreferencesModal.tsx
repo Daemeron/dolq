@@ -60,6 +60,7 @@ export function PreferencesModal({
   fontSize, onFontSizeChange, fontFamily, onFontFamilyChange, theme, onThemeChange,
   servers, ignoredNicks, onRemoveIgnore, aliases, onRemoveAlias, keybindings, onKeybindingChange,
 }: Props) {
+  const [trayEnabled, setTrayEnabled] = useState(settings.trayEnabled ?? true);
   const [retentionDays, setRetentionDays] = useState(String(settings.retentionDays));
   const [downloadDir, setDownloadDir] = useState(settings.downloadDir ?? '');
   const [dccPortMin, setDccPortMin] = useState(settings.dccPortMin ? String(settings.dccPortMin) : '');
@@ -126,6 +127,7 @@ export function PreferencesModal({
       downloadDir: downloadDir || undefined,
       dccPortMin: portMin || undefined,
       dccPortMax: portMax || undefined,
+      trayEnabled,
     });
   }
 
@@ -305,6 +307,16 @@ export function PreferencesModal({
         )}
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <label className="flex items-center gap-2 text-[13px] text-[var(--dolq-text)] cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={trayEnabled}
+              onChange={(e) => setTrayEnabled(e.target.checked)}
+              className="accent-[#c792ea]"
+            />
+            Show a tray/menu bar icon
+          </label>
+
           <label className={labelClass}>
             History Retention (days)
             <input

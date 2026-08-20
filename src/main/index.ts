@@ -17,7 +17,7 @@ import { parseIrcUrl } from './ircUrl';
 app.setName('Dolq');
 
 let mainWindow: BrowserWindow;
-let tray: Tray;
+let tray: Tray | undefined;
 
 // Set the moment a real quit is actually underway (Cmd+Q, the tray's Quit
 // item, or window-all-closed on non-mac) - createWindow's own 'close'
@@ -129,11 +129,14 @@ function flushPendingIrcUrl(): void {
   showWindow();
 }
 
-// A tray icon exists for the app's whole lifetime, not tied to any one
-// window - registers its own click/menu behavior plus the setBadgeCount IPC
-// handler (App.tsx calls it whenever mentionedChannels changes), since both
-// are "OS integration" rather than IRC traffic.
+// Toggleable from Preferences (Settings.trayEnabled) - not tied to any one
+// window's lifetime, so this only ever builds/tears down the Tray object
+// itself. The dock badge (setBadgeCount) is independent of whether a tray
+// icon exists at all, so that IPC handler is registered separately, always,
+// rather than living inside here and silently stopping the moment someone
+// turns the tray off.
 function createTray(): void {
+  if (tray) return;
   const trayIcon = nativeImage.createFromPath(TRAY_ICON_PATH);
   if (process.platform === 'darwin') trayIcon.setTemplateImage(true);
   tray = new Tray(trayIcon);
@@ -148,7 +151,18 @@ function createTray(): void {
   // Right-click already opens the context menu above (setContextMenu's own
   // behavior); a plain click toggles the window the way most tray apps do.
   tray.on('click', () => (mainWindow.isVisible() ? mainWindow.hide() : showWindow()));
+}
 
+function destroyTray(): void {
+  tray?.destroy();
+  tray = undefined;
+}
+
+// The dock badge (App.tsx calls this whenever mentionedChannels changes) is
+// its own OS-integration feature independent of the tray icon's own on/off
+// toggle - registered once, unconditionally, rather than living inside
+// createTray() and silently stopping the moment someone turns the tray off.
+function registerBadgeCountHandler(): void {
   ipcMain.handle(IrcMessages.setBadgeCount, (_event, count: number) => {
     app.setBadgeCount(count);
   });
@@ -237,8 +251,14 @@ if (!app.requestSingleInstanceLock()) {
       }
     }
 
+    // Loaded before createTray() specifically so a saved trayEnabled: false
+    // never flashes a tray icon into existence for a moment at startup only
+    // to immediately destroy it again.
+    const settings = loadSettings();
+
     createWindow();
-    createTray();
+    if (settings.trayEnabled !== false) createTray();
+    registerBadgeCountHandler();
     createAppMenu();
 
     // Windows/Linux cold start via a link: unlike 'second-instance', the
@@ -248,7 +268,6 @@ if (!app.requestSingleInstanceLock()) {
     const coldStartUrl = findIrcUrl(process.argv);
     if (coldStartUrl) handleIrcUrl(coldStartUrl);
 
-    const settings = loadSettings();
     const backend = new BackendClient(settings.retentionDays);
     // A plain mutable box, not a fresh `settings` binding per read - so
     // registerIrcHandlers' closures see whatever Preferences last saved
@@ -377,12 +396,16 @@ function registerIrcHandlers(mainWindow: BrowserWindow, backend: BackendClient, 
 // takes effect on the next launch (it's dolqd's launch flag, not something
 // it can be told to change mid-run), but downloadDir/dccPortMin/dccPortMax
 // apply immediately, since registerIrcHandlers reads them fresh out of this
-// same box on every dccOffer/xdccAccept call.
+// same box on every dccOffer/xdccAccept call. trayEnabled applies
+// immediately too, the same way - toggling it here is what actually
+// creates/destroys the Tray, not just what gets remembered for next launch.
 function registerSettingsHandlers(settingsBox: { current: Settings }): void {
   ipcMain.handle(IrcMessages.getSettings, () => settingsBox.current);
   ipcMain.handle(IrcMessages.setSettings, (_event, settings: Settings) => {
     settingsBox.current = settings;
     saveSettings(settings);
+    if (settings.trayEnabled === false) destroyTray();
+    else createTray();
   });
 }
 

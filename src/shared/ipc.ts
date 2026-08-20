@@ -120,6 +120,13 @@ export type Settings = {
   // ahead of time. Same "read fresh on every call" immediacy as downloadDir.
   dccPortMin?: number;
   dccPortMax?: number;
+  // Undefined/missing means on, same "absence is the default" convention as
+  // downloadDir/dccPortMin/Max above - an already-persisted settings.json
+  // from before this existed keeps behaving exactly like it did. Applies
+  // immediately (main/index.ts's setSettings handler creates/destroys the
+  // actual Tray on the spot), not a restart-needed flag like retentionDays -
+  // there's no subprocess launch argument involved, just an Electron API call.
+  trayEnabled?: boolean;
 };
 
 export type IrcApi = {

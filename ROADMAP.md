@@ -715,7 +715,24 @@ will hang the UI.
       icon - no such macOS-only convention applies there. Verified against
       the real running app: loaded the actual generated file through
       `nativeImage` and confirmed `isTemplateImage()` and its pixel
-      dimensions come back correct
+      dimensions come back correct. Also made toggleable from Preferences
+      (`Settings.trayEnabled`, default on) - not everyone wants a
+      permanent menu bar icon, and unlike `retentionDays` this needed no
+      restart to apply: it's a plain `Tray`/`destroy()` call, not a
+      subprocess launch flag, so the same `setSettings` IPC call that
+      already persists Preferences now also creates/destroys the actual
+      `Tray` on the spot. The dock badge (`setBadgeCount`) used to be
+      registered inside `createTray()` itself - split out to its own
+      always-on handler first, so turning the tray off doesn't silently
+      also break the badge, which has nothing to do with whether a menu bar
+      icon exists. Settings load moved earlier in startup too, before
+      `createTray()`'s now-conditional call, so a saved "off" never flashes
+      a tray icon into existence for a moment only to immediately destroy
+      it. Verified against the real running app: default-on at a fresh
+      start, unchecking the new checkbox and saving destroys the real
+      `Tray` object (not just local state), re-checking recreates it, and a
+      cold start with `trayEnabled: false` already on disk never creates
+      one at all
 - [x] Desktop notifications with per-channel mute - picked as the smallest,
       most self-contained item in this milestone: desktop notifications
       already existed (M1's mention detection), this just adds a per-channel
