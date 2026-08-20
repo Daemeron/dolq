@@ -810,7 +810,7 @@ will hang the UI.
       own role-based menus (Cut/Copy/Paste, DevTools, zoom, fullscreen, ...)
       alongside the custom app menu, rather than losing everything the
       default menu already covered for free. `app.setName('Dolq')` also
-      added - unpackaged (`npm run dev`) had been falling back to
+      added - unpackaged (`npm run frontend:dev`) had been falling back to
       package.json's lowercase `dolq` for the menu/About panel/Dock, since
       that's an npm package-name field, not the display name; a packaged
       build already got this right via electron-builder's own

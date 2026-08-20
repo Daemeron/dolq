@@ -32,5 +32,5 @@ jobs:
       - run: npm ci
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
-      - run: npm run build
-      - run: npm test
+      - run: npx electron-vite build
+      - run: npx vitest run

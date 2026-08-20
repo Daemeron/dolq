@@ -1,0 +1,20 @@
+#:schema https://json.schemastore.org/any.json
+# `go tool air` - npm's `backend:dev` script. Trimmed to just what differs
+# from `air init`'s own defaults; everything else stays default.
+
+root = "."
+tmp_dir = "tmp"
+
+[build]
+  cmd = "go build -o ./tmp/dolqd ./cmd/dolqd"
+  entrypoint = ["./tmp/dolqd"]
+  include_ext = ["go"]
+  exclude_dir = ["tmp", "bin"]
+  # dolqd already handles SIGINT/SIGTERM for a graceful shutdown (flushing
+  # queued history writes, closing sessions) - send_interrupt makes air use
+  # that instead of a hard kill on every rebuild.
+  send_interrupt = true
+  kill_delay = "500ms"
+
+[log]
+  time = true

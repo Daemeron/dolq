@@ -34,12 +34,14 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
-      - run: npm run package
+      - run: go build -C backend -o bin/ ./cmd/dolqd
+      - run: npx electron-vite build
+      - run: npx electron-builder
         if: runner.os == 'Windows'
         env:
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
-      - run: npm run package
+      - run: npx electron-builder
         if: runner.os != 'Windows'
       - name: Upload macOS assets
         if: runner.os == 'macOS'

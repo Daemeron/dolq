@@ -69,6 +69,8 @@ web_modules/
 out
 dist
 backend/bin
+backend/tmp
+backend/build-errors.log
 
 # Stores VSCode versions used for testing VSCode extensions
 .vscode-test

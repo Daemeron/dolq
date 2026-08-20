@@ -116,7 +116,7 @@ npm install
 Start the app in dev mode with hot reload:
 
 ```bash
-npm run dev
+npm run frontend:dev
 ```
 
 This launches the Electron window with the renderer running via Vite's dev
@@ -126,11 +126,12 @@ the main process. Changes to `backend/` need an app restart to pick up (it's
 rebuilt automatically on the next launch).
 
 To run `dolqd` on its own, outside Electron (e.g. to poke at it with `nc` or
-a script against its Unix socket):
+a script against its Unix socket) - rebuilds and restarts it automatically on
+every `backend/**/*.go` change, via [air](https://github.com/air-verse/air)
+(a `go tool` dependency, config in `backend/.air.toml`):
 
 ```bash
-npm run dev:backend         # build once, run it
-npm run dev:backend:watch   # rebuild and restart on every backend/**/*.go change
+npm run backend:dev
 ```
 
 ---
@@ -140,19 +141,19 @@ npm run dev:backend:watch   # rebuild and restart on every backend/**/*.go chang
 **Compile the backend daemon** — outputs to `backend/bin/`:
 
 ```bash
-npm run build:backend
+npm run backend:build
 ```
 
 **Compile the frontend only** — outputs to `out/`:
 
 ```bash
-npm run build
+npm run frontend:build
 ```
 
-**Preview the production build** without packaging:
+**Run the production build** without packaging:
 
 ```bash
-npm run preview
+npm run run
 ```
 
 **Package a distributable** — builds the backend, builds the frontend, then
@@ -170,13 +171,15 @@ config lives in `electron-builder.json5`.
 ## Testing
 
 ```bash
-npm test
+npm run frontend:test        # one-shot
+npm run frontend:test:dev    # watch mode
 ```
 
-Frontend tests run via Vitest. The backend has its own Go test suite:
+The backend has its own Go test suite, same shape:
 
 ```bash
-go -C backend test ./...
+npm run backend:test         # one-shot
+npm run backend:test:dev     # rerun on every backend/**/*.go change, also via air (config in backend/.air.test.toml)
 ```
 
 ---

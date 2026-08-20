@@ -232,7 +232,7 @@ if (!app.requestSingleInstanceLock()) {
 
   app.whenReady().then(async () => {
     // packaged macOS builds get their Dock icon from icon.icns automatically -
-    // this only matters for `npm run dev`/`electron .`, where macOS would
+    // this only matters for `npm run frontend:dev`/`electron .`, where macOS would
     // otherwise show the generic Electron icon (BrowserWindow's `icon` option
     // has no effect on macOS, unlike Windows/Linux).
     if (!app.isPackaged) app.dock?.setIcon(ICON_PATH);

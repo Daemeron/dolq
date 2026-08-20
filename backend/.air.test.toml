@@ -1,0 +1,16 @@
+#:schema https://json.schemastore.org/any.json
+# `go tool air -c .air.test.toml` - npm's `backend:test:dev` script. air is
+# fundamentally "build, then run a binary" - there's no binary from `go
+# test`, so entrypoint points at a harmless always-present no-op instead of
+# a real one. Letting `bin`/`entrypoint` default to a phantom "./tmp/main"
+# makes air print a spurious "file not found" after every single passing
+# run - this avoids that instead of living with it.
+
+root = "."
+tmp_dir = "tmp"
+
+[build]
+  cmd = "go test ./..."
+  entrypoint = ["/usr/bin/true"]
+  include_ext = ["go"]
+  exclude_dir = ["tmp", "bin"]

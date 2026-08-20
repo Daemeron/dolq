@@ -9,15 +9,16 @@
   },
   "main": "out/main/index.js",
   "scripts": {
-    "dev": "electron-vite dev",
-    "build": "electron-vite build",
-    "build:backend": "go build -C backend -o bin/ ./cmd/dolqd",
-    "dev:backend": "npm run build:backend && backend/bin/dolqd",
-    "dev:backend:watch": "node scripts/watch-backend.mjs",
-    "preview": "electron-vite preview",
-    "package": "npm run build:backend && npm run build && electron-builder",
-    "test": "vitest run",
-    "test:watch": "vitest"
+    "frontend:dev": "electron-vite dev",
+    "frontend:build": "electron-vite build",
+    "frontend:test": "vitest run",
+    "frontend:test:dev": "vitest",
+    "backend:build": "go build -C backend -o bin/ ./cmd/dolqd",
+    "backend:dev": "go -C backend tool air",
+    "backend:test": "go -C backend test ./...",
+    "backend:test:dev": "go -C backend tool air -c .air.test.toml",
+    "run": "electron-vite preview",
+    "package": "npm run backend:build && npm run frontend:build && electron-builder"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.1",
