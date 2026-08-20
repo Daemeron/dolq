@@ -113,6 +113,7 @@ type Actions = {
   setAlias: (name: string, template: string) => void;
   removeAlias: (name: string) => void;
   setKeybinding: (action: KeybindAction, combo: string) => void;
+  setServerColor: (id: string, color: string) => void;
 };
 
 export const useStore = create<State & Actions>()(
@@ -393,6 +394,11 @@ export const useStore = create<State & Actions>()(
 
       setKeybinding: (action, combo) =>
         set((s) => ({ keybindings: { ...s.keybindings, [action]: combo } })),
+
+      // Lives on the Server object itself (not a separate map) - it's
+      // already the thing persisted in `servers`, same as name/initial.
+      setServerColor: (id, color) =>
+        set((s) => ({ servers: s.servers.map((sv) => (sv.id === id ? { ...sv, color } : sv)) })),
     }),
     {
       name: 'dolq',

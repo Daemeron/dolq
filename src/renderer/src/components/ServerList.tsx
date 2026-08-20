@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import { Server } from '../types';
 import { useContextMenu } from '../hooks/useContextMenu';
 import { ContextMenu, ContextMenuHeader, ContextMenuItem } from './ContextMenu';
@@ -8,11 +9,31 @@ type Props = {
   onSelect: (id: string) => void;
   onAddServer: () => void;
   onRemove: (id: string) => void;
+  onChangeColor: (id: string, color: string) => void;
 };
 
-export function ServerList({ servers, selectedId, onSelect, onAddServer, onRemove }: Props) {
+// The app's default accent everywhere else this color shows up (see the
+// c792ea usages elsewhere) - a server without its own override just draws
+// the same purple it always has.
+const DEFAULT_ACCENT = '#c792ea';
+
+export function ServerList({ servers, selectedId, onSelect, onAddServer, onRemove, onChangeColor }: Props) {
   const { menu, open, close, dismissIfUnhandled } = useContextMenu<string>();
   const menuServer = servers.find((s) => s.id === menu?.target);
+  // A single native color input, reused for whichever server's context menu
+  // "Change Color" was clicked - the context menu itself closes (and its
+  // menuServer with it) the instant the click fires, so the target id has
+  // to survive in a ref instead.
+  const colorInputRef = useRef<HTMLInputElement>(null);
+  const colorTargetRef = useRef<string | null>(null);
+
+  function handleChangeColorClick(id: string, current?: string) {
+    colorTargetRef.current = id;
+    const input = colorInputRef.current;
+    if (!input) return;
+    input.value = current ?? DEFAULT_ACCENT;
+    input.click();
+  }
 
   return (
     <aside
@@ -26,10 +47,11 @@ export function ServerList({ servers, selectedId, onSelect, onAddServer, onRemov
             title={s.name}
             onClick={() => onSelect(s.id)}
             onContextMenu={(e) => open(s.id, e)}
+            style={{ '--server-accent': s.color ?? DEFAULT_ACCENT } as React.CSSProperties}
             className={`w-12 h-12 text-[18px] font-bold cursor-pointer select-none border-0 rounded-[30%] transition-[background] duration-150 ${
               s.id === selectedId
-                ? 'bg-[#c792ea] text-white text-shadow-sm'
-                : 'bg-[#212121] text-[#e6e6e6] hover:bg-[#c792ea] hover:text-white hover:text-shadow-sm'
+                ? 'bg-[var(--server-accent)] text-white text-shadow-sm'
+                : 'bg-[#212121] text-[#e6e6e6] hover:bg-[var(--server-accent)] hover:text-white hover:text-shadow-sm'
             }`}
           >
             {s.initial}
@@ -50,9 +72,21 @@ export function ServerList({ servers, selectedId, onSelect, onAddServer, onRemov
         </button>
       </div>
 
+      <input
+        ref={colorInputRef}
+        type="color"
+        className="hidden"
+        onChange={(e) => {
+          if (colorTargetRef.current) onChangeColor(colorTargetRef.current, e.target.value);
+        }}
+      />
+
       {menu && menuServer && (
         <ContextMenu x={menu.x} y={menu.y}>
           <ContextMenuHeader>{menuServer.name}</ContextMenuHeader>
+          <ContextMenuItem onClick={() => { handleChangeColorClick(menuServer.id, menuServer.color); close(); }}>
+            Change Color…
+          </ContextMenuItem>
           <ContextMenuItem danger onClick={() => { onRemove(menuServer.id); close(); }}>
             Remove Server
           </ContextMenuItem>

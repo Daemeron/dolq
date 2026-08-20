@@ -609,10 +609,10 @@ will hang the UI.
 
 ## Milestone 4 — Customization & polish
 
-- [ ] Preferences beyond M1's basics: keybinding customization, sound alerts,
+- [x] Preferences beyond M1's basics: keybinding customization, sound alerts,
       per-server color overrides, font size/family - four distinct enough
-      preferences that this is being worked through one at a time rather
-      than as a single pass; the parent box checks once all four are done.
+      preferences that this was worked through one at a time rather
+      than as a single pass.
       - [x] Font size/family - Font Size is Electron's own whole-window page
             zoom (`webContents.setZoomFactor`, via a new `setZoomFactor` IPC
             action), not a CSS font-size: almost every text size in this app
@@ -642,7 +642,26 @@ will hang the UI.
             the main process and confirmed `window.irc.playAlertSound()`
             actually reaches it, and that the new Preferences checkbox
             renders and toggles
-      - [ ] Per-server color overrides
+      - [x] Per-server color overrides - the server icon (ServerList) only:
+            it's the one place `#c792ea` (the app's default accent) marks
+            "which server," everywhere else that purple shows up is
+            server-agnostic UI (modals, checkboxes) where a per-server color
+            wouldn't mean anything. A hex string on the `Server` object
+            itself (`color?`, already part of the persisted `servers`
+            array, no new store key needed), set via a native
+            `<input type="color">` behind a "Change Color…" item on the
+            existing per-server context menu - the OS's own color picker
+            instead of building one. Applied through a `--server-accent`
+            CSS custom property so Tailwind's `bg-[var(--server-accent)]`
+            stays a static class (Tailwind can't generate arbitrary-value
+            classes from a runtime hex string) - unset falls back to the
+            same purple every server already used. Verified against the
+            real running app (Playwright `_electron`): opened the real
+            context menu, drove the hidden color input the same way the OS
+            picker would (native value setter + a real `change` event, since
+            a plain `.value =` gets swallowed by React's controlled-input
+            tracking), and confirmed both the live CSS variable and the
+            persisted store value updated
       - [x] Keybinding customization - four global shortcuts (Next/Previous
             Channel, Close Current Channel, Toggle Mute), the actions this
             app already exposes via click/context-menu that make sense to

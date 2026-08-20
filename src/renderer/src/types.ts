@@ -23,6 +23,11 @@ export type Server = {
   username?: string;
   realname?: string;
   autojoinChannels?: string[];
+  // Preferences' per-server color overrides - a hex string, unset falls
+  // back to the app's default accent (#c792ea) wherever it's read. Only
+  // affects the server icon (ServerList) - see its own comment for why
+  // that's the one place this is worth wiring up.
+  color?: string;
 };
 
 export type Channel = {

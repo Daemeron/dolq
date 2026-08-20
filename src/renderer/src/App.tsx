@@ -108,6 +108,7 @@ export default function App() {
     selectServer, selectChannel, setConnectionStatus, setUsers, addUser, removeUser, removeUserEverywhere,
     renameUserEverywhere, applyModeChanges, markMentioned, toggleMuteChannel, setNotificationsEnabled, setSoundAlertsEnabled, setTimestampFormat,
     setMessageDensity, setFontSize, setFontFamily, addIgnore, removeIgnore, applyAwayEverywhere, setSelfAway, setAlias, removeAlias, setKeybinding,
+    setServerColor,
   } = useStore();
 
   const [showModal, setShowModal] = useState(false);
@@ -1012,6 +1013,7 @@ export default function App() {
             onSelect={selectServer}
             onAddServer={() => setShowModal(true)}
             onRemove={handleRemoveServer}
+            onChangeColor={setServerColor}
           />
           <ChannelList
             serverName={(servers.find((s) => s.id === selectedServerId))?.name ?? ''}
