@@ -15,8 +15,15 @@ export function outranks(a: PrivilegeLevel, b: PrivilegeLevel): boolean {
 // The best-ranked privilege in a set - what a badge/group-by-rank display
 // wants, now that `multi-prefix` means a user's full set of channel
 // privileges is tracked, not just the one the server used to lead with.
-export function highestPrivilege(privileges: PrivilegeLevel[]): PrivilegeLevel {
-  return privileges.reduce((best, p) => (outranks(p, best) ? p : best), 'none' as PrivilegeLevel);
+//
+// `privileges` comes off the wire (an IPC frame the Go backend sent) - the
+// TS type is only a compile-time promise, not a runtime guarantee, and a
+// backend nil-slice-marshals-to-null slip already crashed every caller of
+// this by reaching in with `null` once (see ircparse.parseNames). Guarding
+// here, the one place every caller already routes through, is cheaper than
+// hoping every future caller remembers to.
+export function highestPrivilege(privileges: PrivilegeLevel[] | null | undefined): PrivilegeLevel {
+  return (privileges ?? []).reduce((best, p) => (outranks(p, best) ? p : best), 'none' as PrivilegeLevel);
 }
 
 export type IrcEvent =

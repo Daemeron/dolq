@@ -142,7 +142,7 @@ func TestParseLine(t *testing.T) {
 					{Nick: "carol", Privileges: []PrivilegeLevel{PrivilegeOp}},
 					{Nick: "dave", Privileges: []PrivilegeLevel{PrivilegeHalfop}},
 					{Nick: "eve", Privileges: []PrivilegeLevel{PrivilegeVoice}},
-					{Nick: "frank"},
+					{Nick: "frank", Privileges: []PrivilegeLevel{}},
 				},
 			},
 		},
@@ -153,7 +153,7 @@ func TestParseLine(t *testing.T) {
 				Channel: "#general",
 				Users: []User{
 					{Nick: "alice", Privileges: []PrivilegeLevel{PrivilegeOp, PrivilegeVoice}},
-					{Nick: "bob"},
+					{Nick: "bob", Privileges: []PrivilegeLevel{}},
 				},
 			},
 		},

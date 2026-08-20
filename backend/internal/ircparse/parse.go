@@ -372,7 +372,12 @@ func parseNames(nickList string) []User {
 	users := make([]User, 0, len(fields))
 	for _, raw := range fields {
 		i := 0
-		var privileges []PrivilegeLevel
+		// Non-nil even for a plain member with no prefix - a nil slice
+		// marshals to JSON `null`, not `[]`, and the renderer's
+		// highestPrivilege calls .reduce on this unconditionally (see
+		// shared/ipc.ts), crashing UserList the moment a channel has any
+		// regular (unprefixed) member - which is most of them.
+		privileges := []PrivilegeLevel{}
 		for i < len(raw) {
 			p, ok := prefixToPrivilege[raw[i]]
 			if !ok {

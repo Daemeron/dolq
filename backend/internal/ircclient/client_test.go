@@ -639,9 +639,9 @@ func TestNamesAccumulation(t *testing.T) {
 		want := NamesEvent{
 			Type: "names", Channel: "#general",
 			Users: []ircparse.User{
-				{Nick: "alice"},
+				{Nick: "alice", Privileges: []ircparse.PrivilegeLevel{}},
 				{Nick: "bob", Privileges: []ircparse.PrivilegeLevel{ircparse.PrivilegeOp}},
-				{Nick: "carol"},
+				{Nick: "carol", Privileges: []ircparse.PrivilegeLevel{}},
 			},
 		}
 		select {

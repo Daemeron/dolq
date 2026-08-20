@@ -839,6 +839,21 @@ will hang the UI.
       manually-typed host with no Name given (a preset always fills Name
       in, so this only affects custom entries) now falls back to the host
       itself rather than leaving the server unnamed in the rail
+- [x] Joining any channel with a plain (unprefixed) member went straight to
+      a blank window - `ircparse.parseNames`'s `var privileges []PrivilegeLevel`
+      left a nil slice for a NAMES entry with no `@`/`+`/etc. prefix, which
+      Go's `encoding/json` marshals as `null`, not `[]`; the renderer's
+      `highestPrivilege` called `.reduce` on that unconditionally and
+      crashed the whole tree with no error boundary to catch it. This hit
+      essentially every real channel (any regular member, not just an edge
+      case), reproduced live against Libera's `#libera`. Fixed at the
+      source (`privileges := []PrivilegeLevel{}`, never nil) and, since
+      this is IPC-deserialized data that only ever *looked*
+      type-safe at compile time, hardened `highestPrivilege` itself
+      (`(privileges ?? [])`) rather than trusting every future caller to
+      remember. Three existing Go test cases, across both `ircparse` and
+      `ircclient`, had baked the old nil-means-omitted behavior into their
+      fixtures and needed updating alongside the fix
 
 ---
 
