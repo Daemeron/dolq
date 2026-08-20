@@ -11,9 +11,9 @@ Dolq is a desktop IRC client built with Electron, React, and a Go backend,
 designed to bring a familiar, modern interface to IRC. It borrows Discord's
 layout — server list, channel list, topic bar, message area, and user list —
 while staying true to the IRC protocol underneath: TLS, SASL, CAP negotiation,
-CTCP, DCC, and XDCC file transfers all work like a "real" IRC client, just
-with a friendlier shell around them. Currently targeting macOS, with
-multiplatform support planned.
+CTCP, DCC, and XDCC file transfers all work like a "real" IRC client, just with
+a friendlier shell around them. Currently targeting macOS, with multiplatform
+support planned.
 
 > ![Main chat view](/resources/screenshots/main-view.png)
 > ![Preferences panel](/resources/screenshots/preferences.png)
@@ -23,13 +23,13 @@ multiplatform support planned.
 
 ## Features
 
-- **Multi-server** — connect to as many networks/identities as you want at
-  once, switch between them from the server rail
+- **Multi-server** — connect to as many networks/identities as you want at once,
+  switch between them from the server rail
 - **Channel list** — joined channels, DMs, and DCC chats, with a persistent
   **Log** view showing raw server output
-- **XDCC file transfers** — browse pack listings, request/accept `DCC SEND`
-  in passive or active mode, resume partial downloads, and track progress in
-  a queue with pause/resume
+- **XDCC file transfers** — browse pack listings, request/accept `DCC SEND` in
+  passive or active mode, resume partial downloads, and track progress in a
+  queue with pause/resume
 - **DCC CHAT** — direct peer-to-peer chats alongside regular channels
 - **History that survives a restart** — SQLite-backed, with configurable
   retention, full-text search (per-channel or across everything), and
@@ -38,8 +38,8 @@ multiplatform support planned.
   (`ACTION`/`VERSION`/`PING`), WHOIS, away status, ignore lists, multiple
   identities per network, nick collision handling, flood protection,
   auto-reconnect, NickServ-aware prompts, `/alias` scripting
-- **Desktop integration** — system tray with unread badge, desktop
-  notifications with per-channel mute, `irc://`/`ircs://` link handling
+- **Desktop integration** — system tray with unread badge, desktop notifications
+  with per-channel mute, `irc://`/`ircs://` link handling
 - **Customization** — keybindings, sound alerts, per-server color overrides,
   font size/family, timestamp format, message density
 - **Dark theme** — grayscale dark UI built with Tailwind CSS
@@ -51,18 +51,18 @@ progress.
 
 ## Tech Stack
 
-| Layer          | Technology                    |
-| -------------- | ------------------------------ |
-| Runtime        | Electron 42                    |
-| UI framework   | React 18 + zustand             |
-| Language       | TypeScript 5                   |
-| Bundler        | electron-vite 5 / Vite 7       |
-| Styling        | Tailwind CSS v4                |
+| Layer          | Technology                        |
+| -------------- | --------------------------------- |
+| Runtime        | Electron 42                       |
+| UI framework   | React 18 + zustand                |
+| Language       | TypeScript 5                      |
+| Bundler        | electron-vite 5 / Vite 7          |
+| Styling        | Tailwind CSS v4                   |
 | Backend daemon | Go, SQLite (`modernc.org/sqlite`) |
 
-The Electron app talks to a small Go daemon (`dolqd`) over a local Unix
-domain socket — it owns the actual IRC/DCC/XDCC connections and the SQLite
-history store, while the renderer stays a thin UI on top.
+The Electron app talks to a small Go daemon (`dolqd`) over a local Unix domain
+socket — it owns the actual IRC/DCC/XDCC connections and the SQLite history
+store, while the renderer stays a thin UI on top.
 
 ---
 
@@ -121,9 +121,17 @@ npm run dev
 
 This launches the Electron window with the renderer running via Vite's dev
 server; the Go backend daemon is built and spawned automatically. Changes to
-`src/renderer` reflect instantly; changes to `src/main` or `src/preload`
-restart the main process. Changes to `backend/` need an app restart to
-pick up (it's rebuilt automatically on the next launch).
+`src/renderer` reflect instantly; changes to `src/main` or `src/preload` restart
+the main process. Changes to `backend/` need an app restart to pick up (it's
+rebuilt automatically on the next launch).
+
+To run `dolqd` on its own, outside Electron (e.g. to poke at it with `nc` or
+a script against its Unix socket):
+
+```bash
+npm run dev:backend         # build once, run it
+npm run dev:backend:watch   # rebuild and restart on every backend/**/*.go change
+```
 
 ---
 
@@ -211,9 +219,9 @@ backend/
 ## Roadmap
 
 Dolq is a slow-and-steady side project. The first target was a "usable"
-milestone — comfortable enough for daily use — since reached, followed by
-fuller IRC power-user features, XDCC file transfers, and customization, all
-also done. What's left is mostly polish and cross-platform distribution.
+milestone — comfortable enough for daily use — since reached, followed by fuller
+IRC power-user features, XDCC file transfers, and customization, all also done.
+What's left is mostly polish and cross-platform distribution.
 
 See [ROADMAP.md](./ROADMAP.md) for the full plan, milestone-by-milestone.
 

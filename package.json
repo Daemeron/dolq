@@ -12,6 +12,8 @@
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "build:backend": "go build -C backend -o bin/ ./cmd/dolqd",
+    "dev:backend": "npm run build:backend && backend/bin/dolqd",
+    "dev:backend:watch": "node scripts/watch-backend.mjs",
     "preview": "electron-vite preview",
     "package": "npm run build:backend && npm run build && electron-builder",
     "test": "vitest run",
