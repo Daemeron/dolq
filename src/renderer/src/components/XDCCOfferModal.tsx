@@ -1,3 +1,6 @@
+import { useEffect } from 'react';
+import { useModalA11y } from '../hooks/useModalA11y';
+
 type Props = {
   nick: string;
   filename: string;
@@ -23,13 +26,28 @@ function formatBytes(n: number): string {
 // with the file details that actually matter for deciding whether to take
 // it: what it's called and how big it is.
 export function XDCCOfferModal({ nick, filename, size, onAccept, onDecline }: Props) {
+  const dialogRef = useModalA11y<HTMLDivElement>();
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') onDecline();
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onDecline]);
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onDecline}>
       <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="xdcc-offer-modal-title"
+        tabIndex={-1}
         className="bg-[var(--dolq-bg-panel)] rounded-lg p-6 w-90 shadow-[0_8px_32px_rgba(0,0,0,0.5)]"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 className="text-[var(--dolq-text)] text-[18px] font-bold mb-2">File Offer</h2>
+        <h2 id="xdcc-offer-modal-title" className="text-[var(--dolq-text)] text-[18px] font-bold mb-2">File Offer</h2>
         <p className="text-[var(--dolq-text-muted)] text-[14px] mb-1">
           <span className="text-[var(--dolq-text)] font-semibold">{nick}</span> wants to send you a file, direct to your
           address. Only accept this from someone (or a bot) you trust.

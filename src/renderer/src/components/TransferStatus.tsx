@@ -58,6 +58,7 @@ export function TransferStatus({ transfers, onPause, onResume, onCancel, onDismi
                     onClick={() => (t.paused ? onResume(id) : onPause(id))}
                     className="text-[var(--dolq-text-faint)] hover:text-[var(--dolq-text)] bg-transparent border-0 cursor-pointer text-[13px]"
                     title={t.paused ? 'Resume' : 'Pause'}
+                    aria-label={t.paused ? 'Resume' : 'Pause'}
                   >
                     {t.paused ? '▶' : '⏸'}
                   </button>
@@ -66,6 +67,7 @@ export function TransferStatus({ transfers, onPause, onResume, onCancel, onDismi
                   onClick={() => (finished ? onDismiss(id) : onCancel(id))}
                   className="text-[var(--dolq-text-faint)] hover:text-[var(--dolq-text)] bg-transparent border-0 cursor-pointer text-[13px]"
                   title={finished ? 'Dismiss' : 'Cancel'}
+                  aria-label={finished ? 'Dismiss' : 'Cancel'}
                 >
                   ✕
                 </button>

@@ -748,8 +748,38 @@ will hang the UI.
       dot. Scoped to channels only (not queries/DMs) since that's the only
       place checkMention/notify ever fire from today - a mute toggle for
       queries would mute something that can't notify in the first place
-- [ ] Accessibility pass (keyboard navigation, screen reader labels, focus
-      management in modals)
+- [x] Accessibility pass (keyboard navigation, screen reader labels, focus
+      management in modals) - scoped to modals and icon-only buttons, the
+      two concrete gaps the item names, not a full WCAG audit. A shared
+      `useModalA11y` hook (`hooks/`, same location as the existing
+      `useContextMenu`) now backs all 7 modals: moves focus inside on open
+      (first focusable element, or the dialog container itself as a
+      fallback), traps Tab/Shift+Tab so it can't wander into the page
+      behind the overlay, and restores focus to whatever triggered the
+      modal once it closes - each modal's own `role="dialog"`/
+      `aria-modal`/`aria-labelledby` (pointing at its own heading, each
+      given a matching `id`) layers on top rather than replacing anything.
+      Auditing this surfaced a real gap along the way, not just a
+      structural one: DCCOfferModal, XDCCOfferModal, NickServIdentifyModal,
+      and SearchModal had no Escape-to-close at all - fixed alongside the
+      focus work rather than filing it separately, since it's the same
+      "modal keyboard behavior" category. The 7 icon-only buttons across
+      the app (search, export, add-server, preferences gear, per-server
+      icons, transfer pause/cancel) already had `title` but not
+      `aria-label` - `title` alone isn't reliably exposed to assistive
+      tech, added explicitly rather than assumed. Deliberately not
+      touched: context menus (no keyboard equivalent to open one, no
+      arrow-key navigation once open) and live-region announcements for
+      new messages arriving in the virtualized message list - both real
+      gaps, but each its own separate pass, not a few-line addition to
+      this one. Verified against the real running app, not just read as
+      correct: focus actually lands inside a modal on open, Tab from the
+      last focusable element wraps to the first without escaping the
+      dialog, and closing (via the now-added Escape handling on the four
+      that lacked it) actually returns focus to the real button that
+      opened it - confirmed with a genuine Playwright mouse click, since a
+      DOM `.click()` call doesn't set focus the way a real click does and
+      first made this look broken when it wasn't
 - [ ] Emoji picker (optional, since this is "Discord-like")
 - [x] Light theme - the note this item used to have about a `2e` icon
       variant already sitting in `resources/` waiting for this didn't hold

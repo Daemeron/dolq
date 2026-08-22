@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { HistoryEntry } from '../../../shared/ipc';
 import type { Server } from '../types';
 import { IrcText } from './IrcText';
+import { useModalA11y } from '../hooks/useModalA11y';
 
 type Props = {
   servers: Server[];
@@ -60,6 +61,15 @@ export function SearchModal({
   const [packsOnly, setPacksOnly] = useState(false);
   const [results, setResults] = useState<HistoryEntry[] | null>(null);
   const [loading, setLoading] = useState(false);
+  const dialogRef = useModalA11y<HTMLDivElement>();
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose();
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -75,10 +85,15 @@ export function SearchModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
       <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="search-modal-title"
+        tabIndex={-1}
         className="bg-[var(--dolq-bg-panel)] rounded-lg p-6 w-140 max-h-[80vh] flex flex-col shadow-[0_8px_32px_rgba(0,0,0,0.5)]"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 className="text-[var(--dolq-text)] text-[18px] font-bold mb-4 shrink-0">Search History</h2>
+        <h2 id="search-modal-title" className="text-[var(--dolq-text)] text-[18px] font-bold mb-4 shrink-0">Search History</h2>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-3 shrink-0">
           <input
@@ -86,7 +101,6 @@ export function SearchModal({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search for..."
-            autoFocus
           />
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">

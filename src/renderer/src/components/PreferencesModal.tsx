@@ -3,6 +3,7 @@ import type { Settings } from '../../../shared/ipc';
 import type { Server } from '../types';
 import { type KeybindAction } from '../store';
 import { comboFromEvent } from '../utils/keybind';
+import { useModalA11y } from '../hooks/useModalA11y';
 
 const KEYBIND_LABELS: Record<KeybindAction, string> = {
   nextChannel: 'Next Channel',
@@ -72,6 +73,7 @@ export function PreferencesModal({
   // The action currently "listening" for its next keypress to rebind to -
   // null means no rebind row is in recording mode.
   const [recording, setRecording] = useState<KeybindAction | null>(null);
+  const dialogRef = useModalA11y<HTMLDivElement>();
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -134,10 +136,15 @@ export function PreferencesModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onCancel}>
       <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="preferences-modal-title"
+        tabIndex={-1}
         className="bg-[var(--dolq-bg-panel)] rounded-lg p-8 w-110 shadow-[0_8px_32px_rgba(0,0,0,0.5)]"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 className="text-[var(--dolq-text)] text-[22px] font-bold mb-1">Preferences</h2>
+        <h2 id="preferences-modal-title" className="text-[var(--dolq-text)] text-[22px] font-bold mb-1">Preferences</h2>
         <p className="text-[var(--dolq-text-muted)] text-[14px] mb-5">
           Applies to every server. Some settings need a restart to take effect.
         </p>

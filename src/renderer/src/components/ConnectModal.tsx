@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { ServerPreset } from '../data/servers';
 import { IRC_PORT, IRC_TLS_PORT } from '../../../shared/ipc';
+import { useModalA11y } from '../hooks/useModalA11y';
 
 type ConnectForm = {
   name: string;
@@ -76,6 +77,7 @@ export function ConnectModal({ presets, nickMap, onConnect, onCancel, initial }:
         }
       : DEFAULTS,
   );
+  const dialogRef = useModalA11y<HTMLDivElement>();
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -125,10 +127,15 @@ export function ConnectModal({ presets, nickMap, onConnect, onCancel, initial }:
       onClick={onCancel}
     >
       <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="connect-modal-title"
+        tabIndex={-1}
         className="bg-[var(--dolq-bg-panel)] rounded-lg p-8 w-110 shadow-[0_8px_32px_rgba(0,0,0,0.5)]"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 className="text-[var(--dolq-text)] text-[22px] font-bold mb-1">Add a Server</h2>
+        <h2 id="connect-modal-title" className="text-[var(--dolq-text)] text-[22px] font-bold mb-1">Add a Server</h2>
         <p className="text-[var(--dolq-text-muted)] text-[14px] mb-3">Pick a server, or fill in a custom one below.</p>
 
         <div className="flex flex-col gap-1 max-h-40 overflow-y-auto scroll-thin mb-5 pr-1">

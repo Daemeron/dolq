@@ -1,3 +1,6 @@
+import { useEffect } from 'react';
+import { useModalA11y } from '../hooks/useModalA11y';
+
 type Props = {
   nick: string;
   onAccept: () => void;
@@ -9,13 +12,28 @@ type Props = {
 // to whatever address the sender announced, so unlike a query (opened just
 // by looking at an incoming message) this one gets an explicit prompt.
 export function DCCOfferModal({ nick, onAccept, onDecline }: Props) {
+  const dialogRef = useModalA11y<HTMLDivElement>();
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') onDecline();
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onDecline]);
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onDecline}>
       <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="dcc-offer-modal-title"
+        tabIndex={-1}
         className="bg-[var(--dolq-bg-panel)] rounded-lg p-6 w-90 shadow-[0_8px_32px_rgba(0,0,0,0.5)]"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 className="text-[var(--dolq-text)] text-[18px] font-bold mb-2">DCC Chat Request</h2>
+        <h2 id="dcc-offer-modal-title" className="text-[var(--dolq-text)] text-[18px] font-bold mb-2">DCC Chat Request</h2>
         <p className="text-[var(--dolq-text-muted)] text-[14px] mb-5">
           <span className="text-[var(--dolq-text)] font-semibold">{nick}</span> wants to start a direct chat with you,
           outside the server. Only accept this from someone you trust - it connects straight to their address.

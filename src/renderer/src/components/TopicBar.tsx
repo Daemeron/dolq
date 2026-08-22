@@ -58,6 +58,7 @@ export function TopicBar({
           <button
             onClick={(e) => open(null, e)}
             title="Export"
+            aria-label="Export"
             className="w-7 h-7 flex items-center justify-center rounded border-0 bg-transparent text-[var(--dolq-text-dim)] cursor-pointer hover:text-[var(--dolq-text)] hover:bg-[var(--dolq-bg-row-hover)]"
           >
             ⬇

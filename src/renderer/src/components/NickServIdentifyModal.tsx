@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useModalA11y } from '../hooks/useModalA11y';
 
 type Props = {
   onIdentify: (password: string) => void;
@@ -17,6 +18,15 @@ const inputClass =
 // registration completes.
 export function NickServIdentifyModal({ onIdentify, onDismiss }: Props) {
   const [password, setPassword] = useState('');
+  const dialogRef = useModalA11y<HTMLDivElement>();
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') onDismiss();
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onDismiss]);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -27,10 +37,15 @@ export function NickServIdentifyModal({ onIdentify, onDismiss }: Props) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onDismiss}>
       <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="nickserv-modal-title"
+        tabIndex={-1}
         className="bg-[var(--dolq-bg-panel)] rounded-lg p-6 w-90 shadow-[0_8px_32px_rgba(0,0,0,0.5)]"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 className="text-[var(--dolq-text)] text-[18px] font-bold mb-2">Identify with NickServ</h2>
+        <h2 id="nickserv-modal-title" className="text-[var(--dolq-text)] text-[18px] font-bold mb-2">Identify with NickServ</h2>
         <p className="text-[var(--dolq-text-muted)] text-[14px] mb-4">
           This nickname is registered. Enter its password to identify.
         </p>
@@ -41,7 +56,6 @@ export function NickServIdentifyModal({ onIdentify, onDismiss }: Props) {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="Password"
-            autoFocus
           />
           <p className="text-[var(--dolq-text-faint)] text-[12px] -mt-2">
             Tip: set SASL credentials when connecting to identify automatically and skip this next time.

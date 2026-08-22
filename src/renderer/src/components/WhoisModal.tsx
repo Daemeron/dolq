@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import type { IrcEvent } from '../../../shared/ipc';
+import { useModalA11y } from '../hooks/useModalA11y';
 
 type WhoisInfo = Extract<IrcEvent, { type: 'whois' }>;
 
@@ -20,6 +21,8 @@ const rowClass = 'flex gap-3 text-[14px]';
 const labelClass = 'w-24 shrink-0 text-[var(--dolq-text-faint)]';
 
 export function WhoisModal({ nick, result, onClose }: Props) {
+  const dialogRef = useModalA11y<HTMLDivElement>();
+
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') onClose();
@@ -31,10 +34,15 @@ export function WhoisModal({ nick, result, onClose }: Props) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
       <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="whois-modal-title"
+        tabIndex={-1}
         className="bg-[var(--dolq-bg-panel)] rounded-lg p-6 w-90 shadow-[0_8px_32px_rgba(0,0,0,0.5)]"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 className="text-[var(--dolq-text)] text-[18px] font-bold mb-4">{nick}</h2>
+        <h2 id="whois-modal-title" className="text-[var(--dolq-text)] text-[18px] font-bold mb-4">{nick}</h2>
 
         {!result ? (
           <p className="text-[var(--dolq-text-dim)] text-[14px]">Looking up...</p>

@@ -45,6 +45,7 @@ export function ServerList({ servers, selectedId, onSelect, onAddServer, onRemov
           <button
             key={s.id}
             title={s.name}
+            aria-label={s.name}
             onClick={() => onSelect(s.id)}
             onContextMenu={(e) => open(s.id, e)}
             style={{ '--server-accent': s.color ?? DEFAULT_ACCENT } as React.CSSProperties}
@@ -62,6 +63,7 @@ export function ServerList({ servers, selectedId, onSelect, onAddServer, onRemov
         )}
         <button
           title="Add server"
+          aria-label="Add server"
           onClick={onAddServer}
           className="w-12 h-12 rounded-full bg-[var(--dolq-bg)] text-[#50fa7b] flex items-center justify-center cursor-pointer border-0 hover:bg-[#50fa7b] hover:text-white hover:text-shadow-sm transition-[border-radius,background] duration-150 select-none"
         >
