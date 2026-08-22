@@ -15,7 +15,9 @@ type Props = {
 // The app's default accent everywhere else this color shows up (see the
 // c792ea usages elsewhere) - a server without its own override just draws
 // the same purple it always has.
-const DEFAULT_ACCENT = '#c792ea';
+// Exported for TopicBar - a channel's "#" prefix picks up the same
+// per-server color, so the fallback for an uncustomized server has to match.
+export const DEFAULT_ACCENT = '#c792ea';
 
 export function ServerList({ servers, selectedId, onSelect, onAddServer, onRemove, onChangeColor }: Props) {
   const { menu, open, close, dismissIfUnhandled } = useContextMenu<string>();

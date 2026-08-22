@@ -1,5 +1,6 @@
 import { useContextMenu } from '../hooks/useContextMenu';
 import { ContextMenu, ContextMenuItem } from './ContextMenu';
+import { DEFAULT_ACCENT } from './ServerList';
 
 type Props = {
   channelName: string;
@@ -9,6 +10,11 @@ type Props = {
   isLog: boolean;
   isQuery?: boolean;
   isDCC?: boolean;
+  // The current server's own color override (ServerList's per-server
+  // colors), echoed here on the "#"/"@" prefix so a channel visibly
+  // belongs to its server's color, not just the small rail icon - unset
+  // falls back to the same default accent ServerList itself falls back to.
+  serverColor?: string;
   // Only meaningful (and passed) for a DCC session - reuses the same
   // connecting/connected/disconnected status a server connection has, see
   // App.tsx's statusMap (DCC session ids share it, not just real serverIds).
@@ -19,10 +25,11 @@ type Props = {
 };
 
 export function TopicBar({
-  channelName, topic, topicSetBy, topicSetAt, isLog, isQuery, isDCC, dccStatus, onExport,
+  channelName, topic, topicSetBy, topicSetAt, isLog, isQuery, isDCC, dccStatus, onExport, serverColor,
 }: Props) {
   const whoWhen = topicSetBy && `Set by ${topicSetBy}${topicSetAt ? ` at ${topicSetAt.toLocaleString()}` : ''}`;
   const { menu, open, close } = useContextMenu<null>();
+  const prefixStyle = { color: serverColor ?? DEFAULT_ACCENT };
   return (
     <div className="h-12 flex items-center justify-between px-4 border-b border-[var(--dolq-border)] bg-[var(--dolq-bg)] shrink-0 shadow-[0_1px_0_rgba(0,0,0,0.2)]">
       <div className="flex items-center min-w-0">
@@ -30,7 +37,7 @@ export function TopicBar({
           <span className="font-semibold text-[var(--dolq-text)] text-[15px]">IRC Server Log</span>
         ) : isQuery ? (
           <>
-            <span className="text-[var(--dolq-text-faint)] text-[16px] mr-1 font-bold">{isDCC ? '⚡' : '@'}</span>
+            <span className="text-[16px] mr-1 font-bold" style={prefixStyle}>{isDCC ? '⚡' : '@'}</span>
             <span className="font-bold text-[var(--dolq-text)] text-[15px]">{channelName}</span>
             {isDCC && dccStatus && (
               <>
@@ -41,7 +48,7 @@ export function TopicBar({
           </>
         ) : (
           <>
-            <span className="text-[var(--dolq-text-faint)] text-[16px] mr-1 font-bold">#</span>
+            <span className="text-[16px] mr-1 font-bold" style={prefixStyle}>#</span>
             <span className="font-bold text-[var(--dolq-text)] text-[15px]">{channelName}</span>
             {topic && (
               <>

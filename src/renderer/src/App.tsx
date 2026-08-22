@@ -19,6 +19,7 @@ import { NickServIdentifyModal } from './components/NickServIdentifyModal';
 import { isNickServIdentifyPrompt } from './utils/nickserv';
 import { expandAlias } from './utils/aliases';
 import { UserPanel } from './components/UserPanel';
+import { ConnectionStatus } from './components/ConnectionStatus';
 import { buildServerId, normalizeHost, resolveHostPort } from './utils/server';
 import { mentionsNick } from './utils/mentions';
 import { formatEntry } from './utils/exportFormat';
@@ -864,6 +865,7 @@ export default function App() {
     await window.irc.saveTextFile(`${name}.${format === 'json' ? 'json' : 'txt'}`, content);
   }
 
+  const selectedServer = servers.find((s) => s.id === selectedServerId);
   const channels = channelMap[selectedServerId] ?? [];
   const selectedChannel = channels.find((c) => c.id === selectedChannelId) ?? channels[0];
   const messages = messageMap[selectedChannelId] ?? [];
@@ -1035,7 +1037,7 @@ export default function App() {
             onChangeColor={setServerColor}
           />
           <ChannelList
-            serverName={(servers.find((s) => s.id === selectedServerId))?.name ?? ''}
+            serverName={selectedServer?.name ?? ''}
             channels={channels}
             selectedId={selectedChannelId}
             onSelect={selectChannel}
@@ -1054,10 +1056,7 @@ export default function App() {
         <div className="absolute bottom-0 left-0 w-full px-3 pt-2 pb-2">
           <UserPanel
             currentNick={currentNick}
-            connectionStatus={connectionStatus}
             away={selfAwayMap[selectedServerId] ?? false}
-            onConnect={connectToServer}
-            onDisconnect={handleDisconnect}
             onOpenPreferences={() => setShowPreferences(true)}
           />
         </div>
@@ -1073,6 +1072,7 @@ export default function App() {
           isDCC={selectedChannel?.isDCC}
           dccStatus={selectedChannel?.isDCC ? statusMap[selectedChannelId] : undefined}
           onExport={selectedChannel?.isDCC ? undefined : handleExportChannel}
+          serverColor={selectedServer?.color}
         />
         <div className="flex flex-1 overflow-hidden">
           <div className="flex flex-col flex-1 overflow-hidden">
@@ -1093,6 +1093,11 @@ export default function App() {
             />
           </div>
           <aside className="w-52 bg-[var(--dolq-bg-panel)] border-l border-[var(--dolq-border)] shrink-0 flex flex-col overflow-hidden">
+            <ConnectionStatus
+              connectionStatus={connectionStatus}
+              onConnect={connectToServer}
+              onDisconnect={handleDisconnect}
+            />
             {!isLog && !isQuery && (
               <UserList
                 users={users}

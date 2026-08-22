@@ -937,6 +937,26 @@ will hang the UI.
       remember. Three existing Go test cases, across both `ircparse` and
       `ircclient`, had baked the old nil-means-omitted behavior into their
       fixtures and needed updating alongside the fix
+- [x] Two layout/polish requests: the per-server color override (Milestone
+      4) only ever showed up on the small server-rail icon - TopicBar's
+      "#"/"@" channel prefix now picks up the same color (falling back to
+      the same default accent `ServerList` itself falls back to, now
+      exported from there instead of duplicated) instead of a flat muted
+      gray, so a channel visibly carries its server's identity too, not
+      just the rail. Separately, just the connection status button (not
+      the whole nick/avatar/preferences panel it used to be glued to)
+      moved to the top of the right-hand column, directly above
+      `UserList` - split into its own `ConnectionStatus` component for
+      that. `UserPanel` (nick/avatar/preferences gear) stays exactly where
+      it always was, an absolutely-positioned card at the bottom of the
+      server rail - restyled back to a plain rounded card now that there's
+      no button glued to its top. `ConnectionStatus` still renders
+      regardless of view type (Log/query/channel), the same as the old
+      combined panel's always-on placement; `UserList` itself is still the
+      one gated on being in a real channel. Verified against the real
+      running app in both a colored and an uncustomized server, and in
+      both a channel and the Log view (no user list to sit under the
+      button)
 
 ---
 
