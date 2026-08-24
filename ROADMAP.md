@@ -957,6 +957,26 @@ will hang the UI.
       running app in both a colored and an uncustomized server, and in
       both a channel and the Log view (no user list to sit under the
       button)
+- [x] Two servers with a same-named channel (or DM with the same nick) shared
+      one messages/users entry - `messageMap`/`userMap` (and the scrollback
+      paging cursor) are flat dictionaries keyed only by the bare channel/nick
+      id, but that id is only unique *within* one server; `channelMap` itself
+      is already partitioned per server, this wasn't. Connect to two networks
+      that both happen to have e.g. `#general`, and their message history and
+      user lists silently merged into one shared entry - a real cross-server
+      data leak, not a display quirk, and an easy trigger since same-named
+      channels across networks are common. Fixed at the root with one small
+      `scopeKey(serverId, id)` helper (store.ts), applied at every
+      messageMap/userMap read and write site instead of reshaping `Channel.id`
+      itself, which also doubles as the literal wire-protocol channel/nick
+      name sent in outgoing `PRIVMSG`/`JOIN`/etc. lines and couldn't be
+      touched without breaking that. The log channel's id
+      (`${serverId}:__log__`) and a DCC session's uuid-based id were already
+      globally unique, so `scopeKey` leaves anything already containing a
+      `:` alone - a safe discriminator, since RFC 2812 excludes `:` from both
+      channel names and nicknames. `mutedChannels`/`mentionedChannels` stay
+      intentionally shared across servers, an existing, documented tradeoff
+      unrelated to this bug. Covered by `store.test.ts`
 
 ---
 

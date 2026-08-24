@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Message, Server } from './types';
 import type { HistoryEntry, IrcEvent, Settings } from '../../shared/ipc';
-import { useStore } from './store';
+import { useStore, scopeKey } from './store';
 import { ServerList } from './components/ServerList';
 import { ChannelList } from './components/ChannelList';
 import { TopicBar } from './components/TopicBar';
@@ -348,6 +348,8 @@ export default function App() {
       // its lines are the chat itself, not raw IRC protocol traffic to
       // stash in a Log bucket, so they go straight into the session's own
       // channel instead.
+      // Already globally unique (dcc:<uuid>), not a real serverId to scope
+      // against - see this callback's own doc above.
       if (serverId.startsWith('dcc:')) {
         appendMessage(serverId, {
           id: nextMsgId.current++, nick: dccPeerNick(serverId), text: line, timestamp: new Date(),
@@ -421,14 +423,14 @@ export default function App() {
         case 'PRIVMSG': {
           if (isIgnored(serverId, event.nick)) break;
           const key = dmKey(serverId, event.target, event.nick);
-          appendMessage(key, { id: nextMsgId.current++, nick: event.nick, text: event.text, timestamp: new Date() });
+          appendMessage(scopeKey(serverId, key), { id: nextMsgId.current++, nick: event.nick, text: event.text, timestamp: new Date() });
           checkMention(serverId, key, event.target, event.text);
           break;
         }
         case 'ACTION': {
           if (isIgnored(serverId, event.nick)) break;
           const key = dmKey(serverId, event.target, event.nick);
-          appendMessage(key, {
+          appendMessage(scopeKey(serverId, key), {
             id: nextMsgId.current++, nick: event.nick, text: event.text, timestamp: new Date(), action: true,
           });
           checkMention(serverId, key, event.target, event.text);
@@ -440,7 +442,7 @@ export default function App() {
           // was parsed at all. Only channel notices get the nicer per-channel
           // rendering, same reasoning as toMessages above.
           if (event.target.startsWith('#') && !isIgnored(serverId, event.nick)) {
-            appendMessage(event.target, {
+            appendMessage(scopeKey(serverId, event.target), {
               id: nextMsgId.current++, nick: event.nick, text: event.text, timestamp: new Date(), notice: true,
             });
           }
@@ -454,7 +456,7 @@ export default function App() {
           // way a DM would land: the bot's own query, auto-opened if needed.
           if (isIgnored(serverId, event.nick)) break;
           const key = dmKey(serverId, event.target, event.nick);
-          appendMessage(key, {
+          appendMessage(scopeKey(serverId, key), {
             id: nextMsgId.current++,
             nick: event.nick,
             text: `#${event.number} · ${event.gets}x sent · ${event.size} · ${event.filename}`,
@@ -469,16 +471,16 @@ export default function App() {
             addChannel(serverId, { id: event.channel, name: event.channel.slice(1), isLog: false });
             selectChannel(event.channel);
           } else {
-            addUser(event.channel, { nick: event.nick, privileges: [] });
+            addUser(scopeKey(serverId, event.channel), { nick: event.nick, privileges: [] });
           }
           break;
         case 'PART':
-          removeUser(event.channel, event.nick);
+          removeUser(scopeKey(serverId, event.channel), event.nick);
           break;
         case 'KICK':
-          removeUser(event.channel, event.nick);
+          removeUser(scopeKey(serverId, event.channel), event.nick);
           if (event.nick === nickMap[serverId]) {
-            appendMessage(event.channel, {
+            appendMessage(scopeKey(serverId, event.channel), {
               id: nextMsgId.current++,
               nick: '',
               text: `You were kicked by ${event.by}${event.reason ? `: ${event.reason}` : ''}`,
@@ -517,10 +519,10 @@ export default function App() {
           break;
         }
         case 'MODE':
-          applyModeChanges(event.channel, event.changes);
+          applyModeChanges(scopeKey(serverId, event.channel), event.changes);
           break;
         case 'names':
-          setUsers(event.channel, event.users);
+          setUsers(scopeKey(serverId, event.channel), event.users);
           break;
         case 'TOPIC':
           setTopic(serverId, event.channel, event.topic);
@@ -559,7 +561,7 @@ export default function App() {
                 ? `Download of ${t.filename} failed: ${event.error}`
                 : `Downloaded ${t.filename} to ${event.path}`;
               ensureQuery(t.serverId, t.nick);
-              appendMessage(t.nick, { id: nextMsgId.current++, nick: '', text, timestamp: new Date(), system: true });
+              appendMessage(scopeKey(t.serverId, t.nick), { id: nextMsgId.current++, nick: '', text, timestamp: new Date(), system: true });
               return { ...prev, [id]: { ...t, received: event.received, total: event.total, path: event.path, done: event.done, error: event.error } };
             });
             break;
@@ -595,9 +597,11 @@ export default function App() {
   // per channel per session, tracked outside the (unpersisted) store so it
   // survives messageMap already being seeded to [] at channel-creation time.
   useEffect(() => {
-    if (!selectedServerId || historyPages.current.has(selectedChannelId)) return;
+    if (!selectedServerId) return;
+    const key = scopeKey(selectedServerId, selectedChannelId);
+    if (historyPages.current.has(key)) return;
     const page: HistoryPage = { oldestId: null, exhausted: false, loading: true };
-    historyPages.current.set(selectedChannelId, page);
+    historyPages.current.set(key, page);
 
     const backendChannel = backendChannelFor(selectedServerId, selectedChannelId);
     window.irc.getHistory(selectedServerId, backendChannel, undefined, HISTORY_PAGE_SIZE).then((entries) => {
@@ -605,7 +609,7 @@ export default function App() {
       page.exhausted = entries.length < HISTORY_PAGE_SIZE;
       page.oldestId = entries[0]?.id ?? null;
       const messages = toMessages(entries);
-      if (messages.length > 0) setHistory(selectedChannelId, messages);
+      if (messages.length > 0) setHistory(key, messages);
     });
   }, [selectedServerId, selectedChannelId, channelMap, setHistory]);
 
@@ -613,7 +617,8 @@ export default function App() {
   // backwards via the oldest row id we've fetched so far for this channel;
   // a no-op while a page is already in flight or we've hit the beginning.
   const loadOlderHistory = useCallback(() => {
-    const page = historyPages.current.get(selectedChannelId);
+    const key = scopeKey(selectedServerId, selectedChannelId);
+    const page = historyPages.current.get(key);
     if (!selectedServerId || !page || page.loading || page.exhausted || page.oldestId === null) return;
     page.loading = true;
 
@@ -623,7 +628,7 @@ export default function App() {
       page.exhausted = entries.length < HISTORY_PAGE_SIZE;
       if (entries[0]) page.oldestId = entries[0].id;
       const messages = toMessages(entries);
-      if (messages.length > 0) setHistory(selectedChannelId, messages);
+      if (messages.length > 0) setHistory(key, messages);
     });
   }, [selectedServerId, selectedChannelId, channelMap, setHistory]);
 
@@ -714,7 +719,7 @@ export default function App() {
     if (channel?.isDCC) {
       await window.irc.dccClose(channelId);
     } else {
-      const joined = (userMap[channelId] ?? []).some((u) => u.nick === currentNick);
+      const joined = (userMap[scopeKey(selectedServerId, channelId)] ?? []).some((u) => u.nick === currentNick);
       if (joined) await window.irc.sendLine(selectedServerId, `PART ${channelId}`);
     }
     removeChannel(selectedServerId, channelId);
@@ -868,8 +873,8 @@ export default function App() {
   const selectedServer = servers.find((s) => s.id === selectedServerId);
   const channels = channelMap[selectedServerId] ?? [];
   const selectedChannel = channels.find((c) => c.id === selectedChannelId) ?? channels[0];
-  const messages = messageMap[selectedChannelId] ?? [];
-  const users = userMap[selectedChannelId] ?? [];
+  const messages = messageMap[scopeKey(selectedServerId, selectedChannelId)] ?? [];
+  const users = userMap[scopeKey(selectedServerId, selectedChannelId)] ?? [];
   const isLog = selectedChannel?.isLog ?? true;
   const isQuery = selectedChannel?.isQuery ?? false;
   const currentNick = nickMap[selectedServerId] ?? 'dolq_user';
@@ -902,7 +907,7 @@ export default function App() {
       const [, nick, msg] = msgMatch;
       await window.irc.sendLine(selectedServerId, `PRIVMSG ${nick} :${msg}`);
       handleOpenQuery(nick);
-      appendMessage(nick, { id: nextMsgId.current++, nick: currentNick, text: msg, timestamp: new Date() });
+      appendMessage(scopeKey(selectedServerId, nick), { id: nextMsgId.current++, nick: currentNick, text: msg, timestamp: new Date() });
     } else if (aliasDefMatch) {
       setAlias(aliasDefMatch[1].toLowerCase(), aliasDefMatch[2]);
     } else if (unaliasMatch) {
@@ -923,18 +928,18 @@ export default function App() {
       // ACTION for /me - DCC CHAT is just a raw line-oriented socket, kept
       // that simple here too).
       await window.irc.dccSend(selectedChannelId, text);
-      appendMessage(selectedChannelId, {
+      appendMessage(scopeKey(selectedServerId, selectedChannelId), {
         id: nextMsgId.current++, nick: currentNick, text, timestamp: new Date(),
       });
     } else if (meMatch) {
       const action = meMatch[1];
       await window.irc.sendLine(selectedServerId, `PRIVMSG ${selectedChannelId} :\x01ACTION ${action}\x01`);
-      appendMessage(selectedChannelId, {
+      appendMessage(scopeKey(selectedServerId, selectedChannelId), {
         id: nextMsgId.current++, nick: currentNick, text: action, timestamp: new Date(), action: true,
       });
     } else {
       await window.irc.sendLine(selectedServerId, `PRIVMSG ${selectedChannelId} :${text}`);
-      appendMessage(selectedChannelId, {
+      appendMessage(scopeKey(selectedServerId, selectedChannelId), {
         id: nextMsgId.current++, nick: currentNick, text, timestamp: new Date(),
       });
     }
@@ -1037,6 +1042,7 @@ export default function App() {
             onChangeColor={setServerColor}
           />
           <ChannelList
+            serverId={selectedServerId}
             serverName={selectedServer?.name ?? ''}
             channels={channels}
             selectedId={selectedChannelId}
@@ -1079,7 +1085,7 @@ export default function App() {
             <MessageArea
               messages={messages}
               isLog={isLog}
-              channelId={selectedChannelId}
+              channelId={scopeKey(selectedServerId, selectedChannelId)}
               onLoadOlder={loadOlderHistory}
               timestampFormat={timestampFormat}
               density={messageDensity}

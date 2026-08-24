@@ -73,6 +73,20 @@ type State = {
   keybindings: Record<KeybindAction, string>;
 };
 
+// messageMap/userMap are flat, cross-server dictionaries, but a bare
+// channel or query id ("#linux", or a nick) is only unique *within* one
+// server - two networks can easily share a channel name (or a nick), which
+// would otherwise collide into the same entry: messages, users and
+// scrollback-paging state from unrelated networks bleeding into each other.
+// Scoping with the owning server's id fixes that, the same way the log
+// channel's id already does by hand (`${serverId}:__log__`) and a DCC
+// session's uuid-based id already does for free - neither of those (already
+// containing a ':', which a real IRC nick or channel name can never
+// contain - RFC 2812 excludes it from both) needs scoping again.
+export function scopeKey(serverId: string, id: string): string {
+  return id.includes(':') ? id : `${serverId}:${id}`;
+}
+
 export type KeybindAction = 'nextChannel' | 'prevChannel' | 'closeChannel' | 'toggleMute';
 
 export const DEFAULT_KEYBINDINGS: Record<KeybindAction, string> = {
@@ -153,7 +167,7 @@ export const useStore = create<State & Actions>()(
         set((s) => ({
           servers: [...s.servers, server],
           channelMap: { ...s.channelMap, [server.id]: [logChannel] },
-          messageMap: { ...s.messageMap, [logChannel.id]: [] },
+          messageMap: { ...s.messageMap, [scopeKey(server.id, logChannel.id)]: [] },
         })),
 
       removeServer: (id) =>
@@ -166,8 +180,8 @@ export const useStore = create<State & Actions>()(
           const messageMap = { ...s.messageMap };
           const userMap = { ...s.userMap };
           channelIds.forEach((cid) => {
-            delete messageMap[cid];
-            delete userMap[cid];
+            delete messageMap[scopeKey(id, cid)];
+            delete userMap[scopeKey(id, cid)];
           });
           const nickMap = { ...s.nickMap };
           delete nickMap[id];
@@ -204,9 +218,10 @@ export const useStore = create<State & Actions>()(
         set((s) => {
           const existing = s.channelMap[serverId] ?? [];
           if (existing.some((c) => c.id === channel.id)) return {};
+          const key = scopeKey(serverId, channel.id);
           return {
             channelMap: { ...s.channelMap, [serverId]: [...existing, channel] },
-            messageMap: { ...s.messageMap, [channel.id]: s.messageMap[channel.id] ?? [] },
+            messageMap: { ...s.messageMap, [key]: s.messageMap[key] ?? [] },
           };
         }),
 
@@ -233,9 +248,9 @@ export const useStore = create<State & Actions>()(
           const channels = (s.channelMap[serverId] ?? []).filter((c) => c.id !== channelId);
           const channelMap = { ...s.channelMap, [serverId]: channels };
           const messageMap = { ...s.messageMap };
-          delete messageMap[channelId];
+          delete messageMap[scopeKey(serverId, channelId)];
           const userMap = { ...s.userMap };
-          delete userMap[channelId];
+          delete userMap[scopeKey(serverId, channelId)];
 
           if (s.selectedChannelId !== channelId) {
             return { channelMap, messageMap, userMap };
