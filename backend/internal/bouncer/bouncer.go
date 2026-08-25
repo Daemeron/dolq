@@ -280,6 +280,18 @@ func (b *Bouncer) wire(serverID string, sess *session, client *ircclient.Client)
 	client.OnClose(func() { b.handleClose(serverID, sess) })
 }
 
+// logLine persists a synthetic (not actually received on the wire) system
+// line to serverID's log bucket and fans it out live, the same two things
+// wire's AddLineListener callback does for a real one - so a connection drop
+// or restored connection shows up in the Log the same way any other server
+// notice would, instead of only ever being visible as a silent status-dot
+// color change. Safe to call with a nil store (see history.Store's nil
+// receivers), same as everywhere else this package touches it.
+func (b *Bouncer) logLine(serverID string, sess *session, line string) {
+	b.store.AppendLine(serverID, logChannel, line, time.Now())
+	sess.fanOutLine(serverID, line)
+}
+
 // handleClose runs once, whenever a session's client connection ends -
 // whether intentionally (Disconnect, or a fresh Connect replacing this
 // session) or not. An intentional close, or a session with no dial func
@@ -294,11 +306,38 @@ func (b *Bouncer) handleClose(serverID string, sess *session) {
 	if closing || dial == nil {
 		b.forget(serverID, sess)
 		sess.setStatus(serverID, "disconnected")
+		b.logLine(serverID, sess, "*** Disconnected")
 		return
 	}
 
 	sess.setStatus(serverID, "connecting")
+	b.logLine(serverID, sess, "*** Connection lost - reconnecting...")
 	go b.reconnect(serverID, sess)
+}
+
+// rejoinOnWelcome re-JOINs whichever channels were still joined right before
+// an unexpected drop, once the freshly redialed client actually finishes
+// registering (RPL_WELCOME) - a plain redial only re-establishes the
+// connection itself, nothing about channel membership survives it
+// otherwise. Registered on client before Start() (see AddEventListener's own
+// doc on why that ordering matters) so it can't miss the WELCOME it's
+// waiting for. A no-op for an empty list (a fresh connect with nothing
+// joined yet has nothing to restore) - and harmless overlap with the
+// frontend's own autojoin-on-WELCOME (see App.tsx's WELCOME case) for
+// whichever channels appear in both: a JOIN to an already-joined channel is
+// just a no-op ack, not an error.
+func rejoinOnWelcome(client *ircclient.Client, channels []string) {
+	if len(channels) == 0 {
+		return
+	}
+	client.AddEventListener(func(event any) {
+		if _, ok := event.(ircparse.WelcomeEvent); !ok {
+			return
+		}
+		for _, ch := range channels {
+			client.SendPaced("JOIN " + ch)
+		}
+	})
 }
 
 // reconnect retries sess.dial with exponential backoff until it succeeds or
@@ -306,6 +345,12 @@ func (b *Bouncer) handleClose(serverID string, sess *session) {
 // serverID - either way, give up rather than keep trying). Runs on its own
 // goroutine, started by handleClose after an unexpected drop.
 func (b *Bouncer) reconnect(serverID string, sess *session) {
+	// Captured from the client that just dropped, before any redial replaces
+	// it - see rejoinOnWelcome.
+	sess.mu.Lock()
+	previousChannels := sess.client.GetJoinedChannels()
+	sess.mu.Unlock()
+
 	backoff := b.ReconnectBackoffBase
 	for {
 		select {
@@ -313,6 +358,7 @@ func (b *Bouncer) reconnect(serverID string, sess *session) {
 		case <-sess.stop:
 			b.forget(serverID, sess)
 			sess.setStatus(serverID, "disconnected")
+			b.logLine(serverID, sess, "*** Disconnected")
 			return
 		}
 
@@ -327,6 +373,7 @@ func (b *Bouncer) reconnect(serverID string, sess *session) {
 			}
 			b.forget(serverID, sess)
 			sess.setStatus(serverID, "disconnected")
+			b.logLine(serverID, sess, "*** Disconnected")
 			return
 		}
 		if err != nil {
@@ -339,7 +386,9 @@ func (b *Bouncer) reconnect(serverID string, sess *session) {
 		sess.client = client
 		sess.mu.Unlock()
 		b.wire(serverID, sess, client)
+		rejoinOnWelcome(client, previousChannels)
 		sess.setStatus(serverID, "connected")
+		b.logLine(serverID, sess, "*** Reconnected")
 		client.Start()
 		return
 	}

@@ -1,16 +1,12 @@
-import { Channel, User } from '../types';
+import { Channel } from '../types';
 import { useContextMenu } from '../hooks/useContextMenu';
 import { ContextMenu, ContextMenuHeader, ContextMenuItem } from './ContextMenu';
-import { scopeKey } from '../store';
 
 type Props = {
-  serverId: string;
   serverName: string;
   channels: Channel[];
   selectedId: string;
   onSelect: (id: string) => void;
-  currentNick: string;
-  userMap: Record<string, User[]>;
   mentionedChannels: Record<string, boolean>;
   mutedChannels: Record<string, boolean>;
   onToggleMuteChannel: (id: string) => void;
@@ -22,7 +18,7 @@ type Props = {
 };
 
 export function ChannelList({
-  serverId, serverName, channels, selectedId, onSelect, currentNick, userMap, mentionedChannels, mutedChannels,
+  serverName, channels, selectedId, onSelect, mentionedChannels, mutedChannels,
   onToggleMuteChannel, onJoinChannel, onLeaveChannel, onRemoveChannel, onCloseQuery, onOpenSearch,
 }: Props) {
   const logChannel = channels.find((c) => c.isLog);
@@ -35,7 +31,7 @@ export function ChannelList({
   const dccChats = queries.filter((c) => c.isDCC);
   const { menu, open, close, dismissIfUnhandled } = useContextMenu<string>();
   const menuChannel = regularChannels.find((c) => c.id === menu?.target);
-  const menuChannelJoined = !!menuChannel && (userMap[scopeKey(serverId, menuChannel.id)] ?? []).some((u) => u.nick === currentNick);
+  const menuChannelJoined = menuChannel?.joined !== false;
   const menuQuery = queries.find((c) => c.id === menu?.target);
 
   return (
@@ -77,7 +73,7 @@ export function ChannelList({
 
       <div className="flex-1 min-h-0 overflow-y-auto px-2 pb-3 scroll-thin mb-30">
         {regularChannels.map((ch) => {
-          const joined = (userMap[scopeKey(serverId, ch.id)] ?? []).some((u) => u.nick === currentNick);
+          const joined = ch.joined !== false;
           const mentioned = !!mentionedChannels[ch.id];
           const muted = !!mutedChannels[ch.id];
           return (

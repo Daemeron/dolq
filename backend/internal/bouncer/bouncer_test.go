@@ -5,11 +5,14 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"path/filepath"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/Daemeron/dolq/backend/internal/history"
 	"github.com/Daemeron/dolq/backend/internal/ircclient"
 	"github.com/Daemeron/dolq/backend/internal/ircparse"
 )
@@ -330,6 +333,132 @@ func TestDisconnectDuringBackoffCancelsReconnect(t *testing.T) {
 		t.Fatal("dial was retried after Disconnect")
 	case <-time.After(300 * time.Millisecond):
 	}
+}
+
+func TestReconnectRejoinsPreviouslyJoinedChannels(t *testing.T) {
+	dial, servers := pipeDial(t)
+	b := New(nil)
+	b.ReconnectBackoffBase = 20 * time.Millisecond
+	b.ReconnectBackoffMax = 20 * time.Millisecond
+
+	sub := &fakeSubscriber{}
+	client, err := dial()
+	if err != nil {
+		t.Fatal(err)
+	}
+	first := <-servers
+	b.connect("server-a", client, sub, dial)
+	drainHandshake(t, bufio.NewReader(first))
+
+	// The pre-drop client actually joins a channel - its own JOIN echo is
+	// what ircclient.Client's joinedChannels tracks, same as a real server's
+	// reply to a real JOIN would.
+	writeLine(t, first, ":testnick!u@h JOIN :#chat")
+	waitFor(t, func() bool { return slices.Contains(b.JoinedChannels("server-a"), "#chat") })
+
+	first.Close() // unexpected drop
+	waitFor(t, func() bool { return sub.lastStatus() == "connecting" })
+
+	second := <-servers
+	secondReader := bufio.NewReader(second)
+	drainHandshake(t, secondReader)
+	writeLine(t, second, ":irc.example.net 001 testnick :Welcome back")
+
+	line, err := secondReader.ReadString('\n')
+	if err != nil {
+		t.Fatalf("read rejoin: %v", err)
+	}
+	if line != "JOIN #chat\r\n" {
+		t.Errorf("got %q, want JOIN #chat\\r\\n", line)
+	}
+}
+
+func TestUnexpectedDropAndReconnectLogSystemLines(t *testing.T) {
+	dial, servers := pipeDial(t)
+	b := New(nil)
+	b.ReconnectBackoffBase = 20 * time.Millisecond
+	b.ReconnectBackoffMax = 20 * time.Millisecond
+
+	sub := &fakeSubscriber{}
+	client, err := dial()
+	if err != nil {
+		t.Fatal(err)
+	}
+	first := <-servers
+	b.connect("server-a", client, sub, dial)
+	drainHandshake(t, bufio.NewReader(first))
+
+	first.Close()
+	waitFor(t, func() bool { return sub.lastLine() == "*** Connection lost - reconnecting..." })
+
+	second := <-servers
+	drainHandshake(t, bufio.NewReader(second))
+	waitFor(t, func() bool { return sub.lastLine() == "*** Reconnected" })
+}
+
+// TestDisconnectLogPersistsAcrossRestart is what a real "app was closed"
+// actually needs, not just fanOutLine live to a subscriber that isn't
+// around anymore to see it: a real file-backed *history.Store (unlike every
+// other test here, which passes nil - see history.Store's nil receivers)
+// closed and reopened from the same path, same as dolqd's own shutdown
+// (store.Close, draining the writer goroutine) followed by a fresh launch
+// - and reading the disconnect line back out of it, the same thing a Log
+// view opening after that restart would fetch via getHistory.
+func TestDisconnectLogPersistsAcrossRestart(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "history.db")
+	store, err := history.Open(path, 0)
+	if err != nil {
+		t.Fatalf("open history: %v", err)
+	}
+
+	b := New(store)
+	_, r := pipeSession(t, b, "server-a", &fakeSubscriber{})
+
+	done := make(chan error, 1)
+	go func() { done <- b.Disconnect("server-a") }()
+	if _, err := r.ReadString('\n'); err != nil {
+		t.Fatalf("read QUIT: %v", err)
+	}
+	if err := <-done; err != nil {
+		t.Fatalf("Disconnect: %v", err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatalf("close: %v", err)
+	}
+
+	reopened, err := history.Open(path, 0)
+	if err != nil {
+		t.Fatalf("reopen history: %v", err)
+	}
+	defer reopened.Close()
+
+	entries, err := reopened.Recent("server-a", logChannel, 0, 10)
+	if err != nil {
+		t.Fatalf("recent: %v", err)
+	}
+	if len(entries) == 0 || entries[len(entries)-1].Line != "*** Disconnected" {
+		t.Fatalf("got %#v, want last entry's line to be %q", entries, "*** Disconnected")
+	}
+}
+
+func TestDisconnectLogsASystemLine(t *testing.T) {
+	sub := &fakeSubscriber{}
+	b := New(nil)
+	_, r := pipeSession(t, b, "server-a", sub)
+
+	done := make(chan error, 1)
+	go func() { done <- b.Disconnect("server-a") }()
+
+	// Something has to read Disconnect's QUIT off the pipe - net.Pipe()'s
+	// Write blocks until a matching Read drains it, same as
+	// TestShutdownDisconnectsEverySession already has to do.
+	if _, err := r.ReadString('\n'); err != nil {
+		t.Fatalf("read QUIT: %v", err)
+	}
+	if err := <-done; err != nil {
+		t.Fatalf("Disconnect: %v", err)
+	}
+	waitFor(t, func() bool { return sub.lastLine() == "*** Disconnected" })
 }
 
 func TestEventChannelBucketing(t *testing.T) {

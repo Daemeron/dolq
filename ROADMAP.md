@@ -977,6 +977,42 @@ will hang the UI.
       channel names and nicknames. `mutedChannels`/`mentionedChannels` stay
       intentionally shared across servers, an existing, documented tradeoff
       unrelated to this bug. Covered by `store.test.ts`
+- [x] An unexpected drop (network hiccup, server-side kill) was invisible in
+      the Log beyond a status-dot color change - `handleClose`/`reconnect`
+      (bouncer.go) now write "*** Connection lost - reconnecting...",
+      "*** Reconnected", and "*** Disconnected" (intentional Disconnect, or
+      giving up mid-backoff) through the same persist-and-fan-out path a real
+      line takes, so a drop shows up in scrollback the same way any other
+      server notice would - including surviving an app close/restart, since
+      it's written via `history.Store.AppendLine` before the process exits
+      (dolqd's own shutdown already waits for that). Manually joining a
+      channel mid-session (as opposed to one in Preferences' autojoin list)
+      also didn't survive a reconnect at all - a redial only re-establishes
+      the connection, nothing rejoins anything on its own, and the frontend's
+      autojoin-on-WELCOME only ever knew about the *configured* list, not
+      whatever was actually joined right before the drop. `reconnect` now
+      captures the previous client's `GetJoinedChannels()` before redialing
+      and rejoins all of them once the new client's own WELCOME confirms
+      registration (`rejoinOnWelcome`) - harmless overlap with the frontend's
+      own autojoin resending a JOIN for whichever channels are in both lists.
+      Separately, "Remove Channel" decided whether to PART first by checking
+      whether the NAMES-derived user list happened to already contain our own
+      nick - which raced a fresh join's own NAMES reply (removing a
+      just-joined channel from the sidebar before that arrived silently
+      skipped the PART, leaving the join behind server-side with no trace of
+      it in the UI) and only worked for closing a query by accident, since
+      NAMES never populates one for those. Replaced with an explicit
+      `Channel.joined` field, set by the same JOIN/PART/KICK events that used
+      to update the user list this was inferring from, plus the
+      renderer-reload reconcile path for a PART/KICK that happened while no
+      renderer was attached to see it live. `/join #channel key` (a
+      key-protected channel) also silently sent the literal text
+      "/join #channel key" as a chat message instead of joining anything -
+      the command regex had no optional-key group, so it fell all the way
+      through to the plain-PRIVMSG fallback. Covered by `bouncer_test.go`
+      (including a real file-backed history db, closed and reopened, to
+      prove the disconnect line actually survives a restart, not just a live
+      fan-out) and `store.test.ts`
 
 ---
 

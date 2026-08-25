@@ -66,3 +66,19 @@ describe('store: same-named channels on different servers', () => {
     expect(userMap[scopeKey('server-b', '#linux')]).toEqual([{ nick: 'bob', privileges: [] }]);
   });
 });
+
+describe('store: setChannelJoined', () => {
+  it('flips a channel to left without removing it from the sidebar, then back on rejoin', () => {
+    const { addServer, addChannel, setChannelJoined } = useStore.getState();
+    addServer(server('server-a'), { id: 'server-a:__log__', name: 'Log', isLog: true });
+    addChannel('server-a', { id: '#linux', name: 'linux', isLog: false });
+
+    setChannelJoined('server-a', '#linux', false);
+    let channels = useStore.getState().channelMap['server-a'];
+    expect(channels.find((c) => c.id === '#linux')?.joined).toBe(false);
+
+    setChannelJoined('server-a', '#linux', true);
+    channels = useStore.getState().channelMap['server-a'];
+    expect(channels.find((c) => c.id === '#linux')?.joined).toBe(true);
+  });
+});

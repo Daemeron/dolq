@@ -43,6 +43,22 @@ export type Channel = {
   // TopicBar/MessageInput), just in its own sidebar section and closed via
   // dccClose instead of PART - see ChannelList/App.tsx's handleRemoveChannel.
   isDCC?: boolean;
+  // Only meaningful for a plain channel (not a query/DCC/log, which never
+  // set this at all) - explicitly false once a self PART/KICK leaves it,
+  // true again on a rejoin; missing/true otherwise. A channel only ever
+  // enters channelMap via a successful JOIN in the first place, so
+  // "present but unset" already means joined - this exists so leaving one
+  // doesn't remove it from the sidebar (still shown, grayed out,
+  // rejoinable), which meant that state couldn't just be "not in
+  // channelMap" and needed a field of its own. Previously inferred from
+  // whether the userMap NAMES snapshot happened to already contain our own
+  // nick - which raced a channel's own NAMES reply on a fresh join (a
+  // Remove Channel click in that window skipped the PART it should have
+  // sent, silently leaving the server-side join behind with no UI trace of
+  // it) and doubled as an accidental "is this even a real channel, not a
+  // query" check queries only passed because NAMES never populates one for
+  // them. This field means what it says instead.
+  joined?: boolean;
   topic?: string;
   topicSetBy?: string;
   topicSetAt?: Date;

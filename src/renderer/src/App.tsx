@@ -105,7 +105,7 @@ export default function App() {
     servers, presets, channelMap, messageMap, userMap, nickMap, saslMap,
     selectedServerId, selectedChannelId, statusMap, mentionedChannels, notificationsEnabled, soundAlertsEnabled, mutedChannels,
     timestampFormat, messageDensity, fontSize, fontFamily, theme, ignoredNicks, selfAwayMap, aliases, keybindings,
-    addServer, removeServer, addPreset, addChannel, removeChannel, setTopic, setTopicWhoTime, appendMessage, setHistory, setNick, setSaslCreds,
+    addServer, removeServer, addPreset, addChannel, removeChannel, setChannelJoined, setTopic, setTopicWhoTime, appendMessage, setHistory, setNick, setSaslCreds,
     selectServer, selectChannel, setConnectionStatus, setUsers, addUser, removeUser, removeUserEverywhere,
     renameUserEverywhere, applyModeChanges, markMentioned, toggleMuteChannel, setNotificationsEnabled, setSoundAlertsEnabled, setTimestampFormat,
     setMessageDensity, setFontSize, setFontFamily, setTheme, addIgnore, removeIgnore, applyAwayEverywhere, setSelfAway, setAlias, removeAlias, setKeybinding,
@@ -281,10 +281,12 @@ export default function App() {
   // renderer-only reload (e.g. dev-mode HMR) even though the main process's live
   // connections (and their joined channels) survive it untouched. Reconcile once
   // hydration finishes: for a channel we're actually still in, re-request NAMES so
-  // the existing 353/366 pipeline repopulates its user list (there's nothing to
-  // "fix" for a channel we're no longer in - an empty userMap already shows it
-  // correctly as not-joined, e.g. after a KICK that happened while no renderer was
-  // listening). Reading via getState() (not the destructured `servers`) matters
+  // the existing 353/366 pipeline repopulates its user list; for one we're not
+  // (e.g. a KICK/PART that happened while no renderer was listening to update
+  // Channel.joined live), explicitly mark it left - unlike the old userMap-based
+  // "joined" check this replaced, an explicit field doesn't self-correct just by
+  // being empty, so this has to say so itself. Reading via getState() (not the
+  // destructured `servers`) matters
   // because persist rehydration is always async, even with synchronous
   // localStorage - a `[]`-deps effect fires before it resolves, so the closed-over
   // `servers` would still be the pre-hydration empty array.
@@ -308,7 +310,9 @@ export default function App() {
         if (status === 'connected') {
           const joined = new Set(await window.irc.getJoinedChannels(s.id));
           (channelMap[s.id] ?? []).forEach((ch) => {
-            if (!ch.isLog && joined.has(ch.id)) window.irc.sendLine(s.id, `NAMES ${ch.id}`);
+            if (ch.isLog || ch.isQuery) return;
+            if (joined.has(ch.id)) window.irc.sendLine(s.id, `NAMES ${ch.id}`);
+            else setChannelJoined(s.id, ch.id, false);
           });
           continue;
         }
@@ -328,7 +332,7 @@ export default function App() {
       return;
     }
     return useStore.persist.onFinishHydration(reconcile);
-  }, [setConnectionStatus]);
+  }, [setConnectionStatus, setChannelJoined]);
 
   // A DCC session's channel lives under whichever server initiated/accepted
   // it (see handleDCCOffer/handleAcceptDCC), keyed by its dccId same as any
@@ -468,7 +472,12 @@ export default function App() {
         }
         case 'JOIN':
           if (event.nick === nickMap[serverId]) {
+            // addChannel is a no-op if this channel is already in the
+            // sidebar (a rejoin of one we'd left, still shown grayed out) -
+            // setChannelJoined still has to run either way, or a rejoin
+            // would stay stuck looking left.
             addChannel(serverId, { id: event.channel, name: event.channel.slice(1), isLog: false });
+            setChannelJoined(serverId, event.channel, true);
             selectChannel(event.channel);
           } else {
             addUser(scopeKey(serverId, event.channel), { nick: event.nick, privileges: [] });
@@ -476,10 +485,12 @@ export default function App() {
           break;
         case 'PART':
           removeUser(scopeKey(serverId, event.channel), event.nick);
+          if (event.nick === nickMap[serverId]) setChannelJoined(serverId, event.channel, false);
           break;
         case 'KICK':
           removeUser(scopeKey(serverId, event.channel), event.nick);
           if (event.nick === nickMap[serverId]) {
+            setChannelJoined(serverId, event.channel, false);
             appendMessage(scopeKey(serverId, event.channel), {
               id: nextMsgId.current++,
               nick: '',
@@ -719,8 +730,14 @@ export default function App() {
     if (channel?.isDCC) {
       await window.irc.dccClose(channelId);
     } else {
-      const joined = (userMap[scopeKey(selectedServerId, channelId)] ?? []).some((u) => u.nick === currentNick);
-      if (joined) await window.irc.sendLine(selectedServerId, `PART ${channelId}`);
+      // A query has no `joined` at all (see types.ts's doc) - never PART a
+      // nick. A real channel defaults to joined unless a PART/KICK already
+      // said otherwise (see setChannelJoined), not to whatever NAMES
+      // happened to have reported by the time this runs - that raced a
+      // fresh join's own NAMES reply and could skip the PART entirely.
+      if (channel && !channel.isQuery && channel.joined !== false) {
+        await window.irc.sendLine(selectedServerId, `PART ${channelId}`);
+      }
     }
     removeChannel(selectedServerId, channelId);
   }
@@ -881,7 +898,11 @@ export default function App() {
   const connectionStatus = statusMap[selectedServerId] ?? 'disconnected';
 
   async function handleSend(text: string, aliasDepth = 0): Promise<void> {
-    const joinMatch = text.match(/^\/join\s+(#\S+)$/);
+    // Key optional (RFC's own JOIN syntax) - a key-protected channel typed
+    // without this used to fall all the way through the match chain below
+    // to the plain-PRIVMSG fallback, silently sending "/join #chan key"
+    // itself as a chat message instead of joining anything.
+    const joinMatch = text.match(/^\/join\s+(#\S+)(?:\s+(\S+))?$/);
     const meMatch = text.match(/^\/me\s+(.+)$/);
     const msgMatch = text.match(/^\/msg\s+(\S+)\s+(.+)$/);
     const awayMatch = text.match(/^\/away(?:\s+(.+))?$/);
@@ -898,7 +919,8 @@ export default function App() {
     } else if (text === '/disconnect') {
       handleDisconnect();
     } else if (joinMatch) {
-      await window.irc.sendLine(selectedServerId, `JOIN ${joinMatch[1]}`);
+      const [, channel, key] = joinMatch;
+      await window.irc.sendLine(selectedServerId, key ? `JOIN ${channel} ${key}` : `JOIN ${channel}`);
     } else if (awayMatch) {
       // No message clears it (RFC: bare AWAY marks you back), same as
       // typing plain "/away".
@@ -1042,13 +1064,10 @@ export default function App() {
             onChangeColor={setServerColor}
           />
           <ChannelList
-            serverId={selectedServerId}
             serverName={selectedServer?.name ?? ''}
             channels={channels}
             selectedId={selectedChannelId}
             onSelect={selectChannel}
-            currentNick={currentNick}
-            userMap={userMap}
             mentionedChannels={mentionedChannels}
             mutedChannels={mutedChannels}
             onToggleMuteChannel={toggleMuteChannel}
