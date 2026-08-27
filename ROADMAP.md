@@ -977,6 +977,37 @@ will hang the UI.
       channel names and nicknames. `mutedChannels`/`mentionedChannels` stay
       intentionally shared across servers, an existing, documented tradeoff
       unrelated to this bug. Covered by `store.test.ts`
+- [x] No React error boundary anywhere - an unhandled render-time throw (the
+      nil-privileges crash above was exactly this, before it got fixed at
+      its source) unmounted the entire app to a blank window with no way
+      back short of force-quitting. `ErrorBoundary` (a plain class component,
+      React still requires one for `componentDidCatch`/
+      `getDerivedStateFromError` - no hook equivalent exists) now wraps `App`
+      at the root in `main.tsx`: catches the crash, shows a message plus the
+      error text, and offers a Reload button rather than trying to resume
+      mid-render - a caught error usually means some in-memory state is
+      already inconsistent, and history/connections live in SQLite/the Go
+      backend respectively, so a reload loses nothing there. Insurance
+      against the next unknown crash, not a fix for any specific one
+- [x] No way to edit a server's identity settings after adding it - nick, alt
+      nicks, username/realname, autojoin list, host/port/SSL were all
+      create-time-only (`ConnectModal`'s Advanced section), forcing a
+      remove-and-re-add for something as small as a typo'd autojoin channel.
+      New `EditServerModal` (same field set, minus the already-dead "Server
+      Password" field - see below) opens from a server's context menu
+      ("Edit Server…", next to the existing "Change Color…"); saving patches
+      the `Server` object via a new general `updateServer(id, patch)` store
+      action (`setServerColor` now just calls it with `{color}`) plus the
+      existing `setNick`/`setSaslCreds` for those two fields. Deliberately
+      doesn't touch the live connection - host/port/SSL/nick changes apply
+      on the next connect, explained in the modal's own copy, the same
+      "settings can outlive the running session" posture retention's
+      restart-to-apply note already established. Spotted but out of scope:
+      the Connect form's "Server Password" field is still wired up in the
+      UI but never actually sent (`PASS none` is hardcoded in the
+      handshake) - a pre-existing bug called out twice in this ROADMAP
+      already, worth its own fix; `EditServerModal` just doesn't propagate
+      that dead field into a second form
 - [x] An unexpected drop (network hiccup, server-side kill) was invisible in
       the Log beyond a status-dot color change - `handleClose`/`reconnect`
       (bouncer.go) now write "*** Connection lost - reconnecting...",

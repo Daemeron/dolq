@@ -67,6 +67,27 @@ describe('store: same-named channels on different servers', () => {
   });
 });
 
+describe('store: updateServer', () => {
+  it('patches only the given fields, leaving the rest of the Server untouched', () => {
+    const { addServer, updateServer } = useStore.getState();
+    addServer(server('server-a'), { id: 'server-a:__log__', name: 'Log', isLog: true });
+
+    updateServer('server-a', { name: 'Renamed', host: 'irc.example.org', autojoinChannels: ['#foo'] });
+
+    const updated = useStore.getState().servers.find((s) => s.id === 'server-a');
+    expect(updated?.name).toBe('Renamed');
+    expect(updated?.host).toBe('irc.example.org');
+    expect(updated?.autojoinChannels).toEqual(['#foo']);
+    expect(updated?.port).toBe(6667); // untouched field from the original server()
+  });
+
+  it('is a no-op for an id that no longer exists', () => {
+    const { updateServer } = useStore.getState();
+    updateServer('missing', { name: 'X' });
+    expect(useStore.getState().servers).toEqual([]);
+  });
+});
+
 describe('store: setChannelJoined', () => {
   it('flips a channel to left without removing it from the sidebar, then back on rejoin', () => {
     const { addServer, addChannel, setChannelJoined } = useStore.getState();

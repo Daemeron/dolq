@@ -135,6 +135,13 @@ type Actions = {
   removeAlias: (name: string) => void;
   setKeybinding: (action: KeybindAction, combo: string) => void;
   setServerColor: (id: string, color: string) => void;
+  // Patches any subset of a Server's own fields in place - the general form
+  // setServerColor already special-cased for just `color`. Used by the "Edit
+  // Server" modal to update name/host/port/secure/altNicks/username/realname/
+  // autojoinChannels after a server's already been added, closing the
+  // create-time-only gap those fields used to have (see ConnectModal's
+  // Advanced section, the only place they could be set before this existed).
+  updateServer: (id: string, patch: Partial<Server>) => void;
 };
 
 export const useStore = create<State & Actions>()(
@@ -430,8 +437,10 @@ export const useStore = create<State & Actions>()(
 
       // Lives on the Server object itself (not a separate map) - it's
       // already the thing persisted in `servers`, same as name/initial.
-      setServerColor: (id, color) =>
-        set((s) => ({ servers: s.servers.map((sv) => (sv.id === id ? { ...sv, color } : sv)) })),
+      setServerColor: (id, color) => get().updateServer(id, { color }),
+
+      updateServer: (id, patch) =>
+        set((s) => ({ servers: s.servers.map((sv) => (sv.id === id ? { ...sv, ...patch } : sv)) })),
     }),
     {
       name: 'dolq',

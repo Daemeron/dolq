@@ -10,6 +10,7 @@ type Props = {
   onAddServer: () => void;
   onRemove: (id: string) => void;
   onChangeColor: (id: string, color: string) => void;
+  onEditServer: (id: string) => void;
 };
 
 // The app's default accent everywhere else this color shows up (see the
@@ -19,7 +20,7 @@ type Props = {
 // per-server color, so the fallback for an uncustomized server has to match.
 export const DEFAULT_ACCENT = '#c792ea';
 
-export function ServerList({ servers, selectedId, onSelect, onAddServer, onRemove, onChangeColor }: Props) {
+export function ServerList({ servers, selectedId, onSelect, onAddServer, onRemove, onChangeColor, onEditServer }: Props) {
   const { menu, open, close, dismissIfUnhandled } = useContextMenu<string>();
   const menuServer = servers.find((s) => s.id === menu?.target);
   // A single native color input, reused for whichever server's context menu
@@ -88,6 +89,9 @@ export function ServerList({ servers, selectedId, onSelect, onAddServer, onRemov
       {menu && menuServer && (
         <ContextMenu x={menu.x} y={menu.y}>
           <ContextMenuHeader>{menuServer.name}</ContextMenuHeader>
+          <ContextMenuItem onClick={() => { onEditServer(menuServer.id); close(); }}>
+            Edit Server…
+          </ContextMenuItem>
           <ContextMenuItem onClick={() => { handleChangeColorClick(menuServer.id, menuServer.color); close(); }}>
             Change Color…
           </ContextMenuItem>

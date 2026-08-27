@@ -9,6 +9,7 @@ import { MessageArea } from './components/MessageArea';
 import { UserList } from './components/UserList';
 import { MessageInput } from './components/MessageInput';
 import { ConnectModal, parseList, type ConnectForm } from './components/ConnectModal';
+import { EditServerModal, type EditServerForm } from './components/EditServerModal';
 import { PreferencesModal } from './components/PreferencesModal';
 import { WhoisModal } from './components/WhoisModal';
 import { DCCOfferModal } from './components/DCCOfferModal';
@@ -109,7 +110,7 @@ export default function App() {
     selectServer, selectChannel, setConnectionStatus, setUsers, addUser, removeUser, removeUserEverywhere,
     renameUserEverywhere, applyModeChanges, markMentioned, toggleMuteChannel, setNotificationsEnabled, setSoundAlertsEnabled, setTimestampFormat,
     setMessageDensity, setFontSize, setFontFamily, setTheme, addIgnore, removeIgnore, applyAwayEverywhere, setSelfAway, setAlias, removeAlias, setKeybinding,
-    setServerColor,
+    setServerColor, updateServer,
   } = useStore();
 
   const [showModal, setShowModal] = useState(false);
@@ -120,6 +121,9 @@ export default function App() {
     { host: string; port: number; secure: boolean; channel?: string } | null
   >(null);
   const [showPreferences, setShowPreferences] = useState(false);
+  // The server whose "Edit Server…" context menu item was clicked, if any -
+  // see ServerList's onEditServer and handleEditServer below.
+  const [editingServerId, setEditingServerId] = useState<string | null>(null);
   const [showSearch, setShowSearch] = useState(false);
   // Not in the zustand store: unlike everything else there, these belong to
   // the main process (not per-server, and read from disk before the
@@ -682,6 +686,27 @@ export default function App() {
     setConnectPrefill(null);
   }
 
+  // Saves the "Edit Server" modal - name/host/port/secure/altNicks/username/
+  // realname/autojoinChannels live on the Server object itself (updateServer),
+  // nick/SASL creds through their own existing per-server maps (setNick/
+  // setSaslCreds), same split handleConnect already uses for a brand new
+  // server. Doesn't touch the live connection at all - see the modal's own
+  // copy explaining that host/port/SSL/nick take effect on the next connect.
+  function handleEditServer(id: string, form: EditServerForm) {
+    const host = normalizeHost(form.host);
+    const port = Number(form.port);
+    const altNicks = parseList(form.altNicks);
+    const autojoinChannels = parseList(form.autojoinChannels);
+    const name = form.name.trim() || host;
+    updateServer(id, {
+      name, initial: name[0]?.toUpperCase() ?? '?', host, port, secure: form.secure,
+      altNicks, username: form.username || undefined, realname: form.realname || undefined, autojoinChannels,
+    });
+    setNick(id, form.nick);
+    setSaslCreds(id, form.saslUser, form.saslPass);
+    setEditingServerId(null);
+  }
+
   // Shared by the manual "Connect" button (connectToServer) and the
   // reconcile-on-hydration auto-reconnect above. Reads nick/SASL via
   // getState() rather than the destructured nickMap/saslMap for the same
@@ -978,6 +1003,24 @@ export default function App() {
           initial={connectPrefill ?? undefined}
         />
       )}
+      {editingServerId && (() => {
+        const server = servers.find((s) => s.id === editingServerId);
+        // Shouldn't happen (the menu item that opens this only exists for a
+        // server actually in the list), but a removal racing the click isn't
+        // worth crashing over.
+        if (!server) return null;
+        const sasl = saslMap[editingServerId];
+        return (
+          <EditServerModal
+            server={server}
+            nick={nickMap[editingServerId] ?? ''}
+            saslUser={sasl?.user ?? ''}
+            saslPass={sasl?.pass ?? ''}
+            onSave={handleEditServer}
+            onCancel={() => setEditingServerId(null)}
+          />
+        );
+      })()}
       {showPreferences && (
         <PreferencesModal
           settings={settings}
@@ -1062,6 +1105,7 @@ export default function App() {
             onAddServer={() => setShowModal(true)}
             onRemove={handleRemoveServer}
             onChangeColor={setServerColor}
+            onEditServer={setEditingServerId}
           />
           <ChannelList
             serverName={selectedServer?.name ?? ''}
