@@ -1092,6 +1092,33 @@ will hang the UI.
       unchanged, still real `useModalA11y` modals - this was scoped to the
       three forms that had grown too complex for one, not a rewrite of the
       modal pattern itself
+- [x] mIRC formatting/color parsing was riding on a small third-party library
+      (`irc-caret-notation`) with real gaps against the actual spec
+      (modern.ircdocs.horse/formatting.html): no cap on color-code digit
+      count (`"\x03123abc"` should parse as fg 12 + literal `"3abc"`, not fg
+      123), no idea at all about strikethrough (`\x1E`), monospace (`\x11`)
+      or hex color (`\x04`) - those control bytes just leaked into the
+      rendered text - and reverse video (`\x16`) was a one-shot fg/bg
+      copy-and-swap rather than a real toggle, so a color set *after*
+      reversing and then un-reversing came out wrong. Replaced with a
+      hand-rolled parser (`parseIrcFormatting`/`resolveIrcColors`,
+      `IrcText.tsx`) covering the full control set (bold/italic/underline/
+      strikethrough/monospace/color/hex-color/reverse/reset) against the
+      actual spec, including the 2-digit cap, color 99 ("default", rendered
+      identically to unset), `\x03`/`\x04` clearing each other (same
+      underlying "current foreground/background", just a different
+      encoding), and reverse as a live toggle resolved at render time -
+      swapping the theme's own ambient text/background color (CSS vars) when
+      neither fg nor bg was ever explicitly set, not a hardcoded color
+      index. The 16-98 extended palette some newer clients also support was
+      deliberately left out - the spec itself calls it "not universally
+      supported" and there's no single canonical source for the table, so
+      guessing at ~83 exact hex values felt worse than the existing
+      graceful "unknown code renders with no color" fallback. `irc-caret-
+      notation` is fully removed (`package.json`, its ambient `.d.ts`
+      shim). Covered by unit tests for every control code, the digit cap,
+      `\x03`/`\x04` clearing each other, color 99, and reverse as a real
+      toggle (not a snapshot) - `IrcText.test.ts`
 
 ---
 
