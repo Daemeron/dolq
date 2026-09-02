@@ -161,6 +161,18 @@ describe('resolveIrcColors', () => {
       color: 'var(--dolq-bg)', backgroundColor: 'var(--dolq-text)',
     });
   });
+
+  // Spot-checks against the extended 16-98 palette (modern.ircdocs.horse) -
+  // boundary values, not all 83, since these are just table lookups with no
+  // branching logic of their own to actually exercise.
+  it.each([
+    [16, '#470000'],
+    [63, '#FF0098'],
+    [88, '#000000'],
+    [98, '#FFFFFF'],
+  ])('resolves extended color %i to %s', (index, hex) => {
+    expect(resolveIrcColors(chunk({ fg: index }))).toEqual({ color: hex, backgroundColor: undefined });
+  });
 });
 
 // Shorthand for the common "just a color, nothing else set" shape the color

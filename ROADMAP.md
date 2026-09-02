@@ -1110,15 +1110,17 @@ will hang the UI.
       encoding), and reverse as a live toggle resolved at render time -
       swapping the theme's own ambient text/background color (CSS vars) when
       neither fg nor bg was ever explicitly set, not a hardcoded color
-      index. The 16-98 extended palette some newer clients also support was
-      deliberately left out - the spec itself calls it "not universally
-      supported" and there's no single canonical source for the table, so
-      guessing at ~83 exact hex values felt worse than the existing
-      graceful "unknown code renders with no color" fallback. `irc-caret-
-      notation` is fully removed (`package.json`, its ambient `.d.ts`
-      shim). Covered by unit tests for every control code, the digit cap,
-      `\x03`/`\x04` clearing each other, color 99, and reverse as a real
-      toggle (not a snapshot) - `IrcText.test.ts`
+      index. `irc-caret-notation` is fully removed (`package.json`, its
+      ambient `.d.ts` shim). Covered by unit tests for every control code,
+      the digit cap, `\x03`/`\x04` clearing each other, color 99, and
+      reverse as a real toggle (not a snapshot) - `IrcText.test.ts`. The
+      16-98 extended palette some newer clients also support was initially
+      left out (no single canonical source at hand for the ~83 hex values,
+      and the spec itself calls the range "not universally supported") - the
+      full table (modern.ircdocs.horse/formatting.html) was pulled in as a
+      follow-up and is now in `IRC_COLORS` too, spot-checked against its own
+      boundary values in `IrcText.test.ts` rather than all 83 (they're plain
+      table lookups, nothing to actually branch on)
 
 ---
 

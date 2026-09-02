@@ -32,12 +32,14 @@ export function splitLinks(text: string): (string | { url: string })[] {
   return parts;
 }
 
-// The standard 16-color mIRC palette (modern.ircdocs.horse/formatting.html)
-// - codes 16-98 are an extended palette some newer clients also support, but
-// the spec itself calls that range "not universally supported" and there's
-// no single canonical source for it, so it's left unimplemented here rather
-// than guessed at (an extended-range code just renders with no color, same
-// as an out-of-range index always has).
+// The standard 16-color mIRC palette, plus the extended 16-98 palette some
+// newer clients also support - both from modern.ircdocs.horse/formatting.html,
+// the closest thing IRC formatting has to an authoritative written spec
+// (mIRC's own client is the de facto origin of both ranges, but never
+// published one). The spec itself calls 16-98 "not universally supported" -
+// a client with no idea about a given code just shows no color for it,
+// same as any other out-of-range index here, so there's no real downside
+// to carrying the full table.
 const IRC_COLORS: string[] = [
   '#FFFFFF', // 0  white
   '#000000', // 1  black
@@ -55,6 +57,20 @@ const IRC_COLORS: string[] = [
   '#FF00FF', // 13 fuchsia / pink
   '#7F7F7F', // 14 grey
   '#D2D2D2', // 15 silver / light grey
+  '#470000', '#472100', '#474700', '#324700', '#004700', '#00472C', // 16-21
+  '#004747', '#002747', '#000047', '#2E0047', '#470047', '#47002A', // 22-27
+  '#740000', '#743A00', '#747400', '#517400', '#007400', '#007449', // 28-33
+  '#007474', '#004074', '#000074', '#4B0074', '#740074', '#740045', // 34-39
+  '#B50000', '#B56300', '#B5B500', '#7DB500', '#00B500', '#00B571', // 40-45
+  '#00B5B5', '#0063B5', '#0000B5', '#7500B5', '#B500B5', '#B5006B', // 46-51
+  '#FF0000', '#FF8C00', '#FFFF00', '#B2FF00', '#00FF00', '#00FFA0', // 52-57
+  '#00FFFF', '#008CFF', '#0000FF', '#A500FF', '#FF00FF', '#FF0098', // 58-63
+  '#FF5959', '#FFB459', '#FFFF71', '#CFFF60', '#6FFF6F', '#65FFC9', // 64-69
+  '#6DFFFF', '#59B4FF', '#5959FF', '#C459FF', '#FF66FF', '#FF59BC', // 70-75
+  '#FF9C9C', '#FFD39C', '#FFFF9C', '#E2FF9C', '#9CFF9C', '#9CFFDB', // 76-81
+  '#9CFFFF', '#9CD3FF', '#9C9CFF', '#DC9CFF', '#FF9CFF', '#FF94D3', // 82-87
+  '#000000', '#131313', '#282828', '#363636', '#4D4D4D', '#656565', // 88-93
+  '#818181', '#9F9F9F', '#BCBCBC', '#E2E2E2', '#FFFFFF',             // 94-98
 ];
 
 // IRC formatting control bytes (modern.ircdocs.horse/formatting.html).
