@@ -1,0 +1,16 @@
+# Runs the Dolq backend (dolqd) standalone, reachable over the network - see
+# backend/Dockerfile. Point a client's Preferences > Remote Backend URL at
+# host:6789 (wherever this ends up running - a home server, a LAN box) once
+# it's up: `docker compose up -d`.
+services:
+  dolqd:
+    build:
+      context: ./backend
+    ports:
+      - '6789:6789'
+    volumes:
+      - dolq-data:/data
+    restart: unless-stopped
+
+volumes:
+  dolq-data:

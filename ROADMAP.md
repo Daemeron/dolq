@@ -1044,11 +1044,27 @@ will hang the UI.
       (including a real file-backed history db, closed and reopened, to
       prove the disconnect line actually survives a restart, not just a live
       fan-out) and `store.test.ts`
+- [x] Remote backend / Docker deployment - promoted out of Non-goals below on
+      request. `ipcproto.Listen` took a bare Unix socket path; it now takes
+      `(network, address)`, so `dolqd -addr 0.0.0.0:6789` listens on plain
+      TCP instead - the wire protocol itself (newline-delimited JSON over
+      any `net.Conn`) needed no changes, it was never Unix-socket-specific
+      to begin with. `backend/Dockerfile` + root `docker-compose.yml` build
+      and run that (pure-Go `modernc.org/sqlite`, so no cgo toolchain in the
+      image), with `/data` as a named volume for the history DB - `docker
+      compose up -d` is the whole setup. On the client side, Preferences
+      gets a "Connect to a remote backend" checkbox + `host:port` URL field
+      (`Settings.remoteEnabled`/`remoteUrl`); `BackendClient` either spawns
+      and manages a local `dolqd` (unchanged default) or dials that address
+      over TCP instead - same shared-socket framing either way, `dial()`
+      only differs in what it connects to. `stop()` now checks which mode
+      it's in: a remote `dolqd` may be serving other clients too, so it just
+      closes this client's own socket instead of sending the SIGTERM a local
+      child gets. Same "next launch, not live" restart posture as
+      `retentionDays` - `BackendClient` is constructed once at startup
 
 ---
 
 ## Non-goals (for now)
 
-- Docker client deployment (always on experience by connecting the App to IRC
-  server through middle-man)
 - Built-in IRC bot

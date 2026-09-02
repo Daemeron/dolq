@@ -6,6 +6,7 @@ import { ConnectionStatus, IrcMessages, Settings } from '../shared/ipc';
 import { BackendClient } from './irc/BackendClient';
 import { loadSettings, saveSettings } from './settings';
 import { parseIrcUrl } from './ircUrl';
+import { resolveRemoteBackend } from './remoteBackend';
 
 // A packaged build already gets this from electron-builder's own
 // `productName` (electron-builder.json5), but that's a packaging-time
@@ -268,7 +269,7 @@ if (!app.requestSingleInstanceLock()) {
     const coldStartUrl = findIrcUrl(process.argv);
     if (coldStartUrl) handleIrcUrl(coldStartUrl);
 
-    const backend = new BackendClient(settings.retentionDays);
+    const backend = new BackendClient(settings.retentionDays, resolveRemoteBackend(settings));
     // A plain mutable box, not a fresh `settings` binding per read - so
     // registerIrcHandlers' closures see whatever Preferences last saved
     // (registerSettingsHandlers writes into the same box) instead of the

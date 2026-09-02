@@ -12,13 +12,20 @@ import (
 	"github.com/Daemeron/dolq/backend/internal/ircparse"
 )
 
-// Listen removes any stale file at path (safe: only one live instance is
-// ever expected to own a given socket path) and starts listening there.
-func Listen(path string) (net.Listener, error) {
-	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
-		return nil, err
+// Listen starts listening for IPC connections. network is "unix" (address is
+// a filesystem path - any stale file there is removed first, safe since only
+// one live instance is ever expected to own a given socket path) or "tcp"
+// (address is a host:port, e.g. "0.0.0.0:6789" for a remote/Docker-hosted
+// backend a frontend dials over the network instead of spawning locally -
+// see dolqd's -addr flag). There's no auth at this layer either way, so
+// exposing a tcp listener beyond a trusted network is the caller's call.
+func Listen(network, address string) (net.Listener, error) {
+	if network == "unix" {
+		if err := os.Remove(address); err != nil && !os.IsNotExist(err) {
+			return nil, err
+		}
 	}
-	return net.Listen("unix", path)
+	return net.Listen(network, address)
 }
 
 // Server accepts local IPC connections and dispatches their frames to a

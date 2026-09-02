@@ -62,6 +62,8 @@ export function PreferencesModal({
   servers, ignoredNicks, onRemoveIgnore, aliases, onRemoveAlias, keybindings, onKeybindingChange,
 }: Props) {
   const [trayEnabled, setTrayEnabled] = useState(settings.trayEnabled ?? true);
+  const [remoteEnabled, setRemoteEnabled] = useState(settings.remoteEnabled ?? false);
+  const [remoteUrl, setRemoteUrl] = useState(settings.remoteUrl ?? '');
   const [retentionDays, setRetentionDays] = useState(String(settings.retentionDays));
   const [downloadDir, setDownloadDir] = useState(settings.downloadDir ?? '');
   const [dccPortMin, setDccPortMin] = useState(settings.dccPortMin ? String(settings.dccPortMin) : '');
@@ -130,6 +132,8 @@ export function PreferencesModal({
       dccPortMin: portMin || undefined,
       dccPortMax: portMax || undefined,
       trayEnabled,
+      remoteEnabled,
+      remoteUrl: remoteUrl || undefined,
     });
   }
 
@@ -323,6 +327,32 @@ export function PreferencesModal({
             />
             Show a tray/menu bar icon
           </label>
+
+          <label className="flex items-center gap-2 text-[13px] text-[var(--dolq-text)] cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={remoteEnabled}
+              onChange={(e) => setRemoteEnabled(e.target.checked)}
+              className="accent-[#c792ea]"
+            />
+            Connect to a remote backend instead of running one locally
+          </label>
+          {remoteEnabled && (
+            <label className={labelClass}>
+              Remote Backend URL
+              <input
+                className={inputClass}
+                type="text"
+                value={remoteUrl}
+                onChange={(e) => setRemoteUrl(e.target.value)}
+                placeholder="host:6789"
+              />
+            </label>
+          )}
+          <p className="text-[var(--dolq-text-faint)] text-[12px] -mt-2.5">
+            Points at a dolqd already running elsewhere (see docker-compose.yml) instead of spawning one on this
+            machine - sessions/history live on the remote box, not here. Takes effect the next time Dolq starts.
+          </p>
 
           <label className={labelClass}>
             History Retention (days)

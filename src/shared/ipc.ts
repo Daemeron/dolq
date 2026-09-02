@@ -127,6 +127,14 @@ export type Settings = {
   // actual Tray on the spot), not a restart-needed flag like retentionDays -
   // there's no subprocess launch argument involved, just an Electron API call.
   trayEnabled?: boolean;
+  // Connects to a dolqd already running elsewhere (see docker-compose.yml)
+  // instead of spawning/managing a local one - e.g. a home server, so
+  // sessions/history live independent of any one machine running Dolq.
+  // remoteUrl is that dolqd's -addr, "host:port"; ignored unless
+  // remoteEnabled is true. Same restart-needed shape as retentionDays -
+  // BackendClient is constructed once at startup (main/index.ts).
+  remoteEnabled?: boolean;
+  remoteUrl?: string;
 };
 
 export type IrcApi = {

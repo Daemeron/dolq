@@ -19,23 +19,27 @@ import (
 )
 
 func main() {
-	socketPath := flag.String("socket", "", "Unix domain socket path to listen on (default: a path under the OS temp dir)")
+	socketPath := flag.String("socket", "", "Unix domain socket path to listen on (default: a path under the OS temp dir); ignored if -addr is set")
+	addr := flag.String("addr", "", "TCP address to listen on instead of a Unix socket, e.g. 0.0.0.0:6789 - for a remote backend (see docker/) a frontend dials over the network; a locally-spawned dolqd should leave this unset")
 	dbPath := flag.String("db", "", "SQLite database path for message history (default: a path under the OS config dir)")
 	retentionDays := flag.Int("retention-days", 0, "prune history older than this many days (0 = keep forever)")
 	flag.Parse()
 
-	path := *socketPath
-	if path == "" {
+	network, path := "unix", *socketPath
+	if *addr != "" {
+		network, path = "tcp", *addr
+	} else if path == "" {
 		path = filepath.Join(os.TempDir(), fmt.Sprintf("dolq-%d.sock", os.Getpid()))
 	}
 
-	ln, err := ipcproto.Listen(path)
+	ln, err := ipcproto.Listen(network, path)
 	if err != nil {
-		log.Fatalf("listen on %s: %v", path, err)
+		log.Fatalf("listen on %s %s: %v", network, path, err)
 	}
 	// One bare line to stdout: the discovery contract a future parent
 	// process (e.g. Electron, spawning this as a local child) reads to find
-	// the socket it should connect to.
+	// the socket it should connect to. Meaningless over tcp (nothing spawns
+	// a remote dolqd to read its stdout), but harmless - left unconditional.
 	fmt.Println(path)
 
 	store, err := history.Open(resolveDBPath(*dbPath), *retentionDays)

@@ -28,11 +28,13 @@ interface ServerFrame {
 
 type Pending = { resolve: (f: ServerFrame) => void; reject: (err: Error) => void };
 
-// Spawns the `dolqd` backend and talks its newline-delimited-JSON protocol
-// over a Unix domain socket (backend/internal/ipcproto). One connection is
-// shared for every server the renderer opens - the backend already
-// namespaces its unsolicited line/event/status frames by serverId, so this
-// just fans them out via 'line'/'event'/'status' events.
+// Talks the `dolqd` backend's newline-delimited-JSON protocol
+// (backend/internal/ipcproto) over a single shared socket - normally a
+// spawned-and-managed local child on a Unix domain socket, or (see `remote`
+// below) a plain TCP connection to a dolqd already running elsewhere. One
+// connection is shared for every server the renderer opens - the backend
+// already namespaces its unsolicited line/event/status frames by serverId,
+// so this just fans them out via 'line'/'event'/'status' events.
 export class BackendClient extends EventEmitter {
   private child?: ChildProcessWithoutNullStreams;
   private socket?: net.Socket;
@@ -44,10 +46,13 @@ export class BackendClient extends EventEmitter {
   // just waits its turn on this instead of racing it.
   private ready: Promise<void>;
 
-  constructor(private retentionDays: number) {
+  // remote, when set, connects to an already-running dolqd over TCP (see
+  // docker-compose.yml) instead of spawning/managing a local child - retentionDays
+  // is meaningless there (it's the remote instance's own launch flag).
+  constructor(private retentionDays: number, private remote?: { host: string; port: number }) {
     super();
-    this.ready = this.spawnAndDial();
-    this.ready.catch((err) => console.error('dolqd failed to start:', err));
+    this.ready = this.remote ? this.dial(this.remote) : this.spawnAndDial();
+    this.ready.catch((err) => console.error('backend failed to connect:', err));
   }
 
   private async spawnAndDial(): Promise<void> {
@@ -65,14 +70,24 @@ export class BackendClient extends EventEmitter {
       child.once('exit', (code) => reject(new Error(`dolqd exited before reporting a socket (code ${code})`)));
     });
 
-    this.socket = await new Promise<net.Socket>((resolve, reject) => {
-      const socket = net.createConnection(socketPath);
-      socket.once('connect', () => resolve(socket));
+    await this.dial({ path: socketPath });
+  }
+
+  // Connects the shared JSON-lines socket, either a local Unix path
+  // (spawnAndDial, after dolqd reports it) or a remote host:port (the
+  // constructor, when `remote` is set) - everything past the connection
+  // itself (framing, pending-request bookkeeping) doesn't care which.
+  private dial(target: { path: string } | { host: string; port: number }): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const socket = 'path' in target ? net.createConnection(target.path) : net.createConnection(target.port, target.host);
+      socket.once('connect', () => {
+        this.socket = socket;
+        createInterface({ input: socket }).on('line', (line) => this.handleFrame(JSON.parse(line)));
+        socket.on('close', () => this.rejectAllPending(new Error('backend connection closed')));
+        resolve();
+      });
       socket.once('error', reject);
     });
-
-    createInterface({ input: this.socket }).on('line', (line) => this.handleFrame(JSON.parse(line)));
-    this.socket.on('close', () => this.rejectAllPending(new Error('dolqd connection closed')));
   }
 
   connect(
@@ -176,6 +191,13 @@ export class BackendClient extends EventEmitter {
   // cleanly - see bouncer.Shutdown and history.Store.Close) and waits for it
   // to exit.
   async stop(): Promise<void> {
+    // A remote dolqd (see `remote`) is somebody else's process, possibly
+    // shared with other clients - just drop our own connection to it,
+    // nothing to spawn-kill.
+    if (this.remote) {
+      this.socket?.end();
+      return;
+    }
     const child = this.child;
     if (!child) return;
     await new Promise<void>((resolve) => {

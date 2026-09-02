@@ -27,7 +27,7 @@ func startTestServer(t *testing.T) string {
 	f.Close()
 	os.Remove(path) // Listen() creates the actual socket file at this path
 
-	ln, err := Listen(path)
+	ln, err := Listen("unix", path)
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}
