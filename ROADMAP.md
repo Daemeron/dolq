@@ -780,7 +780,19 @@ will hang the UI.
       opened it - confirmed with a genuine Playwright mouse click, since a
       DOM `.click()` call doesn't set focus the way a real click does and
       first made this look broken when it wasn't
-- [ ] Emoji picker (optional, since this is "Discord-like")
+- [x] Emoji picker (optional, since this is "Discord-like") - a 🙂 button next
+      to `MessageInput` opens a small popover (`EmojiPicker`, anchored above
+      the input via plain CSS - only ever one on screen, so no click-
+      coordinate positioning like `ContextMenu`'s needed) with a search box
+      and a curated ~140-emoji set grouped into categories
+      (`data/emoji.ts`) - the common subset a chat picker actually needs, not
+      the full ~3700-entry Unicode catalog a library like emoji-mart would
+      pull in for skin tones and a search index this doesn't need. Clicking
+      one inserts it at the input's actual caret position (replacing a real
+      selection the same way typing over one would), not just appended to
+      the end - `insertAtCaret` (`utils/`), covered by its own unit tests
+      since the off-by-one a splice like this invites would otherwise fail
+      silently (wrong caret position, not a crash)
 - [x] Light theme - the note this item used to have about a `2e` icon
       variant already sitting in `resources/` waiting for this didn't hold
       up: no such file exists (`resources/` only ever had the one icon set),
