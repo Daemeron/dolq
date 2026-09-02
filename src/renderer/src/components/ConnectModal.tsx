@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { ServerPreset } from '../data/servers';
 import { IRC_PORT, IRC_TLS_PORT } from '../../../shared/ipc';
-import { useModalA11y } from '../hooks/useModalA11y';
+import { ViewPanel } from './ViewPanel';
 
 type ConnectForm = {
   name: string;
@@ -77,7 +77,6 @@ export function ConnectModal({ presets, nickMap, onConnect, onCancel, initial }:
         }
       : DEFAULTS,
   );
-  const dialogRef = useModalA11y<HTMLDivElement>();
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -122,23 +121,11 @@ export function ConnectModal({ presets, nickMap, onConnect, onCancel, initial }:
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
-      onClick={onCancel}
-    >
-      <div
-        ref={dialogRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="connect-modal-title"
-        tabIndex={-1}
-        className="bg-[var(--dolq-bg-panel)] rounded-lg p-8 w-110 shadow-[0_8px_32px_rgba(0,0,0,0.5)]"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h2 id="connect-modal-title" className="text-[var(--dolq-text)] text-[22px] font-bold mb-1">Add a Server</h2>
-        <p className="text-[var(--dolq-text-muted)] text-[14px] mb-3">Pick a server, or fill in a custom one below.</p>
+    <ViewPanel title="Add a Server" onClose={onCancel}>
+      <div className="max-w-110 flex flex-col gap-4">
+        <p className="text-[var(--dolq-text-muted)] text-[14px] -mt-1">Pick a server, or fill in a custom one below.</p>
 
-        <div className="flex flex-col gap-1 max-h-40 overflow-y-auto scroll-thin mb-5 pr-1">
+        <div className="flex flex-col gap-1 max-h-40 overflow-y-auto scroll-thin pr-1">
           {presets.map((preset) => (
             <button
               key={preset.id}
@@ -279,7 +266,7 @@ export function ConnectModal({ presets, nickMap, onConnect, onCancel, initial }:
           </div>
         </form>
       </div>
-    </div>
+    </ViewPanel>
   );
 }
 

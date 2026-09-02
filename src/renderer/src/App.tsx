@@ -92,6 +92,17 @@ function toMessages(entries: HistoryEntry[]): Message[] {
 // it lives outside the (unpersisted) store like historyLoaded did before it.
 type HistoryPage = { oldestId: number | null; exhausted: boolean; loading: boolean };
 
+// Which full-page view <main> shows instead of the chat panel. Preferences
+// and Add/Edit Server used to be `fixed inset-0` popups (ConnectModal/
+// EditServerModal/PreferencesModal, still real modals in name and in their
+// own internals - they just render via ViewPanel now instead of a backdrop);
+// now they replace the chat panel itself (TopicBar/MessageArea/MessageInput/
+// user list) while the server rail and channel list stay live beside them -
+// there's no backdrop click to back out with anymore, so selecting any
+// channel/server (handleSelectServer/handleSelectChannel below) is what
+// actually navigates back to 'chat', on top of each view's own Cancel/✕.
+type MainView = { kind: 'chat' } | { kind: 'connect' } | { kind: 'preferences' } | { kind: 'editServer'; serverId: string };
+
 // Electron's renderer implements the standard web Notification API directly
 // - no IPC/main-process round trip needed. Guarded by typeof in case it's
 // ever unavailable (e.g. a future headless/test environment).
@@ -113,17 +124,13 @@ export default function App() {
     setServerColor, updateServer,
   } = useStore();
 
-  const [showModal, setShowModal] = useState(false);
+  const [view, setView] = useState<MainView>({ kind: 'chat' });
   // Prefill for the connect form from a clicked irc(s):// link (see the
   // onOpenIrcUrl effect below) - null opens the form with its plain
   // defaults, same as clicking "Add a Server" normally does.
   const [connectPrefill, setConnectPrefill] = useState<
     { host: string; port: number; secure: boolean; channel?: string } | null
   >(null);
-  const [showPreferences, setShowPreferences] = useState(false);
-  // The server whose "Edit Server…" context menu item was clicked, if any -
-  // see ServerList's onEditServer and handleEditServer below.
-  const [editingServerId, setEditingServerId] = useState<string | null>(null);
   const [showSearch, setShowSearch] = useState(false);
   // Not in the zustand store: unlike everything else there, these belong to
   // the main process (not per-server, and read from disk before the
@@ -212,7 +219,7 @@ export default function App() {
         case 'prevChannel': {
           const dir = action === 'nextChannel' ? 1 : -1;
           const idx = list.findIndex((c) => c.id === selectedChannelId);
-          selectChannel(list[(idx + dir + list.length) % list.length].id);
+          handleSelectChannel(list[(idx + dir + list.length) % list.length].id);
           break;
         }
         case 'closeChannel': {
@@ -232,7 +239,23 @@ export default function App() {
   async function handleSavePreferences(next: Settings) {
     await window.irc.setSettings(next);
     setSettingsState(next);
-    setShowPreferences(false);
+    setView({ kind: 'chat' });
+  }
+
+  // The only way App.tsx ever selects a server/channel, so "go look at
+  // this" and "leave whatever full-page view is open" (Preferences, Add/
+  // Edit Server - see MainView's doc) are always the same action, whether
+  // the selection came from the sidebar, a mention notification, a fresh
+  // JOIN, or finishing one of those views. Setting 'chat' when it's already
+  // 'chat' is a harmless no-op re-render.
+  function handleSelectServer(id: string) {
+    setView({ kind: 'chat' });
+    selectServer(id);
+  }
+
+  function handleSelectChannel(id: string) {
+    setView({ kind: 'chat' });
+    selectChannel(id);
   }
 
   // Both the initial preload and loadOlderHistory below need the bare
@@ -271,14 +294,14 @@ export default function App() {
   useEffect(() => {
     return window.irc.onOpenIrcUrl((prefill) => {
       setConnectPrefill(prefill);
-      setShowModal(true);
+      setView({ kind: 'connect' });
     });
   }, []);
 
-  // The macOS app menu's "Dolq > Preferences…" (Cmd+,) - same modal the
+  // The macOS app menu's "Dolq > Preferences…" (Cmd+,) - same view the
   // sidebar's gear icon already opens, see main/index.ts's createAppMenu.
   useEffect(() => {
-    return window.irc.onOpenPreferences(() => setShowPreferences(true));
+    return window.irc.onOpenPreferences(() => setView({ kind: 'preferences' }));
   }, []);
 
   // statusMap AND userMap aren't persisted, so both reset to empty on any
@@ -408,8 +431,8 @@ export default function App() {
     markMentioned(channelId);
     if (notificationsEnabled) {
       notify(`Mentioned in ${channelId}`, text, () => {
-        selectServer(serverId);
-        selectChannel(channelId);
+        handleSelectServer(serverId);
+        handleSelectChannel(channelId);
       });
     }
     // A separate toggle from notificationsEnabled (see store.ts's doc) -
@@ -681,8 +704,7 @@ export default function App() {
       form.username, form.realname, altNicks,
     );
     setConnectionStatus(id, 'connected');
-    selectServer(id);
-    setShowModal(false);
+    handleSelectServer(id);
     setConnectPrefill(null);
   }
 
@@ -704,7 +726,7 @@ export default function App() {
     });
     setNick(id, form.nick);
     setSaslCreds(id, form.saslUser, form.saslPass);
-    setEditingServerId(null);
+    setView({ kind: 'chat' });
   }
 
   // Shared by the manual "Connect" button (connectToServer) and the
@@ -769,7 +791,7 @@ export default function App() {
 
   function handleOpenQuery(nick: string) {
     ensureQuery(selectedServerId, nick);
-    selectChannel(nick);
+    handleSelectChannel(nick);
   }
 
   function handleWhois(nick: string) {
@@ -793,7 +815,7 @@ export default function App() {
   async function handleDCCOffer(nick: string) {
     const id = await window.irc.dccOffer(selectedServerId, nick);
     addChannel(selectedServerId, { id, name: nick, isLog: false, isQuery: true, isDCC: true });
-    selectChannel(id);
+    handleSelectChannel(id);
   }
 
   async function handleAcceptDCCOffer() {
@@ -802,8 +824,8 @@ export default function App() {
     setPendingDCCOffer(null);
     const id = await window.irc.dccAccept(ip, port);
     addChannel(serverId, { id, name: nick, isLog: false, isQuery: true, isDCC: true });
-    selectServer(serverId);
-    selectChannel(id);
+    handleSelectServer(serverId);
+    handleSelectChannel(id);
   }
 
   function handleDeclineDCCOffer() {
@@ -823,8 +845,8 @@ export default function App() {
   // it and opens the bot's query first, same as accepting an offer does.
   function handleGetPackFrom(serverId: string, nick: string, packNumber: number) {
     ensureQuery(serverId, nick);
-    selectServer(serverId);
-    selectChannel(nick);
+    handleSelectServer(serverId);
+    handleSelectChannel(nick);
     window.irc.sendLine(serverId, `PRIVMSG ${nick} :XDCC SEND #${packNumber}`);
     setShowSearch(false);
   }
@@ -881,12 +903,12 @@ export default function App() {
   // preload path never had to do since it's always scoped to one channel
   // whose sidebar id you already know.
   function handleJumpToSearchResult(serverId: string, channel: string) {
-    selectServer(serverId);
+    handleSelectServer(serverId);
     if (channel === '__log__') {
       const logCh = (channelMap[serverId] ?? []).find((c) => c.isLog);
-      selectChannel(logCh?.id ?? '__log__');
+      handleSelectChannel(logCh?.id ?? '__log__');
     } else {
-      selectChannel(channel);
+      handleSelectChannel(channel);
     }
     setShowSearch(false);
   }
@@ -994,61 +1016,6 @@ export default function App() {
 
   return (
     <div className="flex w-full h-screen overflow-hidden">
-      {showModal && (
-        <ConnectModal
-          presets={presets}
-          nickMap={presetNickMap()}
-          onConnect={handleConnect}
-          onCancel={() => { setShowModal(false); setConnectPrefill(null); }}
-          initial={connectPrefill ?? undefined}
-        />
-      )}
-      {editingServerId && (() => {
-        const server = servers.find((s) => s.id === editingServerId);
-        // Shouldn't happen (the menu item that opens this only exists for a
-        // server actually in the list), but a removal racing the click isn't
-        // worth crashing over.
-        if (!server) return null;
-        const sasl = saslMap[editingServerId];
-        return (
-          <EditServerModal
-            server={server}
-            nick={nickMap[editingServerId] ?? ''}
-            saslUser={sasl?.user ?? ''}
-            saslPass={sasl?.pass ?? ''}
-            onSave={handleEditServer}
-            onCancel={() => setEditingServerId(null)}
-          />
-        );
-      })()}
-      {showPreferences && (
-        <PreferencesModal
-          settings={settings}
-          onSave={handleSavePreferences}
-          onCancel={() => setShowPreferences(false)}
-          notificationsEnabled={notificationsEnabled}
-          onNotificationsEnabledChange={setNotificationsEnabled}
-          soundAlertsEnabled={soundAlertsEnabled}
-          onSoundAlertsEnabledChange={setSoundAlertsEnabled}
-          timestampFormat={timestampFormat}
-          onTimestampFormatChange={setTimestampFormat}
-          messageDensity={messageDensity}
-          onMessageDensityChange={setMessageDensity}
-          fontSize={fontSize}
-          onFontSizeChange={setFontSize}
-          fontFamily={fontFamily}
-          onFontFamilyChange={setFontFamily}
-          theme={theme}
-          onThemeChange={setTheme}
-          servers={servers}
-          ignoredNicks={ignoredNicks}
-          onRemoveIgnore={removeIgnore}
-          aliases={aliases}
-          onRemoveAlias={removeAlias}
-          keybindings={keybindings}
-          onKeybindingChange={setKeybinding}
-        />
-      )}
       {whoisNick && (
         <WhoisModal
           nick={whoisNick}
@@ -1101,17 +1068,17 @@ export default function App() {
           <ServerList
             servers={servers}
             selectedId={selectedServerId}
-            onSelect={selectServer}
-            onAddServer={() => setShowModal(true)}
+            onSelect={handleSelectServer}
+            onAddServer={() => setView({ kind: 'connect' })}
             onRemove={handleRemoveServer}
             onChangeColor={setServerColor}
-            onEditServer={setEditingServerId}
+            onEditServer={(id) => setView({ kind: 'editServer', serverId: id })}
           />
           <ChannelList
             serverName={selectedServer?.name ?? ''}
             channels={channels}
             selectedId={selectedChannelId}
-            onSelect={selectChannel}
+            onSelect={handleSelectChannel}
             mentionedChannels={mentionedChannels}
             mutedChannels={mutedChannels}
             onToggleMuteChannel={toggleMuteChannel}
@@ -1126,60 +1093,116 @@ export default function App() {
           <UserPanel
             currentNick={currentNick}
             away={selfAwayMap[selectedServerId] ?? false}
-            onOpenPreferences={() => setShowPreferences(true)}
+            onOpenPreferences={() => setView({ kind: 'preferences' })}
           />
         </div>
       </div>
       <main className="flex flex-col flex-1 bg-[var(--dolq-bg)] overflow-hidden">
-        <TopicBar
-          channelName={selectedChannel?.name ?? ''}
-          topic={selectedChannel?.topic}
-          topicSetBy={selectedChannel?.topicSetBy}
-          topicSetAt={selectedChannel?.topicSetAt}
-          isLog={isLog}
-          isQuery={isQuery}
-          isDCC={selectedChannel?.isDCC}
-          dccStatus={selectedChannel?.isDCC ? statusMap[selectedChannelId] : undefined}
-          onExport={selectedChannel?.isDCC ? undefined : handleExportChannel}
-          serverColor={selectedServer?.color}
-        />
-        <div className="flex flex-1 overflow-hidden">
-          <div className="flex flex-col flex-1 overflow-hidden">
-            <MessageArea
-              messages={messages}
-              isLog={isLog}
-              channelId={scopeKey(selectedServerId, selectedChannelId)}
-              onLoadOlder={loadOlderHistory}
-              timestampFormat={timestampFormat}
-              density={messageDensity}
-              onGetPack={handleGetPack}
+        {view.kind === 'connect' ? (
+          <ConnectModal
+            presets={presets}
+            nickMap={presetNickMap()}
+            onConnect={handleConnect}
+            onCancel={() => { setView({ kind: 'chat' }); setConnectPrefill(null); }}
+            initial={connectPrefill ?? undefined}
+          />
+        ) : view.kind === 'editServer' ? (() => {
+          const server = servers.find((s) => s.id === view.serverId);
+          // Shouldn't happen (the menu item that opens this only exists for
+          // a server actually in the list), but a removal racing the click
+          // isn't worth crashing over.
+          if (!server) return null;
+          const sasl = saslMap[view.serverId];
+          return (
+            <EditServerModal
+              server={server}
+              nick={nickMap[view.serverId] ?? ''}
+              saslUser={sasl?.user ?? ''}
+              saslPass={sasl?.pass ?? ''}
+              onSave={handleEditServer}
+              onCancel={() => setView({ kind: 'chat' })}
             />
-            <MessageInput
+          );
+        })() : view.kind === 'preferences' ? (
+          <PreferencesModal
+            settings={settings}
+            onSave={handleSavePreferences}
+            onCancel={() => setView({ kind: 'chat' })}
+            notificationsEnabled={notificationsEnabled}
+            onNotificationsEnabledChange={setNotificationsEnabled}
+            soundAlertsEnabled={soundAlertsEnabled}
+            onSoundAlertsEnabledChange={setSoundAlertsEnabled}
+            timestampFormat={timestampFormat}
+            onTimestampFormatChange={setTimestampFormat}
+            messageDensity={messageDensity}
+            onMessageDensityChange={setMessageDensity}
+            fontSize={fontSize}
+            onFontSizeChange={setFontSize}
+            fontFamily={fontFamily}
+            onFontFamilyChange={setFontFamily}
+            theme={theme}
+            onThemeChange={setTheme}
+            servers={servers}
+            ignoredNicks={ignoredNicks}
+            onRemoveIgnore={removeIgnore}
+            aliases={aliases}
+            onRemoveAlias={removeAlias}
+            keybindings={keybindings}
+            onKeybindingChange={setKeybinding}
+          />
+        ) : (
+          <>
+            <TopicBar
               channelName={selectedChannel?.name ?? ''}
+              topic={selectedChannel?.topic}
+              topicSetBy={selectedChannel?.topicSetBy}
+              topicSetAt={selectedChannel?.topicSetAt}
               isLog={isLog}
               isQuery={isQuery}
-              onSend={handleSend}
+              isDCC={selectedChannel?.isDCC}
+              dccStatus={selectedChannel?.isDCC ? statusMap[selectedChannelId] : undefined}
+              onExport={selectedChannel?.isDCC ? undefined : handleExportChannel}
+              serverColor={selectedServer?.color}
             />
-          </div>
-          <aside className="w-52 bg-[var(--dolq-bg-panel)] border-l border-[var(--dolq-border)] shrink-0 flex flex-col overflow-hidden">
-            <ConnectionStatus
-              connectionStatus={connectionStatus}
-              onConnect={connectToServer}
-              onDisconnect={handleDisconnect}
-            />
-            {!isLog && !isQuery && (
-              <UserList
-                users={users}
-                currentNick={currentNick}
-                onOpenQuery={handleOpenQuery}
-                onWhois={handleWhois}
-                ignoredNicks={ignoredNicks[selectedServerId] ?? []}
-                onToggleIgnore={handleToggleIgnore}
-                onDCCOffer={handleDCCOffer}
-              />
-            )}
-          </aside>
-        </div>
+            <div className="flex flex-1 overflow-hidden">
+              <div className="flex flex-col flex-1 overflow-hidden">
+                <MessageArea
+                  messages={messages}
+                  isLog={isLog}
+                  channelId={scopeKey(selectedServerId, selectedChannelId)}
+                  onLoadOlder={loadOlderHistory}
+                  timestampFormat={timestampFormat}
+                  density={messageDensity}
+                  onGetPack={handleGetPack}
+                />
+                <MessageInput
+                  channelName={selectedChannel?.name ?? ''}
+                  isLog={isLog}
+                  isQuery={isQuery}
+                  onSend={handleSend}
+                />
+              </div>
+              <aside className="w-52 bg-[var(--dolq-bg-panel)] border-l border-[var(--dolq-border)] shrink-0 flex flex-col overflow-hidden">
+                <ConnectionStatus
+                  connectionStatus={connectionStatus}
+                  onConnect={connectToServer}
+                  onDisconnect={handleDisconnect}
+                />
+                {!isLog && !isQuery && (
+                  <UserList
+                    users={users}
+                    currentNick={currentNick}
+                    onOpenQuery={handleOpenQuery}
+                    onWhois={handleWhois}
+                    ignoredNicks={ignoredNicks[selectedServerId] ?? []}
+                    onToggleIgnore={handleToggleIgnore}
+                    onDCCOffer={handleDCCOffer}
+                  />
+                )}
+              </aside>
+            </div>
+          </>
+        )}
       </main>
     </div>
   );

@@ -1062,6 +1062,24 @@ will hang the UI.
       closes this client's own socket instead of sending the SIGTERM a local
       child gets. Same "next launch, not live" restart posture as
       `retentionDays` - `BackendClient` is constructed once at startup
+- [x] Preferences and Add/Edit Server had outgrown a centered `fixed inset-0`
+      popup - Preferences alone was pushing 300+ lines of fields inside a
+      440px card. All three now render as a full view in place of the chat
+      panel (`TopicBar`/`MessageArea`/`MessageInput`/user list) instead of
+      floating over it, via a new shared `ViewPanel` layout (header bar +
+      title + a ✕ close button, scrollable content below) - the server rail
+      and channel list beside it stay live throughout, so selecting any
+      channel/server is what actually navigates back to chat, same
+      `MainView` state (`App.tsx`) driving all three instead of three
+      separate booleans/ids. `ConnectModal`/`EditServerModal`/
+      `PreferencesModal` keep their names and all their own field/validation
+      logic - only their outer chrome changed, dropping `useModalA11y`'s
+      Tab-trap (there's a real sidebar next to these now that Tab should
+      still reach) for `ViewPanel`'s own plain autofocus. The five actual
+      popups (Whois, DCC/XDCC offers, Search, NickServ identify) are
+      unchanged, still real `useModalA11y` modals - this was scoped to the
+      three forms that had grown too complex for one, not a rewrite of the
+      modal pattern itself
 
 ---
 

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { Server } from '../types';
 import { IRC_PORT, IRC_TLS_PORT } from '../../../shared/ipc';
-import { useModalA11y } from '../hooks/useModalA11y';
+import { ViewPanel } from './ViewPanel';
 import { resolveHostPort } from '../utils/server';
 
 export type EditServerForm = {
@@ -55,7 +55,6 @@ export function EditServerModal({ server, nick, saslUser, saslPass, onSave, onCa
     saslUser,
     saslPass,
   });
-  const dialogRef = useModalA11y<HTMLDivElement>();
 
   function set(field: keyof EditServerForm) {
     return (e: React.ChangeEvent<HTMLInputElement>) =>
@@ -78,20 +77,9 @@ export function EditServerModal({ server, nick, saslUser, saslPass, onSave, onCa
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onCancel}>
-      <div
-        ref={dialogRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="edit-server-modal-title"
-        tabIndex={-1}
-        className="bg-[var(--dolq-bg-panel)] rounded-lg p-8 w-110 shadow-[0_8px_32px_rgba(0,0,0,0.5)]"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h2 id="edit-server-modal-title" className="text-[var(--dolq-text)] text-[22px] font-bold mb-1">
-          Edit Server
-        </h2>
-        <p className="text-[var(--dolq-text-muted)] text-[14px] mb-5">
+    <ViewPanel title="Edit Server" onClose={onCancel}>
+      <div className="max-w-110 flex flex-col gap-4">
+        <p className="text-[var(--dolq-text-muted)] text-[14px] -mt-1">
           Changes to Host/Port/SSL/Nickname apply the next time you connect, not to the
           current connection.
         </p>
@@ -202,6 +190,6 @@ export function EditServerModal({ server, nick, saslUser, saslPass, onSave, onCa
           </div>
         </form>
       </div>
-    </div>
+    </ViewPanel>
   );
 }
