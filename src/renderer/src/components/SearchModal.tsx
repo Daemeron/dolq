@@ -145,7 +145,7 @@ export function SearchModal({
                     </span>
                     <span className={`text-[14px] truncate w-full ${pack ? 'font-mono text-[var(--dolq-text-muted)]' : 'text-[var(--dolq-text)]'}`}>
                       {pack ? (
-                        `📦 ${text}`
+                        <>📦 <IrcText text={text} /></>
                       ) : (
                         <>
                           {nick && <span className="font-semibold mr-1.5">{nick}</span>}

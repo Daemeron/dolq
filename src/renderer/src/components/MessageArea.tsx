@@ -158,7 +158,7 @@ export function MessageArea({ messages, isLog, channelId, onLoadOlder, timestamp
                   <span className="text-[11px] text-[var(--dolq-text-faint)] shrink-0 w-10 text-right">
                     {formatTime(m.timestamp, timestampFormat)}
                   </span>
-                  <span className="text-[13px] font-mono text-[var(--dolq-text-muted)]">📦 {m.text}</span>
+                  <span className="text-[13px] font-mono text-[var(--dolq-text-muted)]">📦 <IrcText text={m.text} /></span>
                 </div>
               ) : m.action ? (
                 <div className={`flex items-baseline gap-3 group hover:bg-[rgba(4,4,5,0.07)] px-2 rounded ${compact ? 'py-0' : 'py-0.5'}`}>

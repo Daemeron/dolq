@@ -1121,6 +1121,16 @@ will hang the UI.
       follow-up and is now in `IRC_COLORS` too, spot-checked against its own
       boundary values in `IrcText.test.ts` rather than all 83 (they're plain
       table lookups, nothing to actually branch on)
+- [x] `IrcText` (the mIRC formatting parser above) only actually ran over
+      chat messages - four other places rendered plain, server-supplied text
+      that can just as legitimately carry color/bold codes and showed the
+      raw control bytes instead: a channel's `TOPIC` (extremely common in
+      the wild - plenty of networks colorize their topic), a WHOIS's real
+      name and away message, and the XDCC pack-listing line (`MessageArea`
+      and `SearchModal` both render one, and the bot-controlled filename in
+      it is exactly the kind of field a colorful pack-list bot dresses up).
+      All four now route through `IrcText` the same as every chat line
+      already did
 
 ---
 

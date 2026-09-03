@@ -1,6 +1,7 @@
 import { useContextMenu } from '../hooks/useContextMenu';
 import { ContextMenu, ContextMenuItem } from './ContextMenu';
 import { DEFAULT_ACCENT } from './ServerList';
+import { IrcText } from './IrcText';
 
 type Props = {
   channelName: string;
@@ -53,7 +54,9 @@ export function TopicBar({
             {topic && (
               <>
                 <span className="text-[var(--dolq-border)] mx-3 text-lg">|</span>
-                <span className="text-[var(--dolq-text-muted)] text-[14px] truncate" title={whoWhen}>{topic}</span>
+                <span className="text-[var(--dolq-text-muted)] text-[14px] truncate" title={whoWhen}>
+                  <IrcText text={topic} />
+                </span>
               </>
             )}
           </>

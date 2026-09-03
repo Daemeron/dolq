@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import type { IrcEvent } from '../../../shared/ipc';
 import { useModalA11y } from '../hooks/useModalA11y';
+import { IrcText } from './IrcText';
 
 type WhoisInfo = Extract<IrcEvent, { type: 'whois' }>;
 
@@ -59,7 +60,7 @@ export function WhoisModal({ nick, result, onClose }: Props) {
             {result.realname && (
               <div className={rowClass}>
                 <span className={labelClass}>Real Name</span>
-                <span className="text-[var(--dolq-text)] truncate">{result.realname}</span>
+                <span className="text-[var(--dolq-text)] truncate"><IrcText text={result.realname} /></span>
               </div>
             )}
             {result.account && (
@@ -89,7 +90,7 @@ export function WhoisModal({ nick, result, onClose }: Props) {
             {result.away && (
               <div className={rowClass}>
                 <span className={labelClass}>Away</span>
-                <span className="text-[var(--dolq-text)] truncate">{result.away}</span>
+                <span className="text-[var(--dolq-text)] truncate"><IrcText text={result.away} /></span>
               </div>
             )}
           </div>
