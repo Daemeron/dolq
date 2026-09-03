@@ -1131,6 +1131,24 @@ will hang the UI.
       it is exactly the kind of field a colorful pack-list bot dresses up).
       All four now route through `IrcText` the same as every chat line
       already did
+- [x] A second client attaching to a session it didn't itself `Connect` -
+      the actual point of the remote-backend feature above, a shared dolqd
+      serving more than one Dolq at once (see docker-compose.yml) - got
+      history and a correct one-shot status, then silently nothing ever
+      again: no future line, event, or status update. `bouncer.Attach`
+      existed and was already tested at the `Bouncer` layer, but nothing in
+      `ipcproto` ever called it outside of a fresh `Connect`, which only
+      subscribes its own caller - there was no wire action to attach to an
+      *existing* one at all. Fixed by piggybacking it onto `getStatus`: it's
+      the one call every client already makes exactly once per configured
+      server, right at startup (`App.tsx`'s reconcile-on-hydration effect),
+      so "what's this server's status" now doubles as "and subscribe me to
+      it going forward" instead of needing a whole separate attach action
+      threaded through the client. `Attach` was already a safe no-op for a
+      dead serverID or an already-subscribed connection, so this needed no
+      guarding on top. Caught by writing the multi-client scenario as a test
+      first and watching it hang waiting for a frame that never arrived
+      before the fix - `TestGetStatusAttachesToAnExistingSession`
 
 ---
 

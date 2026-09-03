@@ -196,3 +196,71 @@ func TestConnectEndToEnd(t *testing.T) {
 		t.Errorf("got %#v want %#v", got, want)
 	}
 }
+
+// TestGetStatusAttachesToAnExistingSession is the multi-client case a shared
+// remote dolqd (see docker-compose.yml) actually needs: a second connection
+// that never called Connect itself - it's just checking on a session another
+// connection already brought up - must still start receiving that session's
+// live traffic once it asks for its status, or it silently gets history and
+// a "connected" status but no future line/event/status ever again.
+func TestGetStatusAttachesToAnExistingSession(t *testing.T) {
+	fakeIRC, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	defer fakeIRC.Close()
+	var ircConn net.Conn
+	accepted := make(chan struct{})
+	go func() {
+		defer close(accepted)
+		conn, err := fakeIRC.Accept()
+		if err != nil {
+			return
+		}
+		ircConn = conn
+		r := bufio.NewReader(conn)
+		for i := 0; i < 3; i++ { // PASS/NICK/USER
+			if _, err := r.ReadString('\n'); err != nil {
+				return
+			}
+		}
+		conn.Write([]byte(":irc.example.net 001 testnick :Welcome\r\n"))
+	}()
+
+	path := startTestServer(t)
+	tc1 := dialTestClient(t, path)
+	host, portStr, _ := net.SplitHostPort(fakeIRC.Addr().String())
+	port, _ := strconv.Atoi(portStr)
+
+	tc1.send(t, ClientFrame{
+		ID: "1", Action: ActionConnect, ServerID: "shared", Host: host, Port: port, Nick: "testnick", Secure: false,
+	})
+	if result := tc1.recv(t); !result.OK {
+		t.Fatalf("connect result: %#v", result)
+	}
+	tc1.recv(t) // the WELCOME line from Connect's own caller being subscribed
+
+	select {
+	case <-accepted:
+	case <-time.After(2 * time.Second):
+		t.Fatal("fake IRC server never accepted the connection")
+	}
+
+	// tc2 never Connects - it's a second client just checking on a session
+	// tc1 already brought up (the shared-backend scenario).
+	tc2 := dialTestClient(t, path)
+	tc2.send(t, ClientFrame{ID: "2", Action: ActionGetStatus, ServerID: "shared"})
+	want := ServerFrame{ID: "2", Type: FrameResult, OK: true, Status: "connected"}
+	if got := tc2.recv(t); !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %#v want %#v", got, want)
+	}
+
+	if _, err := ircConn.Write([]byte(":irc.example.net PRIVMSG #x :hi\r\n")); err != nil {
+		t.Fatalf("write to fake IRC server: %v", err)
+	}
+
+	want = ServerFrame{Type: FrameLine, ServerID: "shared", Line: ":irc.example.net PRIVMSG #x :hi"}
+	if got := tc2.recv(t); !reflect.DeepEqual(got, want) {
+		t.Errorf("tc2 (attached only via GetStatus) got %#v, want %#v", got, want)
+	}
+}

@@ -132,6 +132,19 @@ func (s *Server) handleFrame(c *conn, f ClientFrame) {
 	case ActionSend:
 		c.writeResult(f.ID, s.b.Send(f.ServerID, f.Line))
 	case ActionGetStatus:
+		// The one call every client makes exactly once per configured server,
+		// right at startup (App.tsx's reconcile-on-hydration effect) - so it
+		// doubles as "and subscribe me to it going forward" rather than
+		// requiring a separate attach step. Without this, a session that
+		// already existed before this connection asked about it (a second
+		// client attaching to a shared remote dolqd - see docker-compose.yml -
+		// finding a server another client already connected) never fanned
+		// out anything to this connection: Bouncer.Attach exists and is
+		// tested, but nothing in this protocol ever called it outside of a
+		// fresh Connect, which only subscribes its own caller. A no-op if
+		// f.ServerID has no live session (Attach's own doc) or this
+		// connection is already subscribed (idempotent, a plain map insert).
+		s.b.Attach(c, f.ServerID)
 		c.writeFrame(ServerFrame{ID: f.ID, Type: FrameResult, OK: true, Status: s.b.Status(f.ServerID)})
 	case ActionGetJoinedChannels:
 		c.writeFrame(ServerFrame{ID: f.ID, Type: FrameResult, OK: true, Channels: s.b.JoinedChannels(f.ServerID)})
