@@ -83,7 +83,23 @@ export class BackendClient extends EventEmitter {
       socket.once('connect', () => {
         this.socket = socket;
         createInterface({ input: socket }).on('line', (line) => this.handleFrame(JSON.parse(line)));
-        socket.on('close', () => this.rejectAllPending(new Error('backend connection closed')));
+        // A post-connect error (a dropped remote connection, most plausibly
+        // - see `remote`) must never leave this socket with zero 'error'
+        // listeners: the `once` below is spent on the very first one, and
+        // Node throws an error emitted with no listener left for it - an
+        // uncaught exception with nothing in this app to catch it, i.e. a
+        // network blip would take down the whole process. This just needs
+        // to exist, not do anything - 'close' (below) already follows every
+        // real-world error and does the actual cleanup.
+        socket.on('error', (err) => console.error('backend connection error:', err));
+        socket.on('close', () => {
+          // Without this, request() below still sees a (dead) socket and
+          // writes into it instead of failing fast - a write that's
+          // silently dropped, leaving its caller's promise unsettled
+          // forever rather than rejected.
+          this.socket = undefined;
+          this.rejectAllPending(new Error('backend connection closed'));
+        });
         resolve();
       });
       socket.once('error', reject);
@@ -224,7 +240,11 @@ export class BackendClient extends EventEmitter {
 
   private async request(action: string, fields: Record<string, unknown>): Promise<ServerFrame> {
     await this.ready;
-    if (!this.socket) return Promise.reject(new Error('backend not started'));
+    // Also true after a connection that *was* up drops (the 'close'
+    // handler in dial() clears this) - not just before the first one ever
+    // succeeds, so the message covers both rather than claiming it never
+    // started.
+    if (!this.socket) return Promise.reject(new Error('backend not connected'));
     const id = randomUUID();
     return new Promise((resolve, reject) => {
       this.pending.set(id, { resolve, reject });

@@ -1099,7 +1099,16 @@ export default function App() {
       </div>
       <main className="flex flex-col flex-1 bg-[var(--dolq-bg)] overflow-hidden">
         {view.kind === 'connect' ? (
+          // Keyed on the prefill, not left to default identity - the sidebar
+          // stays clickable behind this view now (unlike the old backdrop
+          // modal), so a second irc(s):// link can arrive and change
+          // `initial` while this is already open. Without a key React just
+          // updates props on the same instance, and ConnectModal's form
+          // state is seeded from `initial` in useState - a one-time
+          // initializer that a prop change alone doesn't rerun. A different
+          // key forces the remount that actually picks up the new prefill.
           <ConnectModal
+            key={connectPrefill ? `${connectPrefill.host}:${connectPrefill.port}` : 'blank'}
             presets={presets}
             nickMap={presetNickMap()}
             onConnect={handleConnect}
@@ -1114,7 +1123,16 @@ export default function App() {
           if (!server) return null;
           const sasl = saslMap[view.serverId];
           return (
+            // Keyed on server.id for the same reason ConnectModal is above:
+            // the sidebar's "Edit Server…" is still reachable while this is
+            // open, so a click on a *different* server just updates
+            // `server` on the same instance without the key - and
+            // EditServerModal's form state, seeded from `server` in
+            // useState, would then keep the previous server's stale field
+            // values while `onSave` submits them under the new server's id.
+            // Not just stale UI: that's silent data corruption without this.
             <EditServerModal
+              key={server.id}
               server={server}
               nick={nickMap[view.serverId] ?? ''}
               saslUser={sasl?.user ?? ''}
