@@ -239,6 +239,7 @@ func TestGetStatusAttachesToAnExistingSession(t *testing.T) {
 		t.Fatalf("connect result: %#v", result)
 	}
 	tc1.recv(t) // the WELCOME line from Connect's own caller being subscribed
+	tc1.recv(t) // and the WELCOME event derived from that same line - draining both before tc2 attaches means the fan-out for this connect sequence has already finished, not racing tc2's own attach below
 
 	select {
 	case <-accepted:
