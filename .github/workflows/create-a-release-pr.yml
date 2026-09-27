@@ -2,6 +2,20 @@ name: Create a Release - PR
 
 on:
   workflow_dispatch:
+    inputs:
+      bump:
+        description: 'Force this version part to bump, overriding the automatic conventional-commits detection'
+        type: choice
+        options:
+          - automatic
+          - patch
+          - minor
+          - major
+        default: automatic
+      release-as:
+        description: 'Force an exact next version instead (e.g. 1.2.3) - takes priority over "bump" above if set'
+        required: false
+        default: ''
 
 permissions:
   contents: write
@@ -16,3 +30,5 @@ jobs:
         with:
           token: ${{ secrets.RELEASE_TOKEN }}
           skip-github-release: true
+          release-as: ${{ inputs.release-as }}
+          versioning-strategy: ${{ inputs.bump != 'automatic' && format('always-bump-{0}', inputs.bump) || '' }}
