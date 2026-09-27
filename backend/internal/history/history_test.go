@@ -23,7 +23,6 @@ func TestAppendEventAndRecent(t *testing.T) {
 	for i := 0; i < 3; i++ {
 		s.AppendEvent("srv", "#chan", testEvent{Type: "JOIN", Nick: "user"}, base.Add(time.Duration(i)*time.Second))
 	}
-	// Different channel/server - must not show up in the #chan query below.
 	s.AppendLine("srv", "__log__", "raw line", base)
 	s.AppendEvent("other", "#chan", testEvent{Type: "JOIN", Nick: "b"}, base)
 
@@ -43,7 +42,6 @@ func TestAppendEventAndRecent(t *testing.T) {
 		t.Fatalf("event round-tripped wrong: %+v", decoded)
 	}
 
-	// Cursor: ask for entries before the last one, limit 1 -> just the middle entry.
 	page, err := s.Recent("srv", "#chan", entries[2].ID, 1)
 	if err != nil {
 		t.Fatalf("recent (paged): %v", err)
@@ -68,10 +66,6 @@ func TestAppendLineIsRaw(t *testing.T) {
 	}
 }
 
-// TestBurstSpansMultipleBatches sends more entries than maxBatch in one go,
-// so run() has to drain, commit, and go back for more at least twice -
-// checking the batching loop doesn't drop or misorder anything at that
-// boundary.
 func TestBurstSpansMultipleBatches(t *testing.T) {
 	s, err := Open(":memory:", 0)
 	if err != nil {
@@ -94,25 +88,16 @@ func TestBurstSpansMultipleBatches(t *testing.T) {
 }
 
 func TestRetentionPrunesOldEntries(t *testing.T) {
-	s, err := Open(":memory:", 1) // 1-day retention
+	s, err := Open(":memory:", 1)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
 	defer s.Close()
 
-	old := time.Now().AddDate(0, 0, -2) // past the 1-day cutoff
+	old := time.Now().AddDate(0, 0, -2)
 	s.AppendLine("srv", "__log__", "old line", old)
 	s.AppendLine("srv", "__log__", "recent line", time.Now())
 
-	// Two unsynchronized races make this trickier than the other tests'
-	// plain waitForCount: Open's own background pruneLoop goroutine already
-	// runs one sweep at startup, racing the writer goroutine that lands
-	// these just-queued appends - "old line" can still be in flight (not
-	// yet prunable) or already pruned by the time any single prune() call
-	// here runs. So there's no single "call prune, then check once" point
-	// that's guaranteed correct - keep re-pruning across the same poll
-	// waitForCount uses elsewhere, so a prune always runs again after the
-	// write actually lands, whichever order they happened in.
 	deadline := time.Now().Add(time.Second)
 	var entries []Entry
 	for time.Now().Before(deadline) {
@@ -242,9 +227,6 @@ func TestSearch(t *testing.T) {
 	})
 }
 
-// waitForCount polls Recent until it sees want entries for serverID/channel
-// - Append* is async (that's the point - it must never block the IRC read
-// loop it's called from), so writes land on the store's own schedule.
 func waitForCount(t *testing.T, s *Store, serverID, channel string, want int) []Entry {
 	t.Helper()
 	deadline := time.Now().Add(time.Second)

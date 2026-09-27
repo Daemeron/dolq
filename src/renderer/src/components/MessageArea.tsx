@@ -1,6 +1,6 @@
-import { useLayoutEffect, useRef } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { Message } from '../types';
+import { useLayoutEffect, useRef } from 'react';
+import type { Message } from '../types';
 import { IrcText } from './IrcText';
 
 type Props = {
@@ -10,16 +10,10 @@ type Props = {
   onLoadOlder?: () => void;
   timestampFormat: '12h' | '24h';
   density: 'cozy' | 'compact';
-  // Requests the pack a 📦 row announced - see App.tsx's handleGetPack.
-  // Optional only because the Log view (isLog) never renders one of these
-  // rows to begin with.
   onGetPack?: (nick: string, packNumber: number) => void;
 };
 
-const NICK_COLORS = [
-  '#82aaff', '#50fa7b', '#ff5555', '#ffcb6b',
-  '#b0b0b0', '#8be9fd', '#ff92df', '#c792ea',
-];
+const NICK_COLORS = ['#82aaff', '#50fa7b', '#ff5555', '#ffcb6b', '#b0b0b0', '#8be9fd', '#ff92df', '#c792ea'];
 
 function nickColor(nick: string): string {
   let hash = 0;
@@ -31,8 +25,6 @@ function formatTime(d: Date, timestampFormat: '12h' | '24h'): string {
   return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: timestampFormat === '12h' });
 }
 
-// per-channel scroll memory lives in refs since MessageArea is a single
-// always-mounted instance shared across channels (messages/channelId just swap on switch).
 const AT_BOTTOM_THRESHOLD = 40;
 const LOAD_OLDER_THRESHOLD = 100;
 
@@ -44,22 +36,8 @@ export function MessageArea({ messages, isLog, channelId, onLoadOlder, timestamp
 
   const switchedChannel = prevChannelId.current !== channelId;
   const compact = density === 'compact';
-  // cozy's py-0.5/py-1 vs compact's py-0 (see the row markup below) - kept
-  // in sync here so the initial estimate isn't wildly off from what
-  // actually renders (still just an estimate either way, corrected via
-  // ResizeObserver once a row mounts, same as isLog already was).
   const rowEstimate = isLog ? 20 : compact ? 22 : 28;
 
-  // Row heights vary (wrapped text), so sizes start as an estimate and get
-  // corrected via ResizeObserver after each row mounts. Keying by message id
-  // (not index) keeps a prepended older-history page from invalidating every
-  // already-measured row below it - only the new rows above are unmeasured.
-  // anchorTo/followOnAppend do what the old hand-rolled scrollTop math used
-  // to: keep the view pinned to what you were looking at when older history
-  // loads in above it, and follow new messages to the bottom only if you were
-  // already there - but re-applied on every individual remeasurement instead
-  // of once per render, so it doesn't drift once estimated heights are
-  // replaced by real ones.
   const rowVirtualizer = useVirtualizer({
     count: messages.length,
     getScrollElement: () => containerRef.current,
@@ -76,13 +54,7 @@ export function MessageArea({ messages, isLog, channelId, onLoadOlder, timestamp
       const el = containerRef.current;
       if (el) {
         const wasAtBottom = isAtBottom.current.get(channelId) !== false;
-        // Known limitation: this jump uses estimated row heights for the
-        // newly-selected channel (nothing's measured yet), so a restored
-        // mid-scroll position can settle slightly as real heights come in.
-        // Bottom-follow self-corrects (virtual-core re-pins on every
-        // remeasure while at end); only fix the restore case too if that
-        // settle is noticeable.
-        el.scrollTop = wasAtBottom ? el.scrollHeight : scrollTop.current.get(channelId) ?? el.scrollHeight;
+        el.scrollTop = wasAtBottom ? el.scrollHeight : (scrollTop.current.get(channelId) ?? el.scrollHeight);
       }
     }
     prevChannelId.current = channelId;
@@ -92,10 +64,7 @@ export function MessageArea({ messages, isLog, channelId, onLoadOlder, timestamp
     const el = containerRef.current;
     if (!el) return;
     scrollTop.current.set(channelId, el.scrollTop);
-    isAtBottom.current.set(
-      channelId,
-      el.scrollHeight - el.scrollTop - el.clientHeight < AT_BOTTOM_THRESHOLD,
-    );
+    isAtBottom.current.set(channelId, el.scrollHeight - el.scrollTop - el.clientHeight < AT_BOTTOM_THRESHOLD);
     if (onLoadOlder && el.scrollTop < LOAD_OLDER_THRESHOLD) onLoadOlder();
   }
 
@@ -104,7 +73,11 @@ export function MessageArea({ messages, isLog, channelId, onLoadOlder, timestamp
   if (messages.length === 0) {
     return (
       <div ref={containerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto px-4 py-4 scroll-thin">
-        <p className={isLog ? 'text-[var(--dolq-text-faint)] text-[14px]' : 'text-[var(--dolq-text-faint)] text-[14px] text-center mt-8'}>
+        <p
+          className={
+            isLog ? 'text-(--dolq-text-faint) text-[14px]' : 'text-(--dolq-text-faint) text-[14px] text-center mt-8'
+          }
+        >
           {isLog ? 'No traffic yet.' : 'No messages yet.'}
         </p>
       </div>
@@ -121,28 +94,35 @@ export function MessageArea({ messages, isLog, channelId, onLoadOlder, timestamp
               key={virtualRow.key}
               ref={rowVirtualizer.measureElement}
               data-index={virtualRow.index}
-              style={{ position: 'absolute', top: 0, left: 0, right: 0, transform: `translateY(${virtualRow.start}px)` }}
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                transform: `translateY(${virtualRow.start}px)`,
+              }}
             >
               {isLog ? (
-                <div className="font-mono text-[12px] leading-5 text-[var(--dolq-text)] whitespace-pre-wrap break-all">
-                  <span className="text-[var(--dolq-text-faint)] mr-3">{formatTime(m.timestamp, timestampFormat)}</span>
+                <div className="font-mono text-[12px] leading-5 text-(--dolq-text) whitespace-pre-wrap break-all">
+                  <span className="text-(--dolq-text-faint) mr-3">{formatTime(m.timestamp, timestampFormat)}</span>
                   <IrcText text={m.text} />
                 </div>
               ) : m.system ? (
                 <div className={`flex items-baseline gap-3 px-2 ${compact ? 'py-0' : 'py-1'}`}>
-                  <span className="text-[11px] text-[var(--dolq-text-faint)] shrink-0 w-10 text-right">
+                  <span className="text-[11px] text-(--dolq-text-faint) shrink-0 w-10 text-right">
                     {formatTime(m.timestamp, timestampFormat)}
                   </span>
-                  <span className="text-[var(--dolq-text-faint)] text-[13px] italic"><IrcText text={m.text} /></span>
+                  <span className="text-(--dolq-text-faint) text-[13px] italic">
+                    <IrcText text={m.text} />
+                  </span>
                 </div>
               ) : m.notice ? (
                 <div className={`flex items-baseline gap-3 px-2 ${compact ? 'py-0' : 'py-0.5'}`}>
-                  <span className="text-[11px] text-[var(--dolq-text-faint)] shrink-0 w-10 text-right">
+                  <span className="text-[11px] text-(--dolq-text-faint) shrink-0 w-10 text-right">
                     {formatTime(m.timestamp, timestampFormat)}
                   </span>
-                  <span className="text-[13px] italic text-[var(--dolq-text-dim)]">
-                    <span style={{ color: nickColor(m.nick) }}>-{m.nick}-</span>{' '}
-                    <IrcText text={m.text} />
+                  <span className="text-[13px] italic text-(--dolq-text-dim)">
+                    <span style={{ color: nickColor(m.nick) }}>-{m.nick}-</span> <IrcText text={m.text} />
                   </span>
                 </div>
               ) : m.xdccPack ? (
@@ -155,30 +135,40 @@ export function MessageArea({ messages, isLog, channelId, onLoadOlder, timestamp
                   }}
                   title={onGetPack ? 'Click to request this pack' : undefined}
                 >
-                  <span className="text-[11px] text-[var(--dolq-text-faint)] shrink-0 w-10 text-right">
+                  <span className="text-[11px] text-(--dolq-text-faint) shrink-0 w-10 text-right">
                     {formatTime(m.timestamp, timestampFormat)}
                   </span>
-                  <span className="text-[13px] font-mono text-[var(--dolq-text-muted)]">📦 <IrcText text={m.text} /></span>
+                  <span className="text-[13px] font-mono text-(--dolq-text-muted)">
+                    📦 <IrcText text={m.text} />
+                  </span>
                 </div>
               ) : m.action ? (
-                <div className={`flex items-baseline gap-3 group hover:bg-[rgba(4,4,5,0.07)] px-2 rounded ${compact ? 'py-0' : 'py-0.5'}`}>
-                  <span className="text-[11px] text-[var(--dolq-text-faint)] shrink-0 w-10 text-right opacity-0 group-hover:opacity-100">
+                <div
+                  className={`flex items-baseline gap-3 group hover:bg-[rgba(4,4,5,0.07)] px-2 rounded ${compact ? 'py-0' : 'py-0.5'}`}
+                >
+                  <span className="text-[11px] text-(--dolq-text-faint) shrink-0 w-10 text-right opacity-0 group-hover:opacity-100">
                     {formatTime(m.timestamp, timestampFormat)}
                   </span>
                   <span className="text-[15px] leading-relaxed italic">
                     <span style={{ color: nickColor(m.nick) }}>* {m.nick}</span>{' '}
-                    <span className="text-[var(--dolq-text)]"><IrcText text={m.text} /></span>
+                    <span className="text-(--dolq-text)">
+                      <IrcText text={m.text} />
+                    </span>
                   </span>
                 </div>
               ) : (
-                <div className={`flex items-baseline gap-3 group hover:bg-[rgba(4,4,5,0.07)] px-2 rounded ${compact ? 'py-0' : 'py-0.5'}`}>
-                  <span className="text-[11px] text-[var(--dolq-text-faint)] shrink-0 w-10 text-right opacity-0 group-hover:opacity-100">
+                <div
+                  className={`flex items-baseline gap-3 group hover:bg-[rgba(4,4,5,0.07)] px-2 rounded ${compact ? 'py-0' : 'py-0.5'}`}
+                >
+                  <span className="text-[11px] text-(--dolq-text-faint) shrink-0 w-10 text-right opacity-0 group-hover:opacity-100">
                     {formatTime(m.timestamp, timestampFormat)}
                   </span>
                   <span className="font-semibold text-[14px] shrink-0" style={{ color: nickColor(m.nick) }}>
                     {m.nick}
                   </span>
-                  <span className="text-[var(--dolq-text)] text-[15px] leading-relaxed"><IrcText text={m.text} /></span>
+                  <span className="text-(--dolq-text) text-[15px] leading-relaxed">
+                    <IrcText text={m.text} />
+                  </span>
                 </div>
               )}
             </div>

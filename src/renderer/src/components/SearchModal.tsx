@@ -1,18 +1,15 @@
 import { useEffect, useState } from 'react';
 import type { HistoryEntry } from '../../../shared/ipc';
+import { useModalA11y } from '../hooks/useModalA11y';
 import type { Server } from '../types';
 import { IrcText } from './IrcText';
-import { useModalA11y } from '../hooks/useModalA11y';
 
 type Props = {
   servers: Server[];
   defaultServerId: string;
-  defaultChannel: string; // backend channel key for "this channel" scope - see App.tsx's backendChannelFor
-  defaultChannelLabel: string; // display name for that scope, e.g. "#general" or "Log"
+  defaultChannel: string;
+  defaultChannelLabel: string;
   onJump: (serverId: string, channel: string) => void;
-  // Requests a pack a search hit turned up - see App.tsx's handleGetPackFrom.
-  // Unlike MessageArea's onGetPack, this needs serverId too: a search result
-  // isn't necessarily on whatever server is currently selected.
   onGetPack: (serverId: string, nick: string, packNumber: number) => void;
   onClose: () => void;
 };
@@ -20,12 +17,6 @@ type Props = {
 const inputClass =
   'w-full bg-[var(--dolq-bg-input)] border-0 rounded text-[var(--dolq-text)] text-[14px] px-3 py-2.5 outline-none focus:ring-2 focus:ring-[#c792ea] placeholder:text-[var(--dolq-text-faint)]';
 
-// "Packs only" filters client-side rather than in the query itself - the
-// backend's search is a plain payload LIKE match (see
-// history.Store.Search), with no notion of an event's type to filter on.
-// Fetching a wider limit when this is on compensates for that: filtering
-// after a 100-row fetch could easily come back empty even when more packs
-// exist further back.
 const PACKS_ONLY_LIMIT = 300;
 const DEFAULT_LIMIT = 100;
 
@@ -33,14 +24,6 @@ function isPack(entry: HistoryEntry): boolean {
   return !entry.isRaw && entry.event?.type === 'XDCCPACK';
 }
 
-// A search result's payload can be a raw line or any parsed event - most
-// real hits will be chat text (PRIVMSG/ACTION/NOTICE) or a raw line, so
-// that's what gets a proper nick+text preview; anything else (a JOIN a
-// search term happened to match inside, say) just falls back to its raw
-// JSON rather than needing a case for every event type search barely ever
-// actually matches. XDCCPACK gets its own case, matching MessageArea's
-// 📦 row - handled by the caller instead, since it also needs a different
-// click action (request the pack, not just jump to it).
 function preview(entry: HistoryEntry): { nick: string; text: string } {
   if (entry.isRaw) return { nick: '', text: entry.line ?? '' };
   const e = entry.event;
@@ -54,7 +37,13 @@ function preview(entry: HistoryEntry): { nick: string; text: string } {
 }
 
 export function SearchModal({
-  servers, defaultServerId, defaultChannel, defaultChannelLabel, onJump, onGetPack, onClose,
+  servers,
+  defaultServerId,
+  defaultChannel,
+  defaultChannelLabel,
+  onJump,
+  onGetPack,
+  onClose,
 }: Props) {
   const [query, setQuery] = useState('');
   const [global, setGlobal] = useState(false);
@@ -90,10 +79,12 @@ export function SearchModal({
         aria-modal="true"
         aria-labelledby="search-modal-title"
         tabIndex={-1}
-        className="bg-[var(--dolq-bg-panel)] rounded-lg p-6 w-140 max-h-[80vh] flex flex-col shadow-[0_8px_32px_rgba(0,0,0,0.5)]"
+        className="bg-(--dolq-bg-panel) rounded-lg p-6 w-140 max-h-[80vh] flex flex-col shadow-[0_8px_32px_rgba(0,0,0,0.5)]"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 id="search-modal-title" className="text-[var(--dolq-text)] text-[18px] font-bold mb-4 shrink-0">Search History</h2>
+        <h2 id="search-modal-title" className="text-(--dolq-text) text-[18px] font-bold mb-4 shrink-0">
+          Search History
+        </h2>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-3 shrink-0">
           <input
@@ -104,12 +95,22 @@ export function SearchModal({
           />
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <label className="flex items-center gap-2 text-[13px] text-[var(--dolq-text)] cursor-pointer select-none">
-                <input type="checkbox" checked={global} onChange={(e) => setGlobal(e.target.checked)} className="accent-[#c792ea]" />
+              <label className="flex items-center gap-2 text-[13px] text-(--dolq-text) cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={global}
+                  onChange={(e) => setGlobal(e.target.checked)}
+                  className="accent-[#c792ea]"
+                />
                 Search everywhere, not just {defaultChannelLabel}
               </label>
-              <label className="flex items-center gap-2 text-[13px] text-[var(--dolq-text)] cursor-pointer select-none">
-                <input type="checkbox" checked={packsOnly} onChange={(e) => setPacksOnly(e.target.checked)} className="accent-[#c792ea]" />
+              <label className="flex items-center gap-2 text-[13px] text-(--dolq-text) cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={packsOnly}
+                  onChange={(e) => setPacksOnly(e.target.checked)}
+                  className="accent-[#c792ea]"
+                />
                 📦 Packs only
               </label>
             </div>
@@ -125,7 +126,7 @@ export function SearchModal({
 
         <div className="flex-1 min-h-0 overflow-y-auto scroll-thin mt-4 -mx-1 px-1">
           {results === null ? null : results.length === 0 ? (
-            <p className="text-[var(--dolq-text-faint)] text-[14px] text-center mt-4">No matches.</p>
+            <p className="text-(--dolq-text-faint) text-[14px] text-center mt-4">No matches.</p>
           ) : (
             <div className="flex flex-col gap-1">
               {results.map((entry) => {
@@ -135,17 +136,24 @@ export function SearchModal({
                 const pack = isPack(entry) && entry.event?.type === 'XDCCPACK' ? entry.event : null;
                 return (
                   <button
+                    type="button"
                     key={entry.id}
-                    onClick={() => (pack ? onGetPack(entry.serverId, pack.nick, pack.number) : onJump(entry.serverId, entry.channel))}
+                    onClick={() =>
+                      pack ? onGetPack(entry.serverId, pack.nick, pack.number) : onJump(entry.serverId, entry.channel)
+                    }
                     title={pack ? 'Click to request this pack' : undefined}
-                    className="flex flex-col items-start gap-0.5 w-full px-3 py-2 rounded border-0 bg-[var(--dolq-bg-raised)] text-left cursor-pointer hover:bg-[var(--dolq-bg-hover)]"
+                    className="flex flex-col items-start gap-0.5 w-full px-3 py-2 rounded border-0 bg-(--dolq-bg-raised) text-left cursor-pointer hover:bg-(--dolq-bg-hover)"
                   >
-                    <span className="text-[11px] text-[var(--dolq-text-faint)]">
+                    <span className="text-[11px] text-(--dolq-text-faint)">
                       {serverName} / {channelLabel} · {new Date(entry.timestamp).toLocaleString()}
                     </span>
-                    <span className={`text-[14px] truncate w-full ${pack ? 'font-mono text-[var(--dolq-text-muted)]' : 'text-[var(--dolq-text)]'}`}>
+                    <span
+                      className={`text-[14px] truncate w-full ${pack ? 'font-mono text-(--dolq-text-muted)' : 'text-(--dolq-text)'}`}
+                    >
                       {pack ? (
-                        <>📦 <IrcText text={text} /></>
+                        <>
+                          📦 <IrcText text={text} />
+                        </>
                       ) : (
                         <>
                           {nick && <span className="font-semibold mr-1.5">{nick}</span>}
@@ -162,8 +170,9 @@ export function SearchModal({
 
         <div className="flex justify-end mt-4 shrink-0">
           <button
+            type="button"
             onClick={onClose}
-            className="px-4 py-2 rounded text-[var(--dolq-text-muted)] text-[14px] font-medium bg-transparent border-0 cursor-pointer hover:text-[var(--dolq-text)]"
+            className="px-4 py-2 rounded text-(--dolq-text-muted) text-[14px] font-medium bg-transparent border-0 cursor-pointer hover:text-(--dolq-text)"
           >
             Close
           </button>

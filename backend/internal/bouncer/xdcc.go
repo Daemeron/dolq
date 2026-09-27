@@ -16,12 +16,6 @@ import (
 	"github.com/google/uuid"
 )
 
-// XDCCTransferEvent reports progress on a transfer XDCCAccept started.
-// Unlike a session's ordinary events, this is sent straight to whichever
-// Subscriber accepted the offer, under the transfer's own id - never
-// persisted to history and never fanned out to anyone else, same reasoning
-// as DCC CHAT's lines/status (see wireDCC's doc): a download belongs to
-// whoever started it, not to scrollback.
 type XDCCTransferEvent struct {
 	Type     string `json:"type"`
 	Received int64  `json:"received"`
@@ -31,45 +25,15 @@ type XDCCTransferEvent struct {
 	Error    string `json:"error,omitempty"`
 }
 
-// progressInterval throttles how often XDCCTransferEvent updates go out - a
-// fast local transfer can fill a 64KB chunk far faster than any UI needs to
-// redraw a progress bar.
 const progressInterval = 250 * time.Millisecond
 
-// xdccTransfer is the bookkeeping runXDCCTransfer registers under an id -
-// enough for XDCCClose/XDCCPause/XDCCResume/closeAllXDCC to reach an
-// in-progress transfer from outside its own goroutine.
 type xdccTransfer struct {
 	conn  net.Conn
 	pause *dcc.PauseGate
 }
 
-// DefaultResumeAcceptTimeout bounds how long XDCCAccept waits for a bot's
-// CTCP DCC ACCEPT reply to a DCC RESUME request before giving up and
-// starting the pack over from scratch instead - a bot that doesn't support
-// resume just never replies, same "give up and move on" shape as every
-// other handshake timeout in this codebase (see ircclient.DefaultCapTimeout).
-// Overridable per-Bouncer - see ResumeAcceptTimeout.
 const DefaultResumeAcceptTimeout = 10 * time.Second
 
-// XDCCAccept accepts a parsed XDCC/DCC SEND offer (see XDCCSendOfferEvent)
-// and downloads it into destDir, returning an id the caller receives
-// XDCCTransferEvent updates under - same shape as DCCOffer/DCCAccept.
-// offer.Filename is untrusted (a network peer chose it) so it's never used
-// as anything but a base name within destDir - see safeFilename.
-//
-// If a partial download of the same name is already sitting in destDir
-// (left behind by an earlier attempt that never finished - see
-// runXDCCTransfer's doc), this first tries to resume it via a CTCP DCC
-// RESUME/ACCEPT handshake (requestResume) before connecting, appending onto
-// it rather than starting over. That handshake blocks this call for up to
-// ResumeAcceptTimeout; harmless since ipcproto handles every frame on its
-// own goroutine (see Server.handleConn).
-//
-// portMin/portMax constrain the listener a passive/reverse offer opens (see
-// dcc.Listen) - ignored for an active offer, which dials out instead of
-// listening at all. Both 0 lets the OS pick any free port, same as before
-// this existed.
 func (b *Bouncer) XDCCAccept(
 	serverID string, offer ircparse.XDCCSendOfferEvent, destDir string, portMin, portMax int, sub Subscriber,
 ) (string, error) {
@@ -91,7 +55,6 @@ func (b *Bouncer) XDCCAccept(
 	}
 
 	if offer.Port != 0 {
-		// Active: the sender's already listening, just dial it.
 		sub.SendStatus(id, "connecting")
 		go func() {
 			conn, err := dcc.DialRaw(offer.IP, offer.Port)
@@ -106,9 +69,6 @@ func (b *Bouncer) XDCCAccept(
 		return id, nil
 	}
 
-	// Passive/reverse: the sender can't accept a connection (usually NAT),
-	// so we listen instead and tell them our address - same handshake shape
-	// as DCCOffer, just replying to an offer instead of making one.
 	ln, err := dcc.Listen(portMin, portMax)
 	if err != nil {
 		f.Close()
@@ -143,12 +103,6 @@ func (b *Bouncer) XDCCAccept(
 	return id, nil
 }
 
-// openDestination decides where offer's bytes land and opens it: if a
-// partial download of the same name already exists in destDir and a resume
-// handshake succeeds (requestResume), that file is reopened for append and
-// base is how much of it to keep; otherwise (no partial file, or the bot
-// didn't answer the resume request) a fresh file is created via uniquePath,
-// same as before resume support existed, and base is 0.
 func openDestination(client *ircclient.Client, offer ircparse.XDCCSendOfferEvent, destDir string, acceptTimeout time.Duration) (destPath string, base int64, f *os.File, err error) {
 	natural := filepath.Join(destDir, safeFilename(offer.Filename))
 	if stat, statErr := os.Stat(natural); statErr == nil && stat.Size() > 0 && stat.Size() < offer.Size {
@@ -177,16 +131,6 @@ func openDestination(client *ircclient.Client, offer ircparse.XDCCSendOfferEvent
 	return destPath, 0, f, nil
 }
 
-// requestResume asks offer.Nick to resume offer.Filename at existing bytes
-// in via CTCP DCC RESUME, blocking for its DCC ACCEPT reply (or
-// acceptTimeout, whichever comes first). ok is false if the bot never
-// replies at all, or replies for a different transfer - either way the
-// caller falls back to a fresh download.
-//
-// Known ceiling: the event listener this registers on client is never
-// removed - ircclient has no API for that (nothing else in this codebase
-// removes one either). One extra listener per resume attempt is negligible
-// for a session's lifetime; revisit if that ever stops being true.
 func requestResume(client *ircclient.Client, offer ircparse.XDCCSendOfferEvent, existing int64, acceptTimeout time.Duration) (position int64, ok bool) {
 	accepted := make(chan ircparse.XDCCResumeAcceptEvent, 1)
 	client.AddEventListener(func(event any) {
@@ -200,9 +144,6 @@ func requestResume(client *ircclient.Client, offer ircparse.XDCCSendOfferEvent, 
 		}
 	})
 
-	// Token only ever appears in a passive/reverse RESUME (matching a
-	// passive offer's own token) - an active offer never had one to echo
-	// back, and a trailing empty field could confuse a strict bot's parser.
 	resume := fmt.Sprintf("DCC RESUME %s %d %d", quoteIfSpaced(offer.Filename), offer.Port, existing)
 	if offer.Token != "" {
 		resume += " " + offer.Token
@@ -220,13 +161,6 @@ func requestResume(client *ircclient.Client, offer ircparse.XDCCSendOfferEvent, 
 	}
 }
 
-// runXDCCTransfer drives one accepted transfer to completion - registering
-// it (so Shutdown/XDCCClose can reach it), streaming bytes to disk from
-// base onward (0 for a fresh download, or however much of a partial file
-// openDestination resumed from), and reporting progress/completion/error.
-// It leaves whatever ends up on disk in place on failure rather than
-// deleting it - a future XDCCAccept for the same pack has something to
-// resume from (see openDestination) instead of starting over.
 func (b *Bouncer) runXDCCTransfer(id string, conn net.Conn, f *os.File, destPath string, base, size int64, sub Subscriber) {
 	t := &xdccTransfer{conn: conn, pause: dcc.NewPauseGate()}
 	b.dccMu.Lock()
@@ -258,12 +192,6 @@ func (b *Bouncer) runXDCCTransfer(id string, conn net.Conn, f *os.File, destPath
 	sub.SendEvent(id, XDCCTransferEvent{Type: "XDCCTRANSFER", Received: size, Total: size, Path: destPath, Done: true})
 }
 
-// XDCCClose cancels an in-progress transfer - a no-op if it's already gone
-// (finished or never started). Closing conn is enough: ReceiveFile's Read
-// unblocks with an error and runXDCCTransfer's own cleanup takes it from
-// there, same shutdown shape as DCCClose. Also resumes first - closing a
-// connection a PauseGate is currently blocking on wouldn't otherwise wake
-// ReceiveFile up to notice.
 func (b *Bouncer) XDCCClose(id string) error {
 	t := b.xdccTransfer(id)
 	if t == nil {
@@ -273,10 +201,6 @@ func (b *Bouncer) XDCCClose(id string) error {
 	return t.conn.Close()
 }
 
-// XDCCPause and XDCCResume pause/resume an in-progress transfer in place -
-// see dcc.PauseGate. Erroring on an unknown id (unlike XDCCClose's
-// already-gone no-op) because a pause/resume that silently did nothing
-// would leave the UI showing a state that never actually took effect.
 func (b *Bouncer) XDCCPause(id string) error {
 	t := b.xdccTransfer(id)
 	if t == nil {
@@ -301,9 +225,6 @@ func (b *Bouncer) xdccTransfer(id string) *xdccTransfer {
 	return b.xdccConns[id]
 }
 
-// closeAllXDCC aborts every still-running transfer - part of Shutdown, so
-// dolqd exiting doesn't leave one hanging (or, worse, a subscriber gone
-// with nothing left to ever report progress to).
 func (b *Bouncer) closeAllXDCC() {
 	b.dccMu.Lock()
 	transfers := make([]*xdccTransfer, 0, len(b.xdccConns))
@@ -312,16 +233,11 @@ func (b *Bouncer) closeAllXDCC() {
 	}
 	b.dccMu.Unlock()
 	for _, t := range transfers {
-		t.pause.Resume() // a paused transfer would otherwise never notice conn.Close and hang Shutdown's wait
+		t.pause.Resume()
 		t.conn.Close()
 	}
 }
 
-// safeFilename reduces an offer's announced filename to a bare base name -
-// the only thing it's ever trusted for. A bot naming its own pack is
-// unremarkable; a bot naming it "../../.ssh/authorized_keys" is a path-
-// traversal attempt this closes off entirely, the same way any filename
-// from an untrusted remote source has to be treated.
 func safeFilename(name string) string {
 	name = filepath.Base(name)
 	if name == "" || name == "." || name == ".." || name == string(filepath.Separator) {
@@ -330,10 +246,6 @@ func safeFilename(name string) string {
 	return name
 }
 
-// uniquePath returns dir/name, or dir/name (1), dir/name (2), etc. if that's
-// already taken - the same collision convention browsers use for downloads,
-// so accepting the same pack twice (or two packs a bot happens to name the
-// same thing) never clobbers an earlier one.
 func uniquePath(dir, name string) string {
 	path := filepath.Join(dir, name)
 	ext := filepath.Ext(name)
@@ -346,10 +258,6 @@ func uniquePath(dir, name string) string {
 	}
 }
 
-// quoteIfSpaced wraps name in double quotes if it contains a space - the
-// exact convention ParseSendOffer itself consumes on the way in (a plain
-// wrap, no escaping either side of it), so a passive reply announcing the
-// same filename back stays parseable by whatever's on the other end too.
 func quoteIfSpaced(name string) string {
 	if strings.ContainsRune(name, ' ') {
 		return `"` + name + `"`

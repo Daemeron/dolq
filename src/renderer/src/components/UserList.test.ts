@@ -1,6 +1,6 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
+import type { User } from '../types';
 import { toRows } from './UserList';
-import { User } from '../types';
 
 function user(nick: string, privileges: User['privileges']): User {
   return { nick, privileges };
@@ -8,15 +8,14 @@ function user(nick: string, privileges: User['privileges']): User {
 
 describe('toRows', () => {
   it('groups users under one header per privilege, ordered by rank', () => {
-    const rows = toRows([
-      user('alice', ['voice']),
-      user('bob', ['op']),
-      user('carol', []),
-    ]);
+    const rows = toRows([user('alice', ['voice']), user('bob', ['op']), user('carol', [])]);
     expect(rows.map((r) => (r.type === 'header' ? `#${r.privilege}` : r.user.nick))).toEqual([
-      '#op', 'bob',
-      '#voice', 'alice',
-      '#none', 'carol',
+      '#op',
+      'bob',
+      '#voice',
+      'alice',
+      '#none',
+      'carol',
     ]);
   });
 

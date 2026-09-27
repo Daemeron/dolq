@@ -1,70 +1,47 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import type { Message, Server } from './types';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { HistoryEntry, IrcEvent, Settings } from '../../shared/ipc';
-import { useStore, scopeKey } from './store';
-import { ServerList } from './components/ServerList';
 import { ChannelList } from './components/ChannelList';
-import { TopicBar } from './components/TopicBar';
-import { MessageArea } from './components/MessageArea';
-import { UserList } from './components/UserList';
-import { MessageInput } from './components/MessageInput';
-import { ConnectModal, parseList, type ConnectForm } from './components/ConnectModal';
-import { EditServerModal, type EditServerForm } from './components/EditServerModal';
-import { PreferencesModal } from './components/PreferencesModal';
-import { WhoisModal } from './components/WhoisModal';
-import { DCCOfferModal } from './components/DCCOfferModal';
-import { XDCCOfferModal } from './components/XDCCOfferModal';
-import { TransferStatus, type Transfer } from './components/TransferStatus';
-import { SearchModal } from './components/SearchModal';
-import { NickServIdentifyModal } from './components/NickServIdentifyModal';
-import { isNickServIdentifyPrompt } from './utils/nickserv';
-import { expandAlias } from './utils/aliases';
-import { UserPanel } from './components/UserPanel';
 import { ConnectionStatus } from './components/ConnectionStatus';
-import { buildServerId, normalizeHost, resolveHostPort } from './utils/server';
-import { mentionsNick } from './utils/mentions';
+import { type ConnectForm, ConnectModal, parseList } from './components/ConnectModal';
+import { DCCOfferModal } from './components/DCCOfferModal';
+import { type EditServerForm, EditServerModal } from './components/EditServerModal';
+import { MessageArea } from './components/MessageArea';
+import { MessageInput } from './components/MessageInput';
+import { NickServIdentifyModal } from './components/NickServIdentifyModal';
+import { PreferencesModal } from './components/PreferencesModal';
+import { SearchModal } from './components/SearchModal';
+import { ServerList } from './components/ServerList';
+import { TopicBar } from './components/TopicBar';
+import { type Transfer, TransferStatus } from './components/TransferStatus';
+import { UserList } from './components/UserList';
+import { UserPanel } from './components/UserPanel';
+import { WhoisModal } from './components/WhoisModal';
+import { XDCCOfferModal } from './components/XDCCOfferModal';
+import { scopeKey, useStore } from './store';
+import type { Message, Server } from './types';
+import { expandAlias } from './utils/aliases';
 import { formatEntry } from './utils/exportFormat';
 import { comboFromEvent } from './utils/keybind';
+import { mentionsNick } from './utils/mentions';
+import { isNickServIdentifyPrompt } from './utils/nickserv';
+import { buildServerId, normalizeHost, resolveHostPort } from './utils/server';
 
-// How many rows getHistory fetches per page - both for the initial preload
-// and each scroll-up-triggered older page. Also doubles as the "is there
-// more?" signal: fewer than this many back means we've hit the beginning.
 const HISTORY_PAGE_SIZE = 100;
 
-// An alias expanding to another (or, worse, back to itself) could recurse
-// forever - this is the ceiling, not a real limit anyone should hit with
-// normal aliases, just a guard against a self-inflicted infinite loop.
 const MAX_ALIAS_DEPTH = 8;
 
-// Preferences' Font Size, as Electron page-zoom factors (see the fontSize
-// effect above) - modest values, not a browser tab's full zoom range, so
-// "large" doesn't start clipping the sidebar's fixed-width panels.
 const FONT_SIZE_ZOOM: Record<'small' | 'medium' | 'large', number> = {
   small: 0.9,
   medium: 1,
   large: 1.15,
 };
 
-// Preferences' Font Family presets - 'system' is exactly index.css's own
-// default stack (see :root there), so picking it back after trying another
-// preset looks identical to never having changed it at all.
 const FONT_FAMILY_STACKS: Record<'system' | 'serif' | 'monospace', string> = {
   system: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
   serif: "Georgia, 'Times New Roman', Times, serif",
   monospace: "'JetBrains Mono', 'Fira Code', 'Courier New', monospace",
 };
 
-// The backend persists every raw line and every parsed event, not just
-// what's renderable today - same as the live onLine/onEvent handlers below,
-// only PRIVMSG/ACTION/NOTICE (and raw lines, for the Log channel) currently
-// become a Message. Add a case here (and in the matching onEvent switch
-// below) as more event types grow their own scrollback rendering.
-//
-// A private (non-channel) NOTICE is deliberately skipped here: it buckets
-// into the same "__log__" history as raw lines (see bouncer.eventChannel),
-// which already contains the raw NOTICE line itself - rendering the parsed
-// event too would show it twice. Channel notices bucket separately, so no
-// such overlap there.
 function toMessages(entries: HistoryEntry[]): Message[] {
   const messages: Message[] = [];
   for (const e of entries) {
@@ -80,7 +57,11 @@ function toMessages(entries: HistoryEntry[]): Message[] {
     } else if (e.event?.type === 'XDCCPACK') {
       const p = e.event;
       messages.push({
-        id: e.id, nick: p.nick, timestamp, xdccPack: true, xdccPackNumber: p.number,
+        id: e.id,
+        nick: p.nick,
+        timestamp,
+        xdccPack: true,
+        xdccPackNumber: p.number,
         text: `#${p.number} · ${p.gets}x sent · ${p.size} · ${p.filename}`,
       });
     }
@@ -88,24 +69,14 @@ function toMessages(entries: HistoryEntry[]): Message[] {
   return messages;
 }
 
-// Per-channel scrollback paging state - bookkeeping, not render state, so
-// it lives outside the (unpersisted) store like historyLoaded did before it.
 type HistoryPage = { oldestId: number | null; exhausted: boolean; loading: boolean };
 
-// Which full-page view <main> shows instead of the chat panel. Preferences
-// and Add/Edit Server used to be `fixed inset-0` popups (ConnectModal/
-// EditServerModal/PreferencesModal, still real modals in name and in their
-// own internals - they just render via ViewPanel now instead of a backdrop);
-// now they replace the chat panel itself (TopicBar/MessageArea/MessageInput/
-// user list) while the server rail and channel list stay live beside them -
-// there's no backdrop click to back out with anymore, so selecting any
-// channel/server (handleSelectServer/handleSelectChannel below) is what
-// actually navigates back to 'chat', on top of each view's own Cancel/✕.
-type MainView = { kind: 'chat' } | { kind: 'connect' } | { kind: 'preferences' } | { kind: 'editServer'; serverId: string };
+type MainView =
+  | { kind: 'chat' }
+  | { kind: 'connect' }
+  | { kind: 'preferences' }
+  | { kind: 'editServer'; serverId: string };
 
-// Electron's renderer implements the standard web Notification API directly
-// - no IPC/main-process round trip needed. Guarded by typeof in case it's
-// ever unavailable (e.g. a future headless/test environment).
 function notify(title: string, body: string, onClick: () => void): void {
   if (typeof Notification === 'undefined') return;
   const n = new Notification(title, { body });
@@ -114,57 +85,100 @@ function notify(title: string, body: string, onClick: () => void): void {
 
 export default function App() {
   const {
-    servers, presets, channelMap, messageMap, userMap, nickMap, saslMap,
-    selectedServerId, selectedChannelId, statusMap, mentionedChannels, notificationsEnabled, soundAlertsEnabled, mutedChannels,
-    timestampFormat, messageDensity, fontSize, fontFamily, theme, ignoredNicks, selfAwayMap, aliases, keybindings,
-    addServer, removeServer, addPreset, addChannel, removeChannel, setChannelJoined, setTopic, setTopicWhoTime, appendMessage, setHistory, setNick, setSaslCreds,
-    selectServer, selectChannel, setConnectionStatus, setUsers, addUser, removeUser, removeUserEverywhere,
-    renameUserEverywhere, applyModeChanges, markMentioned, toggleMuteChannel, setNotificationsEnabled, setSoundAlertsEnabled, setTimestampFormat,
-    setMessageDensity, setFontSize, setFontFamily, setTheme, addIgnore, removeIgnore, applyAwayEverywhere, setSelfAway, setAlias, removeAlias, setKeybinding,
-    setServerColor, updateServer,
+    servers,
+    presets,
+    channelMap,
+    messageMap,
+    userMap,
+    nickMap,
+    saslMap,
+    selectedServerId,
+    selectedChannelId,
+    statusMap,
+    mentionedChannels,
+    lastReadMap,
+    notificationsEnabled,
+    soundAlertsEnabled,
+    mutedChannels,
+    timestampFormat,
+    messageDensity,
+    fontSize,
+    fontFamily,
+    theme,
+    ignoredNicks,
+    selfAwayMap,
+    aliases,
+    keybindings,
+    addServer,
+    removeServer,
+    addPreset,
+    addChannel,
+    removeChannel,
+    setChannelJoined,
+    setTopic,
+    setTopicWhoTime,
+    appendMessage,
+    setHistory,
+    setNick,
+    setSaslCreds,
+    selectServer,
+    selectChannel,
+    setConnectionStatus,
+    setUsers,
+    addUser,
+    removeUser,
+    removeUserEverywhere,
+    renameUserEverywhere,
+    applyModeChanges,
+    markMentioned,
+    markRead,
+    toggleMuteChannel,
+    setNotificationsEnabled,
+    setSoundAlertsEnabled,
+    setTimestampFormat,
+    setMessageDensity,
+    setFontSize,
+    setFontFamily,
+    setTheme,
+    addIgnore,
+    removeIgnore,
+    applyAwayEverywhere,
+    setSelfAway,
+    setAlias,
+    removeAlias,
+    setKeybinding,
+    setServerColor,
+    updateServer,
   } = useStore();
 
   const [view, setView] = useState<MainView>({ kind: 'chat' });
-  // Prefill for the connect form from a clicked irc(s):// link (see the
-  // onOpenIrcUrl effect below) - null opens the form with its plain
-  // defaults, same as clicking "Add a Server" normally does.
-  const [connectPrefill, setConnectPrefill] = useState<
-    { host: string; port: number; secure: boolean; channel?: string } | null
-  >(null);
+  const [connectPrefill, setConnectPrefill] = useState<{
+    host: string;
+    port: number;
+    secure: boolean;
+    channel?: string;
+  } | null>(null);
   const [showSearch, setShowSearch] = useState(false);
-  // Not in the zustand store: unlike everything else there, these belong to
-  // the main process (not per-server, and read from disk before the
-  // renderer even exists - see src/main/settings.ts), so the renderer just
-  // mirrors whatever it last fetched/saved rather than owning them.
   const [settings, setSettingsState] = useState<Settings>({ retentionDays: 0 });
-  // The nick a WHOIS is currently open for (drives the modal, and matches
-  // against incoming 'whois' events - see the onEvent switch below);
-  // whoisResult stays null until that reply actually arrives.
   const [whoisNick, setWhoisNick] = useState<string | null>(null);
   const [whoisResult, setWhoisResult] = useState<Extract<IrcEvent, { type: 'whois' }> | null>(null);
-  // An incoming DCC CHAT offer awaiting accept/decline - see the
-  // DCCCHATOFFER case below and DCCOfferModal.
-  const [pendingDCCOffer, setPendingDCCOffer] = useState<{ serverId: string; nick: string; ip: string; port: number } | null>(null);
-  // An incoming DCC SEND offer (an XDCC bot answering "XDCC SEND #n")
-  // awaiting accept/decline - same reasoning as pendingDCCOffer, a file
-  // transfer connects straight to the sender's address too.
-  const [pendingXDCCOffer, setPendingXDCCOffer] = useState<
-    { serverId: string; nick: string; filename: string; ip: string; port: number; size: number; token?: string } | null
-  >(null);
-  // Transfers xdccAccept has started, keyed by its own id - not a channel,
-  // just the transfer manager's own queue (see TransferStatus and the
-  // XDCCTRANSFER case below). Kept around (not deleted) once done/errored,
-  // until the user dismisses it - see handleDismissTransfer.
-  const [transfers, setTransfers] = useState<
-    Record<string, Transfer & { serverId: string; path: string }>
-  >({});
-  // Per-transfer bookkeeping for the speed shown in TransferStatus - not
-  // render state itself (nothing reads it directly), just what the next
-  // XDCCTRANSFER needs to compute a bytes/sec delta against. A ref, not
-  // state, so updating it doesn't itself trigger a re-render.
+  const [pendingDCCOffer, setPendingDCCOffer] = useState<{
+    serverId: string;
+    nick: string;
+    ip: string;
+    port: number;
+  } | null>(null);
+  const [pendingXDCCOffer, setPendingXDCCOffer] = useState<{
+    serverId: string;
+    nick: string;
+    filename: string;
+    ip: string;
+    port: number;
+    size: number;
+    token?: string;
+  } | null>(null);
+  const [transfers, setTransfers] = useState<Record<string, Transfer & { serverId: string; path: string }>>({});
   const transferSpeedTrack = useRef<Record<string, { received: number; at: number }>>({});
-  // The server a NickServ identify prompt (see utils/nickserv.ts) most
-  // recently arrived on, if it hasn't been dismissed/actioned yet.
   const [pendingIdentifyServerId, setPendingIdentifyServerId] = useState<string | null>(null);
   const nextMsgId = useRef(Date.now());
   const historyPages = useRef(new Map<string, HistoryPage>());
@@ -173,43 +187,28 @@ export default function App() {
     window.irc.getSettings().then(setSettingsState);
   }, []);
 
-  // Reflects unread-mention count on the dock icon (see main/index.ts's
-  // tray/setBadgeCount handler). mentionedChannels is the only "unread"-
-  // shaped signal this app tracks at all, so the badge just mirrors its
-  // size rather than a separate count kept only for this.
   useEffect(() => {
     window.irc.setBadgeCount(Object.keys(mentionedChannels).length);
   }, [mentionedChannels]);
 
-  // Preferences' Font Size - see store.ts's fontSize doc for why this is a
-  // whole-window zoom rather than a CSS font-size.
   useEffect(() => {
     window.irc.setZoomFactor(FONT_SIZE_ZOOM[fontSize]);
   }, [fontSize]);
 
-  // Preferences' Font Family - a plain CSS custom property (see index.css),
-  // unlike fontSize this doesn't need main-process involvement at all.
   useEffect(() => {
     document.documentElement.style.setProperty('--dolq-font-family', FONT_FAMILY_STACKS[fontFamily]);
   }, [fontFamily]);
 
-  // Preferences' Light theme - index.css's :root[data-theme='light'] does
-  // the actual color swap, this just sets/clears the attribute driving it.
   useEffect(() => {
     if (theme === 'light') document.documentElement.setAttribute('data-theme', 'light');
     else document.documentElement.removeAttribute('data-theme');
   }, [theme]);
 
-  // Preferences' keybinding customization - global shortcuts for channel
-  // navigation/close/mute. comboFromEvent (utils/keybind.ts) requires a
-  // modifier key, so this never intercepts plain typing in the message box.
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       const combo = comboFromEvent(e);
       if (!combo) return;
-      const action = (Object.keys(keybindings) as (keyof typeof keybindings)[]).find(
-        (a) => keybindings[a] === combo,
-      );
+      const action = (Object.keys(keybindings) as (keyof typeof keybindings)[]).find((a) => keybindings[a] === combo);
       if (!action) return;
       const list = channelMap[selectedServerId] ?? [];
       if (list.length === 0) return;
@@ -234,7 +233,15 @@ export default function App() {
     }
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [keybindings, channelMap, userMap, nickMap, selectedServerId, selectedChannelId, selectChannel, toggleMuteChannel]);
+  }, [
+    keybindings,
+    channelMap,
+    selectedServerId,
+    selectedChannelId,
+    toggleMuteChannel,
+    handleSelectChannel,
+    handleRemoveChannel,
+  ]);
 
   async function handleSavePreferences(next: Settings) {
     await window.irc.setSettings(next);
@@ -242,12 +249,6 @@ export default function App() {
     setView({ kind: 'chat' });
   }
 
-  // The only way App.tsx ever selects a server/channel, so "go look at
-  // this" and "leave whatever full-page view is open" (Preferences, Add/
-  // Edit Server - see MainView's doc) are always the same action, whether
-  // the selection came from the sidebar, a mention notification, a fresh
-  // JOIN, or finishing one of those views. Setting 'chat' when it's already
-  // 'chat' is a harmless no-op re-render.
   function handleSelectServer(id: string) {
     setView({ kind: 'chat' });
     selectServer(id);
@@ -255,23 +256,15 @@ export default function App() {
 
   function handleSelectChannel(id: string) {
     setView({ kind: 'chat' });
+    markRead(scopeKey(useStore.getState().selectedServerId, id));
     selectChannel(id);
   }
 
-  // Both the initial preload and loadOlderHistory below need the bare
-  // '__log__' key the backend stores raw lines under - the "__log__" suffix
-  // is only ever added to the messageMap/UI-facing channel id.
   function backendChannelFor(serverId: string, channelId: string): string {
     const channel = channelMap[serverId]?.find((c) => c.id === channelId);
     return channel?.isLog ? '__log__' : channelId;
   }
 
-  // ConnectModal's "pick a preset -> prefill last-used nick" convenience
-  // needs a preset (host:port)-keyed map, but nickMap is keyed by identity
-  // (Server.id) - not the same thing since a preset's network can now have
-  // more than one identity/id pointing at it. Rebuilt from whichever
-  // identity happens to be last in `servers` for that network, a fine tie-
-  // break for what's just a form-prefill convenience.
   function presetNickMap(): Record<string, string> {
     const map: Record<string, string> = {};
     for (const s of servers) {
@@ -286,11 +279,6 @@ export default function App() {
     return window.irc.onStatus((serverId, status) => setConnectionStatus(serverId, status));
   }, [setConnectionStatus]);
 
-  // A clicked irc(s):// link (see main/index.ts's handleIrcUrl/parseIrcUrl)
-  // opens the same "Add a Server" form a manual click would, just pre-
-  // filled - connecting from it is still the user's own explicit action,
-  // same "don't auto-connect to an address you didn't choose" posture as
-  // accepting a DCC/XDCC offer.
   useEffect(() => {
     return window.irc.onOpenIrcUrl((prefill) => {
       setConnectPrefill(prefill);
@@ -298,35 +286,10 @@ export default function App() {
     });
   }, []);
 
-  // The macOS app menu's "Dolq > Preferences…" (Cmd+,) - same view the
-  // sidebar's gear icon already opens, see main/index.ts's createAppMenu.
   useEffect(() => {
     return window.irc.onOpenPreferences(() => setView({ kind: 'preferences' }));
   }, []);
 
-  // statusMap AND userMap aren't persisted, so both reset to empty on any
-  // renderer-only reload (e.g. dev-mode HMR) even though the main process's live
-  // connections (and their joined channels) survive it untouched. Reconcile once
-  // hydration finishes: for a channel we're actually still in, re-request NAMES so
-  // the existing 353/366 pipeline repopulates its user list; for one we're not
-  // (e.g. a KICK/PART that happened while no renderer was listening to update
-  // Channel.joined live), explicitly mark it left - unlike the old userMap-based
-  // "joined" check this replaced, an explicit field doesn't self-correct just by
-  // being empty, so this has to say so itself. Reading via getState() (not the
-  // destructured `servers`) matters
-  // because persist rehydration is always async, even with synchronous
-  // localStorage - a `[]`-deps effect fires before it resolves, so the closed-over
-  // `servers` would still be the pre-hydration empty array.
-  //
-  // A genuine app restart (as opposed to a renderer-only reload) means dolqd
-  // itself is a fresh process with no sessions at all, so getStatus comes back
-  // 'disconnected' for every server regardless of whether it was connected when
-  // the app last quit - `before-quit` PARTs/QUITs everything on the way out,
-  // there's nothing left to reconcile against. Rather than add a persisted
-  // "was connected" flag just to tell that apart from a server that was never
-  // successfully connected, auto-reconnect treats every configured server the
-  // same way a fresh launch of most IRC clients does: dial them all, same as
-  // clicking Connect would.
   useEffect(() => {
     async function reconcile() {
       const { servers, channelMap } = useStore.getState();
@@ -347,9 +310,6 @@ export default function App() {
         try {
           await connectServer(s);
         } catch {
-          // Same failure a manual Connect click can hit (bad host, network
-          // down) - leave it 'disconnected' so the user can retry, and don't
-          // let it stop the rest of servers from being attempted.
           setConnectionStatus(s.id, 'disconnected');
         }
       }
@@ -359,12 +319,8 @@ export default function App() {
       return;
     }
     return useStore.persist.onFinishHydration(reconcile);
-  }, [setConnectionStatus, setChannelJoined]);
+  }, [setConnectionStatus, setChannelJoined, connectServer]);
 
-  // A DCC session's channel lives under whichever server initiated/accepted
-  // it (see handleDCCOffer/handleAcceptDCC), keyed by its dccId same as any
-  // other channel - this just has to search every server's list to find it,
-  // since a raw onLine callback isn't given which one.
   function dccPeerNick(dccId: string): string {
     for (const channels of Object.values(channelMap)) {
       const ch = channels.find((c) => c.id === dccId);
@@ -375,15 +331,12 @@ export default function App() {
 
   useEffect(() => {
     return window.irc.onLine((serverId, line) => {
-      // A DCC CHAT session (see the ROADMAP note) isn't a real serverId -
-      // its lines are the chat itself, not raw IRC protocol traffic to
-      // stash in a Log bucket, so they go straight into the session's own
-      // channel instead.
-      // Already globally unique (dcc:<uuid>), not a real serverId to scope
-      // against - see this callback's own doc above.
       if (serverId.startsWith('dcc:')) {
         appendMessage(serverId, {
-          id: nextMsgId.current++, nick: dccPeerNick(serverId), text: line, timestamp: new Date(),
+          id: nextMsgId.current++,
+          nick: dccPeerNick(serverId),
+          text: line,
+          timestamp: new Date(),
         });
         return;
       }
@@ -397,34 +350,20 @@ export default function App() {
       };
       appendMessage(key, msg);
     });
-  }, [appendMessage, channelMap]);
+  }, [appendMessage, dccPeerNick]);
 
-  // Opens a query with `nick` if one isn't already open - there's no
-  // protocol-level "start a DM" beyond just sending/receiving a PRIVMSG, so
-  // this only touches local state.
   function ensureQuery(serverId: string, nick: string) {
     if (!(channelMap[serverId] ?? []).some((c) => c.id === nick)) {
       addChannel(serverId, { id: nick, name: nick, isLog: false, isQuery: true });
     }
   }
 
-  // A non-channel PRIVMSG/ACTION target is always our own nick (that's the
-  // only way we'd ever receive one) - bucket those by sender instead so both
-  // directions of a DM land in the same query, auto-opening it like a
-  // channel auto-joins on JOIN. Doesn't steal focus, unlike JOIN, since
-  // receiving a DM isn't something we did.
   function dmKey(serverId: string, target: string, nick: string): string {
     if (target.startsWith('#')) return target;
     ensureQuery(serverId, nick);
     return nick;
   }
 
-  // Own-nick mention in a channel (not a query - see the ROADMAP note)
-  // you're not currently looking at: highlights it in the sidebar
-  // (markMentioned, cleared on selecting it - see store.ts) and, if enabled,
-  // fires a desktop notification that jumps you straight there. A muted
-  // channel (see toggleMuteChannel) skips both - not just the notification -
-  // same as Discord's own mute suppressing the unread highlight too.
   function checkMention(serverId: string, channelId: string, target: string, text: string) {
     if (!target.startsWith('#') || channelId === selectedChannelId || mutedChannels[channelId]) return;
     if (!mentionsNick(text, nickMap[serverId])) return;
@@ -435,15 +374,9 @@ export default function App() {
         handleSelectChannel(channelId);
       });
     }
-    // A separate toggle from notificationsEnabled (see store.ts's doc) -
-    // same trigger, independent on/off.
     if (soundAlertsEnabled) window.irc.playAlertSound();
   }
 
-  // A message never even reaches dmKey - an ignored nick DMing you doesn't
-  // pop open a new query either. Scoped to actual chat content (PRIVMSG/
-  // ACTION/NOTICE), not JOIN/PART/QUIT/etc. - "ignore" here means "stop
-  // showing me what they say", not "pretend they don't exist".
   function isIgnored(serverId: string, nick: string): boolean {
     return (ignoredNicks[serverId] ?? []).includes(nick);
   }
@@ -454,7 +387,12 @@ export default function App() {
         case 'PRIVMSG': {
           if (isIgnored(serverId, event.nick)) break;
           const key = dmKey(serverId, event.target, event.nick);
-          appendMessage(scopeKey(serverId, key), { id: nextMsgId.current++, nick: event.nick, text: event.text, timestamp: new Date() });
+          appendMessage(scopeKey(serverId, key), {
+            id: nextMsgId.current++,
+            nick: event.nick,
+            text: event.text,
+            timestamp: new Date(),
+          });
           checkMention(serverId, key, event.target, event.text);
           break;
         }
@@ -462,19 +400,23 @@ export default function App() {
           if (isIgnored(serverId, event.nick)) break;
           const key = dmKey(serverId, event.target, event.nick);
           appendMessage(scopeKey(serverId, key), {
-            id: nextMsgId.current++, nick: event.nick, text: event.text, timestamp: new Date(), action: true,
+            id: nextMsgId.current++,
+            nick: event.nick,
+            text: event.text,
+            timestamp: new Date(),
+            action: true,
           });
           checkMention(serverId, key, event.target, event.text);
           break;
         }
         case 'NOTICE':
-          // A private NOTICE isn't routed anywhere here - it already shows
-          // up as a raw line in the Log (onLine above), same as before this
-          // was parsed at all. Only channel notices get the nicer per-channel
-          // rendering, same reasoning as toMessages above.
           if (event.target.startsWith('#') && !isIgnored(serverId, event.nick)) {
             appendMessage(scopeKey(serverId, event.target), {
-              id: nextMsgId.current++, nick: event.nick, text: event.text, timestamp: new Date(), notice: true,
+              id: nextMsgId.current++,
+              nick: event.nick,
+              text: event.text,
+              timestamp: new Date(),
+              notice: true,
             });
           }
           if (isNickServIdentifyPrompt(event.nick, event.text)) {
@@ -482,9 +424,6 @@ export default function App() {
           }
           break;
         case 'XDCCPACK': {
-          // Unlike a private NOTICE, this is worth surfacing somewhere
-          // findable - the whole point of parsing it - so route it the same
-          // way a DM would land: the bot's own query, auto-opened if needed.
           if (isIgnored(serverId, event.nick)) break;
           const key = dmKey(serverId, event.target, event.nick);
           appendMessage(scopeKey(serverId, key), {
@@ -499,10 +438,6 @@ export default function App() {
         }
         case 'JOIN':
           if (event.nick === nickMap[serverId]) {
-            // addChannel is a no-op if this channel is already in the
-            // sidebar (a rejoin of one we'd left, still shown grayed out) -
-            // setChannelJoined still has to run either way, or a rejoin
-            // would stay stuck looking left.
             addChannel(serverId, { id: event.channel, name: event.channel.slice(1), isLog: false });
             setChannelJoined(serverId, event.channel, true);
             selectChannel(event.channel);
@@ -532,27 +467,26 @@ export default function App() {
           break;
         case 'NICK':
           renameUserEverywhere(event.oldNick, event.newNick);
-          // Our own nick, not just someone else's in a shared channel's user
-          // list - nickMap is what JOIN/KICK above compare against to tell
-          // "us" from "someone else", and what UserPanel displays.
           if (event.oldNick === nickMap[serverId]) setNick(serverId, event.newNick);
           break;
         case 'WELCOME':
-          // Authoritative: the nick we asked for at connect time might not
-          // be the one that actually got registered (see NICKINUSE below).
           setNick(serverId, event.nick);
-          // Registration just completed - now's the only time to autojoin,
-          // there's nothing else that marks "freshly (re)connected".
-          servers.find((s) => s.id === serverId)?.autojoinChannels?.forEach((ch) =>
-            window.irc.sendLine(serverId, `JOIN ${ch}`),
-          );
+          servers
+            .find((s) => s.id === serverId)
+            ?.autojoinChannels?.forEach((ch) => {
+              window.irc.sendLine(serverId, `JOIN ${ch}`);
+            });
           break;
         case 'NICKINUSE': {
           const text = event.retrying
             ? `Nickname "${event.nick}" is already in use - trying "${event.retrying}" instead.`
             : `Nickname "${event.nick}" is already in use.`;
           appendMessage(`${serverId}:__log__`, {
-            id: nextMsgId.current++, nick: '', text, timestamp: new Date(), system: true,
+            id: nextMsgId.current++,
+            nick: '',
+            text,
+            timestamp: new Date(),
+            system: true,
           });
           break;
         }
@@ -564,8 +498,6 @@ export default function App() {
           break;
         case 'TOPIC':
           setTopic(serverId, event.channel, event.topic);
-          // A live change (unlike the 332 numeric on join) carries who did it -
-          // servers don't follow up with a 333 for this, so record it here too.
           if (event.nick) setTopicWhoTime(serverId, event.channel, event.nick, new Date());
           break;
         case 'TOPICWHOTIME':
@@ -575,32 +507,48 @@ export default function App() {
           if (event.nick === whoisNick) setWhoisResult(event);
           break;
         case 'DCCCHATOFFER':
-          // Last offer wins if more than one arrives before this is
-          // resolved - a real edge case, not worth a queue for.
           setPendingDCCOffer({ serverId, nick: event.nick, ip: event.ip, port: event.port });
           break;
         case 'XDCCSENDOFFER':
           setPendingXDCCOffer({
-            serverId, nick: event.nick, filename: event.filename, ip: event.ip, port: event.port,
-            size: event.size, token: event.token,
+            serverId,
+            nick: event.nick,
+            filename: event.filename,
+            ip: event.ip,
+            port: event.port,
+            size: event.size,
+            token: event.token,
           });
           break;
         case 'XDCCTRANSFER': {
-          // serverId here is really the xdccAccept-returned transfer id
-          // (see xdccAccept's doc) - onEvent is generic over "some id" the
-          // same way onLine/onStatus already are for DCC CHAT.
           const id = serverId;
           if (event.done || event.error) {
             delete transferSpeedTrack.current[id];
             setTransfers((prev) => {
               const t = prev[id];
-              if (!t) return prev; // dismissed/cancelled locally already
+              if (!t) return prev;
               const text = event.error
                 ? `Download of ${t.filename} failed: ${event.error}`
                 : `Downloaded ${t.filename} to ${event.path}`;
               ensureQuery(t.serverId, t.nick);
-              appendMessage(scopeKey(t.serverId, t.nick), { id: nextMsgId.current++, nick: '', text, timestamp: new Date(), system: true });
-              return { ...prev, [id]: { ...t, received: event.received, total: event.total, path: event.path, done: event.done, error: event.error } };
+              appendMessage(scopeKey(t.serverId, t.nick), {
+                id: nextMsgId.current++,
+                nick: '',
+                text,
+                timestamp: new Date(),
+                system: true,
+              });
+              return {
+                ...prev,
+                [id]: {
+                  ...t,
+                  received: event.received,
+                  total: event.total,
+                  path: event.path,
+                  done: event.done,
+                  error: event.error,
+                },
+              };
             });
             break;
           }
@@ -612,7 +560,10 @@ export default function App() {
           setTransfers((prev) => {
             const t = prev[id];
             if (!t) return prev;
-            return { ...prev, [id]: { ...t, received: event.received, total: event.total, speedBps: speedBps ?? t.speedBps } };
+            return {
+              ...prev,
+              [id]: { ...t, received: event.received, total: event.total, speedBps: speedBps ?? t.speedBps },
+            };
           });
           break;
         }
@@ -625,15 +576,30 @@ export default function App() {
       }
     });
   }, [
-    appendMessage, addChannel, selectChannel, addUser, removeUser,
-    removeUserEverywhere, renameUserEverywhere, applyModeChanges, setUsers, setTopic, setTopicWhoTime, nickMap,
-    channelMap, setNick, servers, selectedChannelId, selectServer, markMentioned, notificationsEnabled, soundAlertsEnabled, mutedChannels,
-    whoisNick, ignoredNicks, applyAwayEverywhere, setSelfAway,
+    appendMessage,
+    addChannel,
+    selectChannel,
+    addUser,
+    removeUser,
+    removeUserEverywhere,
+    renameUserEverywhere,
+    applyModeChanges,
+    setUsers,
+    setTopic,
+    setTopicWhoTime,
+    nickMap,
+    setNick,
+    servers,
+    whoisNick,
+    applyAwayEverywhere,
+    setSelfAway,
+    isIgnored,
+    dmKey,
+    ensureQuery,
+    setChannelJoined,
+    checkMention,
   ]);
 
-  // Preload scrollback the first time a channel is actually opened - once
-  // per channel per session, tracked outside the (unpersisted) store so it
-  // survives messageMap already being seeded to [] at channel-creation time.
   useEffect(() => {
     if (!selectedServerId) return;
     const key = scopeKey(selectedServerId, selectedChannelId);
@@ -649,11 +615,8 @@ export default function App() {
       const messages = toMessages(entries);
       if (messages.length > 0) setHistory(key, messages);
     });
-  }, [selectedServerId, selectedChannelId, channelMap, setHistory]);
+  }, [selectedServerId, selectedChannelId, setHistory, backendChannelFor]);
 
-  // Scroll-up-to-load-older, wired into MessageArea's onScroll. Paged
-  // backwards via the oldest row id we've fetched so far for this channel;
-  // a no-op while a page is already in flight or we've hit the beginning.
   const loadOlderHistory = useCallback(() => {
     const key = scopeKey(selectedServerId, selectedChannelId);
     const page = historyPages.current.get(key);
@@ -668,52 +631,51 @@ export default function App() {
       const messages = toMessages(entries);
       if (messages.length > 0) setHistory(key, messages);
     });
-  }, [selectedServerId, selectedChannelId, channelMap, setHistory]);
+  }, [selectedServerId, selectedChannelId, setHistory, backendChannelFor]);
 
   async function handleConnect(form: ConnectForm) {
-    // Freshly generated, not derived from host:port - see types.ts's
-    // Server.id doc. Multiple identities on the same network end up as
-    // multiple Server entries with different ids, all pointing at the same
-    // host/port; nickMap/saslMap/channelMap/etc. are already keyed by id,
-    // so they naturally stay per-identity without any further change.
     const id = crypto.randomUUID();
     const host = normalizeHost(form.host);
     const port = Number(form.port);
     const altNicks = parseList(form.altNicks);
     const autojoinChannels = parseList(form.autojoinChannels);
-    // A picked preset always fills this in, but a manually-typed host with
-    // no name given (Name has no default anymore - see ConnectModal's
-    // DEFAULTS) would otherwise leave the server unnamed in the rail.
     const name = form.name.trim() || host;
     addServer(
       {
-        id, name, initial: name[0]?.toUpperCase() ?? '?', secure: form.secure, host, port,
-        altNicks, username: form.username || undefined, realname: form.realname || undefined, autojoinChannels,
+        id,
+        name,
+        initial: name[0]?.toUpperCase() ?? '?',
+        secure: form.secure,
+        host,
+        port,
+        altNicks,
+        username: form.username || undefined,
+        realname: form.realname || undefined,
+        autojoinChannels,
       },
       { id: `${id}:__log__`, name: 'Log', isLog: true },
     );
-    // Unlike id, still host:port - the preset list is "networks you've
-    // connected to before", deduped per-network regardless of how many
-    // identities you've since added for one (see addPreset in store.ts).
     addPreset({ id: buildServerId(host, port), name, host, port, secure: form.secure });
     setNick(id, form.nick);
     setSaslCreds(id, form.saslUser, form.saslPass);
     setConnectionStatus(id, 'connecting');
     await window.irc.connect(
-      id, host, port, form.nick, form.secure, form.saslUser, form.saslPass,
-      form.username, form.realname, altNicks,
+      id,
+      host,
+      port,
+      form.nick,
+      form.secure,
+      form.saslUser,
+      form.saslPass,
+      form.username,
+      form.realname,
+      altNicks,
     );
     setConnectionStatus(id, 'connected');
     handleSelectServer(id);
     setConnectPrefill(null);
   }
 
-  // Saves the "Edit Server" modal - name/host/port/secure/altNicks/username/
-  // realname/autojoinChannels live on the Server object itself (updateServer),
-  // nick/SASL creds through their own existing per-server maps (setNick/
-  // setSaslCreds), same split handleConnect already uses for a brand new
-  // server. Doesn't touch the live connection at all - see the modal's own
-  // copy explaining that host/port/SSL/nick take effect on the next connect.
   function handleEditServer(id: string, form: EditServerForm) {
     const host = normalizeHost(form.host);
     const port = Number(form.port);
@@ -721,18 +683,21 @@ export default function App() {
     const autojoinChannels = parseList(form.autojoinChannels);
     const name = form.name.trim() || host;
     updateServer(id, {
-      name, initial: name[0]?.toUpperCase() ?? '?', host, port, secure: form.secure,
-      altNicks, username: form.username || undefined, realname: form.realname || undefined, autojoinChannels,
+      name,
+      initial: name[0]?.toUpperCase() ?? '?',
+      host,
+      port,
+      secure: form.secure,
+      altNicks,
+      username: form.username || undefined,
+      realname: form.realname || undefined,
+      autojoinChannels,
     });
     setNick(id, form.nick);
     setSaslCreds(id, form.saslUser, form.saslPass);
     setView({ kind: 'chat' });
   }
 
-  // Shared by the manual "Connect" button (connectToServer) and the
-  // reconcile-on-hydration auto-reconnect above. Reads nick/SASL via
-  // getState() rather than the destructured nickMap/saslMap for the same
-  // reason reconcile does - it can run before a post-hydration re-render.
   async function connectServer(server: Server) {
     const { host, port } = resolveHostPort(server);
     const { nickMap, saslMap } = useStore.getState();
@@ -740,8 +705,16 @@ export default function App() {
     const sasl = saslMap[server.id];
     setConnectionStatus(server.id, 'connecting');
     await window.irc.connect(
-      server.id, host, port, nick, server.secure, sasl?.user, sasl?.pass,
-      server.username, server.realname, server.altNicks,
+      server.id,
+      host,
+      port,
+      nick,
+      server.secure,
+      sasl?.user,
+      sasl?.pass,
+      server.username,
+      server.realname,
+      server.altNicks,
     );
     setConnectionStatus(server.id, 'connected');
   }
@@ -777,11 +750,6 @@ export default function App() {
     if (channel?.isDCC) {
       await window.irc.dccClose(channelId);
     } else {
-      // A query has no `joined` at all (see types.ts's doc) - never PART a
-      // nick. A real channel defaults to joined unless a PART/KICK already
-      // said otherwise (see setChannelJoined), not to whatever NAMES
-      // happened to have reported by the time this runs - that raced a
-      // fresh join's own NAMES reply and could skip the PART entirely.
       if (channel && !channel.isQuery && channel.joined !== false) {
         await window.irc.sendLine(selectedServerId, `PART ${channelId}`);
       }
@@ -808,10 +776,6 @@ export default function App() {
     }
   }
 
-  // Offers a DCC CHAT to nick over the currently selected server - opens
-  // (and switches to) its channel right away, in the "connecting" status
-  // getStatus/onStatus already report generically; see dccPeerNick for how
-  // its lines find their way back to it.
   async function handleDCCOffer(nick: string) {
     const id = await window.irc.dccOffer(selectedServerId, nick);
     addChannel(selectedServerId, { id, name: nick, isLog: false, isQuery: true, isDCC: true });
@@ -832,17 +796,10 @@ export default function App() {
     setPendingDCCOffer(null);
   }
 
-  // Requesting a pack is just the bot's own convention over plain PRIVMSG -
-  // the reply (an XDCCSENDOFFER, if the bot answers at all) is what
-  // actually needs handling, above.
   function handleGetPack(nick: string, packNumber: number) {
     window.irc.sendLine(selectedServerId, `PRIVMSG ${nick} :XDCC SEND #${packNumber}`);
   }
 
-  // Same request, for a pack a global search hit turned up (see
-  // SearchModal's "Packs only" filter) - unlike handleGetPack, serverId
-  // isn't necessarily the currently selected one, so this also switches to
-  // it and opens the bot's query first, same as accepting an offer does.
   function handleGetPackFrom(serverId: string, nick: string, packNumber: number) {
     ensureQuery(serverId, nick);
     handleSelectServer(serverId);
@@ -872,9 +829,6 @@ export default function App() {
     });
   }
 
-  // Dismisses a finished (done or errored) entry from the transfer manager
-  // - unlike handleCancelTransfer, there's nothing left running to tell the
-  // backend about, this is purely local list bookkeeping.
   function handleDismissTransfer(id: string) {
     setTransfers((prev) => {
       const { [id]: _dismissed, ...rest } = prev;
@@ -898,10 +852,6 @@ export default function App() {
     setPendingIdentifyServerId(null);
   }
 
-  // A search result's channel is the backend key (see backendChannelFor) -
-  // "__log__" for the Log, needing the same reverse lookup the search
-  // preload path never had to do since it's always scoped to one channel
-  // whose sidebar id you already know.
   function handleJumpToSearchResult(serverId: string, channel: string) {
     handleSelectServer(serverId);
     if (channel === '__log__') {
@@ -913,9 +863,6 @@ export default function App() {
     setShowSearch(false);
   }
 
-  // Pages backwards through the whole channel's history the same way
-  // loadOlderHistory does (oldestId cursor, exhausted once a page comes
-  // back short), just running to completion instead of one page at a time.
   async function handleExportChannel(format: 'text' | 'json') {
     const backendChannel = backendChannelFor(selectedServerId, selectedChannelId);
     const pageSize = 1000;
@@ -936,6 +883,25 @@ export default function App() {
 
   const selectedServer = servers.find((s) => s.id === selectedServerId);
   const channels = channelMap[selectedServerId] ?? [];
+
+  const awayStats = useMemo(() => {
+    const stats: Record<string, { count: number; people: number }> = {};
+    for (const ch of channels) {
+      if (ch.isLog) continue;
+      const key = scopeKey(selectedServerId, ch.id);
+      const since = lastReadMap[key] ?? 0;
+      const nicks = new Set<string>();
+      let count = 0;
+      for (const msg of messageMap[key] ?? []) {
+        if (msg.system || msg.timestamp.getTime() <= since) continue;
+        count++;
+        if (msg.nick) nicks.add(msg.nick);
+      }
+      if (count > 0) stats[ch.id] = { count, people: nicks.size };
+    }
+    return stats;
+  }, [channels, messageMap, lastReadMap, selectedServerId]);
+
   const selectedChannel = channels.find((c) => c.id === selectedChannelId) ?? channels[0];
   const messages = messageMap[scopeKey(selectedServerId, selectedChannelId)] ?? [];
   const users = userMap[scopeKey(selectedServerId, selectedChannelId)] ?? [];
@@ -945,19 +911,12 @@ export default function App() {
   const connectionStatus = statusMap[selectedServerId] ?? 'disconnected';
 
   async function handleSend(text: string, aliasDepth = 0): Promise<void> {
-    // Key optional (RFC's own JOIN syntax) - a key-protected channel typed
-    // without this used to fall all the way through the match chain below
-    // to the plain-PRIVMSG fallback, silently sending "/join #chan key"
-    // itself as a chat message instead of joining anything.
     const joinMatch = text.match(/^\/join\s+(#\S+)(?:\s+(\S+))?$/);
     const meMatch = text.match(/^\/me\s+(.+)$/);
     const msgMatch = text.match(/^\/msg\s+(\S+)\s+(.+)$/);
     const awayMatch = text.match(/^\/away(?:\s+(.+))?$/);
     const aliasDefMatch = text.match(/^\/alias\s+(\S+)\s+(.+)$/);
     const unaliasMatch = text.match(/^\/unalias\s+(\S+)$/);
-    // Checked last, as a fallback - a built-in command above always wins
-    // even if someone names an alias the same thing (that alias just never
-    // becomes reachable, same as it not existing).
     const aliasInvokeMatch = text.match(/^\/(\S+)(?:\s+(.*))?$/);
     const aliasName = aliasInvokeMatch?.[1].toLowerCase();
 
@@ -969,14 +928,17 @@ export default function App() {
       const [, channel, key] = joinMatch;
       await window.irc.sendLine(selectedServerId, key ? `JOIN ${channel} ${key}` : `JOIN ${channel}`);
     } else if (awayMatch) {
-      // No message clears it (RFC: bare AWAY marks you back), same as
-      // typing plain "/away".
       await window.irc.sendLine(selectedServerId, awayMatch[1] ? `AWAY :${awayMatch[1]}` : 'AWAY');
     } else if (msgMatch) {
       const [, nick, msg] = msgMatch;
       await window.irc.sendLine(selectedServerId, `PRIVMSG ${nick} :${msg}`);
       handleOpenQuery(nick);
-      appendMessage(scopeKey(selectedServerId, nick), { id: nextMsgId.current++, nick: currentNick, text: msg, timestamp: new Date() });
+      appendMessage(scopeKey(selectedServerId, nick), {
+        id: nextMsgId.current++,
+        nick: currentNick,
+        text: msg,
+        timestamp: new Date(),
+      });
     } else if (aliasDefMatch) {
       setAlias(aliasDefMatch[1].toLowerCase(), aliasDefMatch[2]);
     } else if (unaliasMatch) {
@@ -986,30 +948,34 @@ export default function App() {
         console.warn(`alias expansion too deep, stopping at "/${aliasName}"`);
         return;
       }
-      // Re-enters this same function with the expanded text, so an alias
-      // expanding to e.g. "/me waves" or another alias goes through every
-      // check above exactly as if it had been typed directly.
       await handleSend(expandAlias(aliases[aliasName], aliasInvokeMatch?.[2] ?? ''), aliasDepth + 1);
     } else if (selectedChannel?.isLog) {
       await window.irc.sendLine(selectedServerId, text);
     } else if (selectedChannel?.isDCC) {
-      // Plain text straight to the peer, no IRC framing (not even CTCP
-      // ACTION for /me - DCC CHAT is just a raw line-oriented socket, kept
-      // that simple here too).
       await window.irc.dccSend(selectedChannelId, text);
       appendMessage(scopeKey(selectedServerId, selectedChannelId), {
-        id: nextMsgId.current++, nick: currentNick, text, timestamp: new Date(),
+        id: nextMsgId.current++,
+        nick: currentNick,
+        text,
+        timestamp: new Date(),
       });
     } else if (meMatch) {
       const action = meMatch[1];
       await window.irc.sendLine(selectedServerId, `PRIVMSG ${selectedChannelId} :\x01ACTION ${action}\x01`);
       appendMessage(scopeKey(selectedServerId, selectedChannelId), {
-        id: nextMsgId.current++, nick: currentNick, text: action, timestamp: new Date(), action: true,
+        id: nextMsgId.current++,
+        nick: currentNick,
+        text: action,
+        timestamp: new Date(),
+        action: true,
       });
     } else {
       await window.irc.sendLine(selectedServerId, `PRIVMSG ${selectedChannelId} :${text}`);
       appendMessage(scopeKey(selectedServerId, selectedChannelId), {
-        id: nextMsgId.current++, nick: currentNick, text, timestamp: new Date(),
+        id: nextMsgId.current++,
+        nick: currentNick,
+        text,
+        timestamp: new Date(),
       });
     }
   }
@@ -1020,15 +986,14 @@ export default function App() {
         <WhoisModal
           nick={whoisNick}
           result={whoisResult}
-          onClose={() => { setWhoisNick(null); setWhoisResult(null); }}
+          onClose={() => {
+            setWhoisNick(null);
+            setWhoisResult(null);
+          }}
         />
       )}
       {pendingDCCOffer && (
-        <DCCOfferModal
-          nick={pendingDCCOffer.nick}
-          onAccept={handleAcceptDCCOffer}
-          onDecline={handleDeclineDCCOffer}
-        />
+        <DCCOfferModal nick={pendingDCCOffer.nick} onAccept={handleAcceptDCCOffer} onDecline={handleDeclineDCCOffer} />
       )}
       {pendingXDCCOffer && (
         <XDCCOfferModal
@@ -1051,17 +1016,16 @@ export default function App() {
           servers={servers}
           defaultServerId={selectedServerId}
           defaultChannel={backendChannelFor(selectedServerId, selectedChannelId)}
-          defaultChannelLabel={isLog ? 'Log' : isQuery ? (selectedChannel?.name ?? '') : `#${selectedChannel?.name ?? ''}`}
+          defaultChannelLabel={
+            isLog ? 'Log' : isQuery ? (selectedChannel?.name ?? '') : `#${selectedChannel?.name ?? ''}`
+          }
           onJump={handleJumpToSearchResult}
           onGetPack={handleGetPackFrom}
           onClose={() => setShowSearch(false)}
         />
       )}
       {pendingIdentifyServerId && (
-        <NickServIdentifyModal
-          onIdentify={handleIdentify}
-          onDismiss={() => setPendingIdentifyServerId(null)}
-        />
+        <NickServIdentifyModal onIdentify={handleIdentify} onDismiss={() => setPendingIdentifyServerId(null)} />
       )}
       <div className="relative flex flex-col shrink-0">
         <div className="flex flex-1 overflow-hidden">
@@ -1080,6 +1044,7 @@ export default function App() {
             selectedId={selectedChannelId}
             onSelect={handleSelectChannel}
             mentionedChannels={mentionedChannels}
+            awayStats={awayStats}
             mutedChannels={mutedChannels}
             onToggleMuteChannel={toggleMuteChannel}
             onJoinChannel={handleJoinChannel}
@@ -1097,51 +1062,37 @@ export default function App() {
           />
         </div>
       </div>
-      <main className="flex flex-col flex-1 bg-[var(--dolq-bg)] overflow-hidden">
+      <main className="flex flex-col flex-1 bg-(--dolq-bg) overflow-hidden">
         {view.kind === 'connect' ? (
-          // Keyed on the prefill, not left to default identity - the sidebar
-          // stays clickable behind this view now (unlike the old backdrop
-          // modal), so a second irc(s):// link can arrive and change
-          // `initial` while this is already open. Without a key React just
-          // updates props on the same instance, and ConnectModal's form
-          // state is seeded from `initial` in useState - a one-time
-          // initializer that a prop change alone doesn't rerun. A different
-          // key forces the remount that actually picks up the new prefill.
           <ConnectModal
             key={connectPrefill ? `${connectPrefill.host}:${connectPrefill.port}` : 'blank'}
             presets={presets}
             nickMap={presetNickMap()}
             onConnect={handleConnect}
-            onCancel={() => { setView({ kind: 'chat' }); setConnectPrefill(null); }}
+            onCancel={() => {
+              setView({ kind: 'chat' });
+              setConnectPrefill(null);
+            }}
             initial={connectPrefill ?? undefined}
           />
-        ) : view.kind === 'editServer' ? (() => {
-          const server = servers.find((s) => s.id === view.serverId);
-          // Shouldn't happen (the menu item that opens this only exists for
-          // a server actually in the list), but a removal racing the click
-          // isn't worth crashing over.
-          if (!server) return null;
-          const sasl = saslMap[view.serverId];
-          return (
-            // Keyed on server.id for the same reason ConnectModal is above:
-            // the sidebar's "Edit Server…" is still reachable while this is
-            // open, so a click on a *different* server just updates
-            // `server` on the same instance without the key - and
-            // EditServerModal's form state, seeded from `server` in
-            // useState, would then keep the previous server's stale field
-            // values while `onSave` submits them under the new server's id.
-            // Not just stale UI: that's silent data corruption without this.
-            <EditServerModal
-              key={server.id}
-              server={server}
-              nick={nickMap[view.serverId] ?? ''}
-              saslUser={sasl?.user ?? ''}
-              saslPass={sasl?.pass ?? ''}
-              onSave={handleEditServer}
-              onCancel={() => setView({ kind: 'chat' })}
-            />
-          );
-        })() : view.kind === 'preferences' ? (
+        ) : view.kind === 'editServer' ? (
+          (() => {
+            const server = servers.find((s) => s.id === view.serverId);
+            if (!server) return null;
+            const sasl = saslMap[view.serverId];
+            return (
+              <EditServerModal
+                key={server.id}
+                server={server}
+                nick={nickMap[view.serverId] ?? ''}
+                saslUser={sasl?.user ?? ''}
+                saslPass={sasl?.pass ?? ''}
+                onSave={handleEditServer}
+                onCancel={() => setView({ kind: 'chat' })}
+              />
+            );
+          })()
+        ) : view.kind === 'preferences' ? (
           <PreferencesModal
             settings={settings}
             onSave={handleSavePreferences}
@@ -1169,57 +1120,57 @@ export default function App() {
             onKeybindingChange={setKeybinding}
           />
         ) : (
-          <>
-            <TopicBar
-              channelName={selectedChannel?.name ?? ''}
-              topic={selectedChannel?.topic}
-              topicSetBy={selectedChannel?.topicSetBy}
-              topicSetAt={selectedChannel?.topicSetAt}
-              isLog={isLog}
-              isQuery={isQuery}
-              isDCC={selectedChannel?.isDCC}
-              dccStatus={selectedChannel?.isDCC ? statusMap[selectedChannelId] : undefined}
-              onExport={selectedChannel?.isDCC ? undefined : handleExportChannel}
-              serverColor={selectedServer?.color}
-            />
-            <div className="flex flex-1 overflow-hidden">
-              <div className="flex flex-col flex-1 overflow-hidden">
-                <MessageArea
-                  messages={messages}
-                  isLog={isLog}
-                  channelId={scopeKey(selectedServerId, selectedChannelId)}
-                  onLoadOlder={loadOlderHistory}
-                  timestampFormat={timestampFormat}
-                  density={messageDensity}
-                  onGetPack={handleGetPack}
+          <div className="flex flex-1 overflow-hidden">
+            <div className="flex flex-col flex-1 overflow-hidden">
+              <TopicBar
+                channelName={selectedChannel?.name ?? ''}
+                topic={selectedChannel?.topic}
+                topicSetBy={selectedChannel?.topicSetBy}
+                topicSetAt={selectedChannel?.topicSetAt}
+                isLog={isLog}
+                isQuery={isQuery}
+                isDCC={selectedChannel?.isDCC}
+                dccStatus={selectedChannel?.isDCC ? statusMap[selectedChannelId] : undefined}
+                onExport={selectedChannel?.isDCC ? undefined : handleExportChannel}
+                serverColor={selectedServer?.color}
+              />
+              <MessageArea
+                messages={messages}
+                isLog={isLog}
+                channelId={scopeKey(selectedServerId, selectedChannelId)}
+                onLoadOlder={loadOlderHistory}
+                timestampFormat={timestampFormat}
+                density={messageDensity}
+                onGetPack={handleGetPack}
+              />
+              <MessageInput
+                channelName={selectedChannel?.name ?? ''}
+                isLog={isLog}
+                isQuery={isQuery}
+                onSend={handleSend}
+              />
+            </div>
+            <aside className="w-52 py-3 bg-(--dolq-bg-panel) border-l border-(--dolq-border) shrink-0 flex flex-col overflow-hidden relative">
+              {!isLog && !isQuery && (
+                <UserList
+                  users={users}
+                  currentNick={currentNick}
+                  onOpenQuery={handleOpenQuery}
+                  onWhois={handleWhois}
+                  ignoredNicks={ignoredNicks[selectedServerId] ?? []}
+                  onToggleIgnore={handleToggleIgnore}
+                  onDCCOffer={handleDCCOffer}
                 />
-                <MessageInput
-                  channelName={selectedChannel?.name ?? ''}
-                  isLog={isLog}
-                  isQuery={isQuery}
-                  onSend={handleSend}
-                />
-              </div>
-              <aside className="w-52 bg-[var(--dolq-bg-panel)] border-l border-[var(--dolq-border)] shrink-0 flex flex-col overflow-hidden">
+              )}
+              <div className="absolute bottom-0 left-0 w-full px-3 pt-2 pb-2">
                 <ConnectionStatus
                   connectionStatus={connectionStatus}
                   onConnect={connectToServer}
                   onDisconnect={handleDisconnect}
                 />
-                {!isLog && !isQuery && (
-                  <UserList
-                    users={users}
-                    currentNick={currentNick}
-                    onOpenQuery={handleOpenQuery}
-                    onWhois={handleWhois}
-                    ignoredNicks={ignoredNicks[selectedServerId] ?? []}
-                    onToggleIgnore={handleToggleIgnore}
-                    onDCCOffer={handleDCCOffer}
-                  />
-                )}
-              </aside>
-            </div>
-          </>
+              </div>
+            </aside>
+          </div>
         )}
       </main>
     </div>

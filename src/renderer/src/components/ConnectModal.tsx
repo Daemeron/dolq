@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import type { ServerPreset } from '../data/servers';
 import { IRC_PORT, IRC_TLS_PORT } from '../../../shared/ipc';
+import type { ServerPreset } from '../data/servers';
 import { ViewPanel } from './ViewPanel';
 
 type ConnectForm = {
@@ -12,19 +12,17 @@ type ConnectForm = {
   secure: boolean;
   saslUser: string;
   saslPass: string;
-  // Comma/whitespace-separated - parsed with parseList on submit, same as
-  // the store's Server.altNicks/autojoinChannels arrays they become.
   altNicks: string;
   username: string;
   realname: string;
   autojoinChannels: string;
 };
 
-// Splits on commas and/or whitespace, dropping empties - one shared parser
-// for both list-shaped fields below rather than slightly different rules
-// for each.
 function parseList(value: string): string[] {
-  return value.split(/[,\s]+/).map((s) => s.trim()).filter(Boolean);
+  return value
+    .split(/[,\s]+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
 }
 
 type Props = {
@@ -32,18 +30,9 @@ type Props = {
   nickMap: Record<string, string>;
   onConnect: (form: ConnectForm) => void;
   onCancel: () => void;
-  // Prefills from a clicked irc(s):// link (see App.tsx's onOpenIrcUrl) -
-  // channel goes into autojoinChannels, the same field a manually-typed
-  // one would, so it's joined the same way once connected.
   initial?: { host: string; port: number; secure: boolean; channel?: string };
 };
 
-// name/host start empty (real placeholders below, not prefilled values) -
-// a live default like "localhost" looked like a real, connectable value and
-// silently submitted if someone didn't notice they still needed to pick a
-// preset or type their own host. handleSubmit already refuses an empty
-// host, so this is enough to make that mistake impossible instead of just
-// less likely.
 const DEFAULTS: ConnectForm = {
   name: '',
   host: '',
@@ -87,8 +76,7 @@ export function ConnectModal({ presets, nickMap, onConnect, onCancel, initial }:
   }, [onCancel]);
 
   function set(field: keyof ConnectForm) {
-    return (e: React.ChangeEvent<HTMLInputElement>) =>
-      setForm((prev) => ({ ...prev, [field]: e.target.value }));
+    return (e: React.ChangeEvent<HTMLInputElement>) => setForm((prev) => ({ ...prev, [field]: e.target.value }));
   }
 
   function pickPreset(preset: ServerPreset) {
@@ -105,9 +93,6 @@ export function ConnectModal({ presets, nickMap, onConnect, onCancel, initial }:
   function toggleSecure(e: React.ChangeEvent<HTMLInputElement>) {
     const secure = e.target.checked;
     setForm((prev) => {
-      // Only follow the port along if it was still sitting on the default for the
-      // protocol being switched away from - a server can run TLS on a non-standard
-      // port, so once the user has typed their own value, leave it alone.
       const wasOnPreviousDefault = prev.port === String(secure ? IRC_PORT : IRC_TLS_PORT);
       const port = wasOnPreviousDefault ? String(secure ? IRC_TLS_PORT : IRC_PORT) : prev.port;
       return { ...prev, secure, port };
@@ -123,7 +108,7 @@ export function ConnectModal({ presets, nickMap, onConnect, onCancel, initial }:
   return (
     <ViewPanel title="Add a Server" onClose={onCancel}>
       <div className="max-w-110 flex flex-col gap-4">
-        <p className="text-[var(--dolq-text-muted)] text-[14px] -mt-1">Pick a server, or fill in a custom one below.</p>
+        <p className="text-(--dolq-text-muted) text-[14px] -mt-1">Pick a server, or fill in a custom one below.</p>
 
         <div className="flex flex-col gap-1 max-h-40 overflow-y-auto scroll-thin pr-1">
           {presets.map((preset) => (
@@ -131,10 +116,12 @@ export function ConnectModal({ presets, nickMap, onConnect, onCancel, initial }:
               key={preset.id}
               type="button"
               onClick={() => pickPreset(preset)}
-              className="flex items-baseline justify-between gap-3 px-3 py-2 rounded bg-[var(--dolq-bg-input)] border-0 text-left cursor-pointer hover:bg-[var(--dolq-bg-hover)]"
+              className="flex items-baseline justify-between gap-3 px-3 py-2 rounded bg-(--dolq-bg-input) border-0 text-left cursor-pointer hover:bg-(--dolq-bg-hover)"
             >
-              <span className="text-[var(--dolq-text)] text-[14px] font-medium">{preset.name}</span>
-              <span className="text-[var(--dolq-text-faint)] text-[12px] shrink-0">{preset.host}:{preset.port}</span>
+              <span className="text-(--dolq-text) text-[14px] font-medium">{preset.name}</span>
+              <span className="text-(--dolq-text-faint) text-[12px] shrink-0">
+                {preset.host}:{preset.port}
+              </span>
             </button>
           ))}
         </div>
@@ -164,7 +151,7 @@ export function ConnectModal({ presets, nickMap, onConnect, onCancel, initial }:
             </label>
           </div>
 
-          <label className="flex items-center gap-2 text-[13px] text-[var(--dolq-text)] cursor-pointer select-none">
+          <label className="flex items-center gap-2 text-[13px] text-(--dolq-text) cursor-pointer select-none">
             <input type="checkbox" checked={form.secure} onChange={toggleSecure} className="accent-[#c792ea]" />
             Use SSL/TLS
           </label>
@@ -186,7 +173,7 @@ export function ConnectModal({ presets, nickMap, onConnect, onCancel, initial }:
           </label>
 
           <details className="flex flex-col gap-4">
-            <summary className="text-[11px] font-bold uppercase tracking-[0.5px] text-[var(--dolq-text-muted)] cursor-pointer select-none">
+            <summary className="text-[11px] font-bold uppercase tracking-[0.5px] text-(--dolq-text-muted) cursor-pointer select-none">
               Advanced
             </summary>
 
@@ -203,11 +190,21 @@ export function ConnectModal({ presets, nickMap, onConnect, onCancel, initial }:
             <div className="flex gap-3">
               <label className={`${labelClass} flex-1`}>
                 Username
-                <input className={inputClass} value={form.username} onChange={set('username')} placeholder={form.nick || 'defaults to Nickname'} />
+                <input
+                  className={inputClass}
+                  value={form.username}
+                  onChange={set('username')}
+                  placeholder={form.nick || 'defaults to Nickname'}
+                />
               </label>
               <label className={`${labelClass} flex-1`}>
                 Real Name
-                <input className={inputClass} value={form.realname} onChange={set('realname')} placeholder="Dolq IRC Client" />
+                <input
+                  className={inputClass}
+                  value={form.realname}
+                  onChange={set('realname')}
+                  placeholder="Dolq IRC Client"
+                />
               </label>
             </div>
 
@@ -223,12 +220,12 @@ export function ConnectModal({ presets, nickMap, onConnect, onCancel, initial }:
           </details>
 
           <div className="flex flex-col gap-1.5">
-            <span className="text-[11px] font-bold uppercase tracking-[0.5px] text-[var(--dolq-text-muted)]">
+            <span className="text-[11px] font-bold uppercase tracking-[0.5px] text-(--dolq-text-muted)">
               SASL Login
             </span>
-            <p className="text-[var(--dolq-text-faint)] text-[12px] -mt-0.5">
-              Optional - authenticates your registered account before joining, instead of
-              relying on NickServ IDENTIFY after connecting. Leave both blank to skip it.
+            <p className="text-(--dolq-text-faint) text-[12px] -mt-0.5">
+              Optional - authenticates your registered account before joining, instead of relying on NickServ IDENTIFY
+              after connecting. Leave both blank to skip it.
             </p>
             <div className="flex gap-3 mt-1">
               <input
@@ -253,7 +250,7 @@ export function ConnectModal({ presets, nickMap, onConnect, onCancel, initial }:
             <button
               type="button"
               onClick={onCancel}
-              className="px-4 py-2 rounded text-[var(--dolq-text-muted)] text-[14px] font-medium bg-transparent border-0 cursor-pointer hover:text-[var(--dolq-text)]"
+              className="px-4 py-2 rounded text-(--dolq-text-muted) text-[14px] font-medium bg-transparent border-0 cursor-pointer hover:text-(--dolq-text)"
             >
               Cancel
             </button>

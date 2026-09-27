@@ -21,10 +21,6 @@ function formatBytes(n: number): string {
   return `${v.toFixed(1)} ${units[i]}`;
 }
 
-// A DCC SEND offer connects straight to the sender's address the same way
-// a DCC CHAT offer does (see DCCOfferModal) - same explicit prompt, just
-// with the file details that actually matter for deciding whether to take
-// it: what it's called and how big it is.
 export function XDCCOfferModal({ nick, filename, size, onAccept, onDecline }: Props) {
   const dialogRef = useModalA11y<HTMLDivElement>();
 
@@ -44,25 +40,29 @@ export function XDCCOfferModal({ nick, filename, size, onAccept, onDecline }: Pr
         aria-modal="true"
         aria-labelledby="xdcc-offer-modal-title"
         tabIndex={-1}
-        className="bg-[var(--dolq-bg-panel)] rounded-lg p-6 w-90 shadow-[0_8px_32px_rgba(0,0,0,0.5)]"
+        className="bg-(--dolq-bg-panel) rounded-lg p-6 w-90 shadow-[0_8px_32px_rgba(0,0,0,0.5)]"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 id="xdcc-offer-modal-title" className="text-[var(--dolq-text)] text-[18px] font-bold mb-2">File Offer</h2>
-        <p className="text-[var(--dolq-text-muted)] text-[14px] mb-1">
-          <span className="text-[var(--dolq-text)] font-semibold">{nick}</span> wants to send you a file, direct to your
+        <h2 id="xdcc-offer-modal-title" className="text-(--dolq-text) text-[18px] font-bold mb-2">
+          File Offer
+        </h2>
+        <p className="text-(--dolq-text-muted) text-[14px] mb-1">
+          <span className="text-(--dolq-text) font-semibold">{nick}</span> wants to send you a file, direct to your
           address. Only accept this from someone (or a bot) you trust.
         </p>
-        <p className="text-[var(--dolq-text)] text-[14px] font-mono mb-5 break-all">
-          {filename} <span className="text-[var(--dolq-text-faint)]">({formatBytes(size)})</span>
+        <p className="text-(--dolq-text) text-[14px] font-mono mb-5 break-all">
+          {filename} <span className="text-(--dolq-text-faint)">({formatBytes(size)})</span>
         </p>
         <div className="flex gap-3 justify-end">
           <button
+            type="button"
             onClick={onDecline}
-            className="px-4 py-2 rounded text-[var(--dolq-text-muted)] text-[14px] font-medium bg-transparent border-0 cursor-pointer hover:text-[var(--dolq-text)]"
+            className="px-4 py-2 rounded text-(--dolq-text-muted) text-[14px] font-medium bg-transparent border-0 cursor-pointer hover:text-(--dolq-text)"
           >
             Decline
           </button>
           <button
+            type="button"
             onClick={onAccept}
             className="px-5 py-2 rounded bg-[#c792ea] text-white text-shadow-sm text-[14px] font-semibold border-0 cursor-pointer hover:bg-[#a579c2] transition-colors duration-150"
           >

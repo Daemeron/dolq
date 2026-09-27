@@ -1,12 +1,12 @@
-import { installExtension, REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';
+import fs from 'node:fs';
+import { join, resolve } from 'node:path';
 import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, shell, Tray } from 'electron';
-import { join, resolve } from 'path';
-import fs from 'fs';
-import { ConnectionStatus, IrcMessages, Settings } from '../shared/ipc';
+import { installExtension, REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';
+import { type ConnectionStatus, IrcMessages, type Settings } from '../shared/ipc';
 import { BackendClient } from './irc/BackendClient';
-import { loadSettings, saveSettings } from './settings';
 import { parseIrcUrl } from './ircUrl';
 import { resolveRemoteBackend } from './remoteBackend';
+import { loadSettings, saveSettings } from './settings';
 
 // A packaged build already gets this from electron-builder's own
 // `productName` (electron-builder.json5), but that's a packaging-time
@@ -46,9 +46,10 @@ const ICON_PATH = join(__dirname, '../../resources/icon.png');
 // the "Template" suffix is also Electron/macOS's own filename convention
 // for auto-detecting this, on top of the explicit setTemplateImage below.
 // Elsewhere, no such convention exists, so this stays the full-color icon.
-const TRAY_ICON_PATH = process.platform === 'darwin'
-  ? join(__dirname, '../../resources/trayIconTemplate.png')
-  : join(__dirname, '../../resources/icons/32x32.png');
+const TRAY_ICON_PATH =
+  process.platform === 'darwin'
+    ? join(__dirname, '../../resources/trayIconTemplate.png')
+    : join(__dirname, '../../resources/icons/32x32.png');
 const IRC_URL_SCHEMES = ['irc', 'ircs'];
 
 function createWindow(): void {
@@ -64,8 +65,8 @@ function createWindow(): void {
     },
   });
 
-  if (process.env['ELECTRON_RENDERER_URL']) {
-    mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL']);
+  if (process.env.ELECTRON_RENDERER_URL) {
+    mainWindow.loadURL(process.env.ELECTRON_RENDERER_URL);
   } else {
     mainWindow.loadFile(join(__dirname, '../renderer/index.html'));
   }
@@ -183,22 +184,24 @@ function createAppMenu(): void {
 
   const template: Electron.MenuItemConstructorOptions[] = [
     ...(process.platform === 'darwin'
-      ? [{
-          label: app.name,
-          submenu: [
-            { role: 'about' as const },
-            { type: 'separator' as const },
-            { label: 'Preferences…', accelerator: 'Cmd+,', click: openPreferences },
-            { type: 'separator' as const },
-            { role: 'services' as const },
-            { type: 'separator' as const },
-            { role: 'hide' as const },
-            { role: 'hideOthers' as const },
-            { role: 'unhide' as const },
-            { type: 'separator' as const },
-            { role: 'quit' as const },
-          ],
-        }]
+      ? [
+          {
+            label: app.name,
+            submenu: [
+              { role: 'about' as const },
+              { type: 'separator' as const },
+              { label: 'Preferences…', accelerator: 'Cmd+,', click: openPreferences },
+              { type: 'separator' as const },
+              { role: 'services' as const },
+              { type: 'separator' as const },
+              { role: 'hide' as const },
+              { role: 'hideOthers' as const },
+              { role: 'unhide' as const },
+              { type: 'separator' as const },
+              { role: 'quit' as const },
+            ],
+          },
+        ]
       : []),
     { role: 'editMenu' },
     { role: 'viewMenu' },
@@ -305,7 +308,8 @@ function registerShellHandlers(): void {
 
   ipcMain.handle(IrcMessages.chooseDirectory, async (_event, defaultPath?: string) => {
     const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
-      defaultPath, properties: ['openDirectory', 'createDirectory'],
+      defaultPath,
+      properties: ['openDirectory', 'createDirectory'],
     });
     return canceled || !filePaths[0] ? null : filePaths[0];
   });
@@ -319,7 +323,11 @@ function registerShellHandlers(): void {
   });
 }
 
-function registerIrcHandlers(mainWindow: BrowserWindow, backend: BackendClient, settingsBox: { current: Settings }): void {
+function registerIrcHandlers(
+  mainWindow: BrowserWindow,
+  backend: BackendClient,
+  settingsBox: { current: Settings },
+): void {
   ipcMain.handle(
     IrcMessages.connect,
     (
@@ -366,11 +374,28 @@ function registerIrcHandlers(mainWindow: BrowserWindow, backend: BackendClient, 
 
   ipcMain.handle(
     IrcMessages.xdccAccept,
-    (_event, serverId: string, nick: string, ip: string, port: number, filename: string, size: number, token?: string) => {
+    (
+      _event,
+      serverId: string,
+      nick: string,
+      ip: string,
+      port: number,
+      filename: string,
+      size: number,
+      token?: string,
+    ) => {
       const { downloadDir, dccPortMin, dccPortMax } = settingsBox.current;
       return backend.xdccAccept(
-        serverId, nick, ip, port, filename, size, token,
-        downloadDir || app.getPath('downloads'), dccPortMin ?? 0, dccPortMax ?? 0,
+        serverId,
+        nick,
+        ip,
+        port,
+        filename,
+        size,
+        token,
+        downloadDir || app.getPath('downloads'),
+        dccPortMin ?? 0,
+        dccPortMax ?? 0,
       );
     },
   );
@@ -385,7 +410,9 @@ function registerIrcHandlers(mainWindow: BrowserWindow, backend: BackendClient, 
   // belongs to, so a single subscription per frame type covers every server
   // - no per-connect listener wiring needed.
   backend.on('line', (serverId: string, line: string) => mainWindow.webContents.send(IrcMessages.line, serverId, line));
-  backend.on('event', (serverId: string, event: unknown) => mainWindow.webContents.send(IrcMessages.event, serverId, event));
+  backend.on('event', (serverId: string, event: unknown) =>
+    mainWindow.webContents.send(IrcMessages.event, serverId, event),
+  );
   backend.on('status', (serverId: string, status: ConnectionStatus) =>
     mainWindow.webContents.send(IrcMessages.status, serverId, status),
   );
@@ -449,6 +476,6 @@ async function installReactDevTools(): Promise<void> {
     const ext = await installExtension(REACT_DEVELOPER_TOOLS, { loadExtensionOptions: { allowFileAccess: true } });
     console.log('Added Extension: ', ext.name);
   } catch (err) {
-    console.error('Failed to install ${ext.name}', err);
+    console.error('Failed to install React DevTools extension:', err);
   }
 }

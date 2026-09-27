@@ -1,18 +1,7 @@
-// http(s) only, deliberately - see window.irc.openExternal's doc for why.
-// Stops at whitespace or a handful of characters that are almost never
-// actually part of a URL (angle brackets, quotes, a closing paren/bracket
-// with no matching open one).
 const URL_RE = /\bhttps?:\/\/[^\s<>"')\]]+/g;
 
-// Sentence punctuation glued to the very end of a match is essentially
-// never actually part of the URL ("see https://example.com." shouldn't
-// treat the period as part of the link) - trimmed off after matching,
-// since it's still a valid mid-URL character and can't just be excluded
-// from URL_RE itself (that'd break "example.co.uk").
 const TRAILING_PUNCT_RE = /[.,!?;:]+$/;
 
-// Splits text into plain strings and matched URLs, in order - a chunk's
-// text (see below) can be a mix of both.
 export function splitLinks(text: string): (string | { url: string })[] {
   const parts: (string | { url: string })[] = [];
   let lastIndex = 0;
@@ -32,55 +21,108 @@ export function splitLinks(text: string): (string | { url: string })[] {
   return parts;
 }
 
-// The standard 16-color mIRC palette, plus the extended 16-98 palette some
-// newer clients also support - both from modern.ircdocs.horse/formatting.html,
-// the closest thing IRC formatting has to an authoritative written spec
-// (mIRC's own client is the de facto origin of both ranges, but never
-// published one). The spec itself calls 16-98 "not universally supported" -
-// a client with no idea about a given code just shows no color for it,
-// same as any other out-of-range index here, so there's no real downside
-// to carrying the full table.
 const IRC_COLORS: string[] = [
-  '#FFFFFF', // 0  white
-  '#000000', // 1  black
-  '#00007F', // 2  navy / blue
-  '#009300', // 3  green
-  '#FF0000', // 4  red
-  '#7F0000', // 5  maroon / brown
-  '#9C009C', // 6  purple / magenta
-  '#FC7F00', // 7  olive / orange
-  '#FFFF00', // 8  yellow
-  '#00FC00', // 9  lime / light green
-  '#009393', // 10 teal / cyan
-  '#00FFFF', // 11 cyan / light cyan
-  '#0000FC', // 12 royal blue / light blue
-  '#FF00FF', // 13 fuchsia / pink
-  '#7F7F7F', // 14 grey
-  '#D2D2D2', // 15 silver / light grey
-  '#470000', '#472100', '#474700', '#324700', '#004700', '#00472C', // 16-21
-  '#004747', '#002747', '#000047', '#2E0047', '#470047', '#47002A', // 22-27
-  '#740000', '#743A00', '#747400', '#517400', '#007400', '#007449', // 28-33
-  '#007474', '#004074', '#000074', '#4B0074', '#740074', '#740045', // 34-39
-  '#B50000', '#B56300', '#B5B500', '#7DB500', '#00B500', '#00B571', // 40-45
-  '#00B5B5', '#0063B5', '#0000B5', '#7500B5', '#B500B5', '#B5006B', // 46-51
-  '#FF0000', '#FF8C00', '#FFFF00', '#B2FF00', '#00FF00', '#00FFA0', // 52-57
-  '#00FFFF', '#008CFF', '#0000FF', '#A500FF', '#FF00FF', '#FF0098', // 58-63
-  '#FF5959', '#FFB459', '#FFFF71', '#CFFF60', '#6FFF6F', '#65FFC9', // 64-69
-  '#6DFFFF', '#59B4FF', '#5959FF', '#C459FF', '#FF66FF', '#FF59BC', // 70-75
-  '#FF9C9C', '#FFD39C', '#FFFF9C', '#E2FF9C', '#9CFF9C', '#9CFFDB', // 76-81
-  '#9CFFFF', '#9CD3FF', '#9C9CFF', '#DC9CFF', '#FF9CFF', '#FF94D3', // 82-87
-  '#000000', '#131313', '#282828', '#363636', '#4D4D4D', '#656565', // 88-93
-  '#818181', '#9F9F9F', '#BCBCBC', '#E2E2E2', '#FFFFFF',             // 94-98
+  '#FFFFFF',
+  '#000000',
+  '#00007F',
+  '#009300',
+  '#FF0000',
+  '#7F0000',
+  '#9C009C',
+  '#FC7F00',
+  '#FFFF00',
+  '#00FC00',
+  '#009393',
+  '#00FFFF',
+  '#0000FC',
+  '#FF00FF',
+  '#7F7F7F',
+  '#D2D2D2',
+  '#470000',
+  '#472100',
+  '#474700',
+  '#324700',
+  '#004700',
+  '#00472C',
+  '#004747',
+  '#002747',
+  '#000047',
+  '#2E0047',
+  '#470047',
+  '#47002A',
+  '#740000',
+  '#743A00',
+  '#747400',
+  '#517400',
+  '#007400',
+  '#007449',
+  '#007474',
+  '#004074',
+  '#000074',
+  '#4B0074',
+  '#740074',
+  '#740045',
+  '#B50000',
+  '#B56300',
+  '#B5B500',
+  '#7DB500',
+  '#00B500',
+  '#00B571',
+  '#00B5B5',
+  '#0063B5',
+  '#0000B5',
+  '#7500B5',
+  '#B500B5',
+  '#B5006B',
+  '#FF0000',
+  '#FF8C00',
+  '#FFFF00',
+  '#B2FF00',
+  '#00FF00',
+  '#00FFA0',
+  '#00FFFF',
+  '#008CFF',
+  '#0000FF',
+  '#A500FF',
+  '#FF00FF',
+  '#FF0098',
+  '#FF5959',
+  '#FFB459',
+  '#FFFF71',
+  '#CFFF60',
+  '#6FFF6F',
+  '#65FFC9',
+  '#6DFFFF',
+  '#59B4FF',
+  '#5959FF',
+  '#C459FF',
+  '#FF66FF',
+  '#FF59BC',
+  '#FF9C9C',
+  '#FFD39C',
+  '#FFFF9C',
+  '#E2FF9C',
+  '#9CFF9C',
+  '#9CFFDB',
+  '#9CFFFF',
+  '#9CD3FF',
+  '#9C9CFF',
+  '#DC9CFF',
+  '#FF9CFF',
+  '#FF94D3',
+  '#000000',
+  '#131313',
+  '#282828',
+  '#363636',
+  '#4D4D4D',
+  '#656565',
+  '#818181',
+  '#9F9F9F',
+  '#BCBCBC',
+  '#E2E2E2',
+  '#FFFFFF',
 ];
 
-// IRC formatting control bytes (modern.ircdocs.horse/formatting.html).
-// Hand-rolled rather than using a library (this replaced irc-caret-notation,
-// which had real gaps against that spec: no cap on color-code digit count -
-// "\x03123abc" should parse as fg 12 + literal "3abc", not fg 123 - no idea
-// at all about strikethrough/monospace/hex-color (those control bytes just
-// leaked into the rendered text), and modeled reverse-video as a one-shot
-// fg/bg copy-and-swap rather than a real toggle, so colors set *after*
-// reversing and then un-reversing came out wrong).
 const BOLD = '\x02';
 const ITALIC = '\x1D';
 const UNDERLINE = '\x1F';
@@ -98,16 +140,7 @@ export type FormatChunk = {
   underline: boolean;
   strikethrough: boolean;
   monospace: boolean;
-  // A live toggle (see REVERSE's case below), not a snapshot - resolved
-  // against whatever fg/bg are in effect at render time (resolveIrcColors),
-  // so it stays correct across a later color change or a second \x16.
   reverse: boolean;
-  // \x03 (numeric, 0-15 render; higher just shows no color, see IRC_COLORS)
-  // and \x04 (hex) both set "the current foreground/background", just via a
-  // different encoding - using one clears the other, so at most one of
-  // fg/hexFg (and bg/hexBg) is ever set. mIRC's color 99 ("default") isn't
-  // stored as its own state: it renders identically to unset (the ambient
-  // text/background color), so it's normalized to null immediately.
   fg: number | null;
   bg: number | null;
   hexFg: string | null;
@@ -118,14 +151,19 @@ type Style = Omit<FormatChunk, 'text'>;
 
 function emptyStyle(): Style {
   return {
-    bold: false, italic: false, underline: false, strikethrough: false, monospace: false, reverse: false,
-    fg: null, bg: null, hexFg: null, hexBg: null,
+    bold: false,
+    italic: false,
+    underline: false,
+    strikethrough: false,
+    monospace: false,
+    reverse: false,
+    fg: null,
+    bg: null,
+    hexFg: null,
+    hexBg: null,
   };
 }
 
-// Reads up to `max` consecutive ASCII digits starting at chars[i] - a real
-// color code caps its fg/bg components at 2 digits each; a 3rd digit is
-// literal text ("\x03123abc" is fg 12, then "3abc").
 function readDigits(chars: string[], i: number, max: number): { value: number; length: number } | null {
   let s = '';
   while (s.length < max && chars[i + s.length] >= '0' && chars[i + s.length] <= '9') s += chars[i + s.length];
@@ -137,9 +175,6 @@ function readHex6(chars: string[], i: number): string | null {
   return /^[0-9a-fA-F]{6}$/.test(s) ? s.toLowerCase() : null;
 }
 
-// Parses "<fg>[,<bg>]" right after a \x03 byte. null means the code was
-// malformed (no fg digit at all) - the caller treats that as "clear color",
-// same as every real client does for a bare/invalid \x03.
 function readColor(chars: string[], i: number): { fg: number; bg: number | undefined; length: number } | null {
   const fgDigits = readDigits(chars, i, 2);
   if (!fgDigits) return null;
@@ -155,7 +190,6 @@ function readColor(chars: string[], i: number): { fg: number; bg: number | undef
   return { fg: fgDigits.value, bg, length };
 }
 
-// Parses "<RRGGBB>[,<RRGGBB>]" right after a \x04 byte.
 function readHexColor(chars: string[], i: number): { fg: string; bg: string | undefined; length: number } | null {
   const fg = readHex6(chars, i);
   if (!fg) return null;
@@ -171,7 +205,6 @@ function readHexColor(chars: string[], i: number): { fg: string; bg: string | un
   return { fg, bg, length };
 }
 
-// Normalizes mIRC's color 99 ("default") to null - see FormatChunk's doc.
 function normalizeColor(value: number): number | null {
   return value === 99 ? null : value;
 }
@@ -189,13 +222,27 @@ export function parseIrcFormatting(text: string): FormatChunk[] {
   for (let i = 0; i < chars.length; i++) {
     const ch = chars[i];
     switch (ch) {
-      case BOLD: push({ ...style, bold: !style.bold }); break;
-      case ITALIC: push({ ...style, italic: !style.italic }); break;
-      case UNDERLINE: push({ ...style, underline: !style.underline }); break;
-      case STRIKETHROUGH: push({ ...style, strikethrough: !style.strikethrough }); break;
-      case MONOSPACE: push({ ...style, monospace: !style.monospace }); break;
-      case REVERSE: push({ ...style, reverse: !style.reverse }); break;
-      case RESET: push(emptyStyle()); break;
+      case BOLD:
+        push({ ...style, bold: !style.bold });
+        break;
+      case ITALIC:
+        push({ ...style, italic: !style.italic });
+        break;
+      case UNDERLINE:
+        push({ ...style, underline: !style.underline });
+        break;
+      case STRIKETHROUGH:
+        push({ ...style, strikethrough: !style.strikethrough });
+        break;
+      case MONOSPACE:
+        push({ ...style, monospace: !style.monospace });
+        break;
+      case REVERSE:
+        push({ ...style, reverse: !style.reverse });
+        break;
+      case RESET:
+        push(emptyStyle());
+        break;
       case COLOR: {
         const parsed = readColor(chars, i + 1);
         if (!parsed) {
@@ -204,7 +251,8 @@ export function parseIrcFormatting(text: string): FormatChunk[] {
         }
         push({
           ...style,
-          fg: normalizeColor(parsed.fg), hexFg: null,
+          fg: normalizeColor(parsed.fg),
+          hexFg: null,
           ...(parsed.bg !== undefined ? { bg: normalizeColor(parsed.bg), hexBg: null } : {}),
         });
         i += parsed.length;
@@ -218,7 +266,8 @@ export function parseIrcFormatting(text: string): FormatChunk[] {
         }
         push({
           ...style,
-          hexFg: parsed.fg, fg: null,
+          hexFg: parsed.fg,
+          fg: null,
           ...(parsed.bg !== undefined ? { hexBg: parsed.bg, bg: null } : {}),
         });
         i += parsed.length;
@@ -237,10 +286,6 @@ function paletteColor(index: number | null): string | undefined {
   return index != null ? IRC_COLORS[index] : undefined;
 }
 
-// Resolves a chunk's color fields into actual CSS values, applying `reverse`
-// last - swapping whatever fg/bg (explicit, or the theme's own ambient
-// default when neither was ever set) are in effect at this point, rather
-// than a value baked in back when \x16 was seen.
 export function resolveIrcColors(chunk: FormatChunk): { color?: string; backgroundColor?: string } {
   const fg = chunk.hexFg ? `#${chunk.hexFg}` : paletteColor(chunk.fg);
   const bg = chunk.hexBg ? `#${chunk.hexBg}` : paletteColor(chunk.bg);
@@ -276,7 +321,10 @@ export function IrcText({ text }: { text: string }) {
                 ) : (
                   <a
                     key={j}
-                    onClick={(e) => { e.preventDefault(); window.irc.openExternal(part.url); }}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      window.irc.openExternal(part.url);
+                    }}
                     href={part.url}
                     className="text-[#82aaff] underline cursor-pointer hover:text-[#a0c0ff]"
                   >

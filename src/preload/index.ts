@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import { ConnectionStatus, IrcApi, IrcEvent, IrcMessages, Settings } from '../shared/ipc';
+import { type ConnectionStatus, type IrcApi, type IrcEvent, IrcMessages, type Settings } from '../shared/ipc';
 
 contextBridge.exposeInMainWorld('irc', {
   connect: (
@@ -15,20 +15,26 @@ contextBridge.exposeInMainWorld('irc', {
     altNicks?: string[],
   ) =>
     ipcRenderer.invoke(
-      IrcMessages.connect, serverId, host, port, nick, secure, saslUser, saslPass, username, realname, altNicks,
+      IrcMessages.connect,
+      serverId,
+      host,
+      port,
+      nick,
+      secure,
+      saslUser,
+      saslPass,
+      username,
+      realname,
+      altNicks,
     ),
 
-  sendLine: (serverId: string, line: string) =>
-    ipcRenderer.invoke(IrcMessages.send, serverId, line),
+  sendLine: (serverId: string, line: string) => ipcRenderer.invoke(IrcMessages.send, serverId, line),
 
-  disconnect: (serverId: string) =>
-    ipcRenderer.invoke(IrcMessages.disconnect, serverId),
+  disconnect: (serverId: string) => ipcRenderer.invoke(IrcMessages.disconnect, serverId),
 
-  getStatus: (serverId: string) =>
-    ipcRenderer.invoke(IrcMessages.getStatus, serverId),
+  getStatus: (serverId: string) => ipcRenderer.invoke(IrcMessages.getStatus, serverId),
 
-  getJoinedChannels: (serverId: string) =>
-    ipcRenderer.invoke(IrcMessages.getJoinedChannels, serverId),
+  getJoinedChannels: (serverId: string) => ipcRenderer.invoke(IrcMessages.getJoinedChannels, serverId),
 
   getHistory: (serverId: string, channel: string, before?: number, limit?: number) =>
     ipcRenderer.invoke(IrcMessages.getHistory, serverId, channel, before, limit),
@@ -48,8 +54,15 @@ contextBridge.exposeInMainWorld('irc', {
 
   dccClose: (dccId: string) => ipcRenderer.invoke(IrcMessages.dccClose, dccId),
 
-  xdccAccept: (serverId: string, nick: string, ip: string, port: number, filename: string, size: number, token?: string) =>
-    ipcRenderer.invoke(IrcMessages.xdccAccept, serverId, nick, ip, port, filename, size, token),
+  xdccAccept: (
+    serverId: string,
+    nick: string,
+    ip: string,
+    port: number,
+    filename: string,
+    size: number,
+    token?: string,
+  ) => ipcRenderer.invoke(IrcMessages.xdccAccept, serverId, nick, ip, port, filename, size, token),
 
   xdccClose: (xdccId: string) => ipcRenderer.invoke(IrcMessages.xdccClose, xdccId),
 

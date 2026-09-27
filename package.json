@@ -13,6 +13,8 @@
     "frontend:build": "electron-vite build",
     "frontend:test": "vitest run",
     "frontend:test:dev": "vitest",
+    "frontend:lint": "biome check .",
+    "frontend:lint:fix": "biome check --write .",
     "backend:build": "go build -C backend -o bin/ ./cmd/dolqd",
     "backend:dev": "go -C backend tool air",
     "backend:test": "go -C backend test ./...",
@@ -21,6 +23,7 @@
     "package": "npm run backend:build && npm run frontend:build && electron-builder"
   },
   "devDependencies": {
+    "@biomejs/biome": "2.5.14",
     "@tailwindcss/vite": "^4.3.1",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
@@ -45,10 +48,9 @@
     "zustand": "^5.0.14"
   },
   "allowScripts": {
-    "electron@42.4.1": true,
-    "esbuild@0.25.12": true,
-    "esbuild@0.28.1": true,
-    "electron-winstaller@5.4.0": true,
-    "fsevents@2.3.3": true
+    "electron": true,
+    "esbuild": true,
+    "electron-winstaller": true,
+    "fsevents": true
   }
 }

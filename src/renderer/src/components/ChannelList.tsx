@@ -1,5 +1,5 @@
-import { Channel } from '../types';
 import { useContextMenu } from '../hooks/useContextMenu';
+import type { Channel } from '../types';
 import { ContextMenu, ContextMenuHeader, ContextMenuItem } from './ContextMenu';
 
 type Props = {
@@ -8,6 +8,7 @@ type Props = {
   selectedId: string;
   onSelect: (id: string) => void;
   mentionedChannels: Record<string, boolean>;
+  awayStats: Record<string, { count: number; people: number }>;
   mutedChannels: Record<string, boolean>;
   onToggleMuteChannel: (id: string) => void;
   onJoinChannel: (id: string) => void;
@@ -18,14 +19,22 @@ type Props = {
 };
 
 export function ChannelList({
-  serverName, channels, selectedId, onSelect, mentionedChannels, mutedChannels,
-  onToggleMuteChannel, onJoinChannel, onLeaveChannel, onRemoveChannel, onCloseQuery, onOpenSearch,
+  serverName,
+  channels,
+  selectedId,
+  onSelect,
+  mentionedChannels,
+  awayStats,
+  mutedChannels,
+  onToggleMuteChannel,
+  onJoinChannel,
+  onLeaveChannel,
+  onRemoveChannel,
+  onCloseQuery,
+  onOpenSearch,
 }: Props) {
   const logChannel = channels.find((c) => c.isLog);
   const regularChannels = channels.filter((c) => !c.isLog && !c.isQuery);
-  // isDCC implies isQuery (see types.ts) - queries stays the full set for
-  // context-menu lookup/Close below, plainQueries/dccChats just split it
-  // for rendering into their own sidebar sections.
   const queries = channels.filter((c) => c.isQuery);
   const plainQueries = queries.filter((c) => !c.isDCC);
   const dccChats = queries.filter((c) => c.isDCC);
@@ -36,16 +45,17 @@ export function ChannelList({
 
   return (
     <aside
-      className="relative flex flex-col w-60 bg-[var(--dolq-bg-panel)] shrink-0 overflow-hidden"
+      className="relative flex flex-col w-60 bg-(--dolq-bg-panel) shrink-0 overflow-hidden"
       onContextMenu={dismissIfUnhandled}
     >
-      <div className="px-4 h-12 flex items-center justify-between font-bold text-[15px] text-[var(--dolq-text)] border-b border-[var(--dolq-border)] shrink-0 shadow-[0_1px_0_rgba(0,0,0,0.2)]">
+      <div className="px-4 h-12 flex items-center justify-between font-bold text-[15px] text-(--dolq-text) border-b border-(--dolq-border) shrink-0 shadow-[0_1px_0_rgba(0,0,0,0.2)]">
         <span className="truncate">{serverName}</span>
         <button
+          type="button"
           onClick={onOpenSearch}
           title="Search history"
           aria-label="Search history"
-          className="shrink-0 w-7 h-7 flex items-center justify-center rounded border-0 bg-transparent text-[var(--dolq-text-dim)] cursor-pointer hover:text-[var(--dolq-text)] hover:bg-[var(--dolq-bg-row-hover)]"
+          className="shrink-0 w-7 h-7 flex items-center justify-center rounded border-0 bg-transparent text-(--dolq-text-dim) cursor-pointer hover:text-(--dolq-text) hover:bg-(--dolq-bg-row-hover)"
         >
           🔍
         </button>
@@ -54,11 +64,12 @@ export function ChannelList({
       {logChannel && (
         <div className="pt-3 pb-1 px-2">
           <button
+            type="button"
             onClick={() => onSelect(logChannel.id)}
             className={`flex items-center gap-2 w-full py-1.5 px-2 rounded border-0 text-[14px] cursor-pointer text-left font-medium transition-[background,color] duration-100 ${
               selectedId === logChannel.id
-                ? 'bg-[var(--dolq-bg-row-selected)] text-[var(--dolq-text)]'
-                : 'bg-transparent text-[var(--dolq-text-dim)] hover:bg-[var(--dolq-bg-row-hover)] hover:text-[var(--dolq-text)]'
+                ? 'bg-(--dolq-bg-row-selected) text-(--dolq-text)'
+                : 'bg-transparent text-(--dolq-text-dim) hover:bg-(--dolq-bg-row-hover) hover:text-(--dolq-text)'
             }`}
           >
             <span className="font-mono text-[11px] opacity-60">▤</span>
@@ -67,7 +78,7 @@ export function ChannelList({
         </div>
       )}
 
-      <div className="pt-3 pb-1 px-4 text-[11px] font-bold uppercase tracking-[0.5px] text-[var(--dolq-text-faint)]">
+      <div className="pt-3 pb-1 px-4 text-[11px] font-bold uppercase tracking-[0.5px] text-(--dolq-text-faint)">
         Text Channels
       </div>
 
@@ -76,42 +87,53 @@ export function ChannelList({
           const joined = ch.joined !== false;
           const mentioned = !!mentionedChannels[ch.id];
           const muted = !!mutedChannels[ch.id];
+          const away = awayStats[ch.id];
           return (
             <button
+              type="button"
               key={ch.id}
               onClick={() => onSelect(ch.id)}
               onContextMenu={(e) => open(ch.id, e)}
               title={joined ? undefined : 'Not currently in this channel'}
               className={`flex items-center w-full py-1.5 px-2 my-px rounded border-0 text-[15px] cursor-pointer text-left transition-[background,color] duration-100 ${
                 ch.id === selectedId
-                  ? 'bg-[var(--dolq-bg-row-selected)] text-[var(--dolq-text)]'
+                  ? 'bg-(--dolq-bg-row-selected) text-(--dolq-text)'
                   : mentioned
-                  ? 'bg-transparent text-[var(--dolq-mention)] font-semibold hover:bg-[var(--dolq-bg-row-hover)]'
-                  : 'bg-transparent text-[var(--dolq-text-dim)] hover:bg-[var(--dolq-bg-row-hover)] hover:text-[var(--dolq-text)]'
+                    ? 'bg-transparent text-(--dolq-mention) font-semibold hover:bg-(--dolq-bg-row-hover)'
+                    : 'bg-transparent text-(--dolq-text-dim) hover:bg-(--dolq-bg-row-hover) hover:text-(--dolq-text)'
               } ${joined ? '' : 'opacity-50 italic'}`}
             >
               <span className="text-[16px] mr-1.5 opacity-50">#</span>
               <span className="flex-1 truncate">{ch.name}</span>
               {muted && <span className="text-[12px] opacity-50 shrink-0">🔕</span>}
-              {mentioned && <span className="w-2 h-2 rounded-full bg-[var(--dolq-mention)] shrink-0" />}
+              {away && (
+                <span
+                  title={`${away.count} message${away.count === 1 ? '' : 's'} from ${away.people} ${away.people === 1 ? 'person' : 'people'} since you last looked`}
+                  className="text-[10px] font-mono px-1.5 rounded-full bg-(--dolq-bg-row-hover) text-(--dolq-text-faint) shrink-0"
+                >
+                  {away.count > 99 ? '99+' : away.count}
+                </span>
+              )}
+              {mentioned && <span className="w-2 h-2 rounded-full bg-(--dolq-mention) shrink-0" />}
             </button>
           );
         })}
 
         {plainQueries.length > 0 && (
-          <div className="pt-3 pb-1 px-2 text-[11px] font-bold uppercase tracking-[0.5px] text-[var(--dolq-text-faint)]">
+          <div className="pt-3 pb-1 px-2 text-[11px] font-bold uppercase tracking-[0.5px] text-(--dolq-text-faint)">
             Direct Messages
           </div>
         )}
         {plainQueries.map((ch) => (
           <button
+            type="button"
             key={ch.id}
             onClick={() => onSelect(ch.id)}
             onContextMenu={(e) => open(ch.id, e)}
             className={`flex items-center w-full py-1.5 px-2 my-px rounded border-0 text-[15px] cursor-pointer text-left transition-[background,color] duration-100 ${
               ch.id === selectedId
-                ? 'bg-[var(--dolq-bg-row-selected)] text-[var(--dolq-text)]'
-                : 'bg-transparent text-[var(--dolq-text-dim)] hover:bg-[var(--dolq-bg-row-hover)] hover:text-[var(--dolq-text)]'
+                ? 'bg-(--dolq-bg-row-selected) text-(--dolq-text)'
+                : 'bg-transparent text-(--dolq-text-dim) hover:bg-(--dolq-bg-row-hover) hover:text-(--dolq-text)'
             }`}
           >
             <span className="text-[16px] mr-1.5 opacity-50">@</span>
@@ -120,19 +142,20 @@ export function ChannelList({
         ))}
 
         {dccChats.length > 0 && (
-          <div className="pt-3 pb-1 px-2 text-[11px] font-bold uppercase tracking-[0.5px] text-[var(--dolq-text-faint)]">
+          <div className="pt-3 pb-1 px-2 text-[11px] font-bold uppercase tracking-[0.5px] text-(--dolq-text-faint)">
             DCC Chats
           </div>
         )}
         {dccChats.map((ch) => (
           <button
+            type="button"
             key={ch.id}
             onClick={() => onSelect(ch.id)}
             onContextMenu={(e) => open(ch.id, e)}
             className={`flex items-center w-full py-1.5 px-2 my-px rounded border-0 text-[15px] cursor-pointer text-left transition-[background,color] duration-100 ${
               ch.id === selectedId
-                ? 'bg-[var(--dolq-bg-row-selected)] text-[var(--dolq-text)]'
-                : 'bg-transparent text-[var(--dolq-text-dim)] hover:bg-[var(--dolq-bg-row-hover)] hover:text-[var(--dolq-text)]'
+                ? 'bg-(--dolq-bg-row-selected) text-(--dolq-text)'
+                : 'bg-transparent text-(--dolq-text-dim) hover:bg-(--dolq-bg-row-hover) hover:text-(--dolq-text)'
             }`}
           >
             <span className="text-[16px] mr-1.5 opacity-50">⚡</span>
@@ -145,18 +168,39 @@ export function ChannelList({
         <ContextMenu x={menu.x} y={menu.y}>
           <ContextMenuHeader>#{menuChannel.name}</ContextMenuHeader>
           {menuChannelJoined ? (
-            <ContextMenuItem onClick={() => { onLeaveChannel(menuChannel.id); close(); }}>
+            <ContextMenuItem
+              onClick={() => {
+                onLeaveChannel(menuChannel.id);
+                close();
+              }}
+            >
               Leave Channel
             </ContextMenuItem>
           ) : (
-            <ContextMenuItem onClick={() => { onJoinChannel(menuChannel.id); close(); }}>
+            <ContextMenuItem
+              onClick={() => {
+                onJoinChannel(menuChannel.id);
+                close();
+              }}
+            >
               Join Channel
             </ContextMenuItem>
           )}
-          <ContextMenuItem onClick={() => { onToggleMuteChannel(menuChannel.id); close(); }}>
+          <ContextMenuItem
+            onClick={() => {
+              onToggleMuteChannel(menuChannel.id);
+              close();
+            }}
+          >
             {mutedChannels[menuChannel.id] ? 'Unmute Channel' : 'Mute Channel'}
           </ContextMenuItem>
-          <ContextMenuItem danger onClick={() => { onRemoveChannel(menuChannel.id); close(); }}>
+          <ContextMenuItem
+            danger
+            onClick={() => {
+              onRemoveChannel(menuChannel.id);
+              close();
+            }}
+          >
             Remove Channel
           </ContextMenuItem>
         </ContextMenu>
@@ -165,7 +209,13 @@ export function ChannelList({
       {menu && menuQuery && (
         <ContextMenu x={menu.x} y={menu.y}>
           <ContextMenuHeader>{menuQuery.name}</ContextMenuHeader>
-          <ContextMenuItem danger onClick={() => { onCloseQuery(menuQuery.id); close(); }}>
+          <ContextMenuItem
+            danger
+            onClick={() => {
+              onCloseQuery(menuQuery.id);
+              close();
+            }}
+          >
             Close
           </ContextMenuItem>
         </ContextMenu>

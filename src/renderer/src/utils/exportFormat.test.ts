@@ -1,6 +1,6 @@
-import { describe, it, expect } from 'vitest';
-import { formatEntry } from './exportFormat';
+import { describe, expect, it } from 'vitest';
 import type { HistoryEntry } from '../../../shared/ipc';
+import { formatEntry } from './exportFormat';
 
 const ts = '2026-01-01T00:00:00.000Z';
 
@@ -10,9 +10,7 @@ function entry(partial: Partial<HistoryEntry>): HistoryEntry {
 
 describe('formatEntry', () => {
   it('formats a raw line verbatim', () => {
-    expect(formatEntry(entry({ isRaw: true, line: ':server NOTICE * :hi' }))).toBe(
-      `[${ts}] :server NOTICE * :hi`,
-    );
+    expect(formatEntry(entry({ isRaw: true, line: ':server NOTICE * :hi' }))).toBe(`[${ts}] :server NOTICE * :hi`);
   });
 
   it('formats a PRIVMSG as <nick> text', () => {
@@ -42,14 +40,24 @@ describe('formatEntry', () => {
   it('formats an XDCCPACK as <nick> #n details', () => {
     expect(
       formatEntry(
-        entry({ event: { type: 'XDCCPACK', nick: 'bot', target: 'me', number: 1, gets: 5, size: '340M', filename: 'file.mkv' } }),
+        entry({
+          event: {
+            type: 'XDCCPACK',
+            nick: 'bot',
+            target: 'me',
+            number: 1,
+            gets: 5,
+            size: '340M',
+            filename: 'file.mkv',
+          },
+        }),
       ),
     ).toBe(`[${ts}] <bot> #1 · 5x sent · 340M · file.mkv`);
   });
 
   it('falls back to raw JSON for an event type without a dedicated format', () => {
-    expect(
-      formatEntry(entry({ event: { type: 'names', channel: '#general', users: [] } })),
-    ).toBe(`[${ts}] ${JSON.stringify({ type: 'names', channel: '#general', users: [] })}`);
+    expect(formatEntry(entry({ event: { type: 'names', channel: '#general', users: [] } }))).toBe(
+      `[${ts}] ${JSON.stringify({ type: 'names', channel: '#general', users: [] })}`,
+    );
   });
 });

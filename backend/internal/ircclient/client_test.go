@@ -11,8 +11,6 @@ import (
 	"github.com/Daemeron/dolq/backend/internal/ircparse"
 )
 
-// pipeClient wires a Client to one end of an in-memory net.Pipe(), handing
-// the test the other end to act as a fake IRC server.
 func pipeClient(t *testing.T, nick string) (*Client, net.Conn, *bufio.Reader) {
 	t.Helper()
 	clientConn, serverConn := net.Pipe()
@@ -23,8 +21,6 @@ func pipeClient(t *testing.T, nick string) (*Client, net.Conn, *bufio.Reader) {
 	return New(clientConn, nick), serverConn, bufio.NewReader(serverConn)
 }
 
-// expectLine reads one CRLF-terminated line the client wrote, off a
-// goroutine so a net.Pipe's blocking Read doesn't wedge the test forever.
 func expectLine(t *testing.T, r *bufio.Reader) string {
 	t.Helper()
 	type result struct {
@@ -48,11 +44,6 @@ func expectLine(t *testing.T, r *bufio.Reader) string {
 	}
 }
 
-// expectNoLine fails if the client writes anything within a short window -
-// used to assert a retry/reply was deliberately withheld. Uses conn's own
-// deadline (net.Pipe supports one) and reads directly on the calling
-// goroutine, unlike expectLine, so there's nothing left running - and
-// nothing that can call t.Fatal - once the subtest that started it returns.
 func expectNoLine(t *testing.T, conn net.Conn, r *bufio.Reader) {
 	t.Helper()
 	conn.SetReadDeadline(time.Now().Add(200 * time.Millisecond))
@@ -79,9 +70,6 @@ func writeLine(t *testing.T, conn net.Conn, line string) {
 	}
 }
 
-// drainHandshake reads off the four lines every connection sends up front:
-// CAP LS (always, now - see negotiateCaps), then the classic PASS/NICK/USER
-// registration trio.
 func drainHandshake(t *testing.T, r *bufio.Reader) {
 	t.Helper()
 	for range 4 {
@@ -128,7 +116,7 @@ func TestSendPaced(t *testing.T) {
 	t.Run("sends up to the burst immediately", func(t *testing.T) {
 		c, _, r := pipeClient(t, "testnick")
 		c.FloodBurst = 3
-		c.FloodInterval = time.Hour // never refills during this test
+		c.FloodInterval = time.Hour
 		for range 3 {
 			go c.SendPaced("PRIVMSG #chan :line")
 		}
@@ -142,10 +130,10 @@ func TestSendPaced(t *testing.T) {
 		c.FloodBurst = 1
 		c.FloodInterval = 500 * time.Millisecond
 		go c.SendPaced("PRIVMSG #chan :first")
-		expectLine(t, r) // spends the only token, immediately
+		expectLine(t, r)
 
 		go c.SendPaced("PRIVMSG #chan :second")
-		expectNoLine(t, server, r) // still well within the interval
+		expectNoLine(t, server, r)
 		if got := expectLine(t, r); got != "PRIVMSG #chan :second\r\n" {
 			t.Errorf("got %q", got)
 		}
@@ -156,14 +144,14 @@ func TestSendPaced(t *testing.T) {
 		c.Start()
 		drainHandshake(t, r)
 		c.FloodBurst = 1
-		c.FloodInterval = time.Hour // never refills in time
+		c.FloodInterval = time.Hour
 		go c.SendPaced("PRIVMSG #chan :first")
-		expectLine(t, r) // spends the only token
+		expectLine(t, r)
 
 		errCh := make(chan error, 1)
 		go func() { errCh <- c.SendPaced("PRIVMSG #chan :second") }()
 
-		server.Close() // trips the read loop's EOF, closing c.closed
+		server.Close()
 		select {
 		case err := <-errCh:
 			if err == nil {
@@ -247,9 +235,6 @@ func TestSASL(t *testing.T) {
 		drainHandshake(t, r)
 
 		writeLine(t, server, "CAP * LS :sasl")
-		// sasl is the only thing offered and it's never requested without
-		// credentials, so this should go straight to CAP END - no CAP REQ,
-		// no AUTHENTICATE, at all.
 		if got := expectLine(t, r); got != "CAP END\r\n" {
 			t.Fatalf("got %q want CAP END (no CAP REQ)", got)
 		}
@@ -262,8 +247,6 @@ func TestSASL(t *testing.T) {
 		c.Start()
 		drainHandshake(t, r)
 
-		// Offers only sasl - baseline cap requesting is covered by
-		// TestCapNegotiation, so this stays focused on the SASL exchange.
 		writeLine(t, server, "CAP * LS :sasl")
 
 		if got := expectLine(t, r); got != "CAP REQ :sasl\r\n" {
@@ -295,7 +278,7 @@ func TestSASL(t *testing.T) {
 		drainHandshake(t, r)
 
 		writeLine(t, server, "CAP * LS :sasl")
-		expectLine(t, r) // CAP REQ :sasl
+		expectLine(t, r)
 		writeLine(t, server, "CAP * NAK :sasl")
 
 		if got := expectLine(t, r); got != "CAP END\r\n" {
@@ -311,11 +294,11 @@ func TestSASL(t *testing.T) {
 		drainHandshake(t, r)
 
 		writeLine(t, server, "CAP * LS :sasl")
-		expectLine(t, r) // CAP REQ :sasl
+		expectLine(t, r)
 		writeLine(t, server, "CAP * ACK :sasl")
-		expectLine(t, r) // AUTHENTICATE PLAIN
+		expectLine(t, r)
 		writeLine(t, server, "AUTHENTICATE +")
-		expectLine(t, r) // AUTHENTICATE <payload>
+		expectLine(t, r)
 		writeLine(t, server, ":irc.example.net 904 mynick :SASL authentication failed")
 
 		if got := expectLine(t, r); got != "CAP END\r\n" {
@@ -332,7 +315,7 @@ func TestSASL(t *testing.T) {
 		drainHandshake(t, r)
 
 		writeLine(t, server, "CAP * LS :sasl")
-		expectLine(t, r) // CAP REQ :sasl - server never acks it
+		expectLine(t, r)
 
 		if got := expectLine(t, r); got != "CAP END\r\n" {
 			t.Fatalf("got %q want CAP END", got)
@@ -609,7 +592,7 @@ func TestPingTimeoutWatchdog(t *testing.T) {
 
 		time.Sleep(100 * time.Millisecond)
 		writeLine(t, server, "PING :irc.example.net")
-		expectLine(t, r) // the PONG reply confirms the line reached the read loop
+		expectLine(t, r)
 
 		select {
 		case <-c.closed:
@@ -793,7 +776,6 @@ func TestWhoisAccumulation(t *testing.T) {
 		c.Start()
 		drainHandshake(t, r)
 
-		// e.g. from PRIVMSGing someone who's away - no preceding 311 for them.
 		writeLine(t, server, ":irc.example.net 301 testnick alice :gone fishing")
 		select {
 		case e := <-events:
@@ -974,8 +956,6 @@ func TestNickCollisionHandling(t *testing.T) {
 		}
 		<-events
 
-		// AltNicks exhausted - falls back to underscore-appending the last
-		// rejected nick, same as with no AltNicks configured at all.
 		writeLine(t, server, ":irc.example.net 433 * testnick3 :Nickname is already in use.")
 		if got := expectLine(t, r); got != "NICK testnick3_\r\n" {
 			t.Errorf("retry line = %q, want NICK testnick3_", got)
@@ -999,12 +979,10 @@ func TestNickCollisionHandling(t *testing.T) {
 
 		for range maxNickCollisionRetries {
 			writeLine(t, server, ":irc.example.net 433 * testnick :Nickname is already in use.")
-			expectLine(t, r) // the retry NICK
+			expectLine(t, r)
 			<-events
 		}
 
-		// One more collision past the cap: no further NICK sent, and the
-		// event reports it gave up (Retrying empty).
 		writeLine(t, server, ":irc.example.net 433 * testnick :Nickname is already in use.")
 		select {
 		case e := <-events:
@@ -1049,7 +1027,7 @@ func TestNickCollisionHandling(t *testing.T) {
 		drainHandshake(t, r)
 
 		writeLine(t, server, ":irc.example.net 001 testnick :Welcome")
-		<-events // WELCOME
+		<-events
 
 		writeLine(t, server, ":irc.example.net 433 testnick newnick :Nickname is already in use.")
 		select {

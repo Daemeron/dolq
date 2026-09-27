@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
-import { EmojiPicker } from './EmojiPicker';
 import { insertAtCaret } from '../utils/insertAtCaret';
+import { EmojiPicker } from './EmojiPicker';
 
 type Props = {
   channelName: string;
@@ -22,10 +22,6 @@ export function MessageInput({ channelName, isLog, isQuery, onSend }: Props) {
     setValue('');
   }
 
-  // Inserts at the caret (not just appended) so picking an emoji mid-message
-  // works the way typing one would - falls back to the end if the input
-  // isn't focused (selectionStart/End are null off a non-text-input element,
-  // never actually the case here, but the type allows it).
   function insertEmoji(emoji: string) {
     const input = inputRef.current;
     const start = input?.selectionStart ?? value.length;
@@ -33,9 +29,6 @@ export function MessageInput({ channelName, isLog, isQuery, onSend }: Props) {
     const { text, caret } = insertAtCaret(value, start, end, emoji);
     setValue(text);
     setShowEmoji(false);
-    // Focusing happens after React re-renders the input with `text` - a
-    // frame later (rather than synchronously here) so the caret position
-    // isn't set before the DOM value actually contains the emoji.
     requestAnimationFrame(() => {
       input?.focus();
       input?.setSelectionRange(caret, caret);
@@ -48,22 +41,27 @@ export function MessageInput({ channelName, isLog, isQuery, onSend }: Props) {
       <form onSubmit={handleSubmit} className="flex items-center gap-2">
         <button
           type="button"
-          onClick={(e) => { e.stopPropagation(); setShowEmoji((v) => !v); }}
+          onClick={(e) => {
+            e.stopPropagation();
+            setShowEmoji((v) => !v);
+          }}
           title="Emoji"
           aria-label="Emoji"
-          className="shrink-0 w-9 h-9 flex items-center justify-center text-[18px] rounded-lg border-0 bg-[var(--dolq-bg-input)] cursor-pointer hover:bg-[var(--dolq-bg-hover)]"
+          className="shrink-0 w-9 h-9 flex items-center justify-center text-[18px] rounded-lg border-0 bg-(--dolq-bg-input) cursor-pointer hover:bg-(--dolq-bg-hover)"
         >
           🙂
         </button>
         <input
           ref={inputRef}
-          className="flex-1 bg-[var(--dolq-bg-input)] border-0 rounded-lg text-[var(--dolq-text)] text-[15px] px-4 py-3 outline-none caret-[var(--dolq-text)] placeholder:text-[var(--dolq-text-faint)] disabled:opacity-40 disabled:cursor-not-allowed"
+          className="flex-1 bg-(--dolq-bg-input) border-0 rounded-lg text-(--dolq-text) text-[15px] px-4 py-3 outline-none caret-(--dolq-text) placeholder:text-(--dolq-text-faint) disabled:opacity-40 disabled:cursor-not-allowed"
           value={value}
           onChange={(e) => setValue(e.target.value)}
           placeholder={
-            isLog ? 'Log view — type commands here like /join #channel'
-              : isQuery ? `Message ${channelName}`
-              : `Message #${channelName}`
+            isLog
+              ? 'Log view — type commands here like /join #channel'
+              : isQuery
+                ? `Message ${channelName}`
+                : `Message #${channelName}`
           }
         />
       </form>

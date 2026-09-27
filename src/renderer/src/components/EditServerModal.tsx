@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import type { Server } from '../types';
 import { IRC_PORT, IRC_TLS_PORT } from '../../../shared/ipc';
-import { ViewPanel } from './ViewPanel';
+import type { Server } from '../types';
 import { resolveHostPort } from '../utils/server';
+import { ViewPanel } from './ViewPanel';
 
 export type EditServerForm = {
   name: string;
@@ -27,14 +27,6 @@ type Props = {
   onCancel: () => void;
 };
 
-// Same field set ConnectModal's Advanced section already collects at
-// creation time - this is the "edit later" path that never existed for any
-// of it (see ROADMAP's "Per-server identity defaults": create-only was a
-// deliberate v1 scope cut, not a design decision worth keeping forever).
-// Deliberately drops ConnectModal's "Server Password" field rather than
-// carrying it forward - that field is already disconnected from anything
-// (PASS is hardcoded in the handshake, a separate pre-existing bug), so
-// there's nothing to edit there.
 const inputClass =
   'w-full bg-[var(--dolq-bg-input)] border-0 rounded text-[var(--dolq-text)] text-[14px] px-3 py-2.5 outline-none focus:ring-2 focus:ring-[#c792ea] placeholder:text-[var(--dolq-text-faint)]';
 const labelClass =
@@ -57,8 +49,7 @@ export function EditServerModal({ server, nick, saslUser, saslPass, onSave, onCa
   });
 
   function set(field: keyof EditServerForm) {
-    return (e: React.ChangeEvent<HTMLInputElement>) =>
-      setForm((prev) => ({ ...prev, [field]: e.target.value }));
+    return (e: React.ChangeEvent<HTMLInputElement>) => setForm((prev) => ({ ...prev, [field]: e.target.value }));
   }
 
   function toggleSecure(e: React.ChangeEvent<HTMLInputElement>) {
@@ -79,9 +70,8 @@ export function EditServerModal({ server, nick, saslUser, saslPass, onSave, onCa
   return (
     <ViewPanel title="Edit Server" onClose={onCancel}>
       <div className="max-w-110 flex flex-col gap-4">
-        <p className="text-[var(--dolq-text-muted)] text-[14px] -mt-1">
-          Changes to Host/Port/SSL/Nickname apply the next time you connect, not to the
-          current connection.
+        <p className="text-(--dolq-text-muted) text-[14px] -mt-1">
+          Changes to Host/Port/SSL/Nickname apply the next time you connect, not to the current connection.
         </p>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
@@ -109,7 +99,7 @@ export function EditServerModal({ server, nick, saslUser, saslPass, onSave, onCa
             </label>
           </div>
 
-          <label className="flex items-center gap-2 text-[13px] text-[var(--dolq-text)] cursor-pointer select-none">
+          <label className="flex items-center gap-2 text-[13px] text-(--dolq-text) cursor-pointer select-none">
             <input type="checkbox" checked={form.secure} onChange={toggleSecure} className="accent-[#c792ea]" />
             Use SSL/TLS
           </label>
@@ -132,11 +122,21 @@ export function EditServerModal({ server, nick, saslUser, saslPass, onSave, onCa
           <div className="flex gap-3">
             <label className={`${labelClass} flex-1`}>
               Username
-              <input className={inputClass} value={form.username} onChange={set('username')} placeholder={form.nick || 'defaults to Nickname'} />
+              <input
+                className={inputClass}
+                value={form.username}
+                onChange={set('username')}
+                placeholder={form.nick || 'defaults to Nickname'}
+              />
             </label>
             <label className={`${labelClass} flex-1`}>
               Real Name
-              <input className={inputClass} value={form.realname} onChange={set('realname')} placeholder="Dolq IRC Client" />
+              <input
+                className={inputClass}
+                value={form.realname}
+                onChange={set('realname')}
+                placeholder="Dolq IRC Client"
+              />
             </label>
           </div>
 
@@ -151,7 +151,7 @@ export function EditServerModal({ server, nick, saslUser, saslPass, onSave, onCa
           </label>
 
           <div className="flex flex-col gap-1.5">
-            <span className="text-[11px] font-bold uppercase tracking-[0.5px] text-[var(--dolq-text-muted)]">
+            <span className="text-[11px] font-bold uppercase tracking-[0.5px] text-(--dolq-text-muted)">
               SASL Login
             </span>
             <div className="flex gap-3 mt-1">
@@ -177,7 +177,7 @@ export function EditServerModal({ server, nick, saslUser, saslPass, onSave, onCa
             <button
               type="button"
               onClick={onCancel}
-              className="px-4 py-2 rounded text-[var(--dolq-text-muted)] text-[14px] font-medium bg-transparent border-0 cursor-pointer hover:text-[var(--dolq-text)]"
+              className="px-4 py-2 rounded text-(--dolq-text-muted) text-[14px] font-medium bg-transparent border-0 cursor-pointer hover:text-(--dolq-text)"
             >
               Cancel
             </button>

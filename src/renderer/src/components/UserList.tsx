@@ -1,26 +1,39 @@
-import { useRef } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { User } from '../types';
-import { PRIVILEGE_RANK, highestPrivilege, type PrivilegeLevel } from '../../../shared/ipc';
+import { useRef } from 'react';
+import { highestPrivilege, PRIVILEGE_RANK, type PrivilegeLevel } from '../../../shared/ipc';
 import { useContextMenu } from '../hooks/useContextMenu';
+import type { User } from '../types';
 import { ContextMenu, ContextMenuHeader, ContextMenuItem } from './ContextMenu';
 
 const GROUP_LABEL: Record<PrivilegeLevel, string> = {
-  owner: 'Owners', admin: 'Admins', op: 'Operators', halfop: 'Half-Ops', voice: 'Voiced', none: 'Online',
+  owner: 'Owners',
+  admin: 'Admins',
+  op: 'Operators',
+  halfop: 'Half-Ops',
+  voice: 'Voiced',
+  none: 'Online',
 };
 
 const SYMBOL: Record<PrivilegeLevel, string> = {
-  owner: '~', admin: '&', op: '@', halfop: '%', voice: '+', none: '',
+  owner: '~',
+  admin: '&',
+  op: '@',
+  halfop: '%',
+  voice: '+',
+  none: '',
 };
 
 const COLOR: Record<PrivilegeLevel, string> = {
-  owner: '#ff92df', admin: '#ff5555', op: '#ffcb6b', halfop: '#8be9fd', voice: '#c792ea', none: '#909090',
+  owner: '#ff92df',
+  admin: '#ff5555',
+  op: '#ffcb6b',
+  halfop: '#8be9fd',
+  voice: '#c792ea',
+  none: '#909090',
 };
 
 type Row = { type: 'header'; privilege: PrivilegeLevel; count: number; first: boolean } | { type: 'user'; user: User };
 
-// Flattened header+user rows (rather than nested groups) so the whole list is
-// one virtualizer - a large channel is nearly all "user" rows anyway.
 export function toRows(users: User[]): Row[] {
   const rows: Row[] = [];
   let first = true;
@@ -34,30 +47,40 @@ export function toRows(users: User[]): Row[] {
   return rows;
 }
 
-function UserRow(
-  { user, onOpenQuery, onContextMenu, ignored }: {
-    user: User;
-    onOpenQuery?: (nick: string) => void;
-    onContextMenu: (e: React.MouseEvent) => void;
-    ignored: boolean;
-  },
-) {
+function UserRow({
+  user,
+  onOpenQuery,
+  onContextMenu,
+  ignored,
+}: {
+  user: User;
+  onOpenQuery?: (nick: string) => void;
+  onContextMenu: (e: React.MouseEvent) => void;
+  ignored: boolean;
+}) {
   const privilege = highestPrivilege(user.privileges);
   const color = COLOR[privilege];
   return (
     <button
+      type="button"
       onClick={onOpenQuery && (() => onOpenQuery(user.nick))}
       onContextMenu={onContextMenu}
       title={onOpenQuery ? `Message ${user.nick}` : undefined}
-      className={`flex items-center gap-2 w-full px-2 py-1 rounded border-0 bg-transparent text-left hover:bg-[var(--dolq-bg-row-hover)] cursor-pointer ${ignored || user.away ? 'opacity-40' : ''}`}
+      className={`flex items-center gap-2 w-full px-2 py-1 rounded border-0 bg-transparent text-left hover:bg-(--dolq-bg-row-hover) cursor-pointer ${ignored || user.away ? 'opacity-40' : ''}`}
     >
-      <div className="w-8 h-8 rounded-full bg-[var(--dolq-bg)] text-[var(--dolq-text)] flex items-center justify-center text-[13px] font-semibold shrink-0">
+      <div className="w-8 h-8 rounded-full bg-(--dolq-bg) text-(--dolq-text) flex items-center justify-center text-[13px] font-semibold shrink-0">
         {user.nick[0]?.toUpperCase() ?? '?'}
       </div>
-      <span className={`text-[14px] truncate ${ignored ? 'line-through text-[var(--dolq-text-faint)]' : privilege === 'none' ? 'text-[var(--dolq-text-dim)]' : 'text-[var(--dolq-text)]'}`}>
-        {SYMBOL[privilege] && <span className="mr-0.5" style={{ color }}>{SYMBOL[privilege]}</span>}
+      <span
+        className={`text-[14px] truncate ${ignored ? 'line-through text-(--dolq-text-faint)' : privilege === 'none' ? 'text-(--dolq-text-dim)' : 'text-(--dolq-text)'}`}
+      >
+        {SYMBOL[privilege] && (
+          <span className="mr-0.5" style={{ color }}>
+            {SYMBOL[privilege]}
+          </span>
+        )}
         {user.nick}
-        {user.away && !ignored && <span className="text-[var(--dolq-text-dim)]"> (away)</span>}
+        {user.away && !ignored && <span className="text-(--dolq-text-dim)"> (away)</span>}
       </span>
     </button>
   );
@@ -74,15 +97,18 @@ type ListProps = {
 };
 
 export function UserList({
-  users, currentNick, onOpenQuery, onWhois, ignoredNicks, onToggleIgnore, onDCCOffer,
+  users,
+  currentNick,
+  onOpenQuery,
+  onWhois,
+  ignoredNicks,
+  onToggleIgnore,
+  onDCCOffer,
 }: ListProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const rows = toRows(users);
   const { menu, open, close, dismissIfUnhandled } = useContextMenu<string>();
 
-  // Row heights are fixed by the markup (avatar/line height, no wrapping
-  // text) but still measured rather than hardcoded, so padding/margin tweaks
-  // to the rows below don't silently drift out of sync with a guessed number.
   const rowVirtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => containerRef.current,
@@ -94,7 +120,7 @@ export function UserList({
   return (
     <div
       ref={containerRef}
-      className="relative flex-1 min-h-0 overflow-y-auto pt-4 pb-6 px-2 scroll-thin"
+      className="relative flex-1 min-h-0 overflow-y-auto pt-4 pb-18 px-2 scroll-thin"
       onContextMenu={dismissIfUnhandled}
     >
       <div style={{ height: rowVirtualizer.getTotalSize(), position: 'relative' }}>
@@ -105,11 +131,17 @@ export function UserList({
               key={virtualRow.key}
               ref={rowVirtualizer.measureElement}
               data-index={virtualRow.index}
-              style={{ position: 'absolute', top: 0, left: 0, right: 0, transform: `translateY(${virtualRow.start}px)` }}
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                transform: `translateY(${virtualRow.start}px)`,
+              }}
             >
               {row.type === 'header' ? (
                 <div className={row.first ? 'px-2 pb-1' : 'px-2 pb-1 mt-3'}>
-                  <div className="text-[11px] font-bold uppercase tracking-[0.5px] text-[var(--dolq-text-faint)]">
+                  <div className="text-[11px] font-bold uppercase tracking-[0.5px] text-(--dolq-text-faint)">
                     {GROUP_LABEL[row.privilege]} — {row.count}
                   </div>
                 </div>
@@ -129,13 +161,29 @@ export function UserList({
       {menu && (
         <ContextMenu x={menu.x} y={menu.y}>
           <ContextMenuHeader>{menu.target}</ContextMenuHeader>
-          <ContextMenuItem onClick={() => { onWhois(menu.target); close(); }}>
+          <ContextMenuItem
+            onClick={() => {
+              onWhois(menu.target);
+              close();
+            }}
+          >
             WHOIS
           </ContextMenuItem>
-          <ContextMenuItem onClick={() => { onDCCOffer(menu.target); close(); }}>
+          <ContextMenuItem
+            onClick={() => {
+              onDCCOffer(menu.target);
+              close();
+            }}
+          >
             DCC Chat
           </ContextMenuItem>
-          <ContextMenuItem danger={!ignoredNicks.includes(menu.target)} onClick={() => { onToggleIgnore(menu.target); close(); }}>
+          <ContextMenuItem
+            danger={!ignoredNicks.includes(menu.target)}
+            onClick={() => {
+              onToggleIgnore(menu.target);
+              close();
+            }}
+          >
             {ignoredNicks.includes(menu.target) ? 'Unignore' : 'Ignore'}
           </ContextMenuItem>
         </ContextMenu>

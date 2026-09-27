@@ -12,10 +12,6 @@ import (
 	"github.com/Daemeron/dolq/backend/internal/ircparse"
 )
 
-// TestSafeFilename is the important one: an XDCC offer's filename comes
-// from an untrusted network peer, and safeFilename is the only thing
-// standing between that and a path-traversal write outside the intended
-// download directory.
 func TestSafeFilename(t *testing.T) {
 	cases := map[string]string{
 		"movie.mkv":                      "movie.mkv",
@@ -69,22 +65,15 @@ func TestUniquePath(t *testing.T) {
 	}
 }
 
-// TestXDCCAcceptResumesPartialFile checks the resume handshake end to end:
-// an existing partial file triggers a CTCP DCC RESUME request, and once the
-// bot ACCEPTs it, the transfer appends the bot's remaining bytes onto the
-// existing file - rather than uniquePath-ing a second, separate file next
-// to it, which is what would happen without resume support.
 func TestXDCCAcceptResumesPartialFile(t *testing.T) {
 	dir := t.TempDir()
-	existing := []byte("0123456789") // 10 bytes already on disk
+	existing := []byte("0123456789")
 	if err := os.WriteFile(filepath.Join(dir, "file.zip"), existing, 0o644); err != nil {
 		t.Fatalf("seed partial file: %v", err)
 	}
 	rest := []byte("rest-of-the-file-goes-here")
 	size := int64(len(existing) + len(rest))
 
-	// Stands in for the sender ("alice"'s bot) accepting a connection on
-	// the port its original DCC SEND offer announced.
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("listen: %v", err)
@@ -98,7 +87,7 @@ func TestXDCCAcceptResumesPartialFile(t *testing.T) {
 		}
 		defer conn.Close()
 		conn.Write(rest)
-		io.Copy(io.Discard, conn) // drain acks
+		io.Copy(io.Discard, conn)
 	}()
 
 	b := New(nil)
@@ -128,7 +117,6 @@ func TestXDCCAcceptResumesPartialFile(t *testing.T) {
 		t.Fatalf("got %q, want %q", line, want)
 	}
 
-	// Reply as the bot would: DCC ACCEPT at the position it was asked for.
 	writeLine(t, serverConn, ":alice!u@host PRIVMSG testnick :\x01DCC ACCEPT file.zip "+
 		strconv.Itoa(senderPort)+" "+strconv.Itoa(len(existing))+"\x01")
 
@@ -153,11 +141,6 @@ func TestXDCCAcceptResumesPartialFile(t *testing.T) {
 	}
 }
 
-// TestXDCCAcceptFallsBackToFreshWhenBotIgnoresResume checks that a bot that
-// never answers a DCC RESUME request (most don't support it) doesn't hang
-// the whole accept - XDCCAccept falls back to downloading the pack fresh,
-// same as if no partial file had ever existed, leaving the original partial
-// file untouched rather than corrupting it.
 func TestXDCCAcceptFallsBackToFreshWhenBotIgnoresResume(t *testing.T) {
 	dir := t.TempDir()
 	existing := []byte("0123456789")
@@ -183,7 +166,7 @@ func TestXDCCAcceptFallsBackToFreshWhenBotIgnoresResume(t *testing.T) {
 	}()
 
 	b := New(nil)
-	b.ResumeAcceptTimeout = 50 * time.Millisecond // never replied to - no need to sit through the real timeout
+	b.ResumeAcceptTimeout = 50 * time.Millisecond
 	sub := &fakeSubscriber{}
 	_, r := pipeSession(t, b, "server-a", sub)
 
@@ -200,7 +183,7 @@ func TestXDCCAcceptFallsBackToFreshWhenBotIgnoresResume(t *testing.T) {
 		idCh <- id
 	}()
 
-	if _, err := r.ReadString('\n'); err != nil { // the (unanswered) DCC RESUME request
+	if _, err := r.ReadString('\n'); err != nil {
 		t.Fatalf("read DCC RESUME request: %v", err)
 	}
 

@@ -7,7 +7,7 @@ type WhoisInfo = Extract<IrcEvent, { type: 'whois' }>;
 
 type Props = {
   nick: string;
-  result: WhoisInfo | null; // null while the request is still in flight
+  result: WhoisInfo | null;
   onClose: () => void;
 };
 
@@ -40,57 +40,67 @@ export function WhoisModal({ nick, result, onClose }: Props) {
         aria-modal="true"
         aria-labelledby="whois-modal-title"
         tabIndex={-1}
-        className="bg-[var(--dolq-bg-panel)] rounded-lg p-6 w-90 shadow-[0_8px_32px_rgba(0,0,0,0.5)]"
+        className="bg-(--dolq-bg-panel) rounded-lg p-6 w-90 shadow-[0_8px_32px_rgba(0,0,0,0.5)]"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 id="whois-modal-title" className="text-[var(--dolq-text)] text-[18px] font-bold mb-4">{nick}</h2>
+        <h2 id="whois-modal-title" className="text-(--dolq-text) text-[18px] font-bold mb-4">
+          {nick}
+        </h2>
 
         {!result ? (
-          <p className="text-[var(--dolq-text-dim)] text-[14px]">Looking up...</p>
+          <p className="text-(--dolq-text-dim) text-[14px]">Looking up...</p>
         ) : result.noSuchNick ? (
-          <p className="text-[var(--dolq-text-dim)] text-[14px]">No such nick - they may have quit or changed nick.</p>
+          <p className="text-(--dolq-text-dim) text-[14px]">No such nick - they may have quit or changed nick.</p>
         ) : (
           <div className="flex flex-col gap-2">
             {result.user && result.host && (
               <div className={rowClass}>
                 <span className={labelClass}>User</span>
-                <span className="text-[var(--dolq-text)] truncate">{result.user}@{result.host}</span>
+                <span className="text-(--dolq-text) truncate">
+                  {result.user}@{result.host}
+                </span>
               </div>
             )}
             {result.realname && (
               <div className={rowClass}>
                 <span className={labelClass}>Real Name</span>
-                <span className="text-[var(--dolq-text)] truncate"><IrcText text={result.realname} /></span>
+                <span className="text-(--dolq-text) truncate">
+                  <IrcText text={result.realname} />
+                </span>
               </div>
             )}
             {result.account && (
               <div className={rowClass}>
                 <span className={labelClass}>Account</span>
-                <span className="text-[var(--dolq-text)] truncate">{result.account}</span>
+                <span className="text-(--dolq-text) truncate">{result.account}</span>
               </div>
             )}
             {result.server && (
               <div className={rowClass}>
                 <span className={labelClass}>Server</span>
-                <span className="text-[var(--dolq-text)] truncate" title={result.serverInfo}>{result.server}</span>
+                <span className="text-(--dolq-text) truncate" title={result.serverInfo}>
+                  {result.server}
+                </span>
               </div>
             )}
             {result.channels && result.channels.length > 0 && (
               <div className={rowClass}>
                 <span className={labelClass}>Channels</span>
-                <span className="text-[var(--dolq-text)] truncate">{result.channels.join(', ')}</span>
+                <span className="text-(--dolq-text) truncate">{result.channels.join(', ')}</span>
               </div>
             )}
             {result.idleSeconds !== undefined && (
               <div className={rowClass}>
                 <span className={labelClass}>Idle</span>
-                <span className="text-[var(--dolq-text)]">{formatIdle(result.idleSeconds)}</span>
+                <span className="text-(--dolq-text)">{formatIdle(result.idleSeconds)}</span>
               </div>
             )}
             {result.away && (
               <div className={rowClass}>
                 <span className={labelClass}>Away</span>
-                <span className="text-[var(--dolq-text)] truncate"><IrcText text={result.away} /></span>
+                <span className="text-(--dolq-text) truncate">
+                  <IrcText text={result.away} />
+                </span>
               </div>
             )}
           </div>
@@ -98,8 +108,9 @@ export function WhoisModal({ nick, result, onClose }: Props) {
 
         <div className="flex justify-end mt-5">
           <button
+            type="button"
             onClick={onClose}
-            className="px-4 py-2 rounded text-[var(--dolq-text-muted)] text-[14px] font-medium bg-transparent border-0 cursor-pointer hover:text-[var(--dolq-text)]"
+            className="px-4 py-2 rounded text-(--dolq-text-muted) text-[14px] font-medium bg-transparent border-0 cursor-pointer hover:text-(--dolq-text)"
           >
             Close
           </button>

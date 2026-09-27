@@ -7,15 +7,6 @@ type Props = {
   children: React.ReactNode;
 };
 
-// Layout shared by every full-page view that used to be a `fixed inset-0`
-// popup (Preferences, Add/Edit Server) - renders in place of the whole chat
-// panel (TopicBar/MessageArea/MessageInput/user list, see App.tsx) instead
-// of floating over it, so the server rail and channel list beside it stay
-// live: selecting a channel/server is what actually navigates back to chat.
-// No Tab-trap like useModalA11y's overlay modals get - there's a real
-// sidebar next to this that Tab should still be able to reach - just an
-// autofocus onto the first field, the same opening courtesy those modals
-// gave their dialog.
 export function ViewPanel({ title, onClose, children }: Props) {
   const contentRef = useRef<HTMLDivElement>(null);
 
@@ -27,13 +18,14 @@ export function ViewPanel({ title, onClose, children }: Props) {
 
   return (
     <>
-      <div className="h-12 flex items-center justify-between px-4 border-b border-[var(--dolq-border)] bg-[var(--dolq-bg)] shrink-0 shadow-[0_1px_0_rgba(0,0,0,0.2)]">
-        <span className="font-semibold text-[var(--dolq-text)] text-[15px]">{title}</span>
+      <div className="h-12 flex items-center justify-between px-4 border-b border-(--dolq-border) bg-(--dolq-bg) shrink-0 shadow-[0_1px_0_rgba(0,0,0,0.2)]">
+        <span className="font-semibold text-(--dolq-text) text-[15px]">{title}</span>
         <button
+          type="button"
           onClick={onClose}
           aria-label="Close"
           title="Close"
-          className="w-7 h-7 flex items-center justify-center rounded border-0 bg-transparent text-[var(--dolq-text-dim)] cursor-pointer hover:text-[var(--dolq-text)] hover:bg-[var(--dolq-bg-row-hover)]"
+          className="w-7 h-7 flex items-center justify-center rounded border-0 bg-transparent text-(--dolq-text-dim) cursor-pointer hover:text-(--dolq-text) hover:bg-(--dolq-bg-row-hover)"
         >
           ✕
         </button>

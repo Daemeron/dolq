@@ -1,17 +1,16 @@
-import { ChildProcessWithoutNullStreams, execFile, spawn } from 'child_process';
-import { randomUUID } from 'crypto';
-import { EventEmitter } from 'events';
+import { type ChildProcessWithoutNullStreams, execFile, spawn } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
+import { EventEmitter } from 'node:events';
+import fs from 'node:fs';
+import net from 'node:net';
+import path from 'node:path';
+import { createInterface } from 'node:readline';
+import { promisify } from 'node:util';
 import { app } from 'electron';
-import fs from 'fs';
-import net from 'net';
-import path from 'path';
-import { createInterface } from 'readline';
-import { promisify } from 'util';
-import { ConnectionStatus, HistoryEntry, IrcEvent } from '../../shared/ipc';
+import type { ConnectionStatus, HistoryEntry, IrcEvent } from '../../shared/ipc';
 
 const execFileAsync = promisify(execFile);
 
-// Mirrors backend/internal/ipcproto.ServerFrame.
 interface ServerFrame {
   id?: string;
   type: 'result' | 'line' | 'event' | 'status';
@@ -28,28 +27,17 @@ interface ServerFrame {
 
 type Pending = { resolve: (f: ServerFrame) => void; reject: (err: Error) => void };
 
-// Talks the `dolqd` backend's newline-delimited-JSON protocol
-// (backend/internal/ipcproto) over a single shared socket - normally a
-// spawned-and-managed local child on a Unix domain socket, or (see `remote`
-// below) a plain TCP connection to a dolqd already running elsewhere. One
-// connection is shared for every server the renderer opens - the backend
-// already namespaces its unsolicited line/event/status frames by serverId,
-// so this just fans them out via 'line'/'event'/'status' events.
 export class BackendClient extends EventEmitter {
   private child?: ChildProcessWithoutNullStreams;
   private socket?: net.Socket;
   private pending = new Map<string, Pending>();
-  private devBinaryPath?: string; // set in dev only, see resolveBackendCommand
-  // Connecting takes a beat (dev mode builds dolqd first), so it starts in
-  // the background at construction time rather than in an awaited start() -
-  // callers (ipcMain handlers) can register immediately and each request
-  // just waits its turn on this instead of racing it.
+  private devBinaryPath?: string;
   private ready: Promise<void>;
 
-  // remote, when set, connects to an already-running dolqd over TCP (see
-  // docker-compose.yml) instead of spawning/managing a local child - retentionDays
-  // is meaningless there (it's the remote instance's own launch flag).
-  constructor(private retentionDays: number, private remote?: { host: string; port: number }) {
+  constructor(
+    private retentionDays: number,
+    private remote?: { host: string; port: number },
+  ) {
     super();
     this.ready = this.remote ? this.dial(this.remote) : this.spawnAndDial();
     this.ready.catch((err) => console.error('backend failed to connect:', err));
@@ -62,8 +50,6 @@ export class BackendClient extends EventEmitter {
     this.child = child;
     child.stderr.on('data', (chunk: Buffer) => process.stderr.write(`[dolqd] ${chunk}`));
 
-    // Discovery contract: dolqd prints its socket path as the first (and
-    // only) line of stdout once it's listening.
     const socketPath = await new Promise<string>((resolve, reject) => {
       createInterface({ input: child.stdout }).once('line', resolve);
       child.once('error', reject);
@@ -73,30 +59,15 @@ export class BackendClient extends EventEmitter {
     await this.dial({ path: socketPath });
   }
 
-  // Connects the shared JSON-lines socket, either a local Unix path
-  // (spawnAndDial, after dolqd reports it) or a remote host:port (the
-  // constructor, when `remote` is set) - everything past the connection
-  // itself (framing, pending-request bookkeeping) doesn't care which.
   private dial(target: { path: string } | { host: string; port: number }): Promise<void> {
     return new Promise((resolve, reject) => {
-      const socket = 'path' in target ? net.createConnection(target.path) : net.createConnection(target.port, target.host);
+      const socket =
+        'path' in target ? net.createConnection(target.path) : net.createConnection(target.port, target.host);
       socket.once('connect', () => {
         this.socket = socket;
         createInterface({ input: socket }).on('line', (line) => this.handleFrame(JSON.parse(line)));
-        // A post-connect error (a dropped remote connection, most plausibly
-        // - see `remote`) must never leave this socket with zero 'error'
-        // listeners: the `once` below is spent on the very first one, and
-        // Node throws an error emitted with no listener left for it - an
-        // uncaught exception with nothing in this app to catch it, i.e. a
-        // network blip would take down the whole process. This just needs
-        // to exist, not do anything - 'close' (below) already follows every
-        // real-world error and does the actual cleanup.
         socket.on('error', (err) => console.error('backend connection error:', err));
         socket.on('close', () => {
-          // Without this, request() below still sees a (dead) socket and
-          // writes into it instead of failing fast - a write that's
-          // silently dropped, leaving its caller's promise unsettled
-          // forever rather than rejected.
           this.socket = undefined;
           this.rejectAllPending(new Error('backend connection closed'));
         });
@@ -118,7 +89,18 @@ export class BackendClient extends EventEmitter {
     realname?: string,
     altNicks?: string[],
   ): Promise<void> {
-    return this.call('connect', { serverId, host, port, nick, secure, saslUser, saslPass, username, realname, altNicks });
+    return this.call('connect', {
+      serverId,
+      host,
+      port,
+      nick,
+      secure,
+      saslUser,
+      saslPass,
+      username,
+      realname,
+      altNicks,
+    });
   }
 
   disconnect(serverId: string): Promise<void> {
@@ -149,9 +131,6 @@ export class BackendClient extends EventEmitter {
     return f.messages ?? [];
   }
 
-  // portMin/portMax constrain the listener dolqd opens for the CTCP DCC
-  // CHAT reply - both 0 (the default) lets the OS pick any free port, see
-  // Settings.dccPortMin/dccPortMax's doc for why a fixed range matters.
   async dccOffer(serverId: string, nick: string, portMin: number, portMax: number): Promise<string> {
     const f = await this.request('dccOffer', { serverId, nick, portMin, portMax });
     if (!f.ok) throw new Error(f.error);
@@ -172,19 +151,29 @@ export class BackendClient extends EventEmitter {
     return this.call('dccClose', { dccId });
   }
 
-  // destDir/portMin/portMax aren't renderer-supplied - registerIrcHandlers
-  // resolves them from Settings (falling back to the OS Downloads folder
-  // for destDir) rather than trusting the renderer to pick a directory (it
-  // can't reach fs to validate one anyway). filename/size/token are the
-  // offer's own fields, passed straight through for dolqd to build the save
-  // path from (see bouncer.safeFilename for why the filename itself is
-  // never trusted beyond its base name).
   async xdccAccept(
-    serverId: string, nick: string, ip: string, port: number, filename: string, size: number, token: string | undefined,
-    destDir: string, portMin: number, portMax: number,
+    serverId: string,
+    nick: string,
+    ip: string,
+    port: number,
+    filename: string,
+    size: number,
+    token: string | undefined,
+    destDir: string,
+    portMin: number,
+    portMax: number,
   ): Promise<string> {
     const f = await this.request('xdccAccept', {
-      serverId, nick, host: ip, port, filename, size, token, destDir, portMin, portMax,
+      serverId,
+      nick,
+      host: ip,
+      port,
+      filename,
+      size,
+      token,
+      destDir,
+      portMin,
+      portMax,
     });
     if (!f.ok) throw new Error(f.error);
     return f.dccId ?? '';
@@ -202,14 +191,7 @@ export class BackendClient extends EventEmitter {
     return this.call('xdccResume', { dccId });
   }
 
-  // Signals dolqd to shut down (which itself disconnects every session,
-  // flushes any still-queued history writes, and prunes its socket file
-  // cleanly - see bouncer.Shutdown and history.Store.Close) and waits for it
-  // to exit.
   async stop(): Promise<void> {
-    // A remote dolqd (see `remote`) is somebody else's process, possibly
-    // shared with other clients - just drop our own connection to it,
-    // nothing to spawn-kill.
     if (this.remote) {
       this.socket?.end();
       return;
@@ -222,12 +204,6 @@ export class BackendClient extends EventEmitter {
         clearTimeout(timer);
         resolve();
       });
-      // SIGTERM only gets a graceful shutdown out of dolqd on
-      // POSIX - Windows has no real signal delivery, so this force-kills
-      // there instead. Fine until Windows packaging (ROADMAP milestone 5)
-      // is actually verified. (This relies on `child` being the real dolqd
-      // binary, not a `go run` wrapper that won't forward the signal to
-      // it - see resolveBackendCommand.)
       child.kill('SIGTERM');
     });
     if (this.devBinaryPath) await fs.promises.rm(this.devBinaryPath, { force: true });
@@ -240,15 +216,11 @@ export class BackendClient extends EventEmitter {
 
   private async request(action: string, fields: Record<string, unknown>): Promise<ServerFrame> {
     await this.ready;
-    // Also true after a connection that *was* up drops (the 'close'
-    // handler in dial() clears this) - not just before the first one ever
-    // succeeds, so the message covers both rather than claiming it never
-    // started.
     if (!this.socket) return Promise.reject(new Error('backend not connected'));
     const id = randomUUID();
     return new Promise((resolve, reject) => {
       this.pending.set(id, { resolve, reject });
-      this.socket!.write(JSON.stringify({ id, action, ...fields }) + '\n');
+      this.socket?.write(`${JSON.stringify({ id, action, ...fields })}\n`);
     });
   }
 
@@ -285,13 +257,6 @@ async function resolveBackendCommand(
     const exe = process.platform === 'win32' ? 'dolqd.exe' : 'dolqd';
     return { cmd: path.join(process.resourcesPath, 'bin', exe), args, cwd: process.resourcesPath };
   }
-  // Build to a real binary and spawn that directly, the same as the
-  // packaged path above - not `go run`, which wraps the actual binary in a
-  // child process of its own and (at least on this project's dev setup)
-  // doesn't forward SIGTERM/SIGINT to it, silently breaking the graceful
-  // shutdown stop() depends on to flush queued history writes. One `go
-  // build` up front costs about what `go run` was already paying to
-  // compile before executing, so there's no real slowdown.
   const backendDir = path.resolve(__dirname, '../../backend');
   const devBinaryPath = path.join(app.getPath('temp'), `dolqd-dev-${process.pid}`);
   await execFileAsync('go', ['build', '-o', devBinaryPath, './cmd/dolqd'], { cwd: backendDir });

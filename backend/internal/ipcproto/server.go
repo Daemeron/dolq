@@ -12,13 +12,6 @@ import (
 	"github.com/Daemeron/dolq/backend/internal/ircparse"
 )
 
-// Listen starts listening for IPC connections. network is "unix" (address is
-// a filesystem path - any stale file there is removed first, safe since only
-// one live instance is ever expected to own a given socket path) or "tcp"
-// (address is a host:port, e.g. "0.0.0.0:6789" for a remote/Docker-hosted
-// backend a frontend dials over the network instead of spawning locally -
-// see dolqd's -addr flag). There's no auth at this layer either way, so
-// exposing a tcp listener beyond a trusted network is the caller's call.
 func Listen(network, address string) (net.Listener, error) {
 	if network == "unix" {
 		if err := os.Remove(address); err != nil && !os.IsNotExist(err) {
@@ -28,8 +21,6 @@ func Listen(network, address string) (net.Listener, error) {
 	return net.Listen(network, address)
 }
 
-// Server accepts local IPC connections and dispatches their frames to a
-// shared *bouncer.Bouncer.
 type Server struct {
 	b *bouncer.Bouncer
 }
@@ -38,8 +29,6 @@ func NewServer(b *bouncer.Bouncer) *Server {
 	return &Server{b: b}
 }
 
-// Serve accepts connections from ln, handling each on its own goroutine,
-// until Accept starts failing (typically because ln was closed).
 func (s *Server) Serve(ln net.Listener) error {
 	for {
 		netConn, err := ln.Accept()
@@ -50,8 +39,6 @@ func (s *Server) Serve(ln net.Listener) error {
 	}
 }
 
-// conn is one IPC connection; it implements bouncer.Subscriber so the
-// bouncer can fan traffic out to it directly.
 type conn struct {
 	netConn net.Conn
 
@@ -91,12 +78,8 @@ func (s *Server) handleConn(netConn net.Conn) {
 	c := &conn{netConn: netConn, enc: json.NewEncoder(netConn)}
 	var inFlight sync.WaitGroup
 	defer func() {
-		// Wait for in-flight handlers (e.g. a slow Connect) rather than
-		// detaching/closing out from under them - otherwise a handler that's
-		// still dialing when the peer disconnects could finish afterward and
-		// leave an orphaned session nothing will ever Detach from.
 		inFlight.Wait()
-		s.b.Detach(c) // stop fan-out; the underlying IRC sessions stay up
+		s.b.Detach(c)
 		netConn.Close()
 	}()
 
@@ -107,11 +90,6 @@ func (s *Server) handleConn(netConn net.Conn) {
 			c.writeFrame(ServerFrame{Type: FrameResult, OK: false, Error: err.Error()})
 			continue
 		}
-		// Each frame is handled on its own goroutine so a slow action (e.g.
-		// Connect dialing an unreachable host) can't block other frames on
-		// the same connection - including ones for a different serverId
-		// that have nothing to do with it. Frame.ID exists precisely so
-		// responses can come back out of order.
 		inFlight.Add(1)
 		go func(f ClientFrame) {
 			defer inFlight.Done()
@@ -132,18 +110,6 @@ func (s *Server) handleFrame(c *conn, f ClientFrame) {
 	case ActionSend:
 		c.writeResult(f.ID, s.b.Send(f.ServerID, f.Line))
 	case ActionGetStatus:
-		// The one call every client makes exactly once per configured server,
-		// right at startup (App.tsx's reconcile-on-hydration effect) - so it
-		// doubles as "and subscribe me to it going forward" rather than
-		// requiring a separate attach step. Without this, a session that
-		// already existed before this connection asked about it (a second
-		// client attaching to a shared remote dolqd - see docker-compose.yml -
-		// finding a server another client already connected) never fanned
-		// out anything to this connection: Bouncer.Attach exists and is
-		// tested, but nothing in this protocol ever called it outside of a
-		// fresh Connect, which only subscribes its own caller. A no-op if
-		// f.ServerID has no live session (Attach's own doc) or this
-		// connection is already subscribed (idempotent, a plain map insert).
 		s.b.Attach(c, f.ServerID)
 		c.writeFrame(ServerFrame{ID: f.ID, Type: FrameResult, OK: true, Status: s.b.Status(f.ServerID)})
 	case ActionGetJoinedChannels:

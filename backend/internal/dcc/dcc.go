@@ -1,10 +1,3 @@
-// Package dcc implements the peer-to-peer half of DCC: once an offer is
-// made and accepted (that handshake rides over CTCP, on the ordinary IRC
-// connection - see ircclient's CTCP DCC handling and bouncer's DCCOffer/
-// DCCAccept/XDCCAccept), everything after is a plain direct TCP connection
-// between the two clients. For CHAT that's newline-delimited text, which
-// Session wraps; for SEND (see send.go) it's a raw byte stream with a known
-// length, nothing this package tries to force into Session's line shape.
 package dcc
 
 import (
@@ -19,11 +12,6 @@ import (
 	"time"
 )
 
-// Session is one active DCC CHAT connection, deliberately shaped like
-// ircclient.Client (Send/AddLineListener/OnClose/Start) even though it's a
-// much simpler protocol - consistent with the rest of this codebase rather
-// than because DCC needs any of the IRC-specific machinery that shape
-// originally existed for.
 type Session struct {
 	conn net.Conn
 
@@ -38,8 +26,6 @@ func newSession(conn net.Conn) *Session {
 	return &Session{conn: conn, closed: make(chan struct{})}
 }
 
-// Dial connects out to a peer's announced DCC CHAT listener - the path an
-// offer's *recipient* takes once they accept.
 func Dial(ip string, port int) (*Session, error) {
 	conn, err := DialRaw(ip, port)
 	if err != nil {
@@ -48,20 +34,10 @@ func Dial(ip string, port int) (*Session, error) {
 	return newSession(conn), nil
 }
 
-// DialRaw is Dial without CHAT's line-oriented Session wrapper - what
-// accepting an active-mode SEND offer dials with instead (see
-// ReceiveFile).
 func DialRaw(ip string, port int) (net.Conn, error) {
 	return net.Dial("tcp", net.JoinHostPort(ip, strconv.Itoa(port)))
 }
 
-// Listen opens a TCP listener - the path an offer's *sender* takes: listen
-// first, then announce the port (and LocalIP) in the CTCP request, then
-// AcceptOnce. minPort/maxPort constrain which port it binds: both zero (the
-// default) lets the OS pick any free one, otherwise ports from minPort to
-// maxPort are tried in order and the first free one wins - the fixed range
-// a user behind NAT can actually forward in their router, unlike a random
-// OS-chosen port that changes every time.
 func Listen(minPort, maxPort int) (net.Listener, error) {
 	if minPort == 0 && maxPort == 0 {
 		return net.Listen("tcp", ":0")
@@ -80,10 +56,6 @@ func Listen(minPort, maxPort int) (net.Listener, error) {
 	return nil, fmt.Errorf("dcc: no free port in %d-%d: %w", minPort, maxPort, lastErr)
 }
 
-// AcceptOnce accepts exactly one connection from ln - a DCC offer is only
-// ever good for one taker - within timeout, closing ln either way (a second
-// caller connecting late, or not at all, isn't this client's problem once
-// the window's passed).
 func AcceptOnce(ln net.Listener, timeout time.Duration) (*Session, error) {
 	conn, err := AcceptOnceRaw(ln, timeout)
 	if err != nil {
@@ -92,8 +64,6 @@ func AcceptOnce(ln net.Listener, timeout time.Duration) (*Session, error) {
 	return newSession(conn), nil
 }
 
-// AcceptOnceRaw is AcceptOnce without CHAT's Session wrapper - what
-// accepting a passive-mode SEND offer's callback connection uses instead.
 func AcceptOnceRaw(ln net.Listener, timeout time.Duration) (net.Conn, error) {
 	defer ln.Close()
 	type result struct {
@@ -113,15 +83,6 @@ func AcceptOnceRaw(ln net.Listener, timeout time.Duration) (net.Conn, error) {
 	}
 }
 
-// LocalIP makes a best-effort guess at the address a DCC CHAT offer should
-// announce for the peer to connect back to: the local interface the OS
-// would route a public-internet connection through. Nothing is actually
-// sent - a UDP "connect" only resolves routing, it doesn't dial anywhere -
-// the standard trick for finding your own outbound address without asking
-// an external service. This doesn't solve NAT: behind one, it's still your
-// private LAN address, and the offer only connects if the peer can actually
-// reach it (same LAN, or port forwarding) - a real limitation DCC has
-// always had, not something specific to this client.
 func LocalIP() (net.IP, error) {
 	conn, err := net.Dial("udp", "8.8.8.8:80")
 	if err != nil {
@@ -131,10 +92,6 @@ func LocalIP() (net.IP, error) {
 	return conn.LocalAddr().(*net.UDPAddr).IP, nil
 }
 
-// EncodeIP and DecodeIP convert to/from the wire format a DCC CTCP request
-// announces an IPv4 address in: a big-endian uint32, decimal - not a
-// dotted-quad string. A convention from DCC's mIRC-era origins that every
-// client still speaking DCC has to match.
 func EncodeIP(ip net.IP) uint32 {
 	return binary.BigEndian.Uint32(ip.To4())
 }
@@ -145,8 +102,6 @@ func DecodeIP(n uint32) net.IP {
 	return net.IP(b)
 }
 
-// Start begins the read loop - separate from Dial/newSession so a caller
-// can register listeners first, same reasoning as ircclient.Client.Start.
 func (s *Session) Start() {
 	go s.readLoop()
 }
@@ -185,8 +140,6 @@ func (s *Session) AddLineListener(cb func(line string)) {
 	s.lineListeners = append(s.lineListeners, cb)
 }
 
-// OnClose registers cb to run once, when the connection closes. If it's
-// already closed, cb runs immediately - same contract as ircclient.Client's.
 func (s *Session) OnClose(cb func()) {
 	select {
 	case <-s.closed:

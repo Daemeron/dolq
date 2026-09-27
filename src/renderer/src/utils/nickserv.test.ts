@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { isNickServIdentifyPrompt } from './nickserv';
 
 describe('isNickServIdentifyPrompt', () => {
@@ -12,9 +12,9 @@ describe('isNickServIdentifyPrompt', () => {
   });
 
   it('matches ergo-style "reserved" wording', () => {
-    expect(
-      isNickServIdentifyPrompt('NickServ', 'This nickname is reserved. Please login using NS IDENTIFY.'),
-    ).toBe(true);
+    expect(isNickServIdentifyPrompt('NickServ', 'This nickname is reserved. Please login using NS IDENTIFY.')).toBe(
+      true,
+    );
   });
 
   it('is case-insensitive on both nick and text', () => {

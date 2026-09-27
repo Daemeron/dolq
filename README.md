@@ -168,6 +168,28 @@ config lives in `electron-builder.json5`.
 
 ---
 
+## Linting & Formatting
+
+The Electron/TS side uses [Biome](https://biomejs.dev) for both formatting and
+linting (the Go side already has its own `gofmt`/`go vet` gate, run in CI):
+
+```bash
+npm run frontend:lint        # check only (what CI runs)
+npm run frontend:lint:fix    # apply fixes in place
+```
+
+**VSCode**: opening the repo prompts you to install the recommended
+[Biome extension](https://marketplace.visualstudio.com/items?itemName=biomejs.biome)
+(`.vscode/extensions.json`); `.vscode/settings.json` then formats on save and
+organizes imports automatically, no extra setup needed.
+
+**Other editors**: Biome ships official plugins/LSP support for
+[most other editors](https://biomejs.dev/guides/editors/first-party-extensions/)
+(Zed, JetBrains, Neovim, Sublime, Helix, ...) - point yours at this repo's
+`biome.json` and format-on-save works the same way.
+
+---
+
 ## Testing
 
 ```bash

@@ -3,16 +3,6 @@ import { useEffect, useRef } from 'react';
 export const FOCUSABLE =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
-// Standard modal-dialog keyboard/focus behavior, shared by every modal in
-// the app (7 of them, all the same `fixed inset-0` overlay shape) instead
-// of each reimplementing it: moves focus inside on open (the first
-// focusable element, or the dialog container itself if there isn't one),
-// traps Tab/Shift+Tab so it can't wander into the page behind the overlay,
-// and restores focus to whatever had it before the modal opened once this
-// unmounts - the button that opened it, normally. Each modal keeps its own
-// existing Escape-to-close effect as-is (PreferencesModal's has an extra
-// case for cancelling keybind-recording first) - this only adds behavior
-// on top, never replaces it.
 export function useModalA11y<T extends HTMLElement>() {
   const ref = useRef<T>(null);
 

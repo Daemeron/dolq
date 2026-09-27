@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { comboFromEvent } from './keybind';
 
-// comboFromEvent only reads these fields, and `npm run frontend:test`
-// currently runs without a DOM environment wired up, so a real
-// KeyboardEvent isn't available here - a plain object covers what
-// comboFromEvent touches.
 function key(init: {
-  key: string; ctrlKey?: boolean; metaKey?: boolean; altKey?: boolean; shiftKey?: boolean;
+  key: string;
+  ctrlKey?: boolean;
+  metaKey?: boolean;
+  altKey?: boolean;
+  shiftKey?: boolean;
 }): KeyboardEvent {
   return { ctrlKey: false, metaKey: false, altKey: false, shiftKey: false, ...init } as KeyboardEvent;
 }

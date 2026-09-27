@@ -1,21 +1,21 @@
-import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { Server } from './types';
 
 function server(id: string): Server {
   return { id, name: id, initial: id[0], secure: false, host: id, port: 6667, autojoinChannels: [] };
 }
 
-// The default vitest environment (see vitest.workspace.mts's known gap - not
-// auto-picked up by `vitest run`) is plain node, with no real localStorage -
-// the store's persist middleware reads it once, at module-eval time, to set
-// up its storage adapter. Stubbed in with a bare in-memory stand-in *before*
-// store.ts is imported (a dynamic import, so this assignment - not a hoisted
-// static import of store.ts itself - runs first).
 class MemoryStorage {
   private data = new Map<string, string>();
-  getItem(key: string) { return this.data.get(key) ?? null; }
-  setItem(key: string, value: string) { this.data.set(key, value); }
-  removeItem(key: string) { this.data.delete(key); }
+  getItem(key: string) {
+    return this.data.get(key) ?? null;
+  }
+  setItem(key: string, value: string) {
+    this.data.set(key, value);
+  }
+  removeItem(key: string) {
+    this.data.delete(key);
+  }
 }
 globalThis.localStorage = new MemoryStorage() as unknown as Storage;
 
@@ -78,7 +78,7 @@ describe('store: updateServer', () => {
     expect(updated?.name).toBe('Renamed');
     expect(updated?.host).toBe('irc.example.org');
     expect(updated?.autojoinChannels).toEqual(['#foo']);
-    expect(updated?.port).toBe(6667); // untouched field from the original server()
+    expect(updated?.port).toBe(6667);
   });
 
   it('is a no-op for an id that no longer exists', () => {

@@ -1,10 +1,5 @@
 import type { HistoryEntry } from '../../../shared/ipc';
 
-// One human-readable line per entry - covers every event type this app
-// actually persists/renders something for elsewhere (App.tsx's onEvent
-// switch, MessageArea); anything else (MODE, names snapshots, etc.) falls
-// back to raw JSON rather than needing a case search essentially never
-// surfaces for a log export anyway.
 export function formatEntry(entry: HistoryEntry): string {
   const ts = new Date(entry.timestamp).toISOString();
   if (entry.isRaw) return `[${ts}] ${entry.line ?? ''}`;

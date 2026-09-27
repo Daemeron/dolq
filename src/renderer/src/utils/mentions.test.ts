@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { mentionsNick } from './mentions';
 
 describe('mentionsNick', () => {
@@ -21,9 +21,6 @@ describe('mentionsNick', () => {
   });
 
   it('treats regex special characters in the nick literally, matching even at punctuation boundaries', () => {
-    // A bracket-edged nick is valid IRC (RFC 2812 allows []{}\|^_-`) and
-    // wouldn't match at all under a naive \b-based approach - see the
-    // comment on mentionsNick.
     expect(mentionsNick('hey [bot], status?', '[bot]')).toBe(true);
   });
 });

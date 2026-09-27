@@ -1,19 +1,16 @@
-import { describe, it, expect } from 'vitest';
-import { splitLinks, parseIrcFormatting, resolveIrcColors, type FormatChunk } from './IrcText';
+import { describe, expect, it } from 'vitest';
+import { type FormatChunk, parseIrcFormatting, resolveIrcColors, splitLinks } from './IrcText';
 
-const B = '\x02'; // bold
-const I = '\x1D'; // italic
-const U = '\x1F'; // underline
-const S = '\x1E'; // strikethrough
-const M = '\x11'; // monospace
-const C = '\x03'; // color
-const H = '\x04'; // hex color
-const R = '\x16'; // reverse
-const O = '\x0F'; // reset
+const B = '\x02';
+const I = '\x1D';
+const U = '\x1F';
+const S = '\x1E';
+const M = '\x11';
+const C = '\x03';
+const H = '\x04';
+const R = '\x16';
+const O = '\x0F';
 
-// Only the fields a given test actually cares about - parseIrcFormatting's
-// full FormatChunk has ~9 boolean/color fields per chunk, spelling all of
-// them out in every expectation would bury the one or two that matter.
 function texts(chunks: FormatChunk[]): string[] {
   return chunks.map((c) => c.text);
 }
@@ -36,11 +33,7 @@ describe('splitLinks', () => {
   });
 
   it('does not swallow trailing sentence punctuation', () => {
-    expect(splitLinks('check out https://example.com.')).toEqual([
-      'check out ',
-      { url: 'https://example.com' },
-      '.',
-    ]);
+    expect(splitLinks('check out https://example.com.')).toEqual(['check out ', { url: 'https://example.com' }, '.']);
   });
 
   it('matches http as well as https', () => {
@@ -137,8 +130,18 @@ describe('parseIrcFormatting', () => {
 describe('resolveIrcColors', () => {
   function chunk(overrides: Partial<FormatChunk>): FormatChunk {
     return {
-      text: '', bold: false, italic: false, underline: false, strikethrough: false, monospace: false,
-      reverse: false, fg: null, bg: null, hexFg: null, hexBg: null, ...overrides,
+      text: '',
+      bold: false,
+      italic: false,
+      underline: false,
+      strikethrough: false,
+      monospace: false,
+      reverse: false,
+      fg: null,
+      bg: null,
+      hexFg: null,
+      hexBg: null,
+      ...overrides,
     };
   }
 
@@ -152,19 +155,18 @@ describe('resolveIrcColors', () => {
 
   it('swaps fg/bg when reversed', () => {
     expect(resolveIrcColors(chunk({ fg: 4, bg: 8, reverse: true }))).toEqual({
-      color: '#FFFF00', backgroundColor: '#FF0000',
+      color: '#FFFF00',
+      backgroundColor: '#FF0000',
     });
   });
 
   it('reverse with no explicit colors swaps the theme defaults', () => {
     expect(resolveIrcColors(chunk({ reverse: true }))).toEqual({
-      color: 'var(--dolq-bg)', backgroundColor: 'var(--dolq-text)',
+      color: 'var(--dolq-bg)',
+      backgroundColor: 'var(--dolq-text)',
     });
   });
 
-  // Spot-checks against the extended 16-98 palette (modern.ircdocs.horse) -
-  // boundary values, not all 83, since these are just table lookups with no
-  // branching logic of their own to actually exercise.
   it.each([
     [16, '#470000'],
     [63, '#FF0098'],
@@ -175,11 +177,18 @@ describe('resolveIrcColors', () => {
   });
 });
 
-// Shorthand for the common "just a color, nothing else set" shape the color
-// parsing tests above assert against.
 function restyled(overrides: Partial<FormatChunk>): Omit<FormatChunk, 'text'> {
   return {
-    bold: false, italic: false, underline: false, strikethrough: false, monospace: false,
-    reverse: false, fg: null, bg: null, hexFg: null, hexBg: null, ...overrides,
+    bold: false,
+    italic: false,
+    underline: false,
+    strikethrough: false,
+    monospace: false,
+    reverse: false,
+    fg: null,
+    bg: null,
+    hexFg: null,
+    hexBg: null,
+    ...overrides,
   };
 }

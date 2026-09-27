@@ -1,8 +1,8 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
-import { type Server, type Channel, type Message, type User } from './types';
+import type { PrivilegeLevel } from '../../shared/ipc';
 import { PUBLIC_SERVERS, type ServerPreset } from './data/servers';
-import { type PrivilegeLevel } from '../../shared/ipc';
+import type { Channel, Message, Server, User } from './types';
 
 type State = {
   servers: Server[];
@@ -13,78 +13,27 @@ type State = {
   nickMap: Record<string, string>;
   selectedServerId: string;
   selectedChannelId: string;
+  lastChannelMap: Record<string, string>;
   statusMap: Record<string, 'disconnected' | 'connecting' | 'connected'>;
-  // SASL credentials, kept only for the running session (see partialize) -
-  // never written to localStorage in plaintext. Re-entering them after an
-  // app restart is the accepted tradeoff until there's a real credential
-  // store to put them in.
   saslMap: Record<string, { user: string; pass: string }>;
-  // Channels with an unseen own-nick mention - cleared on selecting the
-  // channel (see selectChannel), so like statusMap/userMap there's nothing
-  // meaningful to restore from a previous session; excluded from partialize.
   mentionedChannels: Record<string, boolean>;
   notificationsEnabled: boolean;
-  // A separate toggle from notificationsEnabled, not folded into it - same
-  // trigger point (checkMention), but some people want the desktop
-  // notification without an audible beep, or vice versa.
   soundAlertsEnabled: boolean;
-  // Channels that never mark mentionedChannels or fire a desktop
-  // notification, no matter what's said in them - see App.tsx's
-  // checkMention. Keyed by bare channel id, same as mentionedChannels
-  // (so, like it, two different servers' same-named channels share one
-  // entry - an existing simplification, not new here). Persisted like
-  // ignoredNicks, since it's a standing preference, not per-session state.
   mutedChannels: Record<string, boolean>;
+  lastReadMap: Record<string, number>;
   timestampFormat: '12h' | '24h';
   messageDensity: 'cozy' | 'compact';
-  // Applied via Electron's page zoom (App.tsx's effect calling
-  // window.irc.setZoomFactor - see FONT_SIZE_ZOOM in App.tsx), not a CSS
-  // font-size - virtually every text size in this app is a fixed Tailwind
-  // px value, not rem/em, so a root font-size change would visibly do
-  // nothing to most of it. Whole-page zoom scales everything (text *and*
-  // layout) uniformly instead, same as a browser's own Cmd/Ctrl +/-.
   fontSize: 'small' | 'medium' | 'large';
-  // Applied as a CSS custom property (App.tsx's effect, see index.css's
-  // body rule) - unlike fontSize this really is just a font-family swap,
-  // no layout-scale concern, so plain CSS is enough.
   fontFamily: 'system' | 'serif' | 'monospace';
-  // Applied via a `[data-theme]` attribute on <html> (App.tsx's effect, see
-  // index.css's :root[data-theme='light'] overrides) - dark is the app's
-  // original palette and stays the unthemed default, so this only ever
-  // needs to opt IN to light, not the other way round.
   theme: 'dark' | 'light';
-  // Per-server (see ROADMAP's "per-network" - serverId is this app's only
-  // notion of a network boundary already, same as nickMap/saslMap/etc.)
-  // ignore list - purely a client-side display filter, nothing sent to the
-  // server (IRC has no native "ignore").
   ignoredNicks: Record<string, string[]>;
-  // Whether *we* are marked away, per server - not persisted, same as
-  // statusMap: it reflects the live connection's actual state, which a
-  // fresh session starts not knowing (there's no away-status equivalent of
-  // getStatus/getJoinedChannels to reconcile it from on reload).
   selfAwayMap: Record<string, boolean>;
-  // /alias shortcuts (see utils/aliases.ts) - global, not per-server: a
-  // typing shortcut isn't a protocol/network concept the way SASL creds or
-  // autojoin are, so there's no reason to scope it to one.
   aliases: Record<string, string>;
-  // Global shortcuts (see App.tsx's keydown effect and utils/keybind.ts) -
-  // not per-server, a keybinding is a UI-level thing like fontSize/timestamp
-  // format, not a network concept.
   keybindings: Record<KeybindAction, string>;
 };
 
-// messageMap/userMap are flat, cross-server dictionaries, but a bare
-// channel or query id ("#linux", or a nick) is only unique *within* one
-// server - two networks can easily share a channel name (or a nick), which
-// would otherwise collide into the same entry: messages, users and
-// scrollback-paging state from unrelated networks bleeding into each other.
-// Scoping with the owning server's id fixes that, the same way the log
-// channel's id already does by hand (`${serverId}:__log__`) and a DCC
-// session's uuid-based id already does for free - neither of those (already
-// containing a ':', which a real IRC nick or channel name can never
-// contain - RFC 2812 excludes it from both) needs scoping again.
-export function scopeKey(serverId: string, id: string): string {
-  return id.includes(':') ? id : `${serverId}:${id}`;
+export function scopeKey(serverId: string, channelId: string): string {
+  return channelId.includes(':') ? channelId : `${serverId}:${channelId}`;
 }
 
 export type KeybindAction = 'nextChannel' | 'prevChannel' | 'closeChannel' | 'toggleMute';
@@ -110,7 +59,10 @@ type Actions = {
   setUsers: (channelId: string, users: User[]) => void;
   addUser: (channelId: string, user: User) => void;
   removeUser: (channelId: string, nick: string) => void;
-  applyModeChanges: (channelId: string, changes: { nick: string; privilege: Exclude<PrivilegeLevel, 'none'>; granted: boolean }[]) => void;
+  applyModeChanges: (
+    channelId: string,
+    changes: { nick: string; privilege: Exclude<PrivilegeLevel, 'none'>; granted: boolean }[],
+  ) => void;
   removeUserEverywhere: (nick: string) => void;
   renameUserEverywhere: (oldNick: string, newNick: string) => void;
   setNick: (serverId: string, nick: string) => void;
@@ -119,6 +71,7 @@ type Actions = {
   selectChannel: (id: string) => void;
   setConnectionStatus: (serverId: string, status: 'disconnected' | 'connecting' | 'connected') => void;
   markMentioned: (channelId: string) => void;
+  markRead: (key: string) => void;
   toggleMuteChannel: (channelId: string) => void;
   setNotificationsEnabled: (enabled: boolean) => void;
   setSoundAlertsEnabled: (enabled: boolean) => void;
@@ -135,12 +88,6 @@ type Actions = {
   removeAlias: (name: string) => void;
   setKeybinding: (action: KeybindAction, combo: string) => void;
   setServerColor: (id: string, color: string) => void;
-  // Patches any subset of a Server's own fields in place - the general form
-  // setServerColor already special-cased for just `color`. Used by the "Edit
-  // Server" modal to update name/host/port/secure/altNicks/username/realname/
-  // autojoinChannels after a server's already been added, closing the
-  // create-time-only gap those fields used to have (see ConnectModal's
-  // Advanced section, the only place they could be set before this existed).
   updateServer: (id: string, patch: Partial<Server>) => void;
 };
 
@@ -155,9 +102,11 @@ export const useStore = create<State & Actions>()(
       nickMap: {},
       selectedServerId: '',
       selectedChannelId: '__log__',
+      lastChannelMap: {},
       statusMap: {},
       saslMap: {},
       mentionedChannels: {},
+      lastReadMap: {},
       notificationsEnabled: true,
       soundAlertsEnabled: true,
       mutedChannels: {},
@@ -201,9 +150,22 @@ export const useStore = create<State & Actions>()(
           delete ignoredNicks[id];
           const selfAwayMap = { ...s.selfAwayMap };
           delete selfAwayMap[id];
+          const lastChannelMap = { ...s.lastChannelMap };
+          delete lastChannelMap[id];
 
           if (s.selectedServerId !== id) {
-            return { servers, channelMap, messageMap, userMap, nickMap, statusMap, saslMap, ignoredNicks, selfAwayMap };
+            return {
+              servers,
+              channelMap,
+              messageMap,
+              userMap,
+              nickMap,
+              statusMap,
+              saslMap,
+              ignoredNicks,
+              selfAwayMap,
+              lastChannelMap,
+            };
           }
 
           const selectedServerId = servers[0]?.id ?? '';
@@ -211,8 +173,18 @@ export const useStore = create<State & Actions>()(
           const logCh = remainingChannels.find((c) => c.isLog);
           const selectedChannelId = logCh?.id ?? remainingChannels[0]?.id ?? '__log__';
           return {
-            servers, channelMap, messageMap, userMap, nickMap, statusMap, saslMap, ignoredNicks, selfAwayMap,
-            selectedServerId, selectedChannelId,
+            servers,
+            channelMap,
+            messageMap,
+            userMap,
+            nickMap,
+            statusMap,
+            saslMap,
+            ignoredNicks,
+            selfAwayMap,
+            lastChannelMap,
+            selectedServerId,
+            selectedChannelId,
           };
         }),
 
@@ -280,13 +252,10 @@ export const useStore = create<State & Actions>()(
       appendMessage: (key, msg) =>
         set((s) => ({ messageMap: { ...s.messageMap, [key]: [...(s.messageMap[key] ?? []), msg] } })),
 
-      // Seeds a channel with fetched history, prepended before anything that
-      // arrived live before the fetch resolved.
       setHistory: (key, messages) =>
         set((s) => ({ messageMap: { ...s.messageMap, [key]: [...messages, ...(s.messageMap[key] ?? [])] } })),
 
-      setUsers: (channelId, users) =>
-        set((s) => ({ userMap: { ...s.userMap, [channelId]: users } })),
+      setUsers: (channelId, users) => set((s) => ({ userMap: { ...s.userMap, [channelId]: users } })),
 
       addUser: (channelId, user) =>
         set((s) => {
@@ -300,12 +269,6 @@ export const useStore = create<State & Actions>()(
           userMap: { ...s.userMap, [channelId]: (s.userMap[channelId] ?? []).filter((u) => u.nick !== nick) },
         })),
 
-      // multi-prefix (negotiated in ircclient's CAP REQ) means NAMES now reports
-      // every privilege a user holds, not just the highest - so this can just
-      // add/remove the specific letter a MODE change touches, exactly, instead
-      // of the old single-slot heuristic (a grant only replacing what's tracked
-      // if it outranked it, a revoke only clearing an exact match) that lost a
-      // user's other privileges the moment one of them changed.
       applyModeChanges: (channelId, changes) =>
         set((s) => {
           const byNick = new Map<string, typeof changes>();
@@ -318,7 +281,9 @@ export const useStore = create<State & Actions>()(
             let privileges = u.privileges;
             for (const c of relevant) {
               privileges = c.granted
-                ? privileges.includes(c.privilege) ? privileges : [...privileges, c.privilege]
+                ? privileges.includes(c.privilege)
+                  ? privileges
+                  : [...privileges, c.privilege]
                 : privileges.filter((p) => p !== c.privilege);
             }
             return { ...u, privileges };
@@ -353,37 +318,37 @@ export const useStore = create<State & Actions>()(
           ),
         })),
 
-      setNick: (serverId, nick) =>
-        set((s) => ({ nickMap: { ...s.nickMap, [serverId]: nick } })),
+      setNick: (serverId, nick) => set((s) => ({ nickMap: { ...s.nickMap, [serverId]: nick } })),
 
-      setSaslCreds: (serverId, user, pass) =>
-        set((s) => ({ saslMap: { ...s.saslMap, [serverId]: { user, pass } } })),
+      setSaslCreds: (serverId, user, pass) => set((s) => ({ saslMap: { ...s.saslMap, [serverId]: { user, pass } } })),
 
       selectServer: (id) => {
         const channels = get().channelMap[id] ?? [];
+        const lastChannelId = get().lastChannelMap[id];
+        const lastStillExists = channels.some((c) => c.id === lastChannelId);
         const logCh = channels.find((c) => c.isLog);
-        set({ selectedServerId: id, selectedChannelId: logCh?.id ?? channels[0]?.id ?? '__log__' });
+        set({
+          selectedServerId: id,
+          selectedChannelId: lastStillExists ? lastChannelId : (logCh?.id ?? channels[0]?.id ?? '__log__'),
+        });
       },
 
-      // Selecting a channel is "viewing" it, so any pending mention on it is
-      // resolved - same spot JOIN's auto-select already lived, now doing
-      // double duty.
       selectChannel: (id) =>
         set((s) => {
-          if (!s.mentionedChannels[id]) return { selectedChannelId: id };
+          const lastChannelMap = { ...s.lastChannelMap, [s.selectedServerId]: id };
+          if (!s.mentionedChannels[id]) return { selectedChannelId: id, lastChannelMap };
           const mentionedChannels = { ...s.mentionedChannels };
           delete mentionedChannels[id];
-          return { selectedChannelId: id, mentionedChannels };
+          return { selectedChannelId: id, lastChannelMap, mentionedChannels };
         }),
 
-      setConnectionStatus: (serverId, status) =>
-        set((s) => ({ statusMap: { ...s.statusMap, [serverId]: status } })),
+      setConnectionStatus: (serverId, status) => set((s) => ({ statusMap: { ...s.statusMap, [serverId]: status } })),
 
-      setSelfAway: (serverId, away) =>
-        set((s) => ({ selfAwayMap: { ...s.selfAwayMap, [serverId]: away } })),
+      setSelfAway: (serverId, away) => set((s) => ({ selfAwayMap: { ...s.selfAwayMap, [serverId]: away } })),
 
-      markMentioned: (channelId) =>
-        set((s) => ({ mentionedChannels: { ...s.mentionedChannels, [channelId]: true } })),
+      markMentioned: (channelId) => set((s) => ({ mentionedChannels: { ...s.mentionedChannels, [channelId]: true } })),
+
+      markRead: (key) => set((s) => ({ lastReadMap: { ...s.lastReadMap, [key]: Date.now() } })),
 
       toggleMuteChannel: (channelId) =>
         set((s) => {
@@ -422,8 +387,7 @@ export const useStore = create<State & Actions>()(
           ignoredNicks: { ...s.ignoredNicks, [serverId]: (s.ignoredNicks[serverId] ?? []).filter((n) => n !== nick) },
         })),
 
-      setAlias: (name, template) =>
-        set((s) => ({ aliases: { ...s.aliases, [name]: template } })),
+      setAlias: (name, template) => set((s) => ({ aliases: { ...s.aliases, [name]: template } })),
 
       removeAlias: (name) =>
         set((s) => {
@@ -432,11 +396,8 @@ export const useStore = create<State & Actions>()(
           return { aliases };
         }),
 
-      setKeybinding: (action, combo) =>
-        set((s) => ({ keybindings: { ...s.keybindings, [action]: combo } })),
+      setKeybinding: (action, combo) => set((s) => ({ keybindings: { ...s.keybindings, [action]: combo } })),
 
-      // Lives on the Server object itself (not a separate map) - it's
-      // already the thing persisted in `servers`, same as name/initial.
       setServerColor: (id, color) => get().updateServer(id, { color }),
 
       updateServer: (id, patch) =>
@@ -453,9 +414,11 @@ export const useStore = create<State & Actions>()(
         nickMap: s.nickMap,
         selectedServerId: s.selectedServerId,
         selectedChannelId: s.selectedChannelId,
+        lastChannelMap: s.lastChannelMap,
         notificationsEnabled: s.notificationsEnabled,
         soundAlertsEnabled: s.soundAlertsEnabled,
         mutedChannels: s.mutedChannels,
+        lastReadMap: s.lastReadMap,
         timestampFormat: s.timestampFormat,
         messageDensity: s.messageDensity,
         fontSize: s.fontSize,

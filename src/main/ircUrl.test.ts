@@ -4,13 +4,19 @@ import { parseIrcUrl } from './ircUrl';
 describe('parseIrcUrl', () => {
   it('parses a bare host with default port', () => {
     expect(parseIrcUrl('irc://irc.libera.chat')).toEqual({
-      host: 'irc.libera.chat', port: 6667, secure: false, channel: undefined,
+      host: 'irc.libera.chat',
+      port: 6667,
+      secure: false,
+      channel: undefined,
     });
   });
 
   it('parses ircs with its own default port', () => {
     expect(parseIrcUrl('ircs://irc.libera.chat')).toEqual({
-      host: 'irc.libera.chat', port: 6697, secure: true, channel: undefined,
+      host: 'irc.libera.chat',
+      port: 6697,
+      secure: true,
+      channel: undefined,
     });
   });
 

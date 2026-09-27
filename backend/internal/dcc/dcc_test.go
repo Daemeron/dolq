@@ -31,8 +31,6 @@ func TestEncodeDecodeIP(t *testing.T) {
 
 func TestListenPortRange(t *testing.T) {
 	t.Run("binds within the requested range", func(t *testing.T) {
-		// Find a free port first so the range test itself doesn't flake on a
-		// port something else already holds.
 		probe, err := net.Listen("tcp", ":0")
 		if err != nil {
 			t.Fatalf("probe listen: %v", err)
@@ -189,7 +187,6 @@ func TestSessionOnCloseFiresOnDisconnect(t *testing.T) {
 		t.Fatal("OnClose never fired")
 	}
 
-	// Registering after the connection already closed should fire immediately.
 	fired := make(chan struct{})
 	server.OnClose(func() { close(fired) })
 	select {

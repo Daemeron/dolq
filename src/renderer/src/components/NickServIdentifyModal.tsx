@@ -9,13 +9,6 @@ type Props = {
 const inputClass =
   'w-full bg-[var(--dolq-bg-input)] border-0 rounded text-[var(--dolq-text)] text-[14px] px-3 py-2.5 outline-none focus:ring-2 focus:ring-[#c792ea] placeholder:text-[var(--dolq-text-faint)]';
 
-// NickServ just told us this nick needs identifying (see
-// utils/nickserv.ts) - a one-click shortcut for `/msg NickServ identify
-// <password>` instead of typing the whole thing out by hand. Nothing here
-// is remembered anywhere: SASL (Connect form's "Advanced" section) is
-// already this app's real answer to "don't ask me every time" - if that's
-// set up, this prompt wouldn't even fire, since SASL identifies before
-// registration completes.
 export function NickServIdentifyModal({ onIdentify, onDismiss }: Props) {
   const [password, setPassword] = useState('');
   const dialogRef = useModalA11y<HTMLDivElement>();
@@ -42,11 +35,13 @@ export function NickServIdentifyModal({ onIdentify, onDismiss }: Props) {
         aria-modal="true"
         aria-labelledby="nickserv-modal-title"
         tabIndex={-1}
-        className="bg-[var(--dolq-bg-panel)] rounded-lg p-6 w-90 shadow-[0_8px_32px_rgba(0,0,0,0.5)]"
+        className="bg-(--dolq-bg-panel) rounded-lg p-6 w-90 shadow-[0_8px_32px_rgba(0,0,0,0.5)]"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 id="nickserv-modal-title" className="text-[var(--dolq-text)] text-[18px] font-bold mb-2">Identify with NickServ</h2>
-        <p className="text-[var(--dolq-text-muted)] text-[14px] mb-4">
+        <h2 id="nickserv-modal-title" className="text-(--dolq-text) text-[18px] font-bold mb-2">
+          Identify with NickServ
+        </h2>
+        <p className="text-(--dolq-text-muted) text-[14px] mb-4">
           This nickname is registered. Enter its password to identify.
         </p>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
@@ -57,14 +52,14 @@ export function NickServIdentifyModal({ onIdentify, onDismiss }: Props) {
             onChange={(e) => setPassword(e.target.value)}
             placeholder="Password"
           />
-          <p className="text-[var(--dolq-text-faint)] text-[12px] -mt-2">
+          <p className="text-(--dolq-text-faint) text-[12px] -mt-2">
             Tip: set SASL credentials when connecting to identify automatically and skip this next time.
           </p>
           <div className="flex gap-3 justify-end">
             <button
               type="button"
               onClick={onDismiss}
-              className="px-4 py-2 rounded text-[var(--dolq-text-muted)] text-[14px] font-medium bg-transparent border-0 cursor-pointer hover:text-[var(--dolq-text)]"
+              className="px-4 py-2 rounded text-(--dolq-text-muted) text-[14px] font-medium bg-transparent border-0 cursor-pointer hover:text-(--dolq-text)"
             >
               Dismiss
             </button>

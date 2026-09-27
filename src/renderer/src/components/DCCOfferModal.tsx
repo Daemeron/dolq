@@ -7,10 +7,6 @@ type Props = {
   onDecline: () => void;
 };
 
-// A DCC CHAT offer is a direct peer-to-peer connection, not something
-// routed through the IRC server - accepting it means dialing straight out
-// to whatever address the sender announced, so unlike a query (opened just
-// by looking at an incoming message) this one gets an explicit prompt.
 export function DCCOfferModal({ nick, onAccept, onDecline }: Props) {
   const dialogRef = useModalA11y<HTMLDivElement>();
 
@@ -30,22 +26,26 @@ export function DCCOfferModal({ nick, onAccept, onDecline }: Props) {
         aria-modal="true"
         aria-labelledby="dcc-offer-modal-title"
         tabIndex={-1}
-        className="bg-[var(--dolq-bg-panel)] rounded-lg p-6 w-90 shadow-[0_8px_32px_rgba(0,0,0,0.5)]"
+        className="bg-(--dolq-bg-panel) rounded-lg p-6 w-90 shadow-[0_8px_32px_rgba(0,0,0,0.5)]"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 id="dcc-offer-modal-title" className="text-[var(--dolq-text)] text-[18px] font-bold mb-2">DCC Chat Request</h2>
-        <p className="text-[var(--dolq-text-muted)] text-[14px] mb-5">
-          <span className="text-[var(--dolq-text)] font-semibold">{nick}</span> wants to start a direct chat with you,
+        <h2 id="dcc-offer-modal-title" className="text-(--dolq-text) text-[18px] font-bold mb-2">
+          DCC Chat Request
+        </h2>
+        <p className="text-(--dolq-text-muted) text-[14px] mb-5">
+          <span className="text-(--dolq-text) font-semibold">{nick}</span> wants to start a direct chat with you,
           outside the server. Only accept this from someone you trust - it connects straight to their address.
         </p>
         <div className="flex gap-3 justify-end">
           <button
+            type="button"
             onClick={onDecline}
-            className="px-4 py-2 rounded text-[var(--dolq-text-muted)] text-[14px] font-medium bg-transparent border-0 cursor-pointer hover:text-[var(--dolq-text)]"
+            className="px-4 py-2 rounded text-(--dolq-text-muted) text-[14px] font-medium bg-transparent border-0 cursor-pointer hover:text-(--dolq-text)"
           >
             Decline
           </button>
           <button
+            type="button"
             onClick={onAccept}
             className="px-5 py-2 rounded bg-[#c792ea] text-white text-shadow-sm text-[14px] font-semibold border-0 cursor-pointer hover:bg-[#a579c2] transition-colors duration-150"
           >

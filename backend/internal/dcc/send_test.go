@@ -78,11 +78,6 @@ func TestParseSendOffer(t *testing.T) {
 	}
 }
 
-// TestReceiveFile checks the happy path end to end over a real loopback
-// connection: every byte sent arrives in order, onProgress reports the
-// final total, and a 4-byte big-endian running-total ack comes back after
-// each chunk - the flow-control convention most XDCC bot software still
-// expects.
 func TestReceiveFile(t *testing.T) {
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -90,7 +85,7 @@ func TestReceiveFile(t *testing.T) {
 	}
 	defer ln.Close()
 
-	payload := bytes.Repeat([]byte("hello world "), 1000) // spans multiple 64KB-buffer reads on the sender side too
+	payload := bytes.Repeat([]byte("hello world "), 1000)
 	ackCh := make(chan uint32, 32)
 	go func() {
 		conn, err := ln.Accept()
@@ -136,11 +131,6 @@ func TestReceiveFile(t *testing.T) {
 	}
 }
 
-// TestReceiveFileResume checks a non-zero base: only the bytes the sender
-// actually writes count toward size, acks/onProgress report the file's
-// absolute position (base-relative, not just what this call wrote), and w
-// only ever receives the resumed portion - the caller (openDestination) is
-// the one responsible for w already containing the first base bytes.
 func TestReceiveFileResume(t *testing.T) {
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -180,8 +170,6 @@ func TestReceiveFileResume(t *testing.T) {
 	}
 }
 
-// TestReceiveFilePause checks that a paused transfer genuinely stops making
-// progress until Resume, rather than just racing ahead regardless.
 func TestReceiveFilePause(t *testing.T) {
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -189,7 +177,7 @@ func TestReceiveFilePause(t *testing.T) {
 	}
 	defer ln.Close()
 
-	payload := bytes.Repeat([]byte("x"), 256*1024) // several 64KB chunks
+	payload := bytes.Repeat([]byte("x"), 256*1024)
 	go func() {
 		conn, err := ln.Accept()
 		if err != nil {
@@ -197,7 +185,7 @@ func TestReceiveFilePause(t *testing.T) {
 		}
 		defer conn.Close()
 		conn.Write(payload)
-		io.Copy(io.Discard, conn) // drain acks, otherwise a full send buffer could stall the sender
+		io.Copy(io.Discard, conn)
 	}()
 
 	conn, err := net.DialTimeout("tcp", ln.Addr().String(), time.Second)

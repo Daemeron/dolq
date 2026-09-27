@@ -6,8 +6,6 @@ export type Transfer = {
   done?: boolean;
   error?: string;
   paused?: boolean;
-  // Only set once at least one XDCCTRANSFER has arrived to measure a delta
-  // against - see App.tsx's speed bookkeeping.
   speedBps?: number;
 };
 
@@ -16,8 +14,6 @@ type Props = {
   onPause: (id: string) => void;
   onResume: (id: string) => void;
   onCancel: (id: string) => void;
-  // Removes a finished (done or errored) entry from the list - cancel only
-  // applies to one still in progress.
   onDismiss: (id: string) => void;
 };
 
@@ -33,10 +29,6 @@ function formatBytes(n: number): string {
   return `${v.toFixed(1)} ${units[i]}`;
 }
 
-// The transfer manager: every transfer xdccAccept has started, active or
-// finished, in one queue - not removed the moment it completes/fails, so
-// there's somewhere to see what actually happened (see the "Downloaded .../
-// Download failed" chat line App.tsx also posts, which scrolls away).
 export function TransferStatus({ transfers, onPause, onResume, onCancel, onDismiss }: Props) {
   const entries = Object.entries(transfers);
   if (entries.length === 0) return null;
@@ -47,16 +39,17 @@ export function TransferStatus({ transfers, onPause, onResume, onCancel, onDismi
         const pct = t.total > 0 ? Math.min(100, Math.round((t.received / t.total) * 100)) : 0;
         const finished = t.done || !!t.error;
         return (
-          <div key={id} className="bg-[var(--dolq-bg-panel)] rounded-lg p-3 shadow-[0_4px_16px_rgba(0,0,0,0.4)]">
+          <div key={id} className="bg-(--dolq-bg-panel) rounded-lg p-3 shadow-[0_4px_16px_rgba(0,0,0,0.4)]">
             <div className="flex items-center justify-between gap-2 mb-1.5">
-              <span className="text-[13px] text-[var(--dolq-text)] truncate" title={t.filename}>
+              <span className="text-[13px] text-(--dolq-text) truncate" title={t.filename}>
                 {t.filename}
               </span>
               <div className="flex items-center gap-2 shrink-0">
                 {!finished && (
                   <button
+                    type="button"
                     onClick={() => (t.paused ? onResume(id) : onPause(id))}
-                    className="text-[var(--dolq-text-faint)] hover:text-[var(--dolq-text)] bg-transparent border-0 cursor-pointer text-[13px]"
+                    className="text-(--dolq-text-faint) hover:text-(--dolq-text) bg-transparent border-0 cursor-pointer text-[13px]"
                     title={t.paused ? 'Resume' : 'Pause'}
                     aria-label={t.paused ? 'Resume' : 'Pause'}
                   >
@@ -64,8 +57,9 @@ export function TransferStatus({ transfers, onPause, onResume, onCancel, onDismi
                   </button>
                 )}
                 <button
+                  type="button"
                   onClick={() => (finished ? onDismiss(id) : onCancel(id))}
-                  className="text-[var(--dolq-text-faint)] hover:text-[var(--dolq-text)] bg-transparent border-0 cursor-pointer text-[13px]"
+                  className="text-(--dolq-text-faint) hover:text-(--dolq-text) bg-transparent border-0 cursor-pointer text-[13px]"
                   title={finished ? 'Dismiss' : 'Cancel'}
                   aria-label={finished ? 'Dismiss' : 'Cancel'}
                 >
@@ -73,13 +67,13 @@ export function TransferStatus({ transfers, onPause, onResume, onCancel, onDismi
                 </button>
               </div>
             </div>
-            <div className="h-1.5 rounded-full bg-[var(--dolq-bg-input)] overflow-hidden">
+            <div className="h-1.5 rounded-full bg-(--dolq-bg-input) overflow-hidden">
               <div
                 className={`h-full transition-[width] ${t.error ? 'bg-[#ff5555]' : 'bg-[#c792ea]'}`}
                 style={{ width: `${pct}%` }}
               />
             </div>
-            <div className="text-[11px] text-[var(--dolq-text-faint)] mt-1">
+            <div className="text-[11px] text-(--dolq-text-faint) mt-1">
               {t.error ? (
                 <span className="text-[#ff5555]">Failed: {t.error}</span>
               ) : t.done ? (

@@ -61,10 +61,6 @@ func (f *fakeSubscriber) lastStatus() string {
 	return f.status[len(f.status)-1]
 }
 
-// pipeSession wires a new Bouncer session for serverID to one end of an
-// in-memory net.Pipe(), handing the test the other end (and a line reader
-// on it) to act as the fake IRC server - reusing the real ircclient.Client
-// rather than a second mock of the wire protocol.
 func pipeSession(t *testing.T, b *Bouncer, serverID string, initial Subscriber) (net.Conn, *bufio.Reader) {
 	t.Helper()
 	clientConn, serverConn := net.Pipe()
@@ -73,9 +69,6 @@ func pipeSession(t *testing.T, b *Bouncer, serverID string, initial Subscriber) 
 		serverConn.Close()
 	})
 
-	// dial: nil - net.Pipe() can't be redialed, so this session opts out of
-	// auto-reconnect (see TestReconnect* below for that, over a dialFunc
-	// that can be).
 	client := ircclient.New(clientConn, "testnick")
 	b.connect(serverID, client, initial, nil)
 
@@ -84,9 +77,6 @@ func pipeSession(t *testing.T, b *Bouncer, serverID string, initial Subscriber) 
 	return serverConn, r
 }
 
-// drainHandshake reads off CAP LS plus the PASS/NICK/USER lines every
-// ircclient handshake sends, so a test's subsequent reads see only its own
-// traffic.
 func drainHandshake(t *testing.T, r *bufio.Reader) {
 	t.Helper()
 	for range 4 {
@@ -172,7 +162,7 @@ func TestDetachStopsFanOutWithoutClosingTheSession(t *testing.T) {
 func TestAttachToAnUnknownServerIDIsANoOp(t *testing.T) {
 	b := New(nil)
 	sub := &fakeSubscriber{}
-	b.Attach(sub, "nonexistent") // must not panic
+	b.Attach(sub, "nonexistent")
 	if n := sub.lineCount(); n != 0 {
 		t.Errorf("got %d lines, want 0", n)
 	}
@@ -183,7 +173,7 @@ func TestStatusFanOutOnClose(t *testing.T) {
 	sub := &fakeSubscriber{}
 	server, _ := pipeSession(t, b, "server-a", sub)
 
-	server.Close() // the far end going away
+	server.Close()
 
 	waitFor(t, func() bool { return sub.lastStatus() == "disconnected" })
 	waitFor(t, func() bool { return b.Status("server-a") == "disconnected" })
@@ -217,9 +207,6 @@ func TestShutdownDisconnectsEverySession(t *testing.T) {
 	}
 }
 
-// pipeDial returns a dialFunc that redials by handing out a fresh
-// net.Pipe() pair each call, and a channel delivering the server-side end
-// of each one so a test can drive it as a fake IRC server.
 func pipeDial(t *testing.T) (dialFunc, chan net.Conn) {
 	t.Helper()
 	servers := make(chan net.Conn, 8)
@@ -235,10 +222,6 @@ func pipeDial(t *testing.T) (dialFunc, chan net.Conn) {
 func TestReconnectsAfterUnexpectedDrop(t *testing.T) {
 	dial, servers := pipeDial(t)
 	b := New(nil)
-	// Long enough that "connecting" is reliably observable as the *last*
-	// status before the redial (which succeeds immediately, no real
-	// network involved) flips it to "connected" - too short a backoff
-	// races the poll below.
 	b.ReconnectBackoffBase = 50 * time.Millisecond
 	b.ReconnectBackoffMax = 50 * time.Millisecond
 
@@ -251,11 +234,11 @@ func TestReconnectsAfterUnexpectedDrop(t *testing.T) {
 	b.connect("server-a", client, sub, dial)
 	drainHandshake(t, bufio.NewReader(first))
 
-	first.Close() // the far end going away unexpectedly
+	first.Close()
 
 	waitFor(t, func() bool { return sub.lastStatus() == "connecting" })
 
-	second := <-servers // reconnect's redial
+	second := <-servers
 	drainHandshake(t, bufio.NewReader(second))
 
 	waitFor(t, func() bool { return sub.lastStatus() == "connected" })
@@ -263,8 +246,6 @@ func TestReconnectsAfterUnexpectedDrop(t *testing.T) {
 		t.Errorf("Status(server-a) = %q, want connected", got)
 	}
 
-	// Still fanning out to the original subscriber over the new connection,
-	// without needing to re-Attach.
 	writeLine(t, second, ":irc.example.net 001 me :Welcome back")
 	waitFor(t, func() bool { return sub.lastLine() == ":irc.example.net 001 me :Welcome back" })
 }
@@ -296,8 +277,6 @@ func TestReconnectRetriesOnDialFailure(t *testing.T) {
 	first.Close()
 	waitFor(t, func() bool { return sub.lastStatus() == "connecting" })
 
-	// Only arrives once the two simulated dial failures have been retried
-	// past.
 	second := <-servers
 	drainHandshake(t, bufio.NewReader(second))
 	waitFor(t, func() bool { return sub.lastStatus() == "connected" })
@@ -306,7 +285,7 @@ func TestReconnectRetriesOnDialFailure(t *testing.T) {
 func TestDisconnectDuringBackoffCancelsReconnect(t *testing.T) {
 	dial, servers := pipeDial(t)
 	b := New(nil)
-	b.ReconnectBackoffBase = 200 * time.Millisecond // long enough to Disconnect mid-sleep
+	b.ReconnectBackoffBase = 200 * time.Millisecond
 	b.ReconnectBackoffMax = 200 * time.Millisecond
 
 	sub := &fakeSubscriber{}
@@ -350,13 +329,10 @@ func TestReconnectRejoinsPreviouslyJoinedChannels(t *testing.T) {
 	b.connect("server-a", client, sub, dial)
 	drainHandshake(t, bufio.NewReader(first))
 
-	// The pre-drop client actually joins a channel - its own JOIN echo is
-	// what ircclient.Client's joinedChannels tracks, same as a real server's
-	// reply to a real JOIN would.
 	writeLine(t, first, ":testnick!u@h JOIN :#chat")
 	waitFor(t, func() bool { return slices.Contains(b.JoinedChannels("server-a"), "#chat") })
 
-	first.Close() // unexpected drop
+	first.Close()
 	waitFor(t, func() bool { return sub.lastStatus() == "connecting" })
 
 	second := <-servers
@@ -396,14 +372,6 @@ func TestUnexpectedDropAndReconnectLogSystemLines(t *testing.T) {
 	waitFor(t, func() bool { return sub.lastLine() == "*** Reconnected" })
 }
 
-// TestDisconnectLogPersistsAcrossRestart is what a real "app was closed"
-// actually needs, not just fanOutLine live to a subscriber that isn't
-// around anymore to see it: a real file-backed *history.Store (unlike every
-// other test here, which passes nil - see history.Store's nil receivers)
-// closed and reopened from the same path, same as dolqd's own shutdown
-// (store.Close, draining the writer goroutine) followed by a fresh launch
-// - and reading the disconnect line back out of it, the same thing a Log
-// view opening after that restart would fetch via getHistory.
 func TestDisconnectLogPersistsAcrossRestart(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "history.db")
 	store, err := history.Open(path, 0)
@@ -449,9 +417,6 @@ func TestDisconnectLogsASystemLine(t *testing.T) {
 	done := make(chan error, 1)
 	go func() { done <- b.Disconnect("server-a") }()
 
-	// Something has to read Disconnect's QUIT off the pipe - net.Pipe()'s
-	// Write blocks until a matching Read drains it, same as
-	// TestShutdownDisconnectsEverySession already has to do.
 	if _, err := r.ReadString('\n'); err != nil {
 		t.Fatalf("read QUIT: %v", err)
 	}

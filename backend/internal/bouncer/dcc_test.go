@@ -18,10 +18,6 @@ func TestDCCOffer(t *testing.T) {
 		serverConn, r := pipeSession(t, b, "server-a", sub)
 		_ = serverConn
 
-		// DCCOffer's SendPaced blocks until something reads it - over the
-		// real OS sockets ipcproto actually uses that's instant, but this
-		// test's net.Pipe() is fully synchronous/unbuffered, so the read
-		// below has to happen concurrently, not after.
 		type offerResult struct {
 			id  string
 			err error

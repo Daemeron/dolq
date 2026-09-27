@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { Settings } from '../../../shared/ipc';
+import type { KeybindAction } from '../store';
 import type { Server } from '../types';
-import { type KeybindAction } from '../store';
 import { comboFromEvent } from '../utils/keybind';
 import { ViewPanel } from './ViewPanel';
 
@@ -16,10 +16,6 @@ type Props = {
   settings: Settings;
   onSave: (settings: Settings) => void;
   onCancel: () => void;
-  // Unlike `settings` (main-process-owned, retentionDays needs a restart -
-  // see src/main/settings.ts), these are plain renderer/zustand-store
-  // values that apply live, so they're controlled inputs rather than part
-  // of the form's own save/cancel flow.
   notificationsEnabled: boolean;
   onNotificationsEnabledChange: (enabled: boolean) => void;
   soundAlertsEnabled: boolean;
@@ -34,15 +30,9 @@ type Props = {
   onFontFamilyChange: (family: 'system' | 'serif' | 'monospace') => void;
   theme: 'dark' | 'light';
   onThemeChange: (theme: 'dark' | 'light') => void;
-  // Ignored nicks are normally managed from a user's context menu
-  // (UserList), but that only works while they're actually visible in a
-  // shared channel - this is the only way to remove one once they aren't.
   servers: Server[];
   ignoredNicks: Record<string, string[]>;
   onRemoveIgnore: (serverId: string, nick: string) => void;
-  // /alias shortcuts are defined/redefined by typing "/alias name ..." (see
-  // App.tsx's handleSend) - this is view+remove only, same as Ignored Users
-  // above, not a place to add one from scratch.
   aliases: Record<string, string>;
   onRemoveAlias: (name: string) => void;
   keybindings: Record<KeybindAction, string>;
@@ -55,11 +45,30 @@ const labelClass =
   'flex flex-col gap-1.5 text-[11px] font-bold uppercase tracking-[0.5px] text-[var(--dolq-text-muted)]';
 
 export function PreferencesModal({
-  settings, onSave, onCancel, notificationsEnabled, onNotificationsEnabledChange,
-  soundAlertsEnabled, onSoundAlertsEnabledChange,
-  timestampFormat, onTimestampFormatChange, messageDensity, onMessageDensityChange,
-  fontSize, onFontSizeChange, fontFamily, onFontFamilyChange, theme, onThemeChange,
-  servers, ignoredNicks, onRemoveIgnore, aliases, onRemoveAlias, keybindings, onKeybindingChange,
+  settings,
+  onSave,
+  onCancel,
+  notificationsEnabled,
+  onNotificationsEnabledChange,
+  soundAlertsEnabled,
+  onSoundAlertsEnabledChange,
+  timestampFormat,
+  onTimestampFormatChange,
+  messageDensity,
+  onMessageDensityChange,
+  fontSize,
+  onFontSizeChange,
+  fontFamily,
+  onFontFamilyChange,
+  theme,
+  onThemeChange,
+  servers,
+  ignoredNicks,
+  onRemoveIgnore,
+  aliases,
+  onRemoveAlias,
+  keybindings,
+  onKeybindingChange,
 }: Props) {
   const [trayEnabled, setTrayEnabled] = useState(settings.trayEnabled ?? true);
   const [remoteEnabled, setRemoteEnabled] = useState(settings.remoteEnabled ?? false);
@@ -72,8 +81,6 @@ export function PreferencesModal({
     nicks.map((nick) => ({ serverId, nick })),
   );
   const aliasEntries = Object.entries(aliases);
-  // The action currently "listening" for its next keypress to rebind to -
-  // null means no rebind row is in recording mode.
   const [recording, setRecording] = useState<KeybindAction | null>(null);
 
   useEffect(() => {
@@ -93,14 +100,10 @@ export function PreferencesModal({
     if (!recording) return;
     const action = recording;
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') return; // handled by the effect above
+      if (e.key === 'Escape') return;
       e.preventDefault();
       const combo = comboFromEvent(e);
-      if (!combo) return; // needs a modifier - keep listening
-      // note: no duplicate-combo guard - binding two actions to the same
-      // combo just makes App.tsx's lookup silently favor whichever comes
-      // first in keybindings' key order. Add a collision check if that ever
-      // surprises someone.
+      if (!combo) return;
       onKeybindingChange(action, combo);
       setRecording(null);
     }
@@ -118,9 +121,6 @@ export function PreferencesModal({
     const parsed = parseInt(retentionDays, 10);
     let portMin = parseInt(dccPortMin, 10);
     let portMax = parseInt(dccPortMax, 10);
-    // Anything that isn't a sane forward range just falls back to "unset"
-    // (OS-picks-any-port, same as before this setting existed) rather than
-    // blocking the save on a form error.
     if (!Number.isFinite(portMin) || !Number.isFinite(portMax) || portMin <= 0 || portMax < portMin) {
       portMin = 0;
       portMax = 0;
@@ -139,11 +139,11 @@ export function PreferencesModal({
   return (
     <ViewPanel title="Preferences" onClose={onCancel}>
       <div className="max-w-110">
-        <p className="text-[var(--dolq-text-muted)] text-[14px] mb-5">
+        <p className="text-(--dolq-text-muted) text-[14px] mb-5">
           Applies to every server. Some settings need a restart to take effect.
         </p>
 
-        <label className="flex items-center gap-2 text-[13px] text-[var(--dolq-text)] cursor-pointer select-none mb-3">
+        <label className="flex items-center gap-2 text-[13px] text-(--dolq-text) cursor-pointer select-none mb-3">
           <input
             type="checkbox"
             checked={notificationsEnabled}
@@ -153,7 +153,7 @@ export function PreferencesModal({
           Desktop notifications when mentioned in a channel you're not viewing
         </label>
 
-        <label className="flex items-center gap-2 text-[13px] text-[var(--dolq-text)] cursor-pointer select-none mb-4">
+        <label className="flex items-center gap-2 text-[13px] text-(--dolq-text) cursor-pointer select-none mb-4">
           <input
             type="checkbox"
             checked={soundAlertsEnabled}
@@ -231,20 +231,21 @@ export function PreferencesModal({
         </div>
 
         <div className="flex flex-col gap-1.5 mb-5">
-          <span className="text-[11px] font-bold uppercase tracking-[0.5px] text-[var(--dolq-text-muted)]">
-            Keybindings
-          </span>
+          <span className="text-[11px] font-bold uppercase tracking-[0.5px] text-(--dolq-text-muted)">Keybindings</span>
           <div className="flex flex-col gap-1">
             {(Object.keys(KEYBIND_LABELS) as KeybindAction[]).map((action) => (
-              <div key={action} className="flex items-center justify-between gap-3 px-3 py-1.5 rounded bg-[var(--dolq-bg-input)]">
-                <span className="text-[var(--dolq-text)] text-[13px]">{KEYBIND_LABELS[action]}</span>
+              <div
+                key={action}
+                className="flex items-center justify-between gap-3 px-3 py-1.5 rounded bg-(--dolq-bg-input)"
+              >
+                <span className="text-(--dolq-text) text-[13px]">{KEYBIND_LABELS[action]}</span>
                 <button
                   type="button"
                   onClick={() => setRecording(action)}
                   className={`shrink-0 px-2.5 py-1 rounded text-[12px] font-medium border-0 cursor-pointer ${
                     recording === action
                       ? 'bg-[#c792ea] text-white'
-                      : 'bg-[var(--dolq-bg-input)] text-[var(--dolq-text)] hover:bg-[var(--dolq-bg-hover)]'
+                      : 'bg-(--dolq-bg-input) text-(--dolq-text) hover:bg-(--dolq-bg-hover)'
                   }`}
                 >
                   {recording === action ? 'Press keys… (Esc to cancel)' : keybindings[action]}
@@ -256,14 +257,20 @@ export function PreferencesModal({
 
         {ignoredEntries.length > 0 && (
           <div className="flex flex-col gap-1.5 mb-5">
-            <span className="text-[11px] font-bold uppercase tracking-[0.5px] text-[var(--dolq-text-muted)]">
+            <span className="text-[11px] font-bold uppercase tracking-[0.5px] text-(--dolq-text-muted)">
               Ignored Users
             </span>
             <div className="flex flex-col gap-1 max-h-32 overflow-y-auto scroll-thin pr-1">
               {ignoredEntries.map(({ serverId, nick }) => (
-                <div key={`${serverId}:${nick}`} className="flex items-center justify-between gap-3 px-3 py-1.5 rounded bg-[var(--dolq-bg-input)]">
-                  <span className="text-[var(--dolq-text)] text-[13px] truncate">
-                    {nick} <span className="text-[var(--dolq-text-faint)]">on {servers.find((s) => s.id === serverId)?.name ?? serverId}</span>
+                <div
+                  key={`${serverId}:${nick}`}
+                  className="flex items-center justify-between gap-3 px-3 py-1.5 rounded bg-(--dolq-bg-input)"
+                >
+                  <span className="text-(--dolq-text) text-[13px] truncate">
+                    {nick}{' '}
+                    <span className="text-(--dolq-text-faint)">
+                      on {servers.find((s) => s.id === serverId)?.name ?? serverId}
+                    </span>
                   </span>
                   <button
                     type="button"
@@ -280,19 +287,20 @@ export function PreferencesModal({
 
         {aliasEntries.length > 0 && (
           <div className="flex flex-col gap-1.5 mb-5">
-            <span className="text-[11px] font-bold uppercase tracking-[0.5px] text-[var(--dolq-text-muted)]">
-              Aliases
-            </span>
-            <p className="text-[var(--dolq-text-faint)] text-[12px] -mt-0.5">
+            <span className="text-[11px] font-bold uppercase tracking-[0.5px] text-(--dolq-text-muted)">Aliases</span>
+            <p className="text-(--dolq-text-faint) text-[12px] -mt-0.5">
               Defined with <code>/alias name command</code> (<code>$1</code>, <code>$2</code>... for args,{' '}
               <code>$*</code> for all of them) - typing <code>/name</code> sends the expansion.
             </p>
             <div className="flex flex-col gap-1 max-h-32 overflow-y-auto scroll-thin pr-1 mt-1">
               {aliasEntries.map(([name, template]) => (
-                <div key={name} className="flex items-center justify-between gap-3 px-3 py-1.5 rounded bg-[var(--dolq-bg-input)]">
-                  <span className="text-[var(--dolq-text)] text-[13px] truncate">
+                <div
+                  key={name}
+                  className="flex items-center justify-between gap-3 px-3 py-1.5 rounded bg-(--dolq-bg-input)"
+                >
+                  <span className="text-(--dolq-text) text-[13px] truncate">
                     <span className="font-semibold">/{name}</span>{' '}
-                    <span className="text-[var(--dolq-text-faint)]">{template}</span>
+                    <span className="text-(--dolq-text-faint)">{template}</span>
                   </span>
                   <button
                     type="button"
@@ -308,7 +316,7 @@ export function PreferencesModal({
         )}
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          <label className="flex items-center gap-2 text-[13px] text-[var(--dolq-text)] cursor-pointer select-none">
+          <label className="flex items-center gap-2 text-[13px] text-(--dolq-text) cursor-pointer select-none">
             <input
               type="checkbox"
               checked={trayEnabled}
@@ -318,7 +326,7 @@ export function PreferencesModal({
             Show a tray/menu bar icon
           </label>
 
-          <label className="flex items-center gap-2 text-[13px] text-[var(--dolq-text)] cursor-pointer select-none">
+          <label className="flex items-center gap-2 text-[13px] text-(--dolq-text) cursor-pointer select-none">
             <input
               type="checkbox"
               checked={remoteEnabled}
@@ -339,9 +347,9 @@ export function PreferencesModal({
               />
             </label>
           )}
-          <p className="text-[var(--dolq-text-faint)] text-[12px] -mt-2.5">
-            Points at a dolqd already running elsewhere (see docker-compose.yml) instead of spawning one on this
-            machine - sessions/history live on the remote box, not here. Takes effect the next time Dolq starts.
+          <p className="text-(--dolq-text-faint) text-[12px] -mt-2.5">
+            Points at a dolqd already running elsewhere (see docker-compose.yml) instead of spawning one on this machine
+            - sessions/history live on the remote box, not here. Takes effect the next time Dolq starts.
           </p>
 
           <label className={labelClass}>
@@ -355,7 +363,7 @@ export function PreferencesModal({
               min={0}
             />
           </label>
-          <p className="text-[var(--dolq-text-faint)] text-[12px] -mt-2.5">
+          <p className="text-(--dolq-text-faint) text-[12px] -mt-2.5">
             How long to keep chat history. 0 keeps it forever. Takes effect the next time Dolq starts.
           </p>
 
@@ -372,13 +380,13 @@ export function PreferencesModal({
               <button
                 type="button"
                 onClick={handleBrowseDownloadDir}
-                className="shrink-0 px-3 rounded text-[var(--dolq-text)] text-[13px] font-medium bg-[var(--dolq-bg-input)] border-0 cursor-pointer hover:bg-[var(--dolq-bg-hover)]"
+                className="shrink-0 px-3 rounded text-(--dolq-text) text-[13px] font-medium bg-(--dolq-bg-input) border-0 cursor-pointer hover:bg-(--dolq-bg-hover)"
               >
                 Browse…
               </button>
             </div>
           </label>
-          <p className="text-[var(--dolq-text-faint)] text-[12px] -mt-2.5">
+          <p className="text-(--dolq-text-faint) text-[12px] -mt-2.5">
             Where XDCC downloads are saved. Empty uses the OS Downloads folder.
           </p>
 
@@ -408,7 +416,7 @@ export function PreferencesModal({
               />
             </label>
           </div>
-          <p className="text-[var(--dolq-text-faint)] text-[12px] -mt-2.5">
+          <p className="text-(--dolq-text-faint) text-[12px] -mt-2.5">
             Ports DCC CHAT offers and passive XDCC downloads listen on. Leave both empty to let the OS pick any free
             port - set this if you're behind a router/firewall and want to forward a fixed range to receive them.
           </p>
@@ -417,7 +425,7 @@ export function PreferencesModal({
             <button
               type="button"
               onClick={onCancel}
-              className="px-4 py-2 rounded text-[var(--dolq-text-muted)] text-[14px] font-medium bg-transparent border-0 cursor-pointer hover:text-[var(--dolq-text)]"
+              className="px-4 py-2 rounded text-(--dolq-text-muted) text-[14px] font-medium bg-transparent border-0 cursor-pointer hover:text-(--dolq-text)"
             >
               Cancel
             </button>

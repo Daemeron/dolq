@@ -1,8 +1,3 @@
-// A curated, hand-picked subset (~140) of the ~3700-entry Unicode emoji set -
-// covers what Discord-style chat actually reaches for, not the full catalog
-// a library like emoji-mart would ship (data + skin-tone variants + full-text
-// search index, well past what a chat input's picker needs). `name` doubles
-// as the tooltip and the search-filter key (EmojiPicker.tsx).
 export type Emoji = { char: string; name: string };
 export type EmojiGroup = { label: string; emoji: Emoji[] };
 

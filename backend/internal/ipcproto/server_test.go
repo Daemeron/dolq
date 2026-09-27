@@ -16,16 +16,13 @@ import (
 
 func startTestServer(t *testing.T) string {
 	t.Helper()
-	// A short, flat name under os.TempDir() rather than t.TempDir(): Unix
-	// domain socket paths have an OS-level length limit (~104 bytes on
-	// macOS) that t.TempDir()'s nested, test-name-embedding paths blow past.
 	f, err := os.CreateTemp("", "dolq-*.sock")
 	if err != nil {
 		t.Fatalf("create temp path: %v", err)
 	}
 	path := f.Name()
 	f.Close()
-	os.Remove(path) // Listen() creates the actual socket file at this path
+	os.Remove(path)
 
 	ln, err := Listen("unix", path)
 	if err != nil {
@@ -39,8 +36,6 @@ func startTestServer(t *testing.T) string {
 	return path
 }
 
-// testClient dials the local IPC socket under test and gives back helpers
-// for sending frames and reading responses.
 type testClient struct {
 	conn net.Conn
 	r    *bufio.Reader
@@ -154,9 +149,6 @@ func TestMultipleConnectionsAreIndependent(t *testing.T) {
 	}
 }
 
-// TestConnectEndToEnd exercises the whole path: a "connect" frame over the
-// Unix socket drives a real ircclient.Dial to a fake IRC server on loopback
-// TCP, and that fake server's traffic fans back out as "line" frames.
 func TestConnectEndToEnd(t *testing.T) {
 	fakeIRC, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -170,13 +162,13 @@ func TestConnectEndToEnd(t *testing.T) {
 		}
 		defer conn.Close()
 		r := bufio.NewReader(conn)
-		for i := 0; i < 3; i++ { // PASS/NICK/USER
+		for i := 0; i < 3; i++ {
 			if _, err := r.ReadString('\n'); err != nil {
 				return
 			}
 		}
 		conn.Write([]byte(":irc.example.net 001 testnick :Welcome\r\n"))
-		io.Copy(io.Discard, r) // keep the connection open
+		io.Copy(io.Discard, r)
 	}()
 
 	tc := dialTestClient(t, startTestServer(t))
@@ -197,12 +189,6 @@ func TestConnectEndToEnd(t *testing.T) {
 	}
 }
 
-// TestGetStatusAttachesToAnExistingSession is the multi-client case a shared
-// remote dolqd (see docker-compose.yml) actually needs: a second connection
-// that never called Connect itself - it's just checking on a session another
-// connection already brought up - must still start receiving that session's
-// live traffic once it asks for its status, or it silently gets history and
-// a "connected" status but no future line/event/status ever again.
 func TestGetStatusAttachesToAnExistingSession(t *testing.T) {
 	fakeIRC, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -219,7 +205,7 @@ func TestGetStatusAttachesToAnExistingSession(t *testing.T) {
 		}
 		ircConn = conn
 		r := bufio.NewReader(conn)
-		for i := 0; i < 3; i++ { // PASS/NICK/USER
+		for i := 0; i < 3; i++ {
 			if _, err := r.ReadString('\n'); err != nil {
 				return
 			}
@@ -238,8 +224,8 @@ func TestGetStatusAttachesToAnExistingSession(t *testing.T) {
 	if result := tc1.recv(t); !result.OK {
 		t.Fatalf("connect result: %#v", result)
 	}
-	tc1.recv(t) // the WELCOME line from Connect's own caller being subscribed
-	tc1.recv(t) // and the WELCOME event derived from that same line - draining both before tc2 attaches means the fan-out for this connect sequence has already finished, not racing tc2's own attach below
+	tc1.recv(t)
+	tc1.recv(t)
 
 	select {
 	case <-accepted:
@@ -247,8 +233,6 @@ func TestGetStatusAttachesToAnExistingSession(t *testing.T) {
 		t.Fatal("fake IRC server never accepted the connection")
 	}
 
-	// tc2 never Connects - it's a second client just checking on a session
-	// tc1 already brought up (the shared-backend scenario).
 	tc2 := dialTestClient(t, path)
 	tc2.send(t, ClientFrame{ID: "2", Action: ActionGetStatus, ServerID: "shared"})
 	want := ServerFrame{ID: "2", Type: FrameResult, OK: true, Status: "connected"}

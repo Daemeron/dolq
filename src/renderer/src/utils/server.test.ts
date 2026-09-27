@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { buildServerId, parseServerId, resolveHostPort } from './server';
 
 describe('buildServerId', () => {
@@ -41,7 +41,8 @@ describe('parseServerId', () => {
 describe('resolveHostPort', () => {
   it('uses the explicit host/port fields when present', () => {
     expect(resolveHostPort({ id: 'some-uuid', host: 'irc.libera.chat', port: 6697 })).toEqual({
-      host: 'irc.libera.chat', port: 6697,
+      host: 'irc.libera.chat',
+      port: 6697,
     });
   });
 
