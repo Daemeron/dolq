@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.1](https://github.com/Daemeron/dolq/compare/dolq-v0.1.0...dolq-v0.1.1) (2026-09-28)
+
+
+### Bug Fixes
+
+* force LF line endings for Go source regardless of OS, via .gitattributes. ([52427bc](https://github.com/Daemeron/dolq/commit/52427bc3df8abf8b22da701d40883c63de5a82e4))
+
 ## 0.1.0 (2026-09-27)
 
 
