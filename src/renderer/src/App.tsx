@@ -290,6 +290,30 @@ export default function App() {
     return window.irc.onOpenPreferences(() => setView({ kind: 'preferences' }));
   }, []);
 
+  const connectServer = useCallback(
+    async (server: Server) => {
+      const { host, port } = resolveHostPort(server);
+      const { nickMap, saslMap } = useStore.getState();
+      const nick = nickMap[server.id] ?? 'dolq_user';
+      const sasl = saslMap[server.id];
+      setConnectionStatus(server.id, 'connecting');
+      await window.irc.connect(
+        server.id,
+        host,
+        port,
+        nick,
+        server.secure,
+        sasl?.user,
+        sasl?.pass,
+        server.username,
+        server.realname,
+        server.altNicks,
+      );
+      setConnectionStatus(server.id, 'connected');
+    },
+    [setConnectionStatus],
+  );
+
   useEffect(() => {
     async function reconcile() {
       const { servers, channelMap } = useStore.getState();
@@ -696,27 +720,6 @@ export default function App() {
     setNick(id, form.nick);
     setSaslCreds(id, form.saslUser, form.saslPass);
     setView({ kind: 'chat' });
-  }
-
-  async function connectServer(server: Server) {
-    const { host, port } = resolveHostPort(server);
-    const { nickMap, saslMap } = useStore.getState();
-    const nick = nickMap[server.id] ?? 'dolq_user';
-    const sasl = saslMap[server.id];
-    setConnectionStatus(server.id, 'connecting');
-    await window.irc.connect(
-      server.id,
-      host,
-      port,
-      nick,
-      server.secure,
-      sasl?.user,
-      sasl?.pass,
-      server.username,
-      server.realname,
-      server.altNicks,
-    );
-    setConnectionStatus(server.id, 'connected');
   }
 
   async function connectToServer() {
