@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.1.2](https://github.com/Daemeron/dolq/compare/dolq-v0.1.1...dolq-v0.1.2) (2026-10-12)
+
+
+### Bug Fixes
+
+* fix connection bug ([1619bfc](https://github.com/Daemeron/dolq/commit/1619bfc3bf785c3ee3834305ea1572acafbbdc08))
+* handle backend IPC failures in the renderer ([c7f98fc](https://github.com/Daemeron/dolq/commit/c7f98fc2f92a75d2c87c505c1da40bf714564836))
+* use a named pipe for the backend IPC on Windows ([02d0b5c](https://github.com/Daemeron/dolq/commit/02d0b5c76b36bac3f85ce3c54a4e594b944fd39c))
+
 ## [0.1.1](https://github.com/Daemeron/dolq/compare/dolq-v0.1.0...dolq-v0.1.1) (2026-09-28)
 
 
