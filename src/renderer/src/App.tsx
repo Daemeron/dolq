@@ -318,7 +318,7 @@ export default function App() {
     async function reconcile() {
       const { servers, channelMap } = useStore.getState();
       for (const s of servers) {
-        const status = await window.irc.getStatus(s.id);
+        const status = await window.irc.getStatus(s.id).catch(() => 'disconnected' as const);
         setConnectionStatus(s.id, status);
 
         if (status === 'connected') {
@@ -632,13 +632,16 @@ export default function App() {
     historyPages.current.set(key, page);
 
     const backendChannel = backendChannelFor(selectedServerId, selectedChannelId);
-    window.irc.getHistory(selectedServerId, backendChannel, undefined, HISTORY_PAGE_SIZE).then((entries) => {
-      page.loading = false;
-      page.exhausted = entries.length < HISTORY_PAGE_SIZE;
-      page.oldestId = entries[0]?.id ?? null;
-      const messages = toMessages(entries);
-      if (messages.length > 0) setHistory(key, messages);
-    });
+    window.irc
+      .getHistory(selectedServerId, backendChannel, undefined, HISTORY_PAGE_SIZE)
+      .then((entries) => {
+        page.loading = false;
+        page.exhausted = entries.length < HISTORY_PAGE_SIZE;
+        page.oldestId = entries[0]?.id ?? null;
+        const messages = toMessages(entries);
+        if (messages.length > 0) setHistory(key, messages);
+      })
+      .catch(() => historyPages.current.delete(key));
   }, [selectedServerId, selectedChannelId, setHistory, backendChannelFor]);
 
   const loadOlderHistory = useCallback(() => {
@@ -648,13 +651,18 @@ export default function App() {
     page.loading = true;
 
     const backendChannel = backendChannelFor(selectedServerId, selectedChannelId);
-    window.irc.getHistory(selectedServerId, backendChannel, page.oldestId, HISTORY_PAGE_SIZE).then((entries) => {
-      page.loading = false;
-      page.exhausted = entries.length < HISTORY_PAGE_SIZE;
-      if (entries[0]) page.oldestId = entries[0].id;
-      const messages = toMessages(entries);
-      if (messages.length > 0) setHistory(key, messages);
-    });
+    window.irc
+      .getHistory(selectedServerId, backendChannel, page.oldestId, HISTORY_PAGE_SIZE)
+      .then((entries) => {
+        page.loading = false;
+        page.exhausted = entries.length < HISTORY_PAGE_SIZE;
+        if (entries[0]) page.oldestId = entries[0].id;
+        const messages = toMessages(entries);
+        if (messages.length > 0) setHistory(key, messages);
+      })
+      .catch(() => {
+        page.loading = false;
+      });
   }, [selectedServerId, selectedChannelId, setHistory, backendChannelFor]);
 
   async function handleConnect(form: ConnectForm) {

@@ -66,9 +66,14 @@ export function SearchModal({
     setLoading(true);
     const [serverId, channel] = global ? ['', ''] : [defaultServerId, defaultChannel];
     const limit = packsOnly ? PACKS_ONLY_LIMIT : DEFAULT_LIMIT;
-    const found = await window.irc.search(serverId, channel, query.trim(), limit);
-    setLoading(false);
-    setResults(packsOnly ? found.filter(isPack) : found);
+    try {
+      const found = await window.irc.search(serverId, channel, query.trim(), limit);
+      setResults(packsOnly ? found.filter(isPack) : found);
+    } catch {
+      setResults([]);
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
