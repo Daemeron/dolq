@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"runtime"
 	"syscall"
 	"time"
 
@@ -28,6 +29,9 @@ func main() {
 	network, path := "unix", *socketPath
 	if *addr != "" {
 		network, path = "tcp", *addr
+	} else if path == "" && runtime.GOOS == "windows" {
+		// Node can't connect to AF_UNIX sockets on Windows (EACCES); use a named pipe
+		network, path = "pipe", fmt.Sprintf(`\\.\pipe\dolq-%d`, os.Getpid())
 	} else if path == "" {
 		path = filepath.Join(os.TempDir(), fmt.Sprintf("dolq-%d.sock", os.Getpid()))
 	}
@@ -64,7 +68,9 @@ func main() {
 		b.Shutdown(shutdownCtx)
 		cancel()
 		ln.Close()
-		os.Remove(path)
+		if network == "unix" {
+			os.Remove(path)
+		}
 	case err := <-serveErr:
 		log.Printf("serve error: %v", err)
 	}

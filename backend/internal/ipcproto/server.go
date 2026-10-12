@@ -18,6 +18,9 @@ func Listen(network, address string) (net.Listener, error) {
 			return nil, err
 		}
 	}
+	if network == "pipe" {
+		return listenPipe(address)
+	}
 	return net.Listen(network, address)
 }
 
