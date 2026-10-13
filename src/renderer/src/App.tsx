@@ -322,7 +322,7 @@ export default function App() {
         setConnectionStatus(s.id, status);
 
         if (status === 'connected') {
-          const joined = new Set(await window.irc.getJoinedChannels(s.id));
+          const joined = new Set(await window.irc.getJoinedChannels(s.id).catch(() => [] as string[]));
           (channelMap[s.id] ?? []).forEach((ch) => {
             if (ch.isLog || ch.isQuery) return;
             if (joined.has(ch.id)) window.irc.sendLine(s.id, `NAMES ${ch.id}`);
@@ -880,7 +880,14 @@ export default function App() {
     let all: HistoryEntry[] = [];
     let before: number | undefined;
     for (;;) {
-      const page = await window.irc.getHistory(selectedServerId, backendChannel, before, pageSize);
+      let page: HistoryEntry[];
+      try {
+        page = await window.irc.getHistory(selectedServerId, backendChannel, before, pageSize);
+      } catch (err) {
+        // abort rather than save a truncated export
+        console.error('export failed:', err);
+        return;
+      }
       if (page.length === 0) break;
       all = [...page, ...all];
       before = page[0].id;

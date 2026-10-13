@@ -28,7 +28,9 @@ contextBridge.exposeInMainWorld('irc', {
       altNicks,
     ),
 
-  sendLine: (serverId: string, line: string) => ipcRenderer.invoke(IrcMessages.send, serverId, line),
+  // every caller is fire-and-forget; a failed send (backend down) has nowhere better to go than the log
+  sendLine: (serverId: string, line: string) =>
+    ipcRenderer.invoke(IrcMessages.send, serverId, line).catch((err) => console.error('send failed:', err)),
 
   disconnect: (serverId: string) => ipcRenderer.invoke(IrcMessages.disconnect, serverId),
 
