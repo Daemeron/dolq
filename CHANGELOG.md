@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.4](https://github.com/Daemeron/dolq/compare/dolq-v0.1.3...dolq-v0.1.4) (2026-10-13)
+
+
+### Bug Fixes
+
+* make the tray opt-in and ship its icon in packaged builds ([5452d3f](https://github.com/Daemeron/dolq/commit/5452d3f45a806f5d409f2b579a5419bee2ebde9f))
+
 ## [0.1.3](https://github.com/Daemeron/dolq/compare/dolq-v0.1.2...dolq-v0.1.3) (2026-10-13)
 
 
