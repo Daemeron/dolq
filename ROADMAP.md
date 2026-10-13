@@ -716,7 +716,7 @@ will hang the UI.
       the real running app: loaded the actual generated file through
       `nativeImage` and confirmed `isTemplateImage()` and its pixel
       dimensions come back correct. Also made toggleable from Preferences
-      (`Settings.trayEnabled`, default on) - not everyone wants a
+      (`Settings.trayEnabled`, default off) - not everyone wants a
       permanent menu bar icon, and unlike `retentionDays` this needed no
       restart to apply: it's a plain `Tray`/`destroy()` call, not a
       subprocess launch flag, so the same `setSettings` IPC call that

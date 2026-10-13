@@ -35,7 +35,10 @@ let quitting = false;
 // createWindow's 'did-finish-load' listener once there is one.
 let pendingIrcUrl: string | null = null;
 
-const ICON_PATH = join(__dirname, '../../resources/icon.png');
+// Packaged builds only ship `out/**` inside the asar, so the icons live in
+// extraResources (electron-builder.json5) next to it instead.
+const RESOURCES_DIR = app.isPackaged ? join(process.resourcesPath, 'resources') : join(__dirname, '../../resources');
+const ICON_PATH = join(RESOURCES_DIR, 'icon.png');
 // macOS menu bar icons are their own convention, not just a small app icon:
 // a black glyph on a transparent background (no colored square, no rounded
 // corners), marked as a "template image" so the OS re-tints it for light/
@@ -47,9 +50,7 @@ const ICON_PATH = join(__dirname, '../../resources/icon.png');
 // for auto-detecting this, on top of the explicit setTemplateImage below.
 // Elsewhere, no such convention exists, so this stays the full-color icon.
 const TRAY_ICON_PATH =
-  process.platform === 'darwin'
-    ? join(__dirname, '../../resources/trayIconTemplate.png')
-    : join(__dirname, '../../resources/icons/32x32.png');
+  process.platform === 'darwin' ? join(RESOURCES_DIR, 'trayIconTemplate.png') : join(RESOURCES_DIR, 'icons/32x32.png');
 const IRC_URL_SCHEMES = ['irc', 'ircs'];
 
 function createWindow(): void {
@@ -79,7 +80,7 @@ function createWindow(): void {
   // (see `quitting`'s doc), or this would also block Cmd+Q/tray Quit from
   // ever actually closing anything.
   mainWindow.on('close', (event) => {
-    if (quitting) return;
+    if (quitting || !tray) return;
     event.preventDefault();
     mainWindow.hide();
   });
@@ -256,12 +257,12 @@ if (!app.requestSingleInstanceLock()) {
     }
 
     // Loaded before createTray() specifically so a saved trayEnabled: false
-    // never flashes a tray icon into existence for a moment at startup only
-    // to immediately destroy it again.
+    // (or its absence) never flashes a tray icon into existence for a moment
+    // at startup only to immediately destroy it again.
     const settings = loadSettings();
 
     createWindow();
-    if (settings.trayEnabled !== false) createTray();
+    if (settings.trayEnabled) createTray();
     registerBadgeCountHandler();
     createAppMenu();
 
@@ -432,8 +433,8 @@ function registerSettingsHandlers(settingsBox: { current: Settings }): void {
   ipcMain.handle(IrcMessages.setSettings, (_event, settings: Settings) => {
     settingsBox.current = settings;
     saveSettings(settings);
-    if (settings.trayEnabled === false) destroyTray();
-    else createTray();
+    if (settings.trayEnabled) createTray();
+    else destroyTray();
   });
 }
 

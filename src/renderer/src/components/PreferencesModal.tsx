@@ -70,7 +70,7 @@ export function PreferencesModal({
   keybindings,
   onKeybindingChange,
 }: Props) {
-  const [trayEnabled, setTrayEnabled] = useState(settings.trayEnabled ?? true);
+  const [trayEnabled, setTrayEnabled] = useState(settings.trayEnabled ?? false);
   const [remoteEnabled, setRemoteEnabled] = useState(settings.remoteEnabled ?? false);
   const [remoteUrl, setRemoteUrl] = useState(settings.remoteUrl ?? '');
   const [retentionDays, setRetentionDays] = useState(String(settings.retentionDays));
