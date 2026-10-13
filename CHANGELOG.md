@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.3](https://github.com/Daemeron/dolq/compare/dolq-v0.1.2...dolq-v0.1.3) (2026-10-13)
+
+
+### Bug Fixes
+
+* guard the remaining unhandled IPC calls ([c853dd6](https://github.com/Daemeron/dolq/commit/c853dd67756e82665d3a97af89344f99ddc468ae))
+
 ## [0.1.2](https://github.com/Daemeron/dolq/compare/dolq-v0.1.1...dolq-v0.1.2) (2026-10-12)
 
 
