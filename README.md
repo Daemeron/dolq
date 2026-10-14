@@ -101,6 +101,62 @@ SmartScreen will warn you. To proceed:
 
 ---
 
+## Remote backend
+
+By default the app starts its own `dolqd` and talks to it over a local socket.
+You can instead run `dolqd` on an always-on machine (a server, a NAS) so IRC
+sessions and history stay up while the app is closed, and point any number of
+clients at it.
+
+**Run it.** From the repo root, `docker compose up -d` builds and starts
+`backend/Dockerfile`, listening on port 6789 with its data in a volume. On
+Kubernetes, see [deploy/kubernetes/README.md](./deploy/kubernetes/README.md)
+(prebuilt multi-arch images are published to `ghcr.io/daemeron/dolqd`). Without
+a container, `dolqd -addr 0.0.0.0:6789` does the same.
+
+**Pair a client.** On first start `dolqd` generates an access token and a
+self-signed TLS certificate, keeps them next to the history database, and logs
+a pairing link (`dolq://host:6789?token=...&fp=...`, e.g. in
+`docker compose logs dolqd`). In Dolq open **Preferences**, tick **Connect to a
+remote backend instead of running one locally**, paste the link into
+**Pairing Link**, save and restart. The link carries the address, the token and
+the certificate fingerprint, so nothing else needs confirming. Keep it private.
+
+**Legacy plain connections and `-secure`.** So that setups and clients from
+before access tokens keep working, `dolqd` by default still accepts plain,
+unauthenticated connections on the same port, and logs a warning saying so.
+Once every client is paired, start it with `-secure` (or `DOLQ_SECURE=1`) to
+accept only TLS connections that present the token. The Kubernetes manifests
+pass `-secure` already, since a fresh install has nothing to stay compatible
+with.
+
+| Flag                                             | Meaning                                                                                                               |
+| ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------- |
+| `-addr host:port`                                | Listen on TCP for remote clients instead of a local socket                                                            |
+| `-db path`                                       | History database; the token and certificate live in the same directory by default                                     |
+| `-secure`                                        | Refuse plain, unauthenticated connections (see above)                                                                 |
+| `-tls=false`                                     | Serve plain TCP, e.g. behind a TLS-terminating proxy or an SSH tunnel                                                 |
+| `-token=false`                                   | No access token: anyone who can reach the port can use it. Only on a network you fully trust                          |
+| `-tls-cert` / `-tls-key`                         | Use this certificate and key (generated there if neither file exists)                                                 |
+| `-acme-domain` / `-acme-email` / `-acme-staging` | Get a Let's Encrypt certificate for a public domain name (port 443 must reach `dolqd`); pair with a link without `fp` |
+| `-retention-days n`                              | Prune history older than `n` days (0 keeps everything)                                                                |
+
+`-tls=false` and `-token=false` are independent, and neither can be combined
+with `-secure`. In the client, untick **Encrypt the connection (TLS)** and/or
+leave the token empty to match.
+
+| Environment variable | Meaning                                                                                    |
+| -------------------- | ------------------------------------------------------------------------------------------ |
+| `DOLQ_TOKEN`         | Use this access token instead of a generated one (kept out of `ps`, so there is no flag)   |
+| `DOLQ_SECURE=1`      | Same as `-secure`                                                                          |
+| `DOLQ_PUBLIC_HOST`   | Host name or IP to put in the pairing link (inside a container `dolqd` cannot tell)        |
+| `DOLQ_PUBLIC_PORT`   | Port to put in the pairing link, when clients reach it through a different one (NodePort)  |
+
+To rotate the token or certificate, delete `token` or `tls-cert.pem` /
+`tls-key.pem` from the data directory, restart, and re-pair each client.
+
+---
+
 ## Installation (from source)
 
 ```bash
