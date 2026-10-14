@@ -78,7 +78,9 @@ export function PreferencesModal({
   const [trayEnabled, setTrayEnabled] = useState(settings.trayEnabled ?? false);
   const [remoteEnabled, setRemoteEnabled] = useState(settings.remoteEnabled ?? false);
   const [remoteUrl, setRemoteUrl] = useState(settings.remoteUrl ?? '');
-  const [remoteTls, setRemoteTls] = useState(settings.remoteTls ?? true);
+  const [remoteTls, setRemoteTls] = useState(
+    settings.remoteTls ?? Boolean(settings.remoteTokenSet || settings.remoteFingerprint),
+  );
   const [remoteFingerprint, setRemoteFingerprint] = useState(settings.remoteFingerprint ?? '');
   const [remoteToken, setRemoteToken] = useState('');
   const [pairingText, setPairingText] = useState('');
