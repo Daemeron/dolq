@@ -7,8 +7,8 @@ resources:
   - pvc.yaml
   - deployment.yaml
   - service.yaml
-# Where your dolqd image lives, e.g. a registry on the NAS:
+# Pin a release instead of `latest`, or use your own build from a registry on the NAS:
 # images:
-#   - name: dolqd
-#     newName: registry.nas.local:5000/dolqd
+#   - name: ghcr.io/daemeron/dolqd
 #     newTag: '0.1.5'
+#     # newName: registry.nas.local:5000/dolqd
