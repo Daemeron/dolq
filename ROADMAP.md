@@ -1191,7 +1191,10 @@ will hang the UI.
       with a DACL for the current user only) and the child gets a random
       per-launch token over its environment. The token is kept in the
       keychain-backed secrets store and never returned to the renderer.
-      Let's Encrypt validation (TLS-ALPN-01) is implemented with `autocert` but
+      `deploy/kubernetes/` runs it on a cluster/NAS (single replica, PVC,
+      NodePort; `DOLQ_PUBLIC_PORT` makes the pairing link carry the mapped
+      port); the manifests were validated structurally but not applied to a
+      real cluster. Let's Encrypt validation (TLS-ALPN-01) is implemented with `autocert` but
       has not been exercised against the live CA. Not done: LAN discovery
       (mDNS) so a client can find a backend without typing an address. Covered
       by `auth_test.go`, `pairing_test.go`, `remoteBackend.test.ts`,

@@ -160,7 +160,7 @@ func resolveDBPath(explicit string) string {
 }
 
 // logPairing prints the link a client pastes into Preferences to connect. The
-// host is DOLQ_PUBLIC_HOST if set, else this machine's LAN addresses (inside a
+// host is DOLQ_PUBLIC_HOST (and the port DOLQ_PUBLIC_PORT) if set, else this machine's LAN addresses (inside a
 // container those are not reachable from outside: set DOLQ_PUBLIC_HOST, or
 // replace the host in the link with the machine's name).
 func logPairing(listenAddr, token, fingerprint string) {
@@ -168,6 +168,10 @@ func logPairing(listenAddr, token, fingerprint string) {
 	port, _ := strconv.Atoi(portStr)
 	if err != nil || port == 0 {
 		return
+	}
+	// Behind a port mapping (Docker, a Kubernetes NodePort) clients use another port than the one bound here.
+	if p, err := strconv.Atoi(os.Getenv("DOLQ_PUBLIC_PORT")); err == nil && p > 0 {
+		port = p
 	}
 	hosts := ipcproto.LANHosts()
 	if h := os.Getenv("DOLQ_PUBLIC_HOST"); h != "" {

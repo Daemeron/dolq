@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dolqd-config
+  namespace: dolq
+data:
+  # How clients reach dolqd from outside the cluster. They only go into the
+  # pairing link dolqd prints at startup; nothing is bound to them. Set the
+  # host to your NAS's name or LAN IP, and the port to the Service's nodePort
+  # (or 6789 if you switch the Service to a LoadBalancer).
+  DOLQ_PUBLIC_HOST: 'nas.local'
+  DOLQ_PUBLIC_PORT: '30789'

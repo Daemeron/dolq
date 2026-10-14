@@ -1,0 +1,13 @@
+# The chat history (SQLite), the generated access token and the self-signed
+# TLS certificate all live here, so keep it across upgrades.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: dolqd-data
+  namespace: dolq
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 5Gi
+  # storageClassName: <your NAS's class>  # omit to use the cluster default
