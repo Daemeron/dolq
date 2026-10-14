@@ -1173,8 +1173,8 @@ will hang the UI.
 - [x] The remote-backend socket was plain TCP with no authentication: anyone
       who could reach port 6789 could read history, send as the user and see
       the passwords the client forwarded. Now (the primary use is a backend on
-      the local network, so it has to be zero-setup): `dolqd -addr` always
-      serves TLS and requires an access token. First start generates a random
+      the local network, so it has to be zero-setup): `dolqd -addr`
+      serves TLS with an access token. First start generates a random
       token (`<datadir>/token`, 0600) and a self-signed ECDSA certificate
       (`tls-cert.pem`/`tls-key.pem`) and prints a **pairing link**
       (`dolq://host:port?token=...&fp=<sha256>`); pasting it into Preferences
@@ -1191,11 +1191,18 @@ will hang the UI.
       with a DACL for the current user only) and the child gets a random
       per-launch token over its environment. The token is kept in the
       keychain-backed secrets store and never returned to the renderer.
-      Running unprotected stays possible but is always an explicit choice:
-      `dolqd -no-tls` (token, no TLS) or `-insecure` (neither, the old
-      behaviour); the client treats a missing token or unticked TLS as such,
-      and asks the user to confirm which protections are missing every time it
-      connects to a non-loopback host.
+      Not a breaking change: by default `dolqd -addr` serves both protocols on
+      the one port, telling them apart by the first byte (0x16 = TLS
+      handshake). TLS connections need the token; plain ones are accepted as
+      before, without it, with a warning in the log, so existing deployments
+      and older clients keep working untouched. Once every client is paired,
+      `-secure` (or `DOLQ_SECURE=1`) refuses plain connections; the Kubernetes
+      manifests ship with it, having no legacy deployments to protect. Client
+      settings saved before TLS existed stay plain until a token or pin is
+      set. `-no-tls` (token, no TLS) and `-insecure` (neither, and no TLS
+      offered) remain for proxies and trusted networks; the client asks the
+      user to confirm which protections are missing every time it connects to
+      a non-loopback host.
       `deploy/kubernetes/` runs it on a cluster/NAS (single replica, PVC,
       NodePort; `DOLQ_PUBLIC_PORT` makes the pairing link carry the mapped
       port); a release workflow (`create-a-release-build-docker-image.yml`)
