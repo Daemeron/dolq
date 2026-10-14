@@ -249,3 +249,16 @@ func TestGetStatusAttachesToAnExistingSession(t *testing.T) {
 		t.Errorf("tc2 (attached only via GetStatus) got %#v, want %#v", got, want)
 	}
 }
+
+func TestServerDownloadDirOverridesClient(t *testing.T) {
+	s := NewServer(nil)
+	if got := s.destDir("/client/dir"); got != "/client/dir" {
+		t.Fatalf("without DownloadDir: got %q, want the client's dir", got)
+	}
+	s.DownloadDir("/srv/downloads")
+	for _, req := range []string{"/client/dir", "", "../../etc"} {
+		if got := s.destDir(req); got != "/srv/downloads" {
+			t.Fatalf("destDir(%q) = %q, want the server dir", req, got)
+		}
+	}
+}

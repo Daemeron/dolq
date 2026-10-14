@@ -105,18 +105,12 @@ func (b *Bouncer) XDCCAccept(
 
 func openDestination(client *ircclient.Client, offer ircparse.XDCCSendOfferEvent, destDir string, acceptTimeout time.Duration) (destPath string, base int64, f *os.File, err error) {
 	natural := filepath.Join(destDir, safeFilename(offer.Filename))
-	if stat, statErr := os.Stat(natural); statErr == nil && stat.Size() > 0 && stat.Size() < offer.Size {
+	// Lstat, not Stat: only a regular file in destDir itself may be resumed,
+	// never whatever a symlink there points at.
+	if stat, statErr := os.Lstat(natural); statErr == nil && stat.Mode().IsRegular() && stat.Size() > 0 && stat.Size() < offer.Size {
 		if position, ok := requestResume(client, offer, stat.Size(), acceptTimeout); ok {
-			f, err := os.OpenFile(natural, os.O_WRONLY, 0o644)
+			f, err := openForResume(natural, stat, position)
 			if err != nil {
-				return "", 0, nil, err
-			}
-			if err := f.Truncate(position); err != nil {
-				f.Close()
-				return "", 0, nil, err
-			}
-			if _, err := f.Seek(0, io.SeekEnd); err != nil {
-				f.Close()
 				return "", 0, nil, err
 			}
 			return natural, position, f, nil
@@ -124,11 +118,34 @@ func openDestination(client *ircclient.Client, offer ircparse.XDCCSendOfferEvent
 	}
 
 	destPath = uniquePath(destDir, safeFilename(offer.Filename))
-	f, err = os.Create(destPath)
+	// O_EXCL also refuses a dangling symlink, so a new download never writes outside destDir.
+	f, err = os.OpenFile(destPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
 	if err != nil {
 		return "", 0, nil, err
 	}
 	return destPath, 0, f, nil
+}
+
+// openForResume opens path for appending at position, refusing it if it is no
+// longer the regular file stat described (swapped for a symlink in the meantime).
+func openForResume(path string, stat os.FileInfo, position int64) (*os.File, error) {
+	f, err := os.OpenFile(path, os.O_WRONLY, 0o644)
+	if err != nil {
+		return nil, err
+	}
+	if opened, err := f.Stat(); err != nil || !os.SameFile(stat, opened) {
+		f.Close()
+		return nil, fmt.Errorf("bouncer: %s changed before resuming", path)
+	}
+	if err := f.Truncate(position); err != nil {
+		f.Close()
+		return nil, err
+	}
+	if _, err := f.Seek(0, io.SeekEnd); err != nil {
+		f.Close()
+		return nil, err
+	}
+	return f, nil
 }
 
 func requestResume(client *ircclient.Client, offer ircparse.XDCCSendOfferEvent, existing int64, acceptTimeout time.Duration) (position int64, ok bool) {
@@ -251,7 +268,7 @@ func uniquePath(dir, name string) string {
 	ext := filepath.Ext(name)
 	base := strings.TrimSuffix(name, ext)
 	for n := 1; ; n++ {
-		if _, err := os.Stat(path); os.IsNotExist(err) {
+		if _, err := os.Lstat(path); os.IsNotExist(err) {
 			return path
 		}
 		path = filepath.Join(dir, fmt.Sprintf("%s (%d)%s", base, n, ext))

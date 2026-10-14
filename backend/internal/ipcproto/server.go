@@ -41,6 +41,9 @@ func Listen(network, address string) (net.Listener, error) {
 type Server struct {
 	b     *bouncer.Bouncer
 	token string
+	// downloadDir, when set, is where every XDCC download goes, whatever
+	// directory the client asks for.
+	downloadDir string
 	// authTimeout bounds how long a fresh connection may take to present its token.
 	authTimeout time.Duration
 }
@@ -56,6 +59,22 @@ func NewServer(b *bouncer.Bouncer) *Server {
 func (s *Server) RequireToken(token string) *Server {
 	s.token = token
 	return s
+}
+
+// DownloadDir pins XDCC downloads to dir, ignoring the client-supplied
+// destination. For a network listener, where a remote client must not choose
+// where on this machine files are written. Empty keeps the client's choice
+// (a locally spawned backend, which saves to the app's own download folder).
+func (s *Server) DownloadDir(dir string) *Server {
+	s.downloadDir = dir
+	return s
+}
+
+func (s *Server) destDir(requested string) string {
+	if s.downloadDir != "" {
+		return s.downloadDir
+	}
+	return requested
 }
 
 // authenticate reads the connection's first frame and reports whether it is a
@@ -211,7 +230,7 @@ func (s *Server) handleFrame(c *conn, f ClientFrame) {
 		offer := ircparse.XDCCSendOfferEvent{
 			Nick: f.Nick, Filename: f.Filename, IP: f.Host, Port: f.Port, Size: f.Size, Token: f.Token,
 		}
-		id, err := s.b.XDCCAccept(f.ServerID, offer, f.DestDir, f.PortMin, f.PortMax, c)
+		id, err := s.b.XDCCAccept(f.ServerID, offer, s.destDir(f.DestDir), f.PortMin, f.PortMax, c)
 		if err != nil {
 			c.writeFrame(ServerFrame{ID: f.ID, Type: FrameResult, OK: false, Error: err.Error()})
 			return
