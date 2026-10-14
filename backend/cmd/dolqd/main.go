@@ -31,6 +31,7 @@ func main() {
 	acmeDomain := flag.String("acme-domain", "", "get and renew a Let's Encrypt certificate for this domain (needs port 443 reachable from the internet and the name pointing here); replaces the self-signed certificate")
 	acmeEmail := flag.String("acme-email", "", "contact address for Let's Encrypt expiry notices (optional)")
 	acmeStaging := flag.Bool("acme-staging", false, "use Let's Encrypt's staging CA (untrusted certificates) to test the setup")
+	secure := flag.Bool("secure", false, "with TLS on -addr, accept only TLS connections that present the access token, refusing plain unauthenticated ones. By default those are still accepted on the same port so clients and setups from before access tokens keep working; once every client is paired, turn this on (also DOLQ_SECURE=1)")
 	insecure := flag.Bool("insecure", false, "serve -addr with no TLS and no access token, as older dolqd versions did - anyone who can reach the port can use it, so only on a network you fully trust (also DOLQ_INSECURE=1)")
 	noTLS := flag.Bool("no-tls", false, "serve -addr without TLS, e.g. behind a TLS-terminating proxy or an SSH tunnel")
 	retentionDays := flag.Int("retention-days", 0, "prune history older than this many days (0 = keep forever)")
@@ -60,12 +61,11 @@ func main() {
 	}
 	var fingerprint string
 
-	var cert tls.Certificate
-	var acmeCfg *tls.Config
+	var tlsCfg *tls.Config
 	useTLS := network == "tcp" && !*noTLS && !openAccess
 	if useTLS && *acmeDomain != "" {
 		cacheDir := filepath.Join(filepath.Dir(resolveDBPath(*dbPath)), "acme")
-		acmeCfg = ipcproto.ACMEConfig(*acmeDomain, *acmeEmail, cacheDir, *acmeStaging)
+		tlsCfg = ipcproto.ACMEConfig(*acmeDomain, *acmeEmail, cacheDir, *acmeStaging)
 		log.Printf("serving TLS with a Let's Encrypt certificate for %s (port 443 must reach this listener)", *acmeDomain)
 	} else if useTLS {
 		certFile, keyFile := *tlsCert, *tlsKey
@@ -74,11 +74,11 @@ func main() {
 			certFile, keyFile = filepath.Join(dir, "tls-cert.pem"), filepath.Join(dir, "tls-key.pem")
 		}
 		hostname, _ := os.Hostname()
-		var err error
-		cert, err = ipcproto.LoadOrCreateCert(certFile, keyFile, []string{"localhost", "127.0.0.1", "::1", hostname})
+		cert, err := ipcproto.LoadOrCreateCert(certFile, keyFile, []string{"localhost", "127.0.0.1", "::1", hostname})
 		if err != nil {
 			log.Fatalf("tls certificate: %v", err)
 		}
+		tlsCfg = ipcproto.ServerTLSConfig(cert)
 		fingerprint = ipcproto.Fingerprint(cert)
 		log.Printf("serving TLS, certificate SHA-256 fingerprint: %s", fingerprint)
 	} else if network == "tcp" && !openAccess && !ipcproto.IsLoopback(path) {
@@ -101,10 +101,12 @@ func main() {
 	if network == "tcp" && !openAccess {
 		logPairing(path, token, fingerprint)
 	}
-	if acmeCfg != nil {
-		ln = ipcproto.WrapTLSConfig(ln, acmeCfg)
-	} else if useTLS {
-		ln = ipcproto.WrapTLS(ln, cert)
+	if tlsCfg != nil {
+		allowPlain := !(*secure || os.Getenv("DOLQ_SECURE") == "1")
+		if allowPlain {
+			log.Print("warning: plain, unauthenticated connections are still accepted on this port so older clients keep working; pair your clients and restart with -secure to refuse them")
+		}
+		ln = ipcproto.NewSniffingListener(ln, tlsCfg, allowPlain)
 	}
 	// One bare line to stdout: the discovery contract a future parent
 	// process (e.g. Electron, spawning this as a local child) reads to find

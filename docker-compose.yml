@@ -9,9 +9,11 @@
 #
 # On a NAS/cluster running Kubernetes see deploy/kubernetes/.
 #
-# Running unprotected is possible but opt-in: add `-insecure` to the entrypoint
-# for no TLS and no token (the old behaviour, only for a network you fully
-# trust), or `-no-tls` to keep the token but drop TLS (behind a proxy or tunnel).
+# By default dolqd also still accepts plain, unauthenticated connections on the
+# same port, so setups and clients from before access tokens keep working. Once
+# every client is paired, refuse them with `command: ['-secure']`. For no TLS
+# and no token at all (a network you fully trust) use `-insecure`; for a token
+# without TLS (behind a proxy or tunnel) use `-no-tls`.
 #
 # For a truly remote box with a domain name, add to the entrypoint
 # `-acme-domain your.domain` (and publish host port 443 to 6789) to get a

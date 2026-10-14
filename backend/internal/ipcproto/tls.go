@@ -19,17 +19,9 @@ import (
 	"time"
 )
 
-// WrapTLS serves ln over TLS with cert.
-func WrapTLS(ln net.Listener, cert tls.Certificate) net.Listener {
-	return tls.NewListener(ln, &tls.Config{
-		Certificates: []tls.Certificate{cert},
-		MinVersion:   tls.VersionTLS12,
-	})
-}
-
-// WrapTLSConfig serves ln over TLS with an arbitrary config (e.g. ACMEConfig).
-func WrapTLSConfig(ln net.Listener, cfg *tls.Config) net.Listener {
-	return tls.NewListener(ln, cfg)
+// ServerTLSConfig is the TLS config for a certificate loaded with LoadOrCreateCert.
+func ServerTLSConfig(cert tls.Certificate) *tls.Config {
+	return &tls.Config{Certificates: []tls.Certificate{cert}, MinVersion: tls.VersionTLS12}
 }
 
 // LoadOrCreateCert loads the PEM pair at certFile/keyFile, generating a
