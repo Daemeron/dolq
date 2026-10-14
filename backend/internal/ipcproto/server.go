@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"crypto/subtle"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net"
 	"os"
@@ -15,25 +16,38 @@ import (
 )
 
 func Listen(network, address string) (net.Listener, error) {
-	if network == "unix" {
-		if err := os.Remove(address); err != nil && !os.IsNotExist(err) {
-			return nil, err
-		}
-	}
 	if network == "pipe" {
 		return listenPipe(address)
 	}
-	ln, err := net.Listen(network, address)
+	if network != "unix" {
+		return net.Listen(network, address)
+	}
+	// Clear out a stale socket from an earlier run, but nothing else: -socket
+	// pointed at a regular file must not delete it.
+	if info, err := os.Lstat(address); err == nil {
+		if info.Mode()&os.ModeSocket == 0 {
+			return nil, fmt.Errorf("%s exists and is not a socket", address)
+		}
+		if err := os.Remove(address); err != nil {
+			return nil, err
+		}
+	} else if !os.IsNotExist(err) {
+		return nil, err
+	}
+	// Bound under an owner-only umask, so the socket is never reachable by
+	// other local users, not even between bind and the chmod below.
+	var ln net.Listener
+	err := withPrivateUmask(func() (err error) {
+		ln, err = net.Listen(network, address)
+		return err
+	})
 	if err != nil {
 		return nil, err
 	}
-	if network == "unix" {
-		// The default mode follows the umask, which can leave the socket open
-		// to other local users; only the owner may connect.
-		if err := os.Chmod(address, 0o600); err != nil {
-			ln.Close()
-			return nil, err
-		}
+	// Belt and braces where there is no umask (Windows).
+	if err := os.Chmod(address, 0o600); err != nil {
+		ln.Close()
+		return nil, err
 	}
 	return ln, nil
 }
