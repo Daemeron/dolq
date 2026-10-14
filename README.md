@@ -128,7 +128,8 @@ rebuilt automatically on the next launch).
 To run `dolqd` on its own, outside Electron (e.g. to poke at it with `nc` or
 a script against its Unix socket) - rebuilds and restarts it automatically on
 every `backend/**/*.go` change, via [air](https://github.com/air-verse/air)
-(a `go tool` dependency, config in `backend/.air.toml`):
+(run with `go run` at a pinned version so it stays out of `backend/go.mod`;
+config in `backend/.air.toml`):
 
 ```bash
 npm run backend:dev

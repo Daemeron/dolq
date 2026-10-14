@@ -1,5 +1,5 @@
 #:schema https://json.schemastore.org/any.json
-# `go tool air` - npm's `backend:dev` script. Trimmed to just what differs
+# air - npm's `backend:dev` script. Trimmed to just what differs
 # from `air init`'s own defaults; everything else stays default.
 
 root = "."
