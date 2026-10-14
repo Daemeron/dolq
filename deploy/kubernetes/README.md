@@ -67,8 +67,9 @@ token.
   fingerprint, since a CA-issued certificate needs none. Try `-acme-staging`
   first.
 - **Run without encryption or a token** (a network you fully trust, or an
-  existing setup you have not re-paired yet): add `-insecure` to the container
-  `args`. `-no-tls` drops only the encryption and keeps the token, for use
+  existing setup you have not re-paired yet): the manifests pass `-secure`,
+  which refuses plain connections; remove it to accept them again, or use
+  `-insecure` in `args` to drop TLS and the token entirely. `-no-tls` drops only the encryption and keeps the token, for use
   behind a TLS-terminating proxy or tunnel. In Dolq, untick **Encrypt the
   connection** and/or leave the token empty; it asks you to confirm each time
   it connects.

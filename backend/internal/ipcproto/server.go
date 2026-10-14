@@ -134,7 +134,9 @@ func (s *Server) handleConn(netConn net.Conn) {
 	}()
 
 	scanner := bufio.NewScanner(netConn)
-	if s.token != "" && !s.authenticate(c, scanner) {
+	// Plain connections accepted for compatibility predate tokens and skip the check.
+	_, legacy := netConn.(*legacyPlainConn)
+	if s.token != "" && !legacy && !s.authenticate(c, scanner) {
 		return
 	}
 	for scanner.Scan() {

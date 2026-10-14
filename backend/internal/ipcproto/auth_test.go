@@ -121,7 +121,7 @@ func TestSelfSignedCertIsStableAndServesTLS(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ln := WrapTLS(inner, cert)
+	ln := NewSniffingListener(inner, ServerTLSConfig(cert), false)
 	go NewServer(bouncer.New(nil)).RequireToken("tok").Serve(ln)
 	defer ln.Close()
 
