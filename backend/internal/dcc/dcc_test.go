@@ -3,6 +3,8 @@ package dcc
 import (
 	"net"
 	"strconv"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -193,5 +195,63 @@ func TestSessionOnCloseFiresOnDisconnect(t *testing.T) {
 	case <-fired:
 	case <-time.After(time.Second):
 		t.Fatal("OnClose registered post-close never fired")
+	}
+}
+
+// Every OnClose callback must fire exactly once, including ones registered
+// while the close callbacks are running (from inside a callback or from
+// another goroutine racing the disconnect).
+func TestSessionOnCloseRacingDisconnect(t *testing.T) {
+	for i := 0; i < 200; i++ {
+		serverConn, clientConn := net.Pipe()
+		sess := newSession(serverConn)
+
+		const racers = 8
+		var fired [racers + 2]atomic.Int32
+		sess.OnClose(func() {
+			fired[0].Add(1)
+			// Registering from inside a callback must neither deadlock nor
+			// be dropped.
+			sess.OnClose(func() { fired[1].Add(1) })
+		})
+
+		var wg sync.WaitGroup
+		start := make(chan struct{})
+		for r := 0; r < racers; r++ {
+			wg.Add(1)
+			go func(r int) {
+				defer wg.Done()
+				<-start
+				sess.OnClose(func() { fired[r+2].Add(1) })
+			}(r)
+		}
+
+		sess.Start()
+		close(start)
+		clientConn.Close()
+		wg.Wait()
+
+		allFired := func() bool {
+			for j := range fired {
+				if fired[j].Load() == 0 {
+					return false
+				}
+			}
+			return true
+		}
+		deadline := time.Now().Add(2 * time.Second)
+		for !allFired() {
+			if time.Now().After(deadline) {
+				t.Fatalf("iteration %d: some OnClose callbacks never fired", i)
+			}
+			time.Sleep(time.Millisecond)
+		}
+		// Give any duplicate call a moment to show up.
+		time.Sleep(time.Millisecond)
+		for j := range fired {
+			if n := fired[j].Load(); n != 1 {
+				t.Fatalf("iteration %d: callback %d fired %d times, want 1", i, j, n)
+			}
+		}
 	}
 }
