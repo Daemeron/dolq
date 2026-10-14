@@ -19,5 +19,11 @@ export function loadSettings(): Settings {
 }
 
 export function saveSettings(settings: Settings): void {
-  fs.writeFileSync(settingsPath(), JSON.stringify(settings, null, 2));
+  // may hold the remote access token where no OS keychain exists, so owner-only
+  fs.writeFileSync(settingsPath(), JSON.stringify(settings, null, 2), { mode: 0o600 });
+  try {
+    fs.chmodSync(settingsPath(), 0o600);
+  } catch {
+    // best effort (e.g. Windows)
+  }
 }

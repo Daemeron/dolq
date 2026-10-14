@@ -1,13 +1,15 @@
 import { type ChildProcessWithoutNullStreams, execFile, spawn } from 'node:child_process';
-import { randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
 import net from 'node:net';
+import tls from 'node:tls';
 import path from 'node:path';
 import { createInterface } from 'node:readline';
 import { promisify } from 'node:util';
 import { app } from 'electron';
 import type { ConnectionStatus, HistoryEntry, IrcEvent } from '../../shared/ipc';
+import { decideTrust, isLoopbackHost, type RemoteHooks, type RemoteTarget } from '../remoteBackend';
 
 const execFileAsync = promisify(execFile);
 
@@ -36,17 +38,24 @@ export class BackendClient extends EventEmitter {
 
   constructor(
     private retentionDays: number,
-    private remote?: { host: string; port: number },
+    private remote?: RemoteTarget,
+    private hooks?: RemoteHooks,
   ) {
     super();
-    this.ready = this.remote ? this.dial(this.remote) : this.spawnAndDial();
-    this.ready.catch((err) => console.error('backend failed to connect:', err));
+    this.ready = this.remote ? this.connectRemote(this.remote) : this.spawnAndDial();
+    this.ready.catch((err) => {
+      console.error('backend failed to connect:', err);
+      this.emit('fatal', err instanceof Error ? err.message : String(err));
+    });
   }
 
   private async spawnAndDial(): Promise<void> {
     const { cmd, args, cwd, devBinaryPath } = await resolveBackendCommand(this.retentionDays);
     this.devBinaryPath = devBinaryPath;
-    const child = spawn(cmd, args, { cwd });
+    // Only this process and the child it starts know the token, so nothing else
+    // on the machine can use the socket even if its permissions were too open.
+    const token = randomBytes(32).toString('hex');
+    const child = spawn(cmd, args, { cwd, env: { ...process.env, DOLQ_TOKEN: token } });
     this.child = child;
     child.stderr.on('data', (chunk: Buffer) => process.stderr.write(`[dolqd] ${chunk}`));
 
@@ -56,24 +65,90 @@ export class BackendClient extends EventEmitter {
       child.once('exit', (code) => reject(new Error(`dolqd exited before reporting a socket (code ${code})`)));
     });
 
-    await this.dial({ path: socketPath });
+    const socket = await new Promise<net.Socket>((resolve, reject) => {
+      const s = net.createConnection(socketPath);
+      s.once('connect', () => resolve(s));
+      s.once('error', reject);
+    });
+    await this.attach(socket, token);
   }
 
-  private dial(target: { path: string } | { host: string; port: number }): Promise<void> {
+  private async connectRemote(remote: RemoteTarget): Promise<void> {
+    if (!remote.token) {
+      throw new Error('No access token is set for the remote backend. Paste its pairing link in Preferences.');
+    }
+    if (!remote.tls && !isLoopbackHost(remote.host)) {
+      // Passwords and chat would cross the network in the clear.
+      const ok = (await this.hooks?.confirmInsecure(remote.host)) ?? false;
+      if (!ok) throw new Error('Connection to the remote backend cancelled (TLS is off).');
+    }
+    const socket = remote.tls ? await this.dialTls(remote) : await this.dialPlain(remote);
+    await this.attach(socket, remote.token);
+  }
+
+  private dialPlain(remote: RemoteTarget): Promise<net.Socket> {
     return new Promise((resolve, reject) => {
-      const socket =
-        'path' in target ? net.createConnection(target.path) : net.createConnection(target.port, target.host);
-      socket.once('connect', () => {
-        this.socket = socket;
-        createInterface({ input: socket }).on('line', (line) => this.handleFrame(JSON.parse(line)));
-        socket.on('error', (err) => console.error('backend connection error:', err));
-        socket.on('close', () => {
-          this.socket = undefined;
-          this.rejectAllPending(new Error('backend connection closed'));
-        });
-        resolve();
+      const s = net.createConnection(remote.port, remote.host);
+      s.once('connect', () => resolve(s));
+      s.once('error', reject);
+    });
+  }
+
+  // Connects without letting Node reject self-signed certificates, then
+  // decides trust itself: a CA-valid certificate passes, anything else must
+  // match the fingerprint the user accepted before (or be accepted now).
+  private dialTls(remote: RemoteTarget): Promise<net.Socket> {
+    return new Promise((resolve, reject) => {
+      const s = tls.connect({
+        host: remote.host,
+        port: remote.port,
+        servername: net.isIP(remote.host) ? undefined : remote.host,
+        rejectUnauthorized: false,
       });
-      socket.once('error', reject);
+      s.once('error', reject);
+      s.once('secureConnect', async () => {
+        const fingerprint = s.getPeerCertificate().fingerprint256 ?? '';
+        const decision = decideTrust({ authorized: s.authorized, pinned: remote.fingerprint, fingerprint });
+        if (decision === 'mismatch') {
+          s.destroy();
+          reject(
+            new Error(
+              `The remote backend's certificate changed (now ${fingerprint}). If you did not expect that, someone may be intercepting the connection. Paste its pairing link in Preferences to trust the new certificate.`,
+            ),
+          );
+          return;
+        }
+        if (decision === 'prompt') {
+          const ok = (await this.hooks?.confirmTrust(fingerprint, remote.host)) ?? false;
+          if (!ok) {
+            s.destroy();
+            reject(new Error('The remote backend certificate was not trusted.'));
+            return;
+          }
+          this.hooks?.onPin(fingerprint);
+        }
+        resolve(s);
+      });
+    });
+  }
+
+  // Wires up an established, trusted connection and authenticates it before
+  // anything else is sent; the backend drops connections that skip this.
+  private attach(socket: net.Socket, token: string): Promise<void> {
+    this.socket = socket;
+    createInterface({ input: socket }).on('line', (line) => this.handleFrame(JSON.parse(line)));
+    socket.on('error', (err) => console.error('backend connection error:', err));
+    socket.on('close', () => {
+      this.socket = undefined;
+      this.rejectAllPending(new Error('backend connection closed'));
+    });
+    return new Promise((resolve, reject) => {
+      const id = randomUUID();
+      this.pending.set(id, {
+        resolve: (f) => (f.ok ? resolve() : reject(new Error(`The backend refused the access token (${f.error}).`))),
+        reject,
+      });
+      socket.write(`${JSON.stringify({ id, action: 'auth', authToken: token })}\n`);
     });
   }
 

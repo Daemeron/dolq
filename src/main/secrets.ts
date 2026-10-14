@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-export type ServerSecrets = { password?: string; saslUser?: string; saslPass?: string };
+export type ServerSecrets = { password?: string; saslUser?: string; saslPass?: string; remoteToken?: string };
 
 // The OS-backed cipher (Electron's safeStorage in the app, a fake in tests).
 export type SecretCipher = {
@@ -10,7 +10,7 @@ export type SecretCipher = {
   decrypt(blob: Buffer): string;
 };
 
-const FIELDS: (keyof ServerSecrets)[] = ['password', 'saslUser', 'saslPass'];
+const FIELDS: (keyof ServerSecrets)[] = ['password', 'saslUser', 'saslPass', 'remoteToken'];
 
 type FileShape = Record<string, Partial<Record<keyof ServerSecrets, string>>>;
 

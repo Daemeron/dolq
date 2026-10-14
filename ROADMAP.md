@@ -1170,6 +1170,32 @@ will hang the UI.
       `#linux` on one network disappeared from `#linux` on another that
       merely had a user of the same nick. They now take a `serverId` and only
       touch that server's lists (`store.test.ts`)
+- [x] The remote-backend socket was plain TCP with no authentication: anyone
+      who could reach port 6789 could read history, send as the user and see
+      the passwords the client forwarded. Now (the primary use is a backend on
+      the local network, so it has to be zero-setup): `dolqd -addr` always
+      serves TLS and requires an access token. First start generates a random
+      token (`<datadir>/token`, 0600) and a self-signed ECDSA certificate
+      (`tls-cert.pem`/`tls-key.pem`) and prints a **pairing link**
+      (`dolq://host:port?token=...&fp=<sha256>`); pasting it into Preferences
+      fills in the address, the token and the pinned fingerprint at once, so
+      there is no trust prompt (the fingerprint arrives out of band with the
+      token). Connections must open with an `auth` frame (constant-time compare,
+      10s deadline, closed on failure). The client trusts a CA-valid cert
+      (e.g. `-acme-domain` for automatic Let's Encrypt, or a reverse proxy)
+      without a pin so renewals are free, pins a self-signed one by
+      fingerprint (asking once if it was configured by hand, refusing a
+      changed one), and warns before sending anything over TLS-off to a
+      non-loopback host. Local mode needs no TLS but is locked down too: the
+      socket lives in a private 0700 directory with mode 0600 (Windows: pipe
+      with a DACL for the current user only) and the child gets a random
+      per-launch token over its environment. The token is kept in the
+      keychain-backed secrets store and never returned to the renderer.
+      Let's Encrypt validation (TLS-ALPN-01) is implemented with `autocert` but
+      has not been exercised against the live CA. Not done: LAN discovery
+      (mDNS) so a client can find a backend without typing an address. Covered
+      by `auth_test.go`, `pairing_test.go`, `remoteBackend.test.ts`,
+      `pairing.test.ts`
 
 ---
 
