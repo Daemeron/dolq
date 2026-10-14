@@ -67,6 +67,10 @@ web_modules/
 .env.*
 !.env.example
 
+# Playwright
+test-results
+playwright-report
+
 # Build output
 .next
 out
