@@ -11,6 +11,8 @@
   "include": [
     "electron.vite.config.*",
     "vitest.workspace.*",
+    "playwright.config.*",
+    "e2e/**/*",
     "src/main/**/*",
     "src/preload/**/*",
     "src/shared/**/*",
