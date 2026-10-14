@@ -1,10 +1,12 @@
 import fs from 'node:fs';
 import { join, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, safeStorage, shell, Tray } from 'electron';
 import { installExtension, REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';
 import { type ConnectionStatus, IrcMessages, type Settings } from '../shared/ipc';
 import { BackendClient } from './irc/BackendClient';
 import { parseIrcUrl } from './ircUrl';
+import { isAppNavigation, isWebLink } from './navigation';
 import { type RemoteHooks, resolveRemoteBackend } from './remoteBackend';
 import { applyIncomingSettings, BACKEND_SECRET_ID } from './remoteSettings';
 import { type SecretCipher, SecretsStore, type ServerSecrets, withSavedSecrets } from './secrets';
@@ -68,11 +70,19 @@ function createWindow(): void {
     },
   });
 
-  if (process.env.ELECTRON_RENDERER_URL) {
-    mainWindow.loadURL(process.env.ELECTRON_RENDERER_URL);
-  } else {
-    mainWindow.loadFile(join(__dirname, '../renderer/index.html'));
-  }
+  const appUrl = process.env.ELECTRON_RENDERER_URL ?? pathToFileURL(join(__dirname, '../renderer/index.html')).href;
+  mainWindow.loadURL(appUrl);
+
+  // The window only ever shows the app itself: a link that tries to open a
+  // new window goes to the OS browser instead (http(s) only, same as the
+  // openExternal handler), and navigating the window anywhere else is refused.
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (isWebLink(url)) shell.openExternal(url);
+    return { action: 'deny' };
+  });
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    if (!isAppNavigation(url, appUrl)) event.preventDefault();
+  });
 
   // Minimize-to-tray: the close ("X"/red traffic light) button hides
   // instead of destroying the window, same as most tray-icon apps - the
@@ -299,10 +309,7 @@ if (!app.requestSingleInstanceLock()) {
 // renderer's own http(s)-only regex as the sole guard.
 function registerShellHandlers(): void {
   ipcMain.handle(IrcMessages.openExternal, (_event, url: string) => {
-    const parsed = new URL(url);
-    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-      throw new Error(`refusing to open non-http(s) link: ${url}`);
-    }
+    if (!isWebLink(url)) throw new Error(`refusing to open non-http(s) link: ${url}`);
     return shell.openExternal(url);
   });
 
