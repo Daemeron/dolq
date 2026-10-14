@@ -75,7 +75,7 @@ func generateSelfSigned(certFile, keyFile string, hosts []string) error {
 		return err
 	}
 	for _, dir := range []string{filepath.Dir(certFile), filepath.Dir(keyFile)} {
-		if err := os.MkdirAll(dir, 0o755); err != nil {
+		if err := os.MkdirAll(dir, 0o700); err != nil {
 			return err
 		}
 	}

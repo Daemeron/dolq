@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"log"
+	"os"
 	"strings"
 	"time"
 
@@ -42,6 +43,9 @@ type Store struct {
 }
 
 func Open(path string, retentionDays int) (*Store, error) {
+	if err := restrictDBFiles(path); err != nil {
+		return nil, err
+	}
 	db, err := sql.Open("sqlite", path)
 	if err != nil {
 		return nil, err
@@ -64,6 +68,26 @@ func Open(path string, retentionDays int) (*Store, error) {
 		go s.pruneLoop()
 	}
 	return s, nil
+}
+
+// restrictDBFiles makes the database owner-only before SQLite opens it:
+// SQLite would create it 0644, and gives its journal files the database's
+// mode. Existing files, from older versions, are tightened too.
+func restrictDBFiles(path string) error {
+	if path == ":memory:" || strings.HasPrefix(path, "file:") {
+		return nil
+	}
+	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0o600)
+	if err != nil {
+		return err
+	}
+	f.Close()
+	for _, p := range []string{path, path + "-journal", path + "-wal", path + "-shm"} {
+		if err := os.Chmod(p, 0o600); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+	}
+	return nil
 }
 
 const maxBatch = 100

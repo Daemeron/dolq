@@ -171,8 +171,13 @@ func resolveDBPath(explicit string) string {
 		log.Fatalf("resolve config dir: %v", err)
 	}
 	dir = filepath.Join(dir, "dolq")
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	// Owner-only: it holds the history, the access token and the TLS key.
+	// Chmod as well, for a directory created by an older, laxer version.
+	if err := os.MkdirAll(dir, 0o700); err != nil {
 		log.Fatalf("create config dir %s: %v", dir, err)
+	}
+	if err := os.Chmod(dir, 0o700); err != nil {
+		log.Fatalf("restrict config dir %s: %v", dir, err)
 	}
 	return filepath.Join(dir, "history.db")
 }

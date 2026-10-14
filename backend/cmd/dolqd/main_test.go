@@ -30,8 +30,23 @@ func TestResolveDBPathDefault(t *testing.T) {
 	if filepath.Base(got) != "history.db" || filepath.Base(filepath.Dir(got)) != "dolq" {
 		t.Fatalf("got %q, want .../dolq/history.db", got)
 	}
-	if _, err := os.Stat(filepath.Dir(got)); err != nil {
+	info, err := os.Stat(filepath.Dir(got))
+	if err != nil {
 		t.Fatalf("config dir not created: %v", err)
+	}
+	if runtime.GOOS == "windows" {
+		return
+	}
+	if info.Mode().Perm() != 0o700 {
+		t.Errorf("config dir mode %o, want 0700", info.Mode().Perm())
+	}
+	// A directory left 0755 by an older version is tightened on the next start.
+	if err := os.Chmod(filepath.Dir(got), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	resolveDBPath("")
+	if info, _ := os.Stat(filepath.Dir(got)); info.Mode().Perm() != 0o700 {
+		t.Errorf("existing config dir mode %o, want 0700", info.Mode().Perm())
 	}
 }
 
