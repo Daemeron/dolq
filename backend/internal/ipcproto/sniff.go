@@ -12,8 +12,8 @@ import (
 // protocol opens with a JSON frame, so the first byte tells them apart.
 const tlsHandshakeByte = 0x16
 
-// sniffTimeout bounds how long a new connection may stay silent before it is dropped.
-var sniffTimeout = 10 * time.Second
+// defaultSniffTimeout bounds how long a new connection may stay silent before it is dropped.
+const defaultSniffTimeout = 10 * time.Second
 
 // legacyPlainConn marks a connection accepted without TLS in compatibility
 // mode. Those clients predate access tokens, so they are not asked for one.
@@ -34,6 +34,7 @@ func (c *peekedConn) Read(p []byte) (int, error) { return c.r.Read(p) }
 
 type sniffListener struct {
 	net.Listener
+	timeout   time.Duration
 	conns     chan net.Conn
 	errc      chan error
 	done      chan struct{}
@@ -45,8 +46,13 @@ type sniffListener struct {
 // Plain connections come out wrapped as legacyPlainConn; with allowPlain false
 // they are dropped, which is what -secure wants.
 func NewSniffingListener(ln net.Listener, cfg *tls.Config, allowPlain bool) net.Listener {
+	return newSniffingListener(ln, cfg, allowPlain, defaultSniffTimeout)
+}
+
+func newSniffingListener(ln net.Listener, cfg *tls.Config, allowPlain bool, timeout time.Duration) net.Listener {
 	s := &sniffListener{
 		Listener: ln,
+		timeout:  timeout,
 		conns:    make(chan net.Conn),
 		errc:     make(chan error, 1),
 		done:     make(chan struct{}),
@@ -68,7 +74,7 @@ func (s *sniffListener) acceptLoop(cfg *tls.Config, allowPlain bool) {
 		// One goroutine per connection, so a client that connects and says
 		// nothing cannot hold up the ones behind it.
 		go func() {
-			raw.SetReadDeadline(time.Now().Add(sniffTimeout))
+			raw.SetReadDeadline(time.Now().Add(s.timeout))
 			br := bufio.NewReader(raw)
 			first, err := br.Peek(1)
 			raw.SetReadDeadline(time.Time{})

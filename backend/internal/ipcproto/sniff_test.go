@@ -15,6 +15,11 @@ import (
 // with an access token required for TLS clients.
 func startSniffServer(t *testing.T, secure bool) string {
 	t.Helper()
+	return startSniffServerTimeout(t, secure, defaultSniffTimeout)
+}
+
+func startSniffServerTimeout(t *testing.T, secure bool, timeout time.Duration) string {
+	t.Helper()
 	cert, err := LoadOrCreateCert(filepath.Join(t.TempDir(), "c.pem"), filepath.Join(t.TempDir(), "k.pem"), []string{"localhost"})
 	if err != nil {
 		t.Fatal(err)
@@ -23,7 +28,7 @@ func startSniffServer(t *testing.T, secure bool) string {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ln := NewSniffingListener(inner, ServerTLSConfig(cert), !secure)
+	ln := newSniffingListener(inner, ServerTLSConfig(cert), !secure, timeout)
 	go NewServer(bouncer.New(nil)).RequireToken("tok").Serve(ln)
 	t.Cleanup(func() { ln.Close() })
 	return inner.Addr().String()
@@ -103,11 +108,7 @@ func TestSilentConnectionDoesNotBlockOthers(t *testing.T) {
 }
 
 func TestSilentConnectionIsDroppedAfterTheSniffTimeout(t *testing.T) {
-	old := sniffTimeout
-	sniffTimeout = 100 * time.Millisecond
-	t.Cleanup(func() { sniffTimeout = old })
-
-	tc := dialPlain(t, startSniffServer(t, false))
+	tc := dialPlain(t, startSniffServerTimeout(t, false, 100*time.Millisecond))
 	expectClosed(t, tc)
 }
 

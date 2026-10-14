@@ -16,12 +16,19 @@ import (
 
 func startAuthServer(t *testing.T, token string) string {
 	t.Helper()
+	return startAuthServerTimeout(t, token, defaultAuthTimeout)
+}
+
+func startAuthServerTimeout(t *testing.T, token string, timeout time.Duration) string {
+	t.Helper()
 	path := filepath.Join(t.TempDir(), "s.sock")
 	ln, err := Listen("unix", path)
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}
-	go NewServer(bouncer.New(nil)).RequireToken(token).Serve(ln)
+	srv := NewServer(bouncer.New(nil)).RequireToken(token)
+	srv.authTimeout = timeout
+	go srv.Serve(ln)
 	t.Cleanup(func() { ln.Close() })
 	return path
 }
@@ -70,11 +77,7 @@ func TestAuthRejectsAnyOtherFirstFrame(t *testing.T) {
 }
 
 func TestAuthTimesOutOnASilentConnection(t *testing.T) {
-	old := authTimeout
-	authTimeout = 100 * time.Millisecond
-	t.Cleanup(func() { authTimeout = old })
-
-	tc := dialTestClient(t, startAuthServer(t, "s3cret"))
+	tc := dialTestClient(t, startAuthServerTimeout(t, "s3cret", 100*time.Millisecond))
 	expectClosed(t, tc)
 }
 
