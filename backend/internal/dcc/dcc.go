@@ -120,13 +120,16 @@ func (s *Session) readLoop() {
 		log.Printf("dcc: read error: %v", err)
 	}
 
+	// Snapshot and close under one lock so every OnClose either lands in the
+	// snapshot or sees closed and runs its callback itself.
 	s.mu.Lock()
 	closeListeners := s.closeListeners
+	s.closeListeners = nil
+	close(s.closed)
 	s.mu.Unlock()
 	for _, cb := range closeListeners {
 		cb()
 	}
-	close(s.closed)
 }
 
 func (s *Session) Send(line string) error {
@@ -141,19 +144,14 @@ func (s *Session) AddLineListener(cb func(line string)) {
 }
 
 func (s *Session) OnClose(cb func()) {
-	select {
-	case <-s.closed:
-		cb()
-		return
-	default:
-	}
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	select {
 	case <-s.closed:
-		cb()
+		s.mu.Unlock()
+		cb() // outside the lock, so cb may call OnClose itself
 	default:
 		s.closeListeners = append(s.closeListeners, cb)
+		s.mu.Unlock()
 	}
 }
 
