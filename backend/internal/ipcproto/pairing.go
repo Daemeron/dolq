@@ -25,7 +25,7 @@ func LoadOrCreateToken(file string) (token string, created bool, err error) {
 		return "", false, err
 	}
 	token = hex.EncodeToString(raw)
-	if err := os.MkdirAll(filepath.Dir(file), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(file), 0o700); err != nil {
 		return "", false, err
 	}
 	if err := os.WriteFile(file, []byte(token+"\n"), 0o600); err != nil {

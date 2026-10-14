@@ -24,6 +24,9 @@ func TestLoadOrCreateTokenIsCreatedOnceAndKept(t *testing.T) {
 	if info, _ := os.Stat(file); runtime.GOOS != "windows" && info.Mode().Perm()&0o077 != 0 {
 		t.Errorf("token file mode = %o, want owner only", info.Mode().Perm())
 	}
+	if info, _ := os.Stat(filepath.Dir(file)); runtime.GOOS != "windows" && info.Mode().Perm() != 0o700 {
+		t.Errorf("token dir mode = %o, want 0700", info.Mode().Perm())
+	}
 }
 
 func TestPairingLinkCarriesTokenAndFingerprint(t *testing.T) {

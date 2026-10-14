@@ -3,6 +3,9 @@ package history
 import (
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 )
@@ -244,4 +247,35 @@ func waitForCount(t *testing.T, s *Store, serverID, channel string, want int) []
 	}
 	t.Fatalf("got %d entries for %s/%s, want %d", len(entries), serverID, channel, want)
 	return nil
+}
+
+func TestOpenMakesDBOwnerOnly(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("unix permissions")
+	}
+	dir := t.TempDir()
+	fresh := filepath.Join(dir, "fresh.db")
+	existing := filepath.Join(dir, "old.db")
+	if err := os.WriteFile(existing, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(existing+"-wal", nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range []string{fresh, existing} {
+		s, err := Open(p, 0)
+		if err != nil {
+			t.Fatalf("Open(%s): %v", p, err)
+		}
+		s.Close()
+	}
+	for _, p := range []string{fresh, existing, existing + "-wal"} {
+		info, err := os.Stat(p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if info.Mode().Perm() != 0o600 {
+			t.Errorf("%s: mode %o, want 0600", p, info.Mode().Perm())
+		}
+	}
 }
