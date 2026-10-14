@@ -33,6 +33,7 @@ export type Message = {
   timestamp: Date;
   isRaw?: boolean;
   system?: boolean;
+  membership?: boolean;
   action?: boolean;
   notice?: boolean;
   xdccPack?: boolean;

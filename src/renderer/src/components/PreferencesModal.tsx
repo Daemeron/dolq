@@ -20,6 +20,8 @@ type Props = {
   onNotificationsEnabledChange: (enabled: boolean) => void;
   soundAlertsEnabled: boolean;
   onSoundAlertsEnabledChange: (enabled: boolean) => void;
+  showMembershipEvents: boolean;
+  onShowMembershipEventsChange: (show: boolean) => void;
   timestampFormat: '12h' | '24h';
   onTimestampFormatChange: (format: '12h' | '24h') => void;
   messageDensity: 'cozy' | 'compact';
@@ -52,6 +54,8 @@ export function PreferencesModal({
   onNotificationsEnabledChange,
   soundAlertsEnabled,
   onSoundAlertsEnabledChange,
+  showMembershipEvents,
+  onShowMembershipEventsChange,
   timestampFormat,
   onTimestampFormatChange,
   messageDensity,
@@ -161,6 +165,16 @@ export function PreferencesModal({
             className="accent-[#c792ea]"
           />
           Play a sound on the same mentions - independent of the notification above
+        </label>
+
+        <label className="flex items-center gap-2 text-[13px] text-(--dolq-text) cursor-pointer select-none mb-4">
+          <input
+            type="checkbox"
+            checked={showMembershipEvents}
+            onChange={(e) => onShowMembershipEventsChange(e.target.checked)}
+            className="accent-[#c792ea]"
+          />
+          Show joins, parts, quits and nick changes in channels
         </label>
 
         <div className="flex gap-3 mb-5">
