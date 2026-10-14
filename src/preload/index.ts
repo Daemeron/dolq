@@ -34,6 +34,13 @@ contextBridge.exposeInMainWorld('irc', {
   sendLine: (serverId: string, line: string) =>
     ipcRenderer.invoke(IrcMessages.send, serverId, line).catch((err) => console.error('send failed:', err)),
 
+  secretsAvailable: () => ipcRenderer.invoke(IrcMessages.secretsAvailable),
+
+  rememberSecrets: (serverId: string, secrets: { password?: string; saslUser?: string; saslPass?: string }) =>
+    ipcRenderer.invoke(IrcMessages.secretsRemember, serverId, secrets),
+
+  forgetSecrets: (serverId: string) => ipcRenderer.invoke(IrcMessages.secretsForget, serverId),
+
   disconnect: (serverId: string) => ipcRenderer.invoke(IrcMessages.disconnect, serverId),
 
   getStatus: (serverId: string) => ipcRenderer.invoke(IrcMessages.getStatus, serverId),
