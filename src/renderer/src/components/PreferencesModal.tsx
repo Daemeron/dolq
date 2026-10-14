@@ -79,7 +79,8 @@ export function PreferencesModal({
   const [remoteEnabled, setRemoteEnabled] = useState(settings.remoteEnabled ?? false);
   const [remoteUrl, setRemoteUrl] = useState(settings.remoteUrl ?? '');
   const [remoteTls, setRemoteTls] = useState(
-    settings.remoteTls ?? Boolean(settings.remoteTokenSet || settings.remoteFingerprint),
+    // a URL saved before TLS existed stays plain; anything new starts encrypted
+    settings.remoteTls ?? (settings.remoteUrl ? Boolean(settings.remoteTokenSet || settings.remoteFingerprint) : true),
   );
   const [remoteFingerprint, setRemoteFingerprint] = useState(settings.remoteFingerprint ?? '');
   const [remoteToken, setRemoteToken] = useState('');
