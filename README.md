@@ -68,7 +68,7 @@ store, while the renderer stays a thin UI on top.
 
 ## Prerequisites
 
-- **Node.js** ≥ 20
+- **Node.js** ≥ 22
 - **Go** ≥ 1.26 (only needed to build the backend daemon)
 - **macOS** (for packaging — dev mode works on any platform)
 - **npm** ≥ 10
