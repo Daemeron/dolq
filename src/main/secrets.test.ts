@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { type SecretCipher, SecretsStore, withSavedSecrets } from './secrets';
 
 // Reversible but visibly not plaintext, standing in for the OS keystore.
@@ -18,6 +18,9 @@ const fakeCipher = (available = true): SecretCipher => ({
 let file: string;
 beforeEach(() => {
   file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'dolq-secrets-')), 'secrets.json');
+});
+afterEach(() => {
+  fs.rmSync(path.dirname(file), { recursive: true, force: true });
 });
 
 describe('SecretsStore', () => {
