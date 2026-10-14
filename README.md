@@ -115,12 +115,26 @@ Kubernetes, see [deploy/kubernetes/README.md](./deploy/kubernetes/README.md)
 a container, `dolqd -addr 0.0.0.0:6789` does the same.
 
 **Pair a client.** On first start `dolqd` generates an access token and a
-self-signed TLS certificate, keeps them next to the history database, and logs
-a pairing link (`dolq://host:6789?token=...&fp=...`, e.g. in
-`docker compose logs dolqd`). In Dolq open **Preferences**, tick **Connect to a
-remote backend instead of running one locally**, paste the link into
+self-signed TLS certificate, keeps them next to the history database (the
+directory is owner-only; in the Docker image it is the `/data` volume, owned by
+uid 10001), and logs a pairing link (`dolq://host:6789?token=...&fp=...`, e.g.
+in `docker compose logs dolqd`). In Dolq open **Preferences**, tick **Connect
+to a remote backend instead of running one locally**, paste the link into
 **Pairing Link**, save and restart. The link carries the address, the token and
 the certificate fingerprint, so nothing else needs confirming. Keep it private.
+
+The link is logged only when the token is first generated, so it does not sit
+in routinely kept logs; later starts log a hint instead. To see it again,
+restart once with `-print-pairing` (with Docker Compose, temporarily add
+`command: ['-print-pairing']` to the service, `docker compose up -d`, read the
+logs, then remove it). With `-acme-domain` the link uses that domain as its
+host.
+
+**Downloads.** A remote `dolqd` saves XDCC downloads on the server, not where
+the app's **Preferences** download folder points: clients cannot choose the
+directory. Files go to `-download-dir` (or `DOLQ_DOWNLOAD_DIR`), by default
+`downloads` next to the history database (`/data/downloads` in the Docker
+image). A locally spawned `dolqd` still saves where the app asks.
 
 **Legacy plain connections and `-secure`.** So that setups and clients from
 before access tokens keep working, `dolqd` by default still accepts plain,
@@ -139,6 +153,8 @@ with.
 | `-token=false`                                   | No access token: anyone who can reach the port can use it. Only on a network you fully trust                          |
 | `-tls-cert` / `-tls-key`                         | Use this certificate and key (generated there if neither file exists)                                                 |
 | `-acme-domain` / `-acme-email` / `-acme-staging` | Get a Let's Encrypt certificate for a public domain name (port 443 must reach `dolqd`); pair with a link without `fp` |
+| `-download-dir path`                             | Where XDCC downloads are saved (default: `downloads` next to the database)                                            |
+| `-print-pairing`                                 | Log the pairing link on this start (otherwise only when the token is first generated)                                 |
 | `-retention-days n`                              | Prune history older than `n` days (0 keeps everything)                                                                |
 
 `-tls=false` and `-token=false` are independent, and neither can be combined
@@ -151,9 +167,11 @@ leave the token empty to match.
 | `DOLQ_SECURE=1`      | Same as `-secure`                                                                          |
 | `DOLQ_PUBLIC_HOST`   | Host name or IP to put in the pairing link (inside a container `dolqd` cannot tell)        |
 | `DOLQ_PUBLIC_PORT`   | Port to put in the pairing link, when clients reach it through a different one (NodePort)  |
+| `DOLQ_DOWNLOAD_DIR`  | Same as `-download-dir`                                                                    |
 
 To rotate the token or certificate, delete `token` or `tls-cert.pem` /
-`tls-key.pem` from the data directory, restart, and re-pair each client.
+`tls-key.pem` from the data directory, restart (with `-print-pairing` if you
+kept the token), and re-pair each client.
 
 ---
 

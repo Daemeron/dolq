@@ -1,11 +1,14 @@
 # Runs the Dolq backend (dolqd) standalone, reachable over the network - see
 # backend/Dockerfile. `docker compose up -d`, then `docker compose logs dolqd`:
-# dolqd prints a pairing link (dolq://host:6789?token=...&fp=...). Paste it
+# on first start dolqd prints a pairing link (dolq://host:6789?token=...&fp=...),
+# later only with `command: ['-print-pairing']`. Paste it
 # into a client's Preferences > Remote Backend and it connects over TLS,
 # already trusting the certificate. Nothing to configure: the access token and
 # a self-signed certificate are generated on first start and kept in the data
 # volume. Set DOLQ_PUBLIC_HOST to this machine's name/IP so the printed link
 # has an address clients can reach (inside the container it can't tell).
+# XDCC downloads are saved in the volume (/data/downloads), not where a
+# client's Preferences point; set DOLQ_DOWNLOAD_DIR to save them elsewhere.
 #
 # On a NAS/cluster running Kubernetes see deploy/kubernetes/.
 #
