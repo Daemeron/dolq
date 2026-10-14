@@ -53,9 +53,14 @@ describe('resolveRemoteBackend', () => {
 });
 
 describe('decideTrust', () => {
-  it('trusts a CA-issued certificate without any pin, and across renewals', () => {
+  it('trusts a CA-issued certificate when nothing is pinned, whatever its fingerprint (ACME renewals)', () => {
     expect(decideTrust({ authorized: true, fingerprint: 'AA' })).toBe('trusted');
-    expect(decideTrust({ authorized: true, pinned: 'BB', fingerprint: 'AA' })).toBe('trusted');
+    expect(decideTrust({ authorized: true, fingerprint: 'BB' })).toBe('trusted');
+  });
+
+  it('holds a CA-issued certificate to the pin when one exists', () => {
+    expect(decideTrust({ authorized: true, pinned: 'BB', fingerprint: 'AA' })).toBe('mismatch');
+    expect(decideTrust({ authorized: true, pinned: 'aa', fingerprint: 'AA' })).toBe('trusted');
   });
 
   it('asks the first time it sees a self-signed certificate', () => {

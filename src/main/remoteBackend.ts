@@ -56,12 +56,13 @@ export function isLoopbackHost(host: string): boolean {
 
 export type TrustDecision = 'trusted' | 'prompt' | 'mismatch';
 
-// A certificate that chains to a public CA for this hostname (Let's Encrypt)
-// is trusted as is, so it can renew freely. Anything else (self-signed) must
-// match the fingerprint the user accepted earlier; the first time there is
-// none, so the user is asked.
+// A pinned fingerprint always has to match, even for a CA-valid certificate:
+// otherwise anyone who can get a publicly trusted certificate for the host
+// could stand in for a self-signed backend the user paired with. Without a
+// pin, a certificate that chains to a public CA for this hostname (Let's
+// Encrypt) is trusted as is, so it can renew freely; a self-signed one is
+// shown to the user to accept.
 export function decideTrust(opts: { authorized: boolean; pinned?: string; fingerprint: string }): TrustDecision {
-  if (opts.authorized) return 'trusted';
-  if (!opts.pinned) return 'prompt';
-  return opts.pinned.toUpperCase() === opts.fingerprint.toUpperCase() ? 'trusted' : 'mismatch';
+  if (opts.pinned) return opts.pinned.toUpperCase() === opts.fingerprint.toUpperCase() ? 'trusted' : 'mismatch';
+  return opts.authorized ? 'trusted' : 'prompt';
 }
