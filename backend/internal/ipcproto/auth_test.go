@@ -21,7 +21,7 @@ func startAuthServer(t *testing.T, token string) string {
 
 func startAuthServerTimeout(t *testing.T, token string, timeout time.Duration) string {
 	t.Helper()
-	path := filepath.Join(t.TempDir(), "s.sock")
+	path := shortSockPath(t)
 	ln, err := Listen("unix", path)
 	if err != nil {
 		t.Fatalf("listen: %v", err)
@@ -85,7 +85,7 @@ func TestUnixSocketIsOwnerOnly(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("unix permissions")
 	}
-	path := filepath.Join(t.TempDir(), "s.sock")
+	path := shortSockPath(t)
 	ln, err := Listen("unix", path)
 	if err != nil {
 		t.Fatal(err)
@@ -162,4 +162,18 @@ func TestIsLoopback(t *testing.T) {
 			t.Errorf("IsLoopback(%q) = %v, want %v", addr, got, want)
 		}
 	}
+}
+
+// shortSockPath returns a socket path under /tmp: t.TempDir() embeds the test
+// name and, on macOS, a long $TMPDIR, which can exceed the ~104 byte limit for
+// unix socket paths.
+func shortSockPath(t *testing.T) string {
+	t.Helper()
+	dir, err := os.MkdirTemp("/tmp", "dq")
+	if err != nil {
+		dir = t.TempDir()
+	} else {
+		t.Cleanup(func() { os.RemoveAll(dir) })
+	}
+	return filepath.Join(dir, "s.sock")
 }
