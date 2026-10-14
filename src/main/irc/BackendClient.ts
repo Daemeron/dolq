@@ -9,7 +9,7 @@ import { createInterface } from 'node:readline';
 import { promisify } from 'node:util';
 import { app } from 'electron';
 import type { ConnectionStatus, HistoryEntry, IrcEvent } from '../../shared/ipc';
-import { decideTrust, isLoopbackHost, type RemoteHooks, type RemoteTarget } from '../remoteBackend';
+import { decideTrust, insecureReasons, type RemoteHooks, type RemoteTarget } from '../remoteBackend';
 
 const execFileAsync = promisify(execFile);
 
@@ -74,13 +74,12 @@ export class BackendClient extends EventEmitter {
   }
 
   private async connectRemote(remote: RemoteTarget): Promise<void> {
-    if (!remote.token) {
-      throw new Error('No access token is set for the remote backend. Paste its pairing link in Preferences.');
-    }
-    if (!remote.tls && !isLoopbackHost(remote.host)) {
-      // Passwords and chat would cross the network in the clear.
-      const ok = (await this.hooks?.confirmInsecure(remote.host)) ?? false;
-      if (!ok) throw new Error('Connection to the remote backend cancelled (TLS is off).');
+    // Running without TLS and/or a token is allowed (a backend started with
+    // -insecure, a tunnel, a trusted LAN), but only after the user has agreed.
+    const reasons = insecureReasons(remote);
+    if (reasons.length > 0) {
+      const ok = (await this.hooks?.confirmInsecure(remote.host, reasons)) ?? false;
+      if (!ok) throw new Error('Connection to the remote backend cancelled (it is not fully secured).');
     }
     const socket = remote.tls ? await this.dialTls(remote) : await this.dialPlain(remote);
     await this.attach(socket, remote.token);
@@ -134,7 +133,7 @@ export class BackendClient extends EventEmitter {
 
   // Wires up an established, trusted connection and authenticates it before
   // anything else is sent; the backend drops connections that skip this.
-  private attach(socket: net.Socket, token: string): Promise<void> {
+  private attach(socket: net.Socket, token?: string): Promise<void> {
     this.socket = socket;
     createInterface({ input: socket }).on('line', (line) => this.handleFrame(JSON.parse(line)));
     socket.on('error', (err) => console.error('backend connection error:', err));
@@ -142,6 +141,8 @@ export class BackendClient extends EventEmitter {
       this.socket = undefined;
       this.rejectAllPending(new Error('backend connection closed'));
     });
+    // No token: a backend that does not ask for one. If it does, the first call fails as unauthorized.
+    if (!token) return Promise.resolve();
     return new Promise((resolve, reject) => {
       const id = randomUUID();
       this.pending.set(id, {
@@ -304,6 +305,9 @@ export class BackendClient extends EventEmitter {
   private handleFrame(f: ServerFrame): void {
     switch (f.type) {
       case 'result':
+        if (f.error === 'unauthorized') {
+          this.emit('fatal', 'The backend requires an access token. Paste its pairing link in Preferences.');
+        }
         if (!f.id) return;
         this.pending.get(f.id)?.resolve(f);
         this.pending.delete(f.id);

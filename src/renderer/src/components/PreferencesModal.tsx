@@ -82,6 +82,8 @@ export function PreferencesModal({
   const [remoteFingerprint, setRemoteFingerprint] = useState(settings.remoteFingerprint ?? '');
   const [remoteToken, setRemoteToken] = useState('');
   const [pairingText, setPairingText] = useState('');
+  const noToken = !remoteToken && !settings.remoteTokenSet;
+  const unprotected = !remoteTls || noToken;
   const pairing = pairingText.trim() ? parsePairingLink(pairingText) : null;
   const pairingInvalid = pairingText.trim() !== '' && !pairing;
 
@@ -403,13 +405,15 @@ export function PreferencesModal({
                 />
               </label>
               <label className={labelClass}>
-                Access Token
+                Access Token (optional)
                 <input
                   className={inputClass}
                   type="password"
                   value={remoteToken}
                   onChange={(e) => setRemoteToken(e.target.value)}
-                  placeholder={settings.remoteTokenSet ? 'Saved - type to replace' : 'From the pairing link'}
+                  placeholder={
+                    settings.remoteTokenSet ? 'Saved - type to replace' : 'From the pairing link; empty for -insecure'
+                  }
                   autoComplete="off"
                 />
               </label>
@@ -422,10 +426,12 @@ export function PreferencesModal({
                 />
                 Encrypt the connection (TLS)
               </label>
-              {!remoteTls && (
+              {unprotected && (
                 <p className="text-[#faa61a] text-[12px] -mt-1.5">
-                  Without TLS, passwords and messages cross the network in the clear. Only turn this off for a tunnel or
-                  a trusted proxy.
+                  {!remoteTls && 'Without TLS, passwords and messages cross the network in the clear. '}
+                  {noToken && 'Without a token, anyone who can reach the backend can use it. '}
+                  Only run like this for a tunnel, a trusted proxy, or a network you fully trust (a backend started with
+                  -insecure). You will be asked to confirm each time Dolq connects.
                 </p>
               )}
               {remoteTls && remoteFingerprint && (
