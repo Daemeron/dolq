@@ -10,16 +10,16 @@ import (
 
 func TestLoadOrCreateTokenIsCreatedOnceAndKept(t *testing.T) {
 	file := filepath.Join(t.TempDir(), "sub", "token")
-	first, err := LoadOrCreateToken(file)
-	if err != nil {
-		t.Fatal(err)
+	first, created, err := LoadOrCreateToken(file)
+	if err != nil || !created {
+		t.Fatalf("first load: created %v, err %v; want a new token", created, err)
 	}
 	if len(first) < 32 {
 		t.Fatalf("token %q is too short", first)
 	}
-	second, err := LoadOrCreateToken(file)
-	if err != nil || second != first {
-		t.Fatalf("second load = %q, %v; want the same token %q", second, err, first)
+	second, created, err := LoadOrCreateToken(file)
+	if err != nil || second != first || created {
+		t.Fatalf("second load = %q (created %v), %v; want the same token %q", second, created, err, first)
 	}
 	if info, _ := os.Stat(file); runtime.GOOS != "windows" && info.Mode().Perm()&0o077 != 0 {
 		t.Errorf("token file mode = %o, want owner only", info.Mode().Perm())

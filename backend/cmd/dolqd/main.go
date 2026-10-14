@@ -35,6 +35,7 @@ func main() {
 	useTLSFlag := flag.Bool("tls", true, "serve -addr over TLS; -tls=false for plain TCP, e.g. behind a TLS-terminating proxy or an SSH tunnel")
 	useTokenFlag := flag.Bool("token", true, "require an access token on -addr (DOLQ_TOKEN, or generated once and kept next to the database); -token=false means anyone who can reach the port can use it, so only on a network you fully trust. Independent of -tls")
 	downloadDir := flag.String("download-dir", "", "with -addr, where XDCC downloads are saved; clients cannot choose another directory (also DOLQ_DOWNLOAD_DIR; default: a downloads dir next to the database). A locally spawned dolqd saves where the app asks")
+	printPairing := flag.Bool("print-pairing", false, "with -addr, log the pairing link (it contains the access token); it is otherwise logged only when the token is first generated")
 	retentionDays := flag.Int("retention-days", 0, "prune history older than this many days (0 = keep forever)")
 	flag.Parse()
 
@@ -54,10 +55,13 @@ func main() {
 	if p.noTokenWarning {
 		log.Print("warning: -token=false: no access token; anyone who can reach this port can read your history and use your IRC sessions")
 	}
+	showPairing := *printPairing
 	if p.loadToken {
-		if token, err = ipcproto.LoadOrCreateToken(filepath.Join(filepath.Dir(resolveDBPath(*dbPath)), "token")); err != nil {
+		var created bool
+		if token, created, err = ipcproto.LoadOrCreateToken(filepath.Join(filepath.Dir(resolveDBPath(*dbPath)), "token")); err != nil {
 			log.Fatalf("access token: %v", err)
 		}
+		showPairing = showPairing || created
 	}
 
 	var fingerprint string
@@ -98,7 +102,7 @@ func main() {
 		log.Fatalf("listen on %s %s: %v", network, path, err)
 	}
 	if p.pairing {
-		logPairing(path, token, fingerprint, p.useTLS)
+		logPairing(path, token, fingerprint, p.useTLS, showPairing)
 	}
 	if tlsCfg != nil {
 		if p.allowPlain {
@@ -184,11 +188,16 @@ func serverDownloadDir(flagDir, envDir, dbPath string) string {
 // logPairing prints the link a client pastes into Preferences to connect. The
 // host is DOLQ_PUBLIC_HOST (and the port DOLQ_PUBLIC_PORT) if set, else this machine's LAN addresses (inside a
 // container those are not reachable from outside: set DOLQ_PUBLIC_HOST, or
-// replace the host in the link with the machine's name).
-func logPairing(listenAddr, token, fingerprint string, tls bool) {
+// replace the host in the link with the machine's name). Unless show is set it
+// only says how to print the link, keeping the token out of routinely kept logs.
+func logPairing(listenAddr, token, fingerprint string, tls, show bool) {
 	_, portStr, err := net.SplitHostPort(listenAddr)
 	port, _ := strconv.Atoi(portStr)
 	if err != nil || port == 0 {
+		return
+	}
+	if !show {
+		log.Print("to pair a client, restart with -print-pairing to log the pairing link (it contains the access token)")
 		return
 	}
 	// Behind a port mapping (Docker, a Kubernetes NodePort) clients use another port than the one bound here.
