@@ -74,6 +74,13 @@ export type Settings = {
   trayEnabled?: boolean;
   remoteEnabled?: boolean;
   remoteUrl?: string;
+  // TLS to the remote backend; on unless explicitly false
+  remoteTls?: boolean;
+  // Self-signed certificate the user accepted (SHA-256, colon-separated hex)
+  remoteFingerprint?: string;
+  // Write-only: sent to save a new token, never returned by getSettings
+  remoteToken?: string;
+  remoteTokenSet?: boolean;
 };
 
 export type IrcApi = {

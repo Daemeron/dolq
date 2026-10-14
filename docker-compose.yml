@@ -1,11 +1,22 @@
 # Runs the Dolq backend (dolqd) standalone, reachable over the network - see
-# backend/Dockerfile. Point a client's Preferences > Remote Backend URL at
-# host:6789 (wherever this ends up running - a home server, a LAN box) once
-# it's up: `docker compose up -d`.
+# backend/Dockerfile. `docker compose up -d`, then `docker compose logs dolqd`:
+# dolqd prints a pairing link (dolq://host:6789?token=...&fp=...). Paste it
+# into a client's Preferences > Remote Backend and it connects over TLS,
+# already trusting the certificate. Nothing to configure: the access token and
+# a self-signed certificate are generated on first start and kept in the data
+# volume. Set DOLQ_PUBLIC_HOST to this machine's name/IP so the printed link
+# has an address clients can reach (inside the container it can't tell).
+#
+# For a truly remote box with a domain name, add to the entrypoint
+# `-acme-domain your.domain` (and publish host port 443 to 6789) to get a
+# Let's Encrypt certificate automatically.
 services:
   dolqd:
     build:
       context: ./backend
+    environment:
+      DOLQ_PUBLIC_HOST: ${DOLQ_PUBLIC_HOST:-}
+      # DOLQ_TOKEN: set to choose the access token instead of a generated one
     ports:
       - '6789:6789'
     volumes:

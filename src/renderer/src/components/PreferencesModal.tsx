@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { Settings } from '../../../shared/ipc';
+import { formatHostPort, parsePairingLink } from '../../../shared/pairing';
 import type { KeybindAction } from '../store';
 import type { Server } from '../types';
 import { comboFromEvent } from '../utils/keybind';
@@ -77,6 +78,23 @@ export function PreferencesModal({
   const [trayEnabled, setTrayEnabled] = useState(settings.trayEnabled ?? false);
   const [remoteEnabled, setRemoteEnabled] = useState(settings.remoteEnabled ?? false);
   const [remoteUrl, setRemoteUrl] = useState(settings.remoteUrl ?? '');
+  const [remoteTls, setRemoteTls] = useState(settings.remoteTls ?? true);
+  const [remoteFingerprint, setRemoteFingerprint] = useState(settings.remoteFingerprint ?? '');
+  const [remoteToken, setRemoteToken] = useState('');
+  const [pairingText, setPairingText] = useState('');
+  const pairing = pairingText.trim() ? parsePairingLink(pairingText) : null;
+  const pairingInvalid = pairingText.trim() !== '' && !pairing;
+
+  function applyPairing(text: string) {
+    setPairingText(text);
+    const p = parsePairingLink(text);
+    if (!p) return;
+    setRemoteUrl(formatHostPort(p.host, p.port));
+    setRemoteToken(p.token);
+    // The fingerprint arrives with the token, so there is nothing to confirm on first connect.
+    setRemoteFingerprint(p.fingerprint ?? '');
+    setRemoteTls(true);
+  }
   const [retentionDays, setRetentionDays] = useState(String(settings.retentionDays));
   const [downloadDir, setDownloadDir] = useState(settings.downloadDir ?? '');
   const [dccPortMin, setDccPortMin] = useState(settings.dccPortMin ? String(settings.dccPortMin) : '');
@@ -137,6 +155,9 @@ export function PreferencesModal({
       trayEnabled,
       remoteEnabled,
       remoteUrl: remoteUrl || undefined,
+      remoteTls,
+      remoteFingerprint: remoteFingerprint || undefined,
+      remoteToken: remoteToken || undefined,
     });
   }
 
@@ -350,20 +371,81 @@ export function PreferencesModal({
             Connect to a remote backend instead of running one locally
           </label>
           {remoteEnabled && (
-            <label className={labelClass}>
-              Remote Backend URL
-              <input
-                className={inputClass}
-                type="text"
-                value={remoteUrl}
-                onChange={(e) => setRemoteUrl(e.target.value)}
-                placeholder="host:6789"
-              />
-            </label>
+            <div className="flex flex-col gap-3">
+              <label className={labelClass}>
+                Pairing Link
+                <input
+                  className={inputClass}
+                  type="text"
+                  value={pairingText}
+                  onChange={(e) => applyPairing(e.target.value)}
+                  placeholder="dolq://192.168.1.5:6789?token=…  (printed by dolqd at startup)"
+                  autoComplete="off"
+                  spellCheck={false}
+                />
+              </label>
+              {pairing && (
+                <p className="text-(--dolq-text-muted) text-[12px] -mt-1.5">
+                  Paired with {formatHostPort(pairing.host, pairing.port)}. Save to apply.
+                </p>
+              )}
+              {pairingInvalid && (
+                <p className="text-[#f04747] text-[12px] -mt-1.5">That is not a valid Dolq pairing link.</p>
+              )}
+              <label className={labelClass}>
+                Remote Backend URL
+                <input
+                  className={inputClass}
+                  type="text"
+                  value={remoteUrl}
+                  onChange={(e) => setRemoteUrl(e.target.value)}
+                  placeholder="host:6789"
+                />
+              </label>
+              <label className={labelClass}>
+                Access Token
+                <input
+                  className={inputClass}
+                  type="password"
+                  value={remoteToken}
+                  onChange={(e) => setRemoteToken(e.target.value)}
+                  placeholder={settings.remoteTokenSet ? 'Saved - type to replace' : 'From the pairing link'}
+                  autoComplete="off"
+                />
+              </label>
+              <label className="flex items-center gap-2 text-[13px] text-(--dolq-text) cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={remoteTls}
+                  onChange={(e) => setRemoteTls(e.target.checked)}
+                  className="accent-[#c792ea]"
+                />
+                Encrypt the connection (TLS)
+              </label>
+              {!remoteTls && (
+                <p className="text-[#faa61a] text-[12px] -mt-1.5">
+                  Without TLS, passwords and messages cross the network in the clear. Only turn this off for a tunnel or
+                  a trusted proxy.
+                </p>
+              )}
+              {remoteTls && remoteFingerprint && (
+                <div className="text-(--dolq-text-faint) text-[12px] break-all">
+                  Trusted certificate: <span className="font-mono">{remoteFingerprint}</span>{' '}
+                  <button
+                    type="button"
+                    onClick={() => setRemoteFingerprint('')}
+                    className="bg-transparent border-0 p-0 text-[#c792ea] cursor-pointer underline"
+                  >
+                    Forget
+                  </button>
+                </div>
+              )}
+            </div>
           )}
           <p className="text-(--dolq-text-faint) text-[12px] -mt-2.5">
             Points at a dolqd already running elsewhere (see docker-compose.yml) instead of spawning one on this machine
-            - sessions/history live on the remote box, not here. Takes effect the next time Dolq starts.
+            - sessions/history live on the remote box, not here. The easiest way to set it up is to paste the pairing
+            link dolqd prints when it starts. Takes effect the next time Dolq starts.
           </p>
 
           <label className={labelClass}>

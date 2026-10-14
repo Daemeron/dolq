@@ -1,14 +1,30 @@
 import { describe, expect, it } from 'vitest';
-import { resolveRemoteBackend } from './remoteBackend';
+import { decideTrust, isLoopbackHost, resolveRemoteBackend } from './remoteBackend';
 
 describe('resolveRemoteBackend', () => {
-  it('parses a host:port URL when remote mode is on', () => {
+  it('parses a host:port URL when remote mode is on, with TLS on by default', () => {
     expect(resolveRemoteBackend({ retentionDays: 0, remoteEnabled: true, remoteUrl: 'dolq.example.com:6789' })).toEqual(
-      {
-        host: 'dolq.example.com',
-        port: 6789,
-      },
+      { host: 'dolq.example.com', port: 6789, tls: true, token: undefined, fingerprint: undefined },
     );
+  });
+
+  it('carries the token, the TLS choice and the pinned fingerprint', () => {
+    expect(
+      resolveRemoteBackend(
+        {
+          retentionDays: 0,
+          remoteEnabled: true,
+          remoteUrl: '10.0.0.2:6789',
+          remoteTls: false,
+          remoteFingerprint: 'AA',
+        },
+        'tok',
+      ),
+    ).toEqual({ host: '10.0.0.2', port: 6789, tls: false, token: 'tok', fingerprint: 'AA' });
+  });
+
+  it('strips the brackets from an IPv6 literal', () => {
+    expect(resolveRemoteBackend({ retentionDays: 0, remoteEnabled: true, remoteUrl: '[::1]:6789' })?.host).toBe('::1');
   });
 
   it('is undefined when remote mode is off, even with a url set', () => {
@@ -25,5 +41,31 @@ describe('resolveRemoteBackend', () => {
     expect(
       resolveRemoteBackend({ retentionDays: 0, remoteEnabled: true, remoteUrl: 'dolq.example.com' }),
     ).toBeUndefined();
+  });
+});
+
+describe('decideTrust', () => {
+  it('trusts a CA-issued certificate without any pin, and across renewals', () => {
+    expect(decideTrust({ authorized: true, fingerprint: 'AA' })).toBe('trusted');
+    expect(decideTrust({ authorized: true, pinned: 'BB', fingerprint: 'AA' })).toBe('trusted');
+  });
+
+  it('asks the first time it sees a self-signed certificate', () => {
+    expect(decideTrust({ authorized: false, fingerprint: 'AA' })).toBe('prompt');
+  });
+
+  it('accepts a self-signed certificate that matches the pin, ignoring case', () => {
+    expect(decideTrust({ authorized: false, pinned: 'aa:bb', fingerprint: 'AA:BB' })).toBe('trusted');
+  });
+
+  it('refuses a self-signed certificate that differs from the pin', () => {
+    expect(decideTrust({ authorized: false, pinned: 'AA', fingerprint: 'BB' })).toBe('mismatch');
+  });
+});
+
+describe('isLoopbackHost', () => {
+  it('recognizes only local addresses', () => {
+    expect(['localhost', '127.0.0.1', '127.1.2.3', '::1'].every(isLoopbackHost)).toBe(true);
+    expect(['10.0.0.1', 'example.com', '::2', '0.0.0.0'].some(isLoopbackHost)).toBe(false);
   });
 });
