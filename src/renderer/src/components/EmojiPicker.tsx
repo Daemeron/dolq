@@ -31,7 +31,9 @@ export function EmojiPicker({ onSelect, onClose }: Props) {
   }, [query]);
 
   return (
+    // biome-ignore lint/a11y/noStaticElementInteractions: backdrop click-to-dismiss, Escape is handled separately
     <div
+      role="presentation"
       onClick={(e) => e.stopPropagation()}
       className="absolute bottom-full left-0 mb-2 w-72 h-80 flex flex-col bg-(--dolq-bg-panel-alt) rounded-md shadow-[0_4px_16px_rgba(0,0,0,0.4)] overflow-hidden"
     >

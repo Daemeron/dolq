@@ -77,7 +77,12 @@ export function SearchModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
+    // biome-ignore lint/a11y/noStaticElementInteractions: backdrop click-to-dismiss, Escape is handled separately
+    <div
+      role="presentation"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+      onClick={(e) => e.target === e.currentTarget && onClose()}
+    >
       <div
         ref={dialogRef}
         role="dialog"
@@ -85,7 +90,6 @@ export function SearchModal({
         aria-labelledby="search-modal-title"
         tabIndex={-1}
         className="bg-(--dolq-bg-panel) rounded-lg p-6 w-140 max-h-[80vh] flex flex-col shadow-[0_8px_32px_rgba(0,0,0,0.5)]"
-        onClick={(e) => e.stopPropagation()}
       >
         <h2 id="search-modal-title" className="text-(--dolq-text) text-[18px] font-bold mb-4 shrink-0">
           Search History

@@ -28,7 +28,12 @@ export function NickServIdentifyModal({ onIdentify, onDismiss }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onDismiss}>
+    // biome-ignore lint/a11y/noStaticElementInteractions: backdrop click-to-dismiss, Escape is handled separately
+    <div
+      role="presentation"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+      onClick={(e) => e.target === e.currentTarget && onDismiss()}
+    >
       <div
         ref={dialogRef}
         role="dialog"
@@ -36,7 +41,6 @@ export function NickServIdentifyModal({ onIdentify, onDismiss }: Props) {
         aria-labelledby="nickserv-modal-title"
         tabIndex={-1}
         className="bg-(--dolq-bg-panel) rounded-lg p-6 w-90 shadow-[0_8px_32px_rgba(0,0,0,0.5)]"
-        onClick={(e) => e.stopPropagation()}
       >
         <h2 id="nickserv-modal-title" className="text-(--dolq-text) text-[18px] font-bold mb-2">
           Identify with NickServ

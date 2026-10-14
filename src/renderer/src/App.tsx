@@ -204,6 +204,26 @@ export default function App() {
     else document.documentElement.removeAttribute('data-theme');
   }, [theme]);
 
+  const handleSelectServer = useCallback(
+    (id: string) => {
+      setView({ kind: 'chat' });
+      selectServer(id);
+    },
+    [selectServer],
+  );
+
+  const handleSelectChannel = useCallback(
+    (id: string) => {
+      setView({ kind: 'chat' });
+      markRead(scopeKey(useStore.getState().selectedServerId, id));
+      selectChannel(id);
+    },
+    [markRead, selectChannel],
+  );
+
+  const channelActions = useRef({ handleSelectChannel, handleRemoveChannel });
+  channelActions.current = { handleSelectChannel, handleRemoveChannel };
+
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       const combo = comboFromEvent(e);
@@ -218,12 +238,12 @@ export default function App() {
         case 'prevChannel': {
           const dir = action === 'nextChannel' ? 1 : -1;
           const idx = list.findIndex((c) => c.id === selectedChannelId);
-          handleSelectChannel(list[(idx + dir + list.length) % list.length].id);
+          channelActions.current.handleSelectChannel(list[(idx + dir + list.length) % list.length].id);
           break;
         }
         case 'closeChannel': {
           const current = list.find((c) => c.id === selectedChannelId);
-          if (current && !current.isLog) handleRemoveChannel(current.id);
+          if (current && !current.isLog) channelActions.current.handleRemoveChannel(current.id);
           break;
         }
         case 'toggleMute':
@@ -233,15 +253,7 @@ export default function App() {
     }
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [
-    keybindings,
-    channelMap,
-    selectedServerId,
-    selectedChannelId,
-    toggleMuteChannel,
-    handleSelectChannel,
-    handleRemoveChannel,
-  ]);
+  }, [keybindings, channelMap, selectedServerId, selectedChannelId, toggleMuteChannel]);
 
   async function handleSavePreferences(next: Settings) {
     await window.irc.setSettings(next);
@@ -249,21 +261,13 @@ export default function App() {
     setView({ kind: 'chat' });
   }
 
-  function handleSelectServer(id: string) {
-    setView({ kind: 'chat' });
-    selectServer(id);
-  }
-
-  function handleSelectChannel(id: string) {
-    setView({ kind: 'chat' });
-    markRead(scopeKey(useStore.getState().selectedServerId, id));
-    selectChannel(id);
-  }
-
-  function backendChannelFor(serverId: string, channelId: string): string {
-    const channel = channelMap[serverId]?.find((c) => c.id === channelId);
-    return channel?.isLog ? '__log__' : channelId;
-  }
+  const backendChannelFor = useCallback(
+    (serverId: string, channelId: string): string => {
+      const channel = channelMap[serverId]?.find((c) => c.id === channelId);
+      return channel?.isLog ? '__log__' : channelId;
+    },
+    [channelMap],
+  );
 
   function presetNickMap(): Record<string, string> {
     const map: Record<string, string> = {};
@@ -345,13 +349,16 @@ export default function App() {
     return useStore.persist.onFinishHydration(reconcile);
   }, [setConnectionStatus, setChannelJoined, connectServer]);
 
-  function dccPeerNick(dccId: string): string {
-    for (const channels of Object.values(channelMap)) {
-      const ch = channels.find((c) => c.id === dccId);
-      if (ch) return ch.name;
-    }
-    return '';
-  }
+  const dccPeerNick = useCallback(
+    (dccId: string): string => {
+      for (const channels of Object.values(channelMap)) {
+        const ch = channels.find((c) => c.id === dccId);
+        if (ch) return ch.name;
+      }
+      return '';
+    },
+    [channelMap],
+  );
 
   useEffect(() => {
     return window.irc.onLine((serverId, line) => {
@@ -376,34 +383,55 @@ export default function App() {
     });
   }, [appendMessage, dccPeerNick]);
 
-  function ensureQuery(serverId: string, nick: string) {
-    if (!(channelMap[serverId] ?? []).some((c) => c.id === nick)) {
-      addChannel(serverId, { id: nick, name: nick, isLog: false, isQuery: true });
-    }
-  }
+  const ensureQuery = useCallback(
+    (serverId: string, nick: string) => {
+      if (!(channelMap[serverId] ?? []).some((c) => c.id === nick)) {
+        addChannel(serverId, { id: nick, name: nick, isLog: false, isQuery: true });
+      }
+    },
+    [channelMap, addChannel],
+  );
 
-  function dmKey(serverId: string, target: string, nick: string): string {
-    if (target.startsWith('#')) return target;
-    ensureQuery(serverId, nick);
-    return nick;
-  }
+  const dmKey = useCallback(
+    (serverId: string, target: string, nick: string): string => {
+      if (target.startsWith('#')) return target;
+      ensureQuery(serverId, nick);
+      return nick;
+    },
+    [ensureQuery],
+  );
 
-  function checkMention(serverId: string, channelId: string, target: string, text: string) {
-    if (!target.startsWith('#') || channelId === selectedChannelId || mutedChannels[channelId]) return;
-    if (!mentionsNick(text, nickMap[serverId])) return;
-    markMentioned(channelId);
-    if (notificationsEnabled) {
-      notify(`Mentioned in ${channelId}`, text, () => {
-        handleSelectServer(serverId);
-        handleSelectChannel(channelId);
-      });
-    }
-    if (soundAlertsEnabled) window.irc.playAlertSound();
-  }
+  const checkMention = useCallback(
+    (serverId: string, channelId: string, target: string, text: string) => {
+      if (!target.startsWith('#') || channelId === selectedChannelId || mutedChannels[channelId]) return;
+      if (!mentionsNick(text, nickMap[serverId])) return;
+      markMentioned(channelId);
+      if (notificationsEnabled) {
+        notify(`Mentioned in ${channelId}`, text, () => {
+          handleSelectServer(serverId);
+          handleSelectChannel(channelId);
+        });
+      }
+      if (soundAlertsEnabled) window.irc.playAlertSound();
+    },
+    [
+      selectedChannelId,
+      mutedChannels,
+      nickMap,
+      markMentioned,
+      notificationsEnabled,
+      soundAlertsEnabled,
+      handleSelectServer,
+      handleSelectChannel,
+    ],
+  );
 
-  function isIgnored(serverId: string, nick: string): boolean {
-    return (ignoredNicks[serverId] ?? []).includes(nick);
-  }
+  const isIgnored = useCallback(
+    (serverId: string, nick: string): boolean => {
+      return (ignoredNicks[serverId] ?? []).includes(nick);
+    },
+    [ignoredNicks],
+  );
 
   useEffect(() => {
     return window.irc.onEvent((serverId, event) => {
