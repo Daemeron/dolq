@@ -24,7 +24,7 @@ permissions:
 
 jobs:
   create-release-pr:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       # release-please-action only honours its release-as/versioning-strategy
       # inputs when release-type is set, which bypasses release-please-config.json
