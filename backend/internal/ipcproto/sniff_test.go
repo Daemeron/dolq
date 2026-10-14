@@ -119,3 +119,34 @@ func TestPlainClientThatSendsATokenIsNotRefused(t *testing.T) {
 		t.Fatalf("auth frame on a legacy connection got %+v, want ok", f)
 	}
 }
+
+// With no token required nothing else bounds the TLS handshake, so a client
+// that starts one and stalls must still be dropped after the sniff timeout.
+func TestStalledTLSHandshakeIsDroppedWithoutToken(t *testing.T) {
+	cert, err := LoadOrCreateCert(filepath.Join(t.TempDir(), "c.pem"), filepath.Join(t.TempDir(), "k.pem"), []string{"localhost"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	inner, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ln := newSniffingListener(inner, ServerTLSConfig(cert), false, 100*time.Millisecond)
+	go NewServer(bouncer.New(nil)).Serve(ln)
+	t.Cleanup(func() { ln.Close() })
+
+	conn, err := net.Dial("tcp", inner.Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	if _, err := conn.Write([]byte{tlsHandshakeByte}); err != nil {
+		t.Fatal(err)
+	}
+	conn.SetReadDeadline(time.Now().Add(5 * time.Second))
+	if _, err := conn.Read(make([]byte, 1)); err == nil {
+		t.Fatal("read data from a half-open handshake")
+	} else if ne, ok := err.(net.Error); ok && ne.Timeout() {
+		t.Fatal("server still holding a stalled TLS handshake")
+	}
+}
