@@ -2,11 +2,14 @@ package main
 
 import (
 	"bufio"
+	"bytes"
+	"log"
 	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 )
@@ -92,5 +95,26 @@ func TestServerDownloadDir(t *testing.T) {
 	}
 	if got, want := serverDownloadDir("", "", "/x/h.db"), filepath.Join("/x", "downloads"); got != want {
 		t.Errorf("default: got %q, want %q", got, want)
+	}
+}
+
+func captureLog(t *testing.T, f func()) string {
+	t.Helper()
+	var buf bytes.Buffer
+	log.SetOutput(&buf)
+	defer log.SetOutput(os.Stderr)
+	f()
+	return buf.String()
+}
+
+func TestLogPairingHidesTokenUnlessAsked(t *testing.T) {
+	t.Setenv("DOLQ_PUBLIC_HOST", "dolq.lan")
+	hidden := captureLog(t, func() { logPairing("0.0.0.0:6789", "s3cret", "AA", true, false) })
+	if strings.Contains(hidden, "s3cret") || !strings.Contains(hidden, "-print-pairing") {
+		t.Fatalf("without show: %q, want a hint and no token", hidden)
+	}
+	shown := captureLog(t, func() { logPairing("0.0.0.0:6789", "s3cret", "AA", true, true) })
+	if !strings.Contains(shown, "dolq://dolq.lan:6789?") || !strings.Contains(shown, "token=s3cret") {
+		t.Fatalf("with show: %q, want the pairing link", shown)
 	}
 }
