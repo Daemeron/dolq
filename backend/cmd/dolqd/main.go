@@ -102,7 +102,11 @@ func main() {
 		log.Fatalf("listen on %s %s: %v", network, path, err)
 	}
 	if p.pairing {
-		logPairing(path, token, fingerprint, p.useTLS, showPairing)
+		host := ""
+		if p.acme {
+			host = *acmeDomain
+		}
+		logPairing(path, host, token, fingerprint, p.useTLS, showPairing)
 	}
 	if tlsCfg != nil {
 		if p.allowPlain {
@@ -186,11 +190,12 @@ func serverDownloadDir(flagDir, envDir, dbPath string) string {
 }
 
 // logPairing prints the link a client pastes into Preferences to connect. The
-// host is DOLQ_PUBLIC_HOST (and the port DOLQ_PUBLIC_PORT) if set, else this machine's LAN addresses (inside a
+// host is host if given (the -acme-domain, the only name its certificate is
+// valid for), else DOLQ_PUBLIC_HOST (and the port DOLQ_PUBLIC_PORT) if set, else this machine's LAN addresses (inside a
 // container those are not reachable from outside: set DOLQ_PUBLIC_HOST, or
 // replace the host in the link with the machine's name). Unless show is set it
 // only says how to print the link, keeping the token out of routinely kept logs.
-func logPairing(listenAddr, token, fingerprint string, tls, show bool) {
+func logPairing(listenAddr, host, token, fingerprint string, tls, show bool) {
 	_, portStr, err := net.SplitHostPort(listenAddr)
 	port, _ := strconv.Atoi(portStr)
 	if err != nil || port == 0 {
@@ -207,6 +212,9 @@ func logPairing(listenAddr, token, fingerprint string, tls, show bool) {
 	hosts := ipcproto.LANHosts()
 	if h := os.Getenv("DOLQ_PUBLIC_HOST"); h != "" {
 		hosts = []string{h}
+	}
+	if host != "" {
+		hosts = []string{host}
 	}
 	if len(hosts) == 0 {
 		hosts = []string{"HOST"}

@@ -109,12 +109,20 @@ func captureLog(t *testing.T, f func()) string {
 
 func TestLogPairingHidesTokenUnlessAsked(t *testing.T) {
 	t.Setenv("DOLQ_PUBLIC_HOST", "dolq.lan")
-	hidden := captureLog(t, func() { logPairing("0.0.0.0:6789", "s3cret", "AA", true, false) })
+	hidden := captureLog(t, func() { logPairing("0.0.0.0:6789", "", "s3cret", "AA", true, false) })
 	if strings.Contains(hidden, "s3cret") || !strings.Contains(hidden, "-print-pairing") {
 		t.Fatalf("without show: %q, want a hint and no token", hidden)
 	}
-	shown := captureLog(t, func() { logPairing("0.0.0.0:6789", "s3cret", "AA", true, true) })
+	shown := captureLog(t, func() { logPairing("0.0.0.0:6789", "", "s3cret", "AA", true, true) })
 	if !strings.Contains(shown, "dolq://dolq.lan:6789?") || !strings.Contains(shown, "token=s3cret") {
 		t.Fatalf("with show: %q, want the pairing link", shown)
+	}
+}
+
+func TestLogPairingUsesACMEDomain(t *testing.T) {
+	t.Setenv("DOLQ_PUBLIC_HOST", "dolq.lan")
+	out := captureLog(t, func() { logPairing(":443", "dolq.example.com", "tok", "", true, true) })
+	if !strings.Contains(out, "dolq://dolq.example.com:443?") || strings.Contains(out, "dolq.lan") {
+		t.Fatalf("got %q, want only a link to the ACME domain", out)
 	}
 }
