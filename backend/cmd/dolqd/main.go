@@ -26,6 +26,11 @@ func main() {
 	retentionDays := flag.Int("retention-days", 0, "prune history older than this many days (0 = keep forever)")
 	flag.Parse()
 
+	// Installed before the socket path is printed, so a parent signalling
+	// right after reading it gets a clean shutdown rather than a default kill.
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
 	network, path := "unix", *socketPath
 	if *addr != "" {
 		network, path = "tcp", *addr
@@ -54,9 +59,6 @@ func main() {
 
 	b := bouncer.New(store)
 	srv := ipcproto.NewServer(b)
-
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
 
 	serveErr := make(chan error, 1)
 	go func() { serveErr <- srv.Serve(ln) }()
