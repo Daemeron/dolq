@@ -27,7 +27,9 @@ export function resolveRemoteBackend(settings: Settings, token?: string): Remote
       // new URL keeps the brackets on an IPv6 literal; sockets want it bare
       host: url.hostname.replace(/^\[|\]$/g, ''),
       port: Number(url.port),
-      tls: settings.remoteTls ?? true,
+      // Settings saved before TLS and tokens existed have no remoteTls and no
+      // token or pinned certificate: they point at a plain backend, so keep talking plain.
+      tls: settings.remoteTls ?? Boolean(token || settings.remoteFingerprint),
       token: token || undefined,
       fingerprint: settings.remoteFingerprint || undefined,
     };
