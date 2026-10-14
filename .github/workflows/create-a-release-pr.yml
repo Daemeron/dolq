@@ -26,9 +26,30 @@ jobs:
   create-release-pr:
     runs-on: ubuntu-latest
     steps:
-      - uses: googleapis/release-please-action@v4
+      # release-please-action@v4 only honours its release-as/versioning-strategy
+      # inputs when release-type is set, which bypasses release-please-config.json
+      # (and with it our PR title pattern and dolq-v tags). In manifest mode the
+      # only per-run override release-please offers is the CLI's --release-as,
+      # so a forced bump is turned into an exact version from the manifest here.
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
-          token: ${{ secrets.RELEASE_TOKEN }}
-          skip-github-release: true
-          release-as: ${{ inputs.release-as }}
-          versioning-strategy: ${{ inputs.bump != 'automatic' && format('always-bump-{0}', inputs.bump) || '' }}
+          node-version: 24
+      - env:
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          BUMP: ${{ inputs.bump }}
+          RELEASE_AS: ${{ inputs.release-as }}
+        run: |
+          version="$RELEASE_AS"
+          if [ -z "$version" ] && [ "$BUMP" != automatic ]; then
+            IFS=. read -r major minor patch <<< "$(jq -r '."."' .release-please-manifest.json)"
+            patch="${patch%%[-+]*}"
+            case "$BUMP" in
+              major) version="$((major + 1)).0.0" ;;
+              minor) version="$major.$((minor + 1)).0" ;;
+              patch) version="$major.$minor.$((patch + 1))" ;;
+            esac
+          fi
+          npx --yes release-please@17 release-pr \
+            --token="$GH_TOKEN" --repo-url="$GITHUB_REPOSITORY" \
+            ${version:+--release-as="$version"}
