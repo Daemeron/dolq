@@ -42,43 +42,32 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	network, path := "unix", *socketPath
-	if *addr != "" {
-		network, path = "tcp", *addr
-	} else if path == "" && runtime.GOOS == "windows" {
-		// Node can't connect to AF_UNIX sockets on Windows (EACCES); use a named pipe
-		network, path = "pipe", fmt.Sprintf(`\\.\pipe\dolq-%d`, os.Getpid())
+	p, err := plan(options{
+		socket: *socketPath, addr: *addr, tlsCert: *tlsCert, tlsKey: *tlsKey, acmeDomain: *acmeDomain,
+		secure: *secure, tls: *useTLSFlag, token: *useTokenFlag,
+	}, os.Getenv, runtime.GOOS, os.Getpid())
+	if err != nil {
+		log.Fatal(err)
 	}
-
-	// The token comes from the environment, not a flag, so it never shows up in
-	// a process listing. A network listener always needs one: if none is given,
-	// a random one is created once and kept next to the database.
-	token := os.Getenv("DOLQ_TOKEN")
-	useToken := network != "tcp" || *useTokenFlag
-	if network == "tcp" && !useToken {
-		token = ""
+	network, path, token := p.network, p.path, p.token
+	if p.noTokenWarning {
 		log.Print("warning: -token=false: no access token; anyone who can reach this port can read your history and use your IRC sessions")
-	} else if network == "tcp" && token == "" {
-		var err error
+	}
+	if p.loadToken {
 		if token, err = ipcproto.LoadOrCreateToken(filepath.Join(filepath.Dir(resolveDBPath(*dbPath)), "token")); err != nil {
 			log.Fatalf("access token: %v", err)
 		}
 	}
-	var fingerprint string
 
+	var fingerprint string
 	var tlsCfg *tls.Config
-	useTLS := network == "tcp" && *useTLSFlag
-	secureOnly := *secure || os.Getenv("DOLQ_SECURE") == "1"
-	if secureOnly && network == "tcp" && (!useTLS || !useToken) {
-		log.Fatal("-secure refuses connections that are not TLS with an access token, so it cannot be combined with -tls=false or -token=false")
-	}
-	if useTLS && *acmeDomain != "" {
+	if p.acme {
 		cacheDir := filepath.Join(filepath.Dir(resolveDBPath(*dbPath)), "acme")
 		tlsCfg = ipcproto.ACMEConfig(*acmeDomain, *acmeEmail, cacheDir, *acmeStaging)
 		log.Printf("serving TLS with a Let's Encrypt certificate for %s (port 443 must reach this listener)", *acmeDomain)
-	} else if useTLS {
-		certFile, keyFile := *tlsCert, *tlsKey
-		if certFile == "" || keyFile == "" {
+	} else if p.useTLS {
+		certFile, keyFile := p.certFile, p.keyFile
+		if certFile == "" {
 			dir := filepath.Dir(resolveDBPath(*dbPath))
 			certFile, keyFile = filepath.Join(dir, "tls-cert.pem"), filepath.Join(dir, "tls-key.pem")
 		}
@@ -90,11 +79,11 @@ func main() {
 		tlsCfg = ipcproto.ServerTLSConfig(cert)
 		fingerprint = ipcproto.Fingerprint(cert)
 		log.Printf("serving TLS, certificate SHA-256 fingerprint: %s", fingerprint)
-	} else if network == "tcp" && !ipcproto.IsLoopback(path) {
+	} else if p.plainWarning {
 		log.Print("warning: listening without TLS on a non-loopback address; passwords and chat cross the network in the clear")
 	}
 
-	if network == "unix" && *socketPath == "" {
+	if p.tempSocket {
 		// A private directory of our own: the socket is never reachable via a shared, world-listable /tmp.
 		dir, err := os.MkdirTemp("", "dolq-")
 		if err != nil {
@@ -107,17 +96,14 @@ func main() {
 	if err != nil {
 		log.Fatalf("listen on %s %s: %v", network, path, err)
 	}
-	if network == "tcp" && useToken {
-		logPairing(path, token, fingerprint, useTLS)
+	if p.pairing {
+		logPairing(path, token, fingerprint, p.useTLS)
 	}
 	if tlsCfg != nil {
-		// Plain connections are the legacy path for clients that predate tokens;
-		// with no token to protect there is nothing to stay compatible with.
-		allowPlain := useToken && !secureOnly
-		if allowPlain {
+		if p.allowPlain {
 			log.Print("warning: plain, unauthenticated connections are still accepted on this port so older clients keep working; pair your clients and restart with -secure to refuse them")
 		}
-		ln = ipcproto.NewSniffingListener(ln, tlsCfg, allowPlain)
+		ln = ipcproto.NewSniffingListener(ln, tlsCfg, p.allowPlain)
 	}
 	// One bare line to stdout: the discovery contract a future parent
 	// process (e.g. Electron, spawning this as a local child) reads to find
@@ -146,7 +132,7 @@ func main() {
 		ln.Close()
 		if network == "unix" {
 			os.Remove(path)
-			if *socketPath == "" {
+			if p.tempSocket {
 				os.Remove(filepath.Dir(path))
 			}
 		}
