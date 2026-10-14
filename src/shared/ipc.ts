@@ -90,6 +90,12 @@ export type IrcApi = {
     altNicks?: string[],
     password?: string,
   ) => Promise<void>;
+  secretsAvailable: () => Promise<boolean>;
+  rememberSecrets: (
+    serverId: string,
+    secrets: { password?: string; saslUser?: string; saslPass?: string },
+  ) => Promise<boolean>;
+  forgetSecrets: (serverId: string) => Promise<void>;
   disconnect: (serverId: string) => Promise<void>;
   sendLine: (serverId: string, line: string) => Promise<void>;
   getStatus: (serverId: string) => Promise<ConnectionStatus>;
@@ -160,4 +166,7 @@ export enum IrcMessages {
   status = 'irc:status',
   openIrcUrl = 'irc:openIrcUrl',
   openPreferences = 'irc:openPreferences',
+  secretsAvailable = 'secrets:available',
+  secretsRemember = 'secrets:remember',
+  secretsForget = 'secrets:forget',
 }

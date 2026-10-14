@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { IRC_PORT, IRC_TLS_PORT } from '../../../shared/ipc';
 import type { Server } from '../types';
 import { resolveHostPort } from '../utils/server';
+import { RememberCredentials } from './RememberCredentials';
 import { ViewPanel } from './ViewPanel';
 
 export type EditServerForm = {
@@ -16,6 +17,7 @@ export type EditServerForm = {
   autojoinChannels: string;
   saslUser: string;
   saslPass: string;
+  remember: boolean;
 };
 
 type Props = {
@@ -46,6 +48,7 @@ export function EditServerModal({ server, nick, saslUser, saslPass, onSave, onCa
     autojoinChannels: (server.autojoinChannels ?? []).join(', '),
     saslUser,
     saslPass,
+    remember: server.rememberCredentials ?? false,
   });
 
   function set(field: keyof EditServerForm) {
@@ -172,6 +175,11 @@ export function EditServerModal({ server, nick, saslUser, saslPass, onSave, onCa
               />
             </div>
           </div>
+
+          <RememberCredentials
+            checked={form.remember}
+            onChange={(remember) => setForm((prev) => ({ ...prev, remember }))}
+          />
 
           <div className="flex gap-3 justify-end mt-2">
             <button

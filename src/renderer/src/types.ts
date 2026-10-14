@@ -12,6 +12,7 @@ export type Server = {
   realname?: string;
   autojoinChannels?: string[];
   color?: string;
+  rememberCredentials?: boolean;
 };
 
 export type Channel = {

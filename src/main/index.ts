@@ -1,11 +1,12 @@
 import fs from 'node:fs';
 import { join, resolve } from 'node:path';
-import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, shell, Tray } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, safeStorage, shell, Tray } from 'electron';
 import { installExtension, REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';
 import { type ConnectionStatus, IrcMessages, type Settings } from '../shared/ipc';
 import { BackendClient } from './irc/BackendClient';
 import { parseIrcUrl } from './ircUrl';
 import { resolveRemoteBackend } from './remoteBackend';
+import { type SecretCipher, SecretsStore, type ServerSecrets, withSavedSecrets } from './secrets';
 import { loadSettings, saveSettings } from './settings';
 
 // A packaged build already gets this from electron-builder's own
@@ -279,7 +280,9 @@ if (!app.requestSingleInstanceLock()) {
     // (registerSettingsHandlers writes into the same box) instead of the
     // value that was current when the app started.
     const settingsBox = { current: settings };
-    registerIrcHandlers(mainWindow, backend, settingsBox);
+    const secrets = new SecretsStore(join(app.getPath('userData'), 'secrets.json'), osCipher());
+    registerIrcHandlers(mainWindow, backend, settingsBox, secrets);
+    registerSecretsHandlers(secrets);
     registerSettingsHandlers(settingsBox);
     registerShellHandlers();
     await installReactDevTools();
@@ -324,10 +327,33 @@ function registerShellHandlers(): void {
   });
 }
 
+// safeStorage backs onto the macOS Keychain, Windows DPAPI or the Linux secret
+// service. On Linux without a keyring Electron falls back to a hardcoded key,
+// which is obfuscation rather than encryption, so that counts as unavailable.
+function osCipher(): SecretCipher {
+  return {
+    isAvailable: () => {
+      if (!safeStorage.isEncryptionAvailable()) return false;
+      return !(process.platform === 'linux' && safeStorage.getSelectedStorageBackend() === 'basic_text');
+    },
+    encrypt: (plain) => safeStorage.encryptString(plain),
+    decrypt: (blob) => safeStorage.decryptString(blob),
+  };
+}
+
+function registerSecretsHandlers(secrets: SecretsStore): void {
+  ipcMain.handle(IrcMessages.secretsAvailable, () => secrets.available());
+  ipcMain.handle(IrcMessages.secretsRemember, (_event, serverId: string, patch: ServerSecrets) =>
+    secrets.remember(serverId, patch),
+  );
+  ipcMain.handle(IrcMessages.secretsForget, (_event, serverId: string) => secrets.forget(serverId));
+}
+
 function registerIrcHandlers(
   mainWindow: BrowserWindow,
   backend: BackendClient,
   settingsBox: { current: Settings },
+  secrets: SecretsStore,
 ): void {
   ipcMain.handle(
     IrcMessages.connect,
@@ -344,8 +370,24 @@ function registerIrcHandlers(
       realname?: string,
       altNicks?: string[],
       password?: string,
-    ) =>
-      backend.connect(serverId, host, port, nick, secure, saslUser, saslPass, username, realname, altNicks, password),
+    ) => {
+      // Credentials the user chose to remember are filled in here, in the
+      // main process, so they never have to travel back through the renderer.
+      const s = withSavedSecrets({ password, saslUser, saslPass }, secrets.get(serverId));
+      return backend.connect(
+        serverId,
+        host,
+        port,
+        nick,
+        secure,
+        s.saslUser,
+        s.saslPass,
+        username,
+        realname,
+        altNicks,
+        s.password,
+      );
+    },
   );
 
   ipcMain.handle(IrcMessages.send, (_event, serverId: string, message: string) => backend.send(serverId, message));

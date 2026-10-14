@@ -1153,10 +1153,17 @@ will hang the UI.
       hardcoded in the handshake. The password now travels renderer -> main ->
       `dolqd` (`ClientFrame.Password` -> `Bouncer.Connect` -> `Client.Password`)
       and is sent as `PASS <password>`; empty still sends the `none`
-      placeholder. Like SASL credentials it is held in memory only
-      (`passwordMap`, not persisted), so a server that needs it must be
-      reconnected from the form after an app restart. The Edit Server form
-      still doesn't expose it. Covered by `TestHandshakeSendsServerPassword`
+      placeholder. By default it (like SASL credentials) is held in memory
+      only (`passwordMap`). The opt-in "Remember passwords on this device"
+      checkbox (connect and edit forms) saves the server password and SASL
+      login, encrypted with Electron's `safeStorage` (Keychain / DPAPI /
+      libsecret), in `secrets.json` under userData (mode 0600); the main
+      process fills them in on `connect`, so a saved password never goes back
+      to the renderer, and the server then reconnects with them after a
+      restart. Linux without a keyring (`basic_text` backend) counts as
+      unavailable and the checkbox is disabled. The Edit Server form still
+      doesn't expose the server password itself. Covered by
+      `TestHandshakeSendsServerPassword` and `secrets.test.ts`
 - [x] A QUIT, NICK or AWAY on one network was applied to every server's user
       lists - `removeUserEverywhere`/`renameUserEverywhere`/
       `applyAwayEverywhere` walked all of `userMap`, so someone quitting
