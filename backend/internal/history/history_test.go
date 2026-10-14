@@ -110,7 +110,9 @@ func TestRetentionPrunesOldEntries(t *testing.T) {
 		if err != nil {
 			t.Fatalf("recent: %v", err)
 		}
-		if len(entries) == 1 {
+		// Writes are batched asynchronously: wait for the recent line to land
+		// and the old one to be pruned, not just for a single row.
+		if len(entries) == 1 && entries[0].Line == "recent line" {
 			break
 		}
 		time.Sleep(5 * time.Millisecond)
