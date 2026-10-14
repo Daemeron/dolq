@@ -6,7 +6,9 @@ type Props = {
 
 export function ContextMenu({ x, y, children }: Props) {
   return (
+    // biome-ignore lint/a11y/noStaticElementInteractions: backdrop click-to-dismiss, Escape is handled separately
     <div
+      role="presentation"
       className="fixed z-50 min-w-40 bg-(--dolq-bg-panel-alt) rounded-md shadow-[0_4px_16px_rgba(0,0,0,0.4)] py-1.5"
       style={{ left: x, top: y }}
       onClick={(e) => e.stopPropagation()}

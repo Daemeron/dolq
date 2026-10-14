@@ -118,6 +118,7 @@ export function UserList({
   });
 
   return (
+    // biome-ignore lint/a11y/noStaticElementInteractions: context menu has no keyboard equivalent here
     <div
       ref={containerRef}
       className="relative flex-1 min-h-0 overflow-y-auto pt-4 pb-18 px-2 scroll-thin"

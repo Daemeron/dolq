@@ -89,6 +89,9 @@ export function MessageArea({ messages, isLog, channelId, onLoadOlder, timestamp
       <div style={{ height: rowVirtualizer.getTotalSize(), position: 'relative' }}>
         {virtualRows.map((virtualRow) => {
           const m = messages[virtualRow.index];
+          const requestPack = () => {
+            if (onGetPack && m.xdccPackNumber != null) onGetPack(m.nick, m.xdccPackNumber);
+          };
           return (
             <div
               key={virtualRow.key}
@@ -126,13 +129,15 @@ export function MessageArea({ messages, isLog, channelId, onLoadOlder, timestamp
                   </span>
                 </div>
               ) : m.xdccPack ? (
+                // biome-ignore lint/a11y/noStaticElementInteractions: role and tabIndex are set when a pack handler exists
                 <div
                   className={`flex items-baseline gap-3 px-2 rounded ${compact ? 'py-0' : 'py-0.5'} ${
                     onGetPack && m.xdccPackNumber != null ? 'cursor-pointer hover:bg-[rgba(4,4,5,0.07)]' : ''
                   }`}
-                  onClick={() => {
-                    if (onGetPack && m.xdccPackNumber != null) onGetPack(m.nick, m.xdccPackNumber);
-                  }}
+                  role={onGetPack ? 'button' : undefined}
+                  tabIndex={onGetPack ? 0 : undefined}
+                  onClick={requestPack}
+                  onKeyDown={(e) => e.key === 'Enter' && requestPack()}
                   title={onGetPack ? 'Click to request this pack' : undefined}
                 >
                   <span className="text-[11px] text-(--dolq-text-faint) shrink-0 w-10 text-right">
