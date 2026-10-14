@@ -10,8 +10,9 @@
 # nothing extra - no gcc/musl-dev stage required for the history DB.
 #
 # /data also holds the generated access token (token) and self-signed TLS
-# certificate (tls-cert.pem / tls-key.pem); the pairing link printed at startup
-# (docker logs) carries the token and the certificate's fingerprint.
+# certificate (tls-cert.pem / tls-key.pem), owner-only (uid 10001), and XDCC
+# downloads (downloads/). The pairing link, logged on first start or with
+# -print-pairing (docker logs), carries the token and certificate fingerprint.
 FROM golang:1.26-alpine AS build
 WORKDIR /src
 COPY go.mod go.sum ./

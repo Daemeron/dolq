@@ -32,7 +32,8 @@ skip the registry: `docker save dolqd:latest | sudo k3s ctr images import -`.
    only used to build the pairing link.
 2. `kustomization.yaml`: optionally pin a version or use your own image (`images:`).
 3. `pvc.yaml`: optionally set `storageClassName` and the size. It holds the
-   history database, the access token and the TLS certificate.
+   history database, the access token, the TLS certificate and XDCC downloads
+   (`/data/downloads`; size it for those).
 
 ## 3. Deploy
 
@@ -52,6 +53,18 @@ backend** and paste it into **Pairing Link**. The link carries the address, the
 access token and the certificate's fingerprint, so there is nothing else to
 type or confirm. Save and restart Dolq. Keep the link private: it contains the
 token.
+
+`dolqd` logs the link only when it first generates the token (never if you set
+it with the `dolqd-token` Secret); later starts log a hint instead. To print it
+again, add `-print-pairing` to the container's args for one start:
+
+```sh
+kubectl -n dolq patch deploy dolqd --type json \
+  -p '[{"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"-print-pairing"}]'
+kubectl -n dolq rollout status deploy/dolqd
+kubectl -n dolq logs deploy/dolqd | grep dolq://
+kubectl apply -k deploy/kubernetes   # back to the manifests' args
+```
 
 ## Options
 
@@ -77,12 +90,17 @@ token.
   you to confirm each time it connects.
 - **Rotate the token or certificate:** delete `token` / `tls-cert.pem` /
   `tls-key.pem` from the PVC (or change the secret) and restart; paste the new
-  pairing link into each client.
+  pairing link into each client (print it as in step 4 if the token was kept
+  or set by the secret).
 
 ## Notes
 
 - It is deliberately a single replica with `Recreate` updates: `dolqd` holds
   the IRC connections and a SQLite file, so two copies would conflict.
 - Back up the PVC to keep your history.
+- XDCC downloads are saved on the PVC under `/data/downloads`, whatever
+  download folder a client's Preferences name. To put them elsewhere (e.g. a
+  NAS share), mount that volume and set `DOLQ_DOWNLOAD_DIR` (or
+  `-download-dir`) to its path; it must be writable by uid 10001.
 - The pod runs as a non-root user with a read-only root filesystem and no
   extra capabilities.
