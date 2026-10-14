@@ -687,25 +687,28 @@ export default function App() {
     checkMention,
   ]);
 
-  async function fetchHistoryPage(serverId: string, channelId: string, page: HistoryPage): Promise<Message[]> {
-    const backendChannel = backendChannelFor(serverId, channelId);
-    const forLog = backendChannel === '__log__';
-    const selfNick = nickMap[serverId] ?? '';
-    let collected: Message[] = [];
-    for (let i = 0; i < (forLog ? LOG_MAX_PAGES : 1); i++) {
-      const entries = await window.irc.getHistory(
-        serverId,
-        backendChannel,
-        page.oldestId ?? undefined,
-        HISTORY_PAGE_SIZE,
-      );
-      page.exhausted = entries.length < HISTORY_PAGE_SIZE;
-      if (entries[0]) page.oldestId = entries[0].id;
-      collected = [...toMessages(entries, forLog, selfNick), ...collected];
-      if (page.exhausted || collected.length >= LOG_MIN_MESSAGES) break;
-    }
-    return collected;
-  }
+  const fetchHistoryPage = useCallback(
+    async (serverId: string, channelId: string, page: HistoryPage): Promise<Message[]> => {
+      const backendChannel = backendChannelFor(serverId, channelId);
+      const forLog = backendChannel === '__log__';
+      const selfNick = nickMap[serverId] ?? '';
+      let collected: Message[] = [];
+      for (let i = 0; i < (forLog ? LOG_MAX_PAGES : 1); i++) {
+        const entries = await window.irc.getHistory(
+          serverId,
+          backendChannel,
+          page.oldestId ?? undefined,
+          HISTORY_PAGE_SIZE,
+        );
+        page.exhausted = entries.length < HISTORY_PAGE_SIZE;
+        if (entries[0]) page.oldestId = entries[0].id;
+        collected = [...toMessages(entries, forLog, selfNick), ...collected];
+        if (page.exhausted || collected.length >= LOG_MIN_MESSAGES) break;
+      }
+      return collected;
+    },
+    [backendChannelFor, nickMap],
+  );
 
   useEffect(() => {
     if (!selectedServerId) return;
@@ -720,7 +723,7 @@ export default function App() {
         if (messages.length > 0) setHistory(key, messages);
       })
       .catch(() => historyPages.current.delete(key));
-  }, [selectedServerId, selectedChannelId, setHistory, backendChannelFor, fetchHistoryPage]);
+  }, [selectedServerId, selectedChannelId, setHistory, fetchHistoryPage]);
 
   const loadOlderHistory = useCallback(() => {
     const key = scopeKey(selectedServerId, selectedChannelId);
