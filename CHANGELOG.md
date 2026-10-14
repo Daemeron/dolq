@@ -1,5 +1,40 @@
 # Changelog
 
+## [0.2.0](https://github.com/Daemeron/dolq/compare/dolq-v0.1.4...dolq-v0.2.0) (2026-10-14)
+
+
+### Features
+
+* add Kubernetes manifests for running dolqd on a NAS ([9ec858c](https://github.com/Daemeron/dolq/commit/9ec858c0f03fc5afb5e29d734fe4e056fc417226))
+* authenticate and encrypt the backend socket ([d8f1b7a](https://github.com/Daemeron/dolq/commit/d8f1b7a91da279cfbcb6c3076c55397ee2a6edeb))
+* keep plain clients working alongside TLS ([27ac558](https://github.com/Daemeron/dolq/commit/27ac55876eb1258e9c7c7764cc45a73e7d1dcc1c))
+* let users run the backend unprotected on purpose ([5ad393d](https://github.com/Daemeron/dolq/commit/5ad393da3a61cd04f981e05304832b5f899de444))
+* make TLS and the access token independent switches ([f1df1d7](https://github.com/Daemeron/dolq/commit/f1df1d76cc3f009883054115c9d37fbee5336a1e))
+* remember server and SASL passwords in the OS keychain ([e549698](https://github.com/Daemeron/dolq/commit/e54969853ca6d91a507d744297c83148f0dee196))
+
+
+### Bug Fixes
+
+* **dcc:** never drop an OnClose callback registered during close ([c5c33e6](https://github.com/Daemeron/dolq/commit/c5c33e6a04cb4f5895a3f367dcce331079aa1e17))
+* **dolqd:** keep remote clients from choosing where downloads are written ([84d0ebd](https://github.com/Daemeron/dolq/commit/84d0ebd1e2bd138581f023386dbcbf6a41178f8a))
+* **dolqd:** log the pairing link only when the token is new or asked for ([1d22040](https://github.com/Daemeron/dolq/commit/1d2204098429dc660def7ff929d0b85e2a7ea36e))
+* **dolqd:** make the config dir and history database owner-only ([9b9f5f6](https://github.com/Daemeron/dolq/commit/9b9f5f6182bc0f7759b5b2725ea9e45c18cf0132))
+* **dolqd:** use the ACME domain as the pairing link host ([4083f22](https://github.com/Daemeron/dolq/commit/4083f2296c4fa6c6aa46128171879caee2442686))
+* forget the saved backend token when the remote address changes ([a5a5d75](https://github.com/Daemeron/dolq/commit/a5a5d754b6aa9251197687bfc453e38b9a320569))
+* hold CA-valid certificates to an existing pin ([619e486](https://github.com/Daemeron/dolq/commit/619e486f00e6280dbf25e92c45a64dd42309d001))
+* **ipcproto:** bound the TLS handshake with the sniff timeout ([5761fdc](https://github.com/Daemeron/dolq/commit/5761fdca07b0d49c337e9dd5dc341ec0ad6fd677))
+* **ipcproto:** only replace a socket at -socket and bind it owner-only ([6255636](https://github.com/Daemeron/dolq/commit/6255636eb6f71d9ec2c107af5c640f6a651d40f4))
+* keep remote backends saved before TLS existed talking plain ([56f0bfe](https://github.com/Daemeron/dolq/commit/56f0bfe130852408af864d22ca2e071d6ca676cc))
+* keep the main window on the app's own page ([cfe80e1](https://github.com/Daemeron/dolq/commit/cfe80e1a5ea999e0e73c7910e3a36712dc9ba066))
+* memoise fetchHistoryPage so the history effects stop re-running ([4ac4324](https://github.com/Daemeron/dolq/commit/4ac432495fd124f57cedda5722906d167d480288))
+* move @playwright/test to devDependencies ([1b6cb8c](https://github.com/Daemeron/dolq/commit/1b6cb8c98d03c7f6d85910f4f29885e58e971808))
+* reject pairing links with a malformed fingerprint ([74315fd](https://github.com/Daemeron/dolq/commit/74315fd577dd753be43c0384fdc8c90bf1ad5ca3))
+* resolve biome a11y and hook-dependency lint warnings ([224f925](https://github.com/Daemeron/dolq/commit/224f925131b31633c63ab0da4c436773f4817763))
+* restrict secrets.json even when an old temp file exists ([591b40e](https://github.com/Daemeron/dolq/commit/591b40e1ffcc02d4091027e1bf9d0a6ebb0ae28f))
+* send the server password and scope per-nick updates to one server ([584aa6c](https://github.com/Daemeron/dolq/commit/584aa6cf853b4bf6629c166eabb8d6a3ddcd9ff3))
+* show channel events in their channels and hide them from the Log ([a7d2cd0](https://github.com/Daemeron/dolq/commit/a7d2cd0206cc35502249a3d9e866a3ca8279c422))
+* start a new remote backend setup with TLS ticked ([2e9abf8](https://github.com/Daemeron/dolq/commit/2e9abf86a0414ae1bb227744ca6b9d920f4dfd27))
+
 ## [0.1.4](https://github.com/Daemeron/dolq/compare/dolq-v0.1.3...dolq-v0.1.4) (2026-10-13)
 
 
