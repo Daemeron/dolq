@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { IRC_PORT, IRC_TLS_PORT } from '../../../shared/ipc';
 import type { ServerPreset } from '../data/servers';
+import { RememberCredentials } from './RememberCredentials';
 import { ViewPanel } from './ViewPanel';
 
 type ConnectForm = {
@@ -9,6 +10,7 @@ type ConnectForm = {
   port: string;
   nick: string;
   password: string;
+  remember: boolean;
   secure: boolean;
   saslUser: string;
   saslPass: string;
@@ -39,6 +41,7 @@ const DEFAULTS: ConnectForm = {
   port: String(IRC_TLS_PORT),
   nick: 'dolq_user',
   password: '',
+  remember: false,
   secure: true,
   saslUser: '',
   saslPass: '',
@@ -245,6 +248,11 @@ export function ConnectModal({ presets, nickMap, onConnect, onCancel, initial }:
               />
             </div>
           </div>
+
+          <RememberCredentials
+            checked={form.remember}
+            onChange={(remember) => setForm((prev) => ({ ...prev, remember }))}
+          />
 
           <div className="flex gap-3 justify-end mt-2">
             <button

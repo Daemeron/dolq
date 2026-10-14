@@ -717,6 +717,11 @@ export default function App() {
     const altNicks = parseList(form.altNicks);
     const autojoinChannels = parseList(form.autojoinChannels);
     const name = form.name.trim() || host;
+    const remembered =
+      form.remember &&
+      (await window.irc
+        .rememberSecrets(id, { password: form.password, saslUser: form.saslUser, saslPass: form.saslPass })
+        .catch(() => false));
     addServer(
       {
         id,
@@ -729,6 +734,7 @@ export default function App() {
         username: form.username || undefined,
         realname: form.realname || undefined,
         autojoinChannels,
+        rememberCredentials: remembered || undefined,
       },
       { id: `${id}:__log__`, name: 'Log', isLog: true },
     );
@@ -755,13 +761,22 @@ export default function App() {
     setConnectPrefill(null);
   }
 
-  function handleEditServer(id: string, form: EditServerForm) {
+  async function handleEditServer(id: string, form: EditServerForm) {
     const host = normalizeHost(form.host);
     const port = Number(form.port);
     const altNicks = parseList(form.altNicks);
     const autojoinChannels = parseList(form.autojoinChannels);
     const name = form.name.trim() || host;
+    let remembered = false;
+    if (form.remember) {
+      remembered = await window.irc
+        .rememberSecrets(id, { saslUser: form.saslUser, saslPass: form.saslPass })
+        .catch(() => false);
+    } else {
+      await window.irc.forgetSecrets(id).catch(() => undefined);
+    }
     updateServer(id, {
+      rememberCredentials: remembered || undefined,
       name,
       initial: name[0]?.toUpperCase() ?? '?',
       host,
@@ -792,6 +807,7 @@ export default function App() {
     const server = servers.find((s) => s.id === id);
     if (!confirm(`Remove ${server?.name ?? id}? This clears its local history.`)) return;
     await window.irc.disconnect(id);
+    await window.irc.forgetSecrets(id).catch(() => undefined);
     removeServer(id);
   }
 
