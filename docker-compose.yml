@@ -9,6 +9,10 @@
 #
 # On a NAS/cluster running Kubernetes see deploy/kubernetes/.
 #
+# Running unprotected is possible but opt-in: add `-insecure` to the entrypoint
+# for no TLS and no token (the old behaviour, only for a network you fully
+# trust), or `-no-tls` to keep the token but drop TLS (behind a proxy or tunnel).
+#
 # For a truly remote box with a domain name, add to the entrypoint
 # `-acme-domain your.domain` (and publish host port 443 to 6789) to get a
 # Let's Encrypt certificate automatically.

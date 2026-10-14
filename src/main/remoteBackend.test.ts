@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { decideTrust, isLoopbackHost, resolveRemoteBackend } from './remoteBackend';
+import { decideTrust, insecureReasons, isLoopbackHost, resolveRemoteBackend } from './remoteBackend';
 
 describe('resolveRemoteBackend', () => {
   it('parses a host:port URL when remote mode is on, with TLS on by default', () => {
@@ -60,6 +60,19 @@ describe('decideTrust', () => {
 
   it('refuses a self-signed certificate that differs from the pin', () => {
     expect(decideTrust({ authorized: false, pinned: 'AA', fingerprint: 'BB' })).toBe('mismatch');
+  });
+});
+
+describe('insecureReasons', () => {
+  it('has nothing to say about a fully secured backend or a local one', () => {
+    expect(insecureReasons({ host: 'nas.local', tls: true, token: 't' })).toEqual([]);
+    expect(insecureReasons({ host: '127.0.0.1', tls: false, token: undefined })).toEqual([]);
+  });
+
+  it('names each missing protection on a non-local host', () => {
+    expect(insecureReasons({ host: 'nas.local', tls: false, token: 't' })).toHaveLength(1);
+    expect(insecureReasons({ host: 'nas.local', tls: true, token: undefined })).toHaveLength(1);
+    expect(insecureReasons({ host: '10.0.0.2', tls: false, token: undefined })).toHaveLength(2);
   });
 });
 

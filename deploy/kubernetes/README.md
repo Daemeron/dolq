@@ -66,6 +66,12 @@ token.
   pod, e.g. `nodePort`/load balancer on 443). Pair with a link that has no
   fingerprint, since a CA-issued certificate needs none. Try `-acme-staging`
   first.
+- **Run without encryption or a token** (a network you fully trust, or an
+  existing setup you have not re-paired yet): add `-insecure` to the container
+  `args`. `-no-tls` drops only the encryption and keeps the token, for use
+  behind a TLS-terminating proxy or tunnel. In Dolq, untick **Encrypt the
+  connection** and/or leave the token empty; it asks you to confirm each time
+  it connects.
 - **Rotate the token or certificate:** delete `token` / `tls-cert.pem` /
   `tls-key.pem` from the PVC (or change the secret) and restart; paste the new
   pairing link into each client.
