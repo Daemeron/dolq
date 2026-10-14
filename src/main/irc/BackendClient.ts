@@ -94,8 +94,8 @@ export class BackendClient extends EventEmitter {
   }
 
   // Connects without letting Node reject self-signed certificates, then
-  // decides trust itself: a CA-valid certificate passes, anything else must
-  // match the fingerprint the user accepted before (or be accepted now).
+  // decides trust itself (see decideTrust): a pinned fingerprint must match,
+  // otherwise a CA-valid certificate passes and a self-signed one is asked about.
   private dialTls(remote: RemoteTarget): Promise<net.Socket> {
     return new Promise((resolve, reject) => {
       const s = tls.connect({
