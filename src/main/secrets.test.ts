@@ -65,6 +65,13 @@ describe('SecretsStore', () => {
     new SecretsStore(file, fakeCipher()).remember('s1', { password: 'a' });
     if (process.platform !== 'win32') expect(fs.statSync(file).mode & 0o077).toBe(0);
   });
+
+  it.skipIf(process.platform === 'win32')('restricts the file even when a leftover temp file was readable', () => {
+    fs.writeFileSync(`${file}.tmp`, '{}', { mode: 0o644 });
+    fs.chmodSync(`${file}.tmp`, 0o644);
+    new SecretsStore(file, fakeCipher()).remember('s1', { password: 'a' });
+    expect(fs.statSync(file).mode & 0o077).toBe(0);
+  });
 });
 
 describe('withSavedSecrets', () => {

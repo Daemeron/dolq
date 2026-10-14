@@ -76,6 +76,12 @@ export class SecretsStore {
     fs.mkdirSync(path.dirname(this.file), { recursive: true });
     const tmp = `${this.file}.tmp`;
     fs.writeFileSync(tmp, JSON.stringify(data), { mode: 0o600 });
+    // mode only applies when the file is created; a .tmp left behind by a crash keeps its own
+    try {
+      fs.chmodSync(tmp, 0o600);
+    } catch {
+      // best effort (e.g. Windows)
+    }
     fs.renameSync(tmp, this.file);
   }
 }
