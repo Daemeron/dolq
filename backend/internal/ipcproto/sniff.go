@@ -2,6 +2,7 @@ package ipcproto
 
 import (
 	"bufio"
+	"context"
 	"crypto/tls"
 	"net"
 	"sync"
@@ -85,7 +86,18 @@ func (s *sniffListener) acceptLoop(cfg *tls.Config, allowPlain bool) {
 			var conn net.Conn
 			switch {
 			case first[0] == tlsHandshakeByte:
-				conn = tls.Server(&peekedConn{Conn: raw, r: br}, cfg)
+				// Handshake here, under the same deadline: left to the first
+				// read it would have none when no token is required (only
+				// authentication sets one), so a stalled client was held forever.
+				tc := tls.Server(&peekedConn{Conn: raw, r: br}, cfg)
+				raw.SetDeadline(time.Now().Add(s.timeout))
+				err := tc.HandshakeContext(context.Background())
+				raw.SetDeadline(time.Time{})
+				if err != nil {
+					raw.Close()
+					return
+				}
+				conn = tc
 			case allowPlain:
 				conn = &legacyPlainConn{Conn: raw, r: br}
 			default:
