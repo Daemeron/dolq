@@ -20,19 +20,21 @@ export type IrcEvent =
   | { type: 'JOIN'; nick: string; channel: string }
   | { type: 'PART'; nick: string; channel: string; reason?: string }
   | { type: 'KICK'; by: string; channel: string; nick: string; reason?: string }
-  | { type: 'QUIT'; nick: string; reason?: string }
-  | { type: 'NICK'; oldNick: string; newNick: string }
+  | { type: 'QUIT'; nick: string; reason?: string; channels?: string[] }
+  | { type: 'NICK'; oldNick: string; newNick: string; channels?: string[] }
   | { type: 'WELCOME'; nick: string }
   | { type: 'NICKINUSE'; nick: string; retrying?: string }
   | { type: 'AWAY'; nick: string; away: boolean; message?: string }
   | { type: 'SELFAWAY'; away: boolean }
   | {
       type: 'MODE';
+      by?: string;
       channel: string;
       changes: { nick: string; privilege: Exclude<PrivilegeLevel, 'none'>; granted: boolean }[];
     }
   | { type: 'names'; channel: string; users: { nick: string; privileges: PrivilegeLevel[] }[] }
   | { type: 'TOPIC'; channel: string; topic: string; nick?: string }
+  | { type: 'SYSTEM'; channel: string; text: string }
   | { type: 'TOPICWHOTIME'; channel: string; nick: string; setAt: number }
   | {
       type: 'whois';

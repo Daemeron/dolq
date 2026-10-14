@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"net"
 	"reflect"
+	"slices"
 	"testing"
 	"time"
 
@@ -1176,4 +1177,51 @@ func TestDisconnect(t *testing.T) {
 			t.Fatal("Disconnect did not return")
 		}
 	})
+}
+
+func TestQuitAndNickReportSharedChannels(t *testing.T) {
+	server, client := net.Pipe()
+	defer server.Close()
+	c := New(client, "me")
+	defer client.Close()
+
+	var events []any
+	c.AddEventListener(func(e any) { events = append(events, e) })
+
+	for _, line := range []string{
+		":me!u@h JOIN #a",
+		":srv 353 me = #a :me alice bob",
+		":srv 366 me #a :End of /NAMES list.",
+		":me!u@h JOIN #b",
+		":alice!u@h JOIN #b",
+		":bob!u@h PART #a :bye",
+		":alice!u@h NICK :alicia",
+		":alicia!u@h QUIT :Ping timeout",
+		":bob!u@h QUIT :nope",
+	} {
+		c.handleLine(line)
+	}
+
+	var nick ircparse.NickEvent
+	var quits []ircparse.QuitEvent
+	for _, e := range events {
+		switch ev := e.(type) {
+		case ircparse.NickEvent:
+			nick = ev
+		case ircparse.QuitEvent:
+			quits = append(quits, ev)
+		}
+	}
+	if want := []string{"#a", "#b"}; !slices.Equal(nick.Channels, want) {
+		t.Errorf("NICK channels = %v, want %v", nick.Channels, want)
+	}
+	if len(quits) != 2 {
+		t.Fatalf("got %d quits, want 2", len(quits))
+	}
+	if want := []string{"#a", "#b"}; !slices.Equal(quits[0].Channels, want) {
+		t.Errorf("quit of renamed nick channels = %v, want %v", quits[0].Channels, want)
+	}
+	if len(quits[1].Channels) != 0 {
+		t.Errorf("quit of nick that left #a channels = %v, want none", quits[1].Channels)
+	}
 }

@@ -19,6 +19,7 @@ type State = {
   mentionedChannels: Record<string, boolean>;
   notificationsEnabled: boolean;
   soundAlertsEnabled: boolean;
+  showMembershipEvents: boolean;
   mutedChannels: Record<string, boolean>;
   lastReadMap: Record<string, number>;
   timestampFormat: '12h' | '24h';
@@ -75,6 +76,7 @@ type Actions = {
   toggleMuteChannel: (channelId: string) => void;
   setNotificationsEnabled: (enabled: boolean) => void;
   setSoundAlertsEnabled: (enabled: boolean) => void;
+  setShowMembershipEvents: (show: boolean) => void;
   setTimestampFormat: (format: '12h' | '24h') => void;
   setMessageDensity: (density: 'cozy' | 'compact') => void;
   setFontSize: (size: 'small' | 'medium' | 'large') => void;
@@ -109,6 +111,7 @@ export const useStore = create<State & Actions>()(
       lastReadMap: {},
       notificationsEnabled: true,
       soundAlertsEnabled: true,
+      showMembershipEvents: true,
       mutedChannels: {},
       timestampFormat: '12h',
       messageDensity: 'cozy',
@@ -364,6 +367,7 @@ export const useStore = create<State & Actions>()(
       setNotificationsEnabled: (enabled) => set({ notificationsEnabled: enabled }),
 
       setSoundAlertsEnabled: (enabled) => set({ soundAlertsEnabled: enabled }),
+      setShowMembershipEvents: (show) => set({ showMembershipEvents: show }),
 
       setTimestampFormat: (format) => set({ timestampFormat: format }),
 
@@ -417,6 +421,7 @@ export const useStore = create<State & Actions>()(
         lastChannelMap: s.lastChannelMap,
         notificationsEnabled: s.notificationsEnabled,
         soundAlertsEnabled: s.soundAlertsEnabled,
+        showMembershipEvents: s.showMembershipEvents,
         mutedChannels: s.mutedChannels,
         lastReadMap: s.lastReadMap,
         timestampFormat: s.timestampFormat,
