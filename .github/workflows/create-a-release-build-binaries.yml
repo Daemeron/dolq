@@ -3,7 +3,15 @@ name: Create a Release - Build Binaries
 on:
   release:
     types: [created]
+  # A manual run builds the ref it is started from; give it the tag of an
+  # existing release to build that tag and attach the binaries to it.
+  # Without one it only builds (a dry run) and skips the upload.
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to build and upload to (e.g. dolq-v0.1.4); leave empty to only build'
+        required: false
+        default: ''
 
 permissions:
   contents: write
@@ -14,8 +22,12 @@ jobs:
       matrix:
         os: [macos-latest, ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
+    env:
+      TAG: ${{ github.event.release.tag_name || inputs.tag }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
 
       - uses: actions/setup-go@v5
         with:
@@ -44,17 +56,17 @@ jobs:
       - run: npx electron-builder
         if: runner.os != 'Windows'
       - name: Upload macOS assets
-        if: runner.os == 'macOS'
-        run: gh release upload ${{ github.event.release.tag_name }} dist/*.dmg dist/*.zip --clobber
+        if: runner.os == 'macOS' && env.TAG != ''
+        run: gh release upload "$TAG" dist/*.dmg dist/*.zip --clobber
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Upload Linux assets
-        if: runner.os == 'Linux'
-        run: gh release upload ${{ github.event.release.tag_name }} dist/*.AppImage dist/*.deb --clobber
+        if: runner.os == 'Linux' && env.TAG != ''
+        run: gh release upload "$TAG" dist/*.AppImage dist/*.deb --clobber
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Upload Windows assets
-        if: runner.os == 'Windows'
-        run: gh release upload ${{ github.event.release.tag_name }} (Get-Item dist/*.exe) --clobber
+        if: runner.os == 'Windows' && env.TAG != ''
+        run: gh release upload $env:TAG (Get-Item dist/*.exe) --clobber
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
