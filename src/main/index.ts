@@ -529,8 +529,12 @@ function registerSettingsHandlers(settingsBox: { current: Settings }, secrets: S
     if (next.remoteUrl !== prev.remoteUrl && next.remoteFingerprint === prev.remoteFingerprint) {
       next.remoteFingerprint = undefined;
     }
+    // Likewise a token belongs to one address: it must not follow a changed URL to a new host.
+    const movedAddress = next.remoteUrl !== prev.remoteUrl;
     if (remoteToken) {
       if (!secrets.remember(BACKEND_SECRET_ID, { remoteToken })) next.remoteToken = remoteToken;
+    } else if (movedAddress) {
+      secrets.forget(BACKEND_SECRET_ID);
     } else if (prev.remoteToken) {
       next.remoteToken = prev.remoteToken;
     }
