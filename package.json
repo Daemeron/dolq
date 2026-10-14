@@ -18,9 +18,9 @@
     "frontend:lint": "biome check .",
     "frontend:lint:fix": "biome check --write .",
     "backend:build": "go build -C backend -o bin/ ./cmd/dolqd",
-    "backend:dev": "go -C backend tool air",
+    "backend:dev": "go -C backend run github.com/air-verse/air@v1.67.4",
     "backend:test": "go -C backend test ./...",
-    "backend:test:dev": "go -C backend tool air -c .air.test.toml",
+    "backend:test:dev": "go -C backend run github.com/air-verse/air@v1.67.4 -c .air.test.toml",
     "run": "electron-vite preview",
     "package": "npm run backend:build && npm run frontend:build && electron-builder"
   },
