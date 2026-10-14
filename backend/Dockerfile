@@ -19,7 +19,7 @@ RUN go mod download
 COPY . .
 RUN CGO_ENABLED=0 go build -o /dolqd ./cmd/dolqd
 
-FROM alpine:3.20
+FROM alpine:3.24
 # a fixed uid so volumes and Kubernetes securityContext can refer to it
 RUN adduser -D -u 10001 -h /data dolq
 COPY --from=build /dolqd /usr/local/bin/dolqd
