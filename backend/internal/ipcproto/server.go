@@ -41,13 +41,14 @@ func Listen(network, address string) (net.Listener, error) {
 type Server struct {
 	b     *bouncer.Bouncer
 	token string
+	// authTimeout bounds how long a fresh connection may take to present its token.
+	authTimeout time.Duration
 }
 
-// authTimeout (a var so tests can shorten it) bounds how long a fresh connection may take to present its token.
-var authTimeout = 10 * time.Second
+const defaultAuthTimeout = 10 * time.Second
 
 func NewServer(b *bouncer.Bouncer) *Server {
-	return &Server{b: b}
+	return &Server{b: b, authTimeout: defaultAuthTimeout}
 }
 
 // RequireToken makes every connection open with an auth frame carrying token
@@ -61,7 +62,7 @@ func (s *Server) RequireToken(token string) *Server {
 // valid auth frame. The reply is written either way; the caller closes the
 // connection when it returns false.
 func (s *Server) authenticate(c *conn, scanner *bufio.Scanner) bool {
-	c.netConn.SetReadDeadline(time.Now().Add(authTimeout))
+	c.netConn.SetReadDeadline(time.Now().Add(s.authTimeout))
 	defer c.netConn.SetReadDeadline(time.Time{})
 
 	// Nothing arrived (a health probe, a port scan, a stalled client): just hang up.
