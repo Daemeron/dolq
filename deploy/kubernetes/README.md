@@ -1,0 +1,78 @@
+# Running dolqd on Kubernetes (e.g. a NAS)
+
+Runs the Dolq backend (`dolqd`) as a single always-on pod, so IRC sessions and
+history live on your NAS and any Dolq client on your network attaches to them.
+Works on k3s, TrueNAS SCALE, Synology/QNAP container platforms, or any cluster.
+
+Connections are encrypted (TLS) and need an access token. Both are created for
+you on first start; you pair a client by pasting one link.
+
+## 1. Build and publish the image
+
+There is no public image yet, so build it and put it somewhere your cluster can
+pull from (a registry on the NAS works fine). Match your NAS's CPU:
+
+```sh
+# amd64 only
+docker build -t registry.nas.local:5000/dolqd:latest backend
+docker push registry.nas.local:5000/dolqd:latest
+
+# or both amd64 and arm64
+docker buildx build --platform linux/amd64,linux/arm64 \
+  -t registry.nas.local:5000/dolqd:latest --push backend
+```
+
+On a single-node k3s you can skip the registry:
+`docker save dolqd:latest | sudo k3s ctr images import -`.
+
+## 2. Configure
+
+1. `configmap.yaml`: set `DOLQ_PUBLIC_HOST` to your NAS's name or LAN IP. It is
+   only used to build the pairing link.
+2. `kustomization.yaml`: uncomment `images:` and point it at your image.
+3. `pvc.yaml`: optionally set `storageClassName` and the size. It holds the
+   history database, the access token and the TLS certificate.
+
+## 3. Deploy
+
+```sh
+kubectl apply -k deploy/kubernetes
+kubectl -n dolq rollout status deploy/dolqd
+```
+
+## 4. Pair a client
+
+```sh
+kubectl -n dolq logs deploy/dolqd | grep dolq://
+```
+
+Copy the `dolq://…` link, then in Dolq open **Preferences → Connect to a remote
+backend** and paste it into **Pairing Link**. The link carries the address, the
+access token and the certificate's fingerprint, so there is nothing else to
+type or confirm. Save and restart Dolq. Keep the link private: it contains the
+token.
+
+## Options
+
+- **Choose the token yourself** instead of a generated one:
+  `kubectl -n dolq create secret generic dolqd-token --from-literal=token="$(openssl rand -hex 32)"`
+  then `kubectl -n dolq rollout restart deploy/dolqd`.
+- **LoadBalancer instead of NodePort** (MetalLB, k3s servicelb): edit
+  `service.yaml` as its comment says and set `DOLQ_PUBLIC_PORT` to `6789`.
+- **Reachable from the internet with a domain name:** add
+  `-acme-domain your.domain` to the container `args` for an automatic Let's
+  Encrypt certificate (the name must point at you and port 443 must reach the
+  pod, e.g. `nodePort`/load balancer on 443). Pair with a link that has no
+  fingerprint, since a CA-issued certificate needs none. Try `-acme-staging`
+  first.
+- **Rotate the token or certificate:** delete `token` / `tls-cert.pem` /
+  `tls-key.pem` from the PVC (or change the secret) and restart; paste the new
+  pairing link into each client.
+
+## Notes
+
+- It is deliberately a single replica with `Recreate` updates: `dolqd` holds
+  the IRC connections and a SQLite file, so two copies would conflict.
+- Back up the PVC to keep your history.
+- The pod runs as a non-root user with a read-only root filesystem and no
+  extra capabilities.

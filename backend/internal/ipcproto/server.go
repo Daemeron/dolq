@@ -64,8 +64,12 @@ func (s *Server) authenticate(c *conn, scanner *bufio.Scanner) bool {
 	c.netConn.SetReadDeadline(time.Now().Add(authTimeout))
 	defer c.netConn.SetReadDeadline(time.Time{})
 
+	// Nothing arrived (a health probe, a port scan, a stalled client): just hang up.
+	if !scanner.Scan() {
+		return false
+	}
 	var f ClientFrame
-	if !scanner.Scan() || json.Unmarshal(scanner.Bytes(), &f) != nil || f.Action != ActionAuth ||
+	if json.Unmarshal(scanner.Bytes(), &f) != nil || f.Action != ActionAuth ||
 		subtle.ConstantTimeCompare([]byte(f.AuthToken), []byte(s.token)) != 1 {
 		time.Sleep(300 * time.Millisecond) // slow down guessing
 		c.writeFrame(ServerFrame{ID: f.ID, Type: FrameResult, OK: false, Error: "unauthorized"})

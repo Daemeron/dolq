@@ -1,0 +1,85 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dolqd
+  namespace: dolq
+  labels:
+    app.kubernetes.io/name: dolqd
+spec:
+  # Exactly one: dolqd owns the IRC connections and a SQLite file, so a second
+  # copy would double-connect and fight over the database. Recreate (not
+  # RollingUpdate) so the old pod has released both before the new one starts.
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: dolqd
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: dolqd
+    spec:
+      # dolqd parts/quits its IRC sessions on SIGTERM and waits up to 10s.
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: dolqd
+          # Build and push it yourself (see README.md) and point this, or the
+          # `images:` entry in kustomization.yaml, at where you put it.
+          image: dolqd:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: dolqd
+              containerPort: 6789
+          envFrom:
+            - configMapRef:
+                name: dolqd-config
+          env:
+            # Optional: create the dolqd-token Secret (README.md) to choose
+            # the access token. Without it dolqd generates one into /data.
+            - name: DOLQ_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: dolqd-token
+                  key: token
+                  optional: true
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: tmp
+              mountPath: /tmp
+          # A bare TCP connect is enough, and dolqd just hangs up on it.
+          readinessProbe:
+            tcpSocket:
+              port: dolqd
+            periodSeconds: 30
+          livenessProbe:
+            tcpSocket:
+              port: dolqd
+            initialDelaySeconds: 15
+            periodSeconds: 60
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 20m
+              memory: 48Mi
+            limits:
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: dolqd-data
+        - name: tmp
+          emptyDir: {}

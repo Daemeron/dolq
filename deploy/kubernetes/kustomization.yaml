@@ -1,0 +1,14 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: dolq
+resources:
+  - namespace.yaml
+  - configmap.yaml
+  - pvc.yaml
+  - deployment.yaml
+  - service.yaml
+# Where your dolqd image lives, e.g. a registry on the NAS:
+# images:
+#   - name: dolqd
+#     newName: registry.nas.local:5000/dolqd
+#     newTag: '0.1.5'
