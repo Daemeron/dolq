@@ -88,6 +88,7 @@ export class BackendClient extends EventEmitter {
     username?: string,
     realname?: string,
     altNicks?: string[],
+    password?: string,
   ): Promise<void> {
     return this.call('connect', {
       serverId,
@@ -100,6 +101,7 @@ export class BackendClient extends EventEmitter {
       username,
       realname,
       altNicks,
+      password,
     });
   }
 

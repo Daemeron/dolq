@@ -161,7 +161,7 @@ func New(store *history.Store) *Bouncer {
 
 func (b *Bouncer) Connect(
 	serverID, host string, port int, nick string, secure bool,
-	saslUser, saslPass, username, realname string, altNicks []string,
+	saslUser, saslPass, username, realname string, altNicks []string, password string,
 	initial Subscriber,
 ) error {
 	if err := b.Disconnect(serverID); err != nil {
@@ -178,6 +178,7 @@ func (b *Bouncer) Connect(
 		client.Username = username
 		client.Realname = realname
 		client.AltNicks = altNicks
+		client.Password = password
 		return client, nil
 	}
 	client, err := dial()

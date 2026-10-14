@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld('irc', {
     username?: string,
     realname?: string,
     altNicks?: string[],
+    password?: string,
   ) =>
     ipcRenderer.invoke(
       IrcMessages.connect,
@@ -26,6 +27,7 @@ contextBridge.exposeInMainWorld('irc', {
       username,
       realname,
       altNicks,
+      password,
     ),
 
   // every caller is fire-and-forget; a failed send (backend down) has nowhere better to go than the log

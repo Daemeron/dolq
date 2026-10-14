@@ -343,7 +343,9 @@ function registerIrcHandlers(
       username?: string,
       realname?: string,
       altNicks?: string[],
-    ) => backend.connect(serverId, host, port, nick, secure, saslUser, saslPass, username, realname, altNicks),
+      password?: string,
+    ) =>
+      backend.connect(serverId, host, port, nick, secure, saslUser, saslPass, username, realname, altNicks, password),
   );
 
   ipcMain.handle(IrcMessages.send, (_event, serverId: string, message: string) => backend.send(serverId, message));

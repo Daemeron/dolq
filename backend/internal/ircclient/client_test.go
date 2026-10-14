@@ -176,6 +176,17 @@ func TestHandshake(t *testing.T) {
 	}
 }
 
+func TestHandshakeSendsServerPassword(t *testing.T) {
+	c, _, r := pipeClient(t, "mynick")
+	c.Password = "hunter2"
+	c.Start()
+
+	expectLine(t, r)
+	if got, want := expectLine(t, r), "PASS hunter2\r\n"; got != want {
+		t.Errorf("got %q want %q", got, want)
+	}
+}
+
 func TestCapNegotiation(t *testing.T) {
 	t.Run("requests only the baseline caps the server actually advertised", func(t *testing.T) {
 		c, server, r := pipeClient(t, "mynick")
