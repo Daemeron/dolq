@@ -27,7 +27,7 @@ func TestLoadOrCreateTokenIsCreatedOnceAndKept(t *testing.T) {
 }
 
 func TestPairingLinkCarriesTokenAndFingerprint(t *testing.T) {
-	link := PairingLink("192.168.1.5", 6789, "tok", "AA:BB")
+	link := PairingLink("192.168.1.5", 6789, "tok", "AA:BB", true)
 	u, err := url.Parse(link)
 	if err != nil {
 		t.Fatal(err)
@@ -38,12 +38,23 @@ func TestPairingLinkCarriesTokenAndFingerprint(t *testing.T) {
 }
 
 func TestPairingLinkOmitsFingerprintForCASignedCerts(t *testing.T) {
-	u, _ := url.Parse(PairingLink("dolq.example.com", 443, "tok", ""))
+	u, _ := url.Parse(PairingLink("dolq.example.com", 443, "tok", "", true))
 	if u.Query().Has("fp") {
 		t.Error("a CA-issued certificate needs no pinned fingerprint")
 	}
-	v, _ := url.Parse(PairingLink("::1", 6789, "tok", ""))
+	v, _ := url.Parse(PairingLink("::1", 6789, "tok", "", true))
 	if v.Host != "[::1]:6789" {
 		t.Errorf("IPv6 host = %q, want bracketed", v.Host)
+	}
+}
+
+func TestPairingLinkMarksAPlainBackend(t *testing.T) {
+	u, _ := url.Parse(PairingLink("nas.local", 6789, "tok", "", false))
+	if u.Query().Get("tls") != "0" {
+		t.Errorf("a backend without TLS should say so, got %q", u)
+	}
+	v, _ := url.Parse(PairingLink("nas.local", 6789, "tok", "AA", true))
+	if v.Query().Has("tls") {
+		t.Error("a TLS backend needs no tls parameter")
 	}
 }

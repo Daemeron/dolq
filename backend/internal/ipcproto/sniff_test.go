@@ -110,3 +110,11 @@ func TestSilentConnectionIsDroppedAfterTheSniffTimeout(t *testing.T) {
 	tc := dialPlain(t, startSniffServer(t, false))
 	expectClosed(t, tc)
 }
+
+func TestPlainClientThatSendsATokenIsNotRefused(t *testing.T) {
+	tc := dialPlain(t, startSniffServer(t, false))
+	tc.send(t, ClientFrame{ID: "1", Action: ActionAuth, AuthToken: "tok"})
+	if f := tc.recv(t); !f.OK {
+		t.Fatalf("auth frame on a legacy connection got %+v, want ok", f)
+	}
+}

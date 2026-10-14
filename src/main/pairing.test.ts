@@ -8,6 +8,7 @@ describe('parsePairingLink', () => {
       port: 6789,
       token: 'abc123',
       fingerprint: 'AA:BB',
+      tls: true,
     });
   });
 
@@ -17,7 +18,12 @@ describe('parsePairingLink', () => {
       port: 443,
       token: 't',
       fingerprint: undefined,
+      tls: true,
     });
+  });
+
+  it('reads tls=0 as a backend served without TLS', () => {
+    expect(parsePairingLink('dolq://10.0.0.2:6789?token=t&tls=0')?.tls).toBe(false);
   });
 
   it('handles an IPv6 host', () => {

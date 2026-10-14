@@ -36,9 +36,13 @@ func LoadOrCreateToken(file string) (string, error) {
 // PairingLink is what a client pastes to connect: address, token and, for a
 // self-signed certificate, its fingerprint, so there is nothing to confirm.
 // Because the fingerprint travels with the token it is verified out of band.
-func PairingLink(host string, port int, token, fingerprint string) string {
+// tls=0 marks a backend served without TLS, so the client does not try it.
+func PairingLink(host string, port int, token, fingerprint string, tls bool) string {
 	q := url.Values{}
 	q.Set("token", token)
+	if !tls {
+		q.Set("tls", "0")
+	}
 	if fingerprint != "" {
 		q.Set("fp", fingerprint)
 	}
