@@ -98,7 +98,7 @@ export function PreferencesModal({
     setRemoteToken(p.token);
     // The fingerprint arrives with the token, so there is nothing to confirm on first connect.
     setRemoteFingerprint(p.fingerprint ?? '');
-    setRemoteTls(true);
+    setRemoteTls(p.tls);
   }
   const [retentionDays, setRetentionDays] = useState(String(settings.retentionDays));
   const [downloadDir, setDownloadDir] = useState(settings.downloadDir ?? '');
@@ -415,7 +415,9 @@ export function PreferencesModal({
                   value={remoteToken}
                   onChange={(e) => setRemoteToken(e.target.value)}
                   placeholder={
-                    settings.remoteTokenSet ? 'Saved - type to replace' : 'From the pairing link; empty for -insecure'
+                    settings.remoteTokenSet
+                      ? 'Saved - type to replace'
+                      : 'From the pairing link; empty if the backend runs with -token=false'
                   }
                   autoComplete="off"
                 />
@@ -434,7 +436,7 @@ export function PreferencesModal({
                   {!remoteTls && 'Without TLS, passwords and messages cross the network in the clear. '}
                   {noToken && 'Without a token, anyone who can reach the backend can use it. '}
                   Only run like this for a tunnel, a trusted proxy, or a network you fully trust (a backend started with
-                  -insecure). You will be asked to confirm each time Dolq connects.
+                  -tls=false and/or -token=false). You will be asked to confirm each time Dolq connects.
                 </p>
               )}
               {remoteTls && remoteFingerprint && (
