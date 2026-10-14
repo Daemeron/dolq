@@ -88,6 +88,7 @@ export type IrcApi = {
     username?: string,
     realname?: string,
     altNicks?: string[],
+    password?: string,
   ) => Promise<void>;
   disconnect: (serverId: string) => Promise<void>;
   sendLine: (serverId: string, line: string) => Promise<void>;

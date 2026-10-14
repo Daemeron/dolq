@@ -143,6 +143,7 @@ export default function App() {
     setHistory,
     setNick,
     setSaslCreds,
+    setServerPassword,
     selectServer,
     selectChannel,
     setConnectionStatus,
@@ -316,7 +317,7 @@ export default function App() {
   const connectServer = useCallback(
     async (server: Server) => {
       const { host, port } = resolveHostPort(server);
-      const { nickMap, saslMap } = useStore.getState();
+      const { nickMap, saslMap, passwordMap } = useStore.getState();
       const nick = nickMap[server.id] ?? 'dolq_user';
       const sasl = saslMap[server.id];
       setConnectionStatus(server.id, 'connecting');
@@ -331,6 +332,7 @@ export default function App() {
         server.username,
         server.realname,
         server.altNicks,
+        passwordMap[server.id] || undefined,
       );
       setConnectionStatus(server.id, 'connected');
     },
@@ -520,10 +522,10 @@ export default function App() {
           }
           break;
         case 'QUIT':
-          removeUserEverywhere(event.nick);
+          removeUserEverywhere(serverId, event.nick);
           break;
         case 'NICK':
-          renameUserEverywhere(event.oldNick, event.newNick);
+          renameUserEverywhere(serverId, event.oldNick, event.newNick);
           if (event.oldNick === nickMap[serverId]) setNick(serverId, event.newNick);
           break;
         case 'WELCOME':
@@ -625,7 +627,7 @@ export default function App() {
           break;
         }
         case 'AWAY':
-          applyAwayEverywhere(event.nick, event.away);
+          applyAwayEverywhere(serverId, event.nick, event.away);
           break;
         case 'SELFAWAY':
           setSelfAway(serverId, event.away);
@@ -733,6 +735,7 @@ export default function App() {
     addPreset({ id: buildServerId(host, port), name, host, port, secure: form.secure });
     setNick(id, form.nick);
     setSaslCreds(id, form.saslUser, form.saslPass);
+    setServerPassword(id, form.password);
     setConnectionStatus(id, 'connecting');
     await window.irc.connect(
       id,
@@ -745,6 +748,7 @@ export default function App() {
       form.username,
       form.realname,
       altNicks,
+      form.password || undefined,
     );
     setConnectionStatus(id, 'connected');
     handleSelectServer(id);

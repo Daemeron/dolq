@@ -1149,6 +1149,20 @@ will hang the UI.
       guarding on top. Caught by writing the multi-client scenario as a test
       first and watching it hang waiting for a frame that never arrived
       before the fix - `TestGetStatusAttachesToAnExistingSession`
+- [x] The connect form's "Server Password" field did nothing - `PASS none` was
+      hardcoded in the handshake. The password now travels renderer -> main ->
+      `dolqd` (`ClientFrame.Password` -> `Bouncer.Connect` -> `Client.Password`)
+      and is sent as `PASS <password>`; empty still sends the `none`
+      placeholder. Like SASL credentials it is held in memory only
+      (`passwordMap`, not persisted), so a server that needs it must be
+      reconnected from the form after an app restart. The Edit Server form
+      still doesn't expose it. Covered by `TestHandshakeSendsServerPassword`
+- [x] A QUIT, NICK or AWAY on one network was applied to every server's user
+      lists - `removeUserEverywhere`/`renameUserEverywhere`/
+      `applyAwayEverywhere` walked all of `userMap`, so someone quitting
+      `#linux` on one network disappeared from `#linux` on another that
+      merely had a user of the same nick. They now take a `serverId` and only
+      touch that server's lists (`store.test.ts`)
 
 ---
 
