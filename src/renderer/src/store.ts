@@ -16,6 +16,7 @@ type State = {
   lastChannelMap: Record<string, string>;
   statusMap: Record<string, 'disconnected' | 'connecting' | 'connected'>;
   saslMap: Record<string, { user: string; pass: string }>;
+  passwordMap: Record<string, string>;
   mentionedChannels: Record<string, boolean>;
   notificationsEnabled: boolean;
   soundAlertsEnabled: boolean;
@@ -35,6 +36,19 @@ type State = {
 
 export function scopeKey(serverId: string, channelId: string): string {
   return channelId.includes(':') ? channelId : `${serverId}:${channelId}`;
+}
+
+// Applies fn to the user list of every channel on one server; other servers'
+// lists are left alone, since the same nick on another network is someone else.
+function mapServerUsers(
+  userMap: Record<string, User[]>,
+  serverId: string,
+  fn: (users: User[]) => User[],
+): Record<string, User[]> {
+  const prefix = `${serverId}:`;
+  return Object.fromEntries(
+    Object.entries(userMap).map(([key, users]) => [key, key.startsWith(prefix) ? fn(users) : users]),
+  );
 }
 
 export type KeybindAction = 'nextChannel' | 'prevChannel' | 'closeChannel' | 'toggleMute';
@@ -64,10 +78,11 @@ type Actions = {
     channelId: string,
     changes: { nick: string; privilege: Exclude<PrivilegeLevel, 'none'>; granted: boolean }[],
   ) => void;
-  removeUserEverywhere: (nick: string) => void;
-  renameUserEverywhere: (oldNick: string, newNick: string) => void;
+  removeUserEverywhere: (serverId: string, nick: string) => void;
+  renameUserEverywhere: (serverId: string, oldNick: string, newNick: string) => void;
   setNick: (serverId: string, nick: string) => void;
   setSaslCreds: (serverId: string, user: string, pass: string) => void;
+  setServerPassword: (serverId: string, password: string) => void;
   selectServer: (id: string) => void;
   selectChannel: (id: string) => void;
   setConnectionStatus: (serverId: string, status: 'disconnected' | 'connecting' | 'connected') => void;
@@ -84,7 +99,7 @@ type Actions = {
   setTheme: (theme: 'dark' | 'light') => void;
   addIgnore: (serverId: string, nick: string) => void;
   removeIgnore: (serverId: string, nick: string) => void;
-  applyAwayEverywhere: (nick: string, away: boolean) => void;
+  applyAwayEverywhere: (serverId: string, nick: string, away: boolean) => void;
   setSelfAway: (serverId: string, away: boolean) => void;
   setAlias: (name: string, template: string) => void;
   removeAlias: (name: string) => void;
@@ -107,6 +122,7 @@ export const useStore = create<State & Actions>()(
       lastChannelMap: {},
       statusMap: {},
       saslMap: {},
+      passwordMap: {},
       mentionedChannels: {},
       lastReadMap: {},
       notificationsEnabled: true,
@@ -149,6 +165,8 @@ export const useStore = create<State & Actions>()(
           delete statusMap[id];
           const saslMap = { ...s.saslMap };
           delete saslMap[id];
+          const passwordMap = { ...s.passwordMap };
+          delete passwordMap[id];
           const ignoredNicks = { ...s.ignoredNicks };
           delete ignoredNicks[id];
           const selfAwayMap = { ...s.selfAwayMap };
@@ -165,6 +183,7 @@ export const useStore = create<State & Actions>()(
               nickMap,
               statusMap,
               saslMap,
+              passwordMap,
               ignoredNicks,
               selfAwayMap,
               lastChannelMap,
@@ -183,6 +202,7 @@ export const useStore = create<State & Actions>()(
             nickMap,
             statusMap,
             saslMap,
+            passwordMap,
             ignoredNicks,
             selfAwayMap,
             lastChannelMap,
@@ -294,34 +314,29 @@ export const useStore = create<State & Actions>()(
           return { userMap: { ...s.userMap, [channelId]: updated } };
         }),
 
-      removeUserEverywhere: (nick) =>
+      removeUserEverywhere: (serverId, nick) =>
         set((s) => ({
-          userMap: Object.fromEntries(
-            Object.entries(s.userMap).map(([cid, users]) => [cid, users.filter((u) => u.nick !== nick)]),
+          userMap: mapServerUsers(s.userMap, serverId, (users) => users.filter((u) => u.nick !== nick)),
+        })),
+
+      renameUserEverywhere: (serverId, oldNick, newNick) =>
+        set((s) => ({
+          userMap: mapServerUsers(s.userMap, serverId, (users) =>
+            users.map((u) => (u.nick === oldNick ? { ...u, nick: newNick } : u)),
           ),
         })),
 
-      renameUserEverywhere: (oldNick, newNick) =>
+      applyAwayEverywhere: (serverId, nick, away) =>
         set((s) => ({
-          userMap: Object.fromEntries(
-            Object.entries(s.userMap).map(([cid, users]) => [
-              cid,
-              users.map((u) => (u.nick === oldNick ? { ...u, nick: newNick } : u)),
-            ]),
-          ),
-        })),
-
-      applyAwayEverywhere: (nick, away) =>
-        set((s) => ({
-          userMap: Object.fromEntries(
-            Object.entries(s.userMap).map(([cid, users]) => [
-              cid,
-              users.map((u) => (u.nick === nick ? { ...u, away } : u)),
-            ]),
+          userMap: mapServerUsers(s.userMap, serverId, (users) =>
+            users.map((u) => (u.nick === nick ? { ...u, away } : u)),
           ),
         })),
 
       setNick: (serverId, nick) => set((s) => ({ nickMap: { ...s.nickMap, [serverId]: nick } })),
+
+      setServerPassword: (serverId, password) =>
+        set((s) => ({ passwordMap: { ...s.passwordMap, [serverId]: password } })),
 
       setSaslCreds: (serverId, user, pass) => set((s) => ({ saslMap: { ...s.saslMap, [serverId]: { user, pass } } })),
 

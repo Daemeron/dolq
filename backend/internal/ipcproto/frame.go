@@ -40,6 +40,7 @@ type ClientFrame struct {
 	Username string   `json:"username,omitempty"`
 	Realname string   `json:"realname,omitempty"`
 	AltNicks []string `json:"altNicks,omitempty"`
+	Password string   `json:"password,omitempty"`
 	Line     string   `json:"line,omitempty"`
 	Channel  string   `json:"channel,omitempty"`
 	Before   int64    `json:"before,omitempty"`

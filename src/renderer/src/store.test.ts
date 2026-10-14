@@ -67,6 +67,26 @@ describe('store: same-named channels on different servers', () => {
   });
 });
 
+describe('store: per-nick updates are scoped to one server', () => {
+  it('quit, rename and away only touch the server they happened on', () => {
+    const { setUsers, removeUserEverywhere, renameUserEverywhere, applyAwayEverywhere } = useStore.getState();
+    const a = scopeKey('server-a', '#linux');
+    const b = scopeKey('server-b', '#linux');
+    const both = () => [{ nick: 'sam', privileges: [] }];
+
+    setUsers(a, both());
+    setUsers(b, both());
+    renameUserEverywhere('server-a', 'sam', 'samuel');
+    applyAwayEverywhere('server-a', 'samuel', true);
+    expect(useStore.getState().userMap[a]).toEqual([{ nick: 'samuel', privileges: [], away: true }]);
+    expect(useStore.getState().userMap[b]).toEqual(both());
+
+    removeUserEverywhere('server-b', 'sam');
+    expect(useStore.getState().userMap[a]).toHaveLength(1);
+    expect(useStore.getState().userMap[b]).toEqual([]);
+  });
+});
+
 describe('store: updateServer', () => {
   it('patches only the given fields, leaving the rest of the Server untouched', () => {
     const { addServer, updateServer } = useStore.getState();

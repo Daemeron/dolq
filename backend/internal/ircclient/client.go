@@ -76,6 +76,9 @@ type Client struct {
 
 	AltNicks []string
 
+	// Password is sent as the connection PASS; empty sends the placeholder "none".
+	Password string
+
 	flood floodLimiter
 }
 
@@ -134,7 +137,11 @@ func (c *Client) handshake() {
 		realname = "Dolq IRC Client"
 	}
 
-	lines := []string{"CAP LS 302", "PASS none", "NICK " + c.nick, "USER " + username + " 0 * :" + realname}
+	pass := c.Password
+	if pass == "" {
+		pass = "none"
+	}
+	lines := []string{"CAP LS 302", "PASS " + pass, "NICK " + c.nick, "USER " + username + " 0 * :" + realname}
 
 	for _, line := range lines {
 		if err := c.Send(line); err != nil {
