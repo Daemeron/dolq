@@ -20,7 +20,8 @@ COPY . .
 RUN CGO_ENABLED=0 go build -o /dolqd ./cmd/dolqd
 
 FROM alpine:3.20
-RUN adduser -D -h /data dolq
+# a fixed uid so volumes and Kubernetes securityContext can refer to it
+RUN adduser -D -u 10001 -h /data dolq
 COPY --from=build /dolqd /usr/local/bin/dolqd
 USER dolq
 VOLUME /data

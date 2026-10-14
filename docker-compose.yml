@@ -7,6 +7,8 @@
 # volume. Set DOLQ_PUBLIC_HOST to this machine's name/IP so the printed link
 # has an address clients can reach (inside the container it can't tell).
 #
+# On a NAS/cluster running Kubernetes see deploy/kubernetes/.
+#
 # For a truly remote box with a domain name, add to the entrypoint
 # `-acme-domain your.domain` (and publish host port 443 to 6789) to get a
 # Let's Encrypt certificate automatically.
