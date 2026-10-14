@@ -14,6 +14,7 @@
     "frontend:test": "vitest run",
     "frontend:test:dev": "vitest",
     "frontend:e2e": "electron-vite build && playwright test",
+    "frontend:typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
     "frontend:lint": "biome check .",
     "frontend:lint:fix": "biome check --write .",
     "backend:build": "go build -C backend -o bin/ ./cmd/dolqd",
