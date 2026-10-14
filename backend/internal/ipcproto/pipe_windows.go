@@ -19,3 +19,7 @@ func listenPipe(path string) (net.Listener, error) {
 	sddl := fmt.Sprintf("D:P(A;;GA;;;%s)", user.User.Sid.String())
 	return winio.ListenPipe(path, &winio.PipeConfig{SecurityDescriptor: sddl})
 }
+
+// withPrivateUmask just runs f: Windows has no umask, and Listen chmods the
+// socket afterwards.
+func withPrivateUmask(f func() error) error { return f() }
