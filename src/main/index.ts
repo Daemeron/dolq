@@ -5,7 +5,7 @@ import { installExtension, REACT_DEVELOPER_TOOLS } from 'electron-devtools-insta
 import { type ConnectionStatus, IrcMessages, type Settings } from '../shared/ipc';
 import { BackendClient } from './irc/BackendClient';
 import { parseIrcUrl } from './ircUrl';
-import { resolveRemoteBackend } from './remoteBackend';
+import { type RemoteHooks, resolveRemoteBackend } from './remoteBackend';
 import { type SecretCipher, SecretsStore, type ServerSecrets, withSavedSecrets } from './secrets';
 import { loadSettings, saveSettings } from './settings';
 
@@ -274,16 +274,18 @@ if (!app.requestSingleInstanceLock()) {
     const coldStartUrl = findIrcUrl(process.argv);
     if (coldStartUrl) handleIrcUrl(coldStartUrl);
 
-    const backend = new BackendClient(settings.retentionDays, resolveRemoteBackend(settings));
+    const secrets = new SecretsStore(join(app.getPath('userData'), 'secrets.json'), osCipher());
+    const remote = resolveRemoteBackend(settings, savedRemoteToken(secrets, settings));
+    const settingsBox = { current: settings };
+    const backend = new BackendClient(settings.retentionDays, remote, remoteHooks(settingsBox));
+    backend.on('fatal', (message: string) => dialog.showErrorBox('Dolq backend', message));
     // A plain mutable box, not a fresh `settings` binding per read - so
     // registerIrcHandlers' closures see whatever Preferences last saved
     // (registerSettingsHandlers writes into the same box) instead of the
     // value that was current when the app started.
-    const settingsBox = { current: settings };
-    const secrets = new SecretsStore(join(app.getPath('userData'), 'secrets.json'), osCipher());
     registerIrcHandlers(mainWindow, backend, settingsBox, secrets);
     registerSecretsHandlers(secrets);
-    registerSettingsHandlers(settingsBox);
+    registerSettingsHandlers(settingsBox, secrets);
     registerShellHandlers();
     await installReactDevTools();
     registerAppLifecycleHandlers(backend);
@@ -472,12 +474,69 @@ function registerIrcHandlers(
 // same box on every dccOffer/xdccAccept call. trayEnabled applies
 // immediately too, the same way - toggling it here is what actually
 // creates/destroys the Tray, not just what gets remembered for next launch.
-function registerSettingsHandlers(settingsBox: { current: Settings }): void {
-  ipcMain.handle(IrcMessages.getSettings, () => settingsBox.current);
-  ipcMain.handle(IrcMessages.setSettings, (_event, settings: Settings) => {
-    settingsBox.current = settings;
-    saveSettings(settings);
-    if (settings.trayEnabled) createTray();
+// The remote backend's access token lives in the keychain-backed secrets store
+// under this pseudo-server id. Where no keychain exists it falls back to
+// settings.json (owner-only), and is never sent to the renderer either way.
+const BACKEND_SECRET_ID = '__backend__';
+
+function savedRemoteToken(secrets: SecretsStore, settings: Settings): string | undefined {
+  return secrets.get(BACKEND_SECRET_ID).remoteToken ?? settings.remoteToken;
+}
+
+function remoteHooks(settingsBox: { current: Settings }): RemoteHooks {
+  const ask = async (message: string, detail: string, accept: string): Promise<boolean> => {
+    const { response } = await dialog.showMessageBox(mainWindow, {
+      type: 'warning',
+      title: 'Dolq',
+      message,
+      detail,
+      buttons: [accept, 'Cancel'],
+      defaultId: 1,
+      cancelId: 1,
+    });
+    return response === 0;
+  };
+  return {
+    confirmTrust: (fingerprint, host) =>
+      ask(
+        `Trust the backend at ${host}?`,
+        `It presented a self-signed certificate with this SHA-256 fingerprint:\n\n${fingerprint}\n\nOnly continue if it matches the one dolqd printed. Pasting its pairing link in Preferences does this check for you.`,
+        'Trust and connect',
+      ),
+    confirmInsecure: (host) =>
+      ask(
+        `Connect to ${host} without encryption?`,
+        'TLS is turned off for this backend, so your passwords and messages would cross the network in the clear.',
+        'Connect anyway',
+      ),
+    onPin: (fingerprint) => {
+      settingsBox.current = { ...settingsBox.current, remoteFingerprint: fingerprint };
+      saveSettings(settingsBox.current);
+    },
+  };
+}
+
+function registerSettingsHandlers(settingsBox: { current: Settings }, secrets: SecretsStore): void {
+  ipcMain.handle(IrcMessages.getSettings, () => {
+    const { remoteToken: _hidden, ...rest } = settingsBox.current;
+    return { ...rest, remoteTokenSet: !!savedRemoteToken(secrets, settingsBox.current) };
+  });
+  ipcMain.handle(IrcMessages.setSettings, (_event, incoming: Settings) => {
+    const { remoteToken, remoteTokenSet: _ignored, ...rest } = incoming;
+    const next: Settings = rest;
+    const prev = settingsBox.current;
+    // A pin belongs to one address: moving to another without a new pin drops it.
+    if (next.remoteUrl !== prev.remoteUrl && next.remoteFingerprint === prev.remoteFingerprint) {
+      next.remoteFingerprint = undefined;
+    }
+    if (remoteToken) {
+      if (!secrets.remember(BACKEND_SECRET_ID, { remoteToken })) next.remoteToken = remoteToken;
+    } else if (prev.remoteToken) {
+      next.remoteToken = prev.remoteToken;
+    }
+    settingsBox.current = next;
+    saveSettings(next);
+    if (next.trayEnabled) createTray();
     else destroyTray();
   });
 }

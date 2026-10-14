@@ -2,11 +2,13 @@ package ipcproto
 
 import (
 	"bufio"
+	"crypto/subtle"
 	"encoding/json"
 	"log"
 	"net"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/Daemeron/dolq/backend/internal/bouncer"
 	"github.com/Daemeron/dolq/backend/internal/ircparse"
@@ -21,15 +23,56 @@ func Listen(network, address string) (net.Listener, error) {
 	if network == "pipe" {
 		return listenPipe(address)
 	}
-	return net.Listen(network, address)
+	ln, err := net.Listen(network, address)
+	if err != nil {
+		return nil, err
+	}
+	if network == "unix" {
+		// The default mode follows the umask, which can leave the socket open
+		// to other local users; only the owner may connect.
+		if err := os.Chmod(address, 0o600); err != nil {
+			ln.Close()
+			return nil, err
+		}
+	}
+	return ln, nil
 }
 
 type Server struct {
-	b *bouncer.Bouncer
+	b     *bouncer.Bouncer
+	token string
 }
+
+// authTimeout (a var so tests can shorten it) bounds how long a fresh connection may take to present its token.
+var authTimeout = 10 * time.Second
 
 func NewServer(b *bouncer.Bouncer) *Server {
 	return &Server{b: b}
+}
+
+// RequireToken makes every connection open with an auth frame carrying token
+// before any other action is honored. An empty token turns the check off.
+func (s *Server) RequireToken(token string) *Server {
+	s.token = token
+	return s
+}
+
+// authenticate reads the connection's first frame and reports whether it is a
+// valid auth frame. The reply is written either way; the caller closes the
+// connection when it returns false.
+func (s *Server) authenticate(c *conn, scanner *bufio.Scanner) bool {
+	c.netConn.SetReadDeadline(time.Now().Add(authTimeout))
+	defer c.netConn.SetReadDeadline(time.Time{})
+
+	var f ClientFrame
+	if !scanner.Scan() || json.Unmarshal(scanner.Bytes(), &f) != nil || f.Action != ActionAuth ||
+		subtle.ConstantTimeCompare([]byte(f.AuthToken), []byte(s.token)) != 1 {
+		time.Sleep(300 * time.Millisecond) // slow down guessing
+		c.writeFrame(ServerFrame{ID: f.ID, Type: FrameResult, OK: false, Error: "unauthorized"})
+		return false
+	}
+	c.writeResult(f.ID, nil)
+	return true
 }
 
 func (s *Server) Serve(ln net.Listener) error {
@@ -87,6 +130,9 @@ func (s *Server) handleConn(netConn net.Conn) {
 	}()
 
 	scanner := bufio.NewScanner(netConn)
+	if s.token != "" && !s.authenticate(c, scanner) {
+		return
+	}
 	for scanner.Scan() {
 		var f ClientFrame
 		if err := json.Unmarshal(scanner.Bytes(), &f); err != nil {
