@@ -1191,6 +1191,11 @@ will hang the UI.
       with a DACL for the current user only) and the child gets a random
       per-launch token over its environment. The token is kept in the
       keychain-backed secrets store and never returned to the renderer.
+      Running unprotected stays possible but is always an explicit choice:
+      `dolqd -no-tls` (token, no TLS) or `-insecure` (neither, the old
+      behaviour); the client treats a missing token or unticked TLS as such,
+      and asks the user to confirm which protections are missing every time it
+      connects to a non-loopback host.
       `deploy/kubernetes/` runs it on a cluster/NAS (single replica, PVC,
       NodePort; `DOLQ_PUBLIC_PORT` makes the pairing link carry the mapped
       port); a release workflow (`create-a-release-build-docker-image.yml`)

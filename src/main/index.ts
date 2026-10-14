@@ -503,10 +503,10 @@ function remoteHooks(settingsBox: { current: Settings }): RemoteHooks {
         `It presented a self-signed certificate with this SHA-256 fingerprint:\n\n${fingerprint}\n\nOnly continue if it matches the one dolqd printed. Pasting its pairing link in Preferences does this check for you.`,
         'Trust and connect',
       ),
-    confirmInsecure: (host) =>
+    confirmInsecure: (host, reasons) =>
       ask(
-        `Connect to ${host} without encryption?`,
-        'TLS is turned off for this backend, so your passwords and messages would cross the network in the clear.',
+        `Connect to ${host} without full protection?`,
+        `This backend is not fully secured:\n\n${reasons.map((r) => `- ${r}`).join('\n')}\n\nOnly continue on a network you trust.`,
         'Connect anyway',
       ),
     onPin: (fingerprint) => {

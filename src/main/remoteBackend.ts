@@ -14,7 +14,7 @@ export type RemoteTarget = {
 // this stays free of Electron.
 export type RemoteHooks = {
   confirmTrust: (fingerprint: string, host: string) => Promise<boolean>;
-  confirmInsecure: (host: string) => Promise<boolean>;
+  confirmInsecure: (host: string, reasons: string[]) => Promise<boolean>;
   onPin: (fingerprint: string) => void;
 };
 
@@ -34,6 +34,16 @@ export function resolveRemoteBackend(settings: Settings, token?: string): Remote
   } catch {
     return undefined;
   }
+}
+
+// What is unprotected about this connection, for the warning the user must
+// accept first. Empty for a local backend or a fully secured one.
+export function insecureReasons(remote: Pick<RemoteTarget, 'host' | 'tls' | 'token'>): string[] {
+  if (isLoopbackHost(remote.host)) return [];
+  const reasons: string[] = [];
+  if (!remote.tls) reasons.push('the connection is not encrypted (TLS is off)');
+  if (!remote.token) reasons.push('no access token is used, so anyone who can reach the backend can use it');
+  return reasons;
 }
 
 export function isLoopbackHost(host: string): boolean {
