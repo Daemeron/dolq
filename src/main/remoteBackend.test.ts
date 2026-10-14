@@ -2,10 +2,18 @@ import { describe, expect, it } from 'vitest';
 import { decideTrust, insecureReasons, isLoopbackHost, resolveRemoteBackend } from './remoteBackend';
 
 describe('resolveRemoteBackend', () => {
-  it('parses a host:port URL when remote mode is on, with TLS on by default', () => {
+  it('parses a host:port URL when remote mode is on', () => {
     expect(resolveRemoteBackend({ retentionDays: 0, remoteEnabled: true, remoteUrl: 'dolq.example.com:6789' })).toEqual(
-      { host: 'dolq.example.com', port: 6789, tls: true, token: undefined, fingerprint: undefined },
+      { host: 'dolq.example.com', port: 6789, tls: false, token: undefined, fingerprint: undefined },
     );
+  });
+
+  it('keeps settings from before TLS existed talking plain, and enables TLS once a token or pin is set', () => {
+    const legacy = { retentionDays: 0, remoteEnabled: true, remoteUrl: 'nas.local:6789' };
+    expect(resolveRemoteBackend(legacy)?.tls).toBe(false);
+    expect(resolveRemoteBackend(legacy, 'tok')?.tls).toBe(true);
+    expect(resolveRemoteBackend({ ...legacy, remoteFingerprint: 'AA' })?.tls).toBe(true);
+    expect(resolveRemoteBackend({ ...legacy, remoteTls: true })?.tls).toBe(true);
   });
 
   it('carries the token, the TLS choice and the pinned fingerprint', () => {
