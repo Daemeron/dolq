@@ -6,6 +6,7 @@ import { type ConnectionStatus, IrcMessages, type Settings } from '../shared/ipc
 import { BackendClient } from './irc/BackendClient';
 import { parseIrcUrl } from './ircUrl';
 import { type RemoteHooks, resolveRemoteBackend } from './remoteBackend';
+import { applyIncomingSettings, BACKEND_SECRET_ID } from './remoteSettings';
 import { type SecretCipher, SecretsStore, type ServerSecrets, withSavedSecrets } from './secrets';
 import { loadSettings, saveSettings } from './settings';
 
@@ -474,10 +475,6 @@ function registerIrcHandlers(
 // same box on every dccOffer/xdccAccept call. trayEnabled applies
 // immediately too, the same way - toggling it here is what actually
 // creates/destroys the Tray, not just what gets remembered for next launch.
-// The remote backend's access token lives in the keychain-backed secrets store
-// under this pseudo-server id. Where no keychain exists it falls back to
-// settings.json (owner-only), and is never sent to the renderer either way.
-const BACKEND_SECRET_ID = '__backend__';
 
 function savedRemoteToken(secrets: SecretsStore, settings: Settings): string | undefined {
   return secrets.get(BACKEND_SECRET_ID).remoteToken ?? settings.remoteToken;
@@ -522,22 +519,7 @@ function registerSettingsHandlers(settingsBox: { current: Settings }, secrets: S
     return { ...rest, remoteTokenSet: !!savedRemoteToken(secrets, settingsBox.current) };
   });
   ipcMain.handle(IrcMessages.setSettings, (_event, incoming: Settings) => {
-    const { remoteToken, remoteTokenSet: _ignored, ...rest } = incoming;
-    const next: Settings = rest;
-    const prev = settingsBox.current;
-    // A pin belongs to one address: moving to another without a new pin drops it.
-    if (next.remoteUrl !== prev.remoteUrl && next.remoteFingerprint === prev.remoteFingerprint) {
-      next.remoteFingerprint = undefined;
-    }
-    // Likewise a token belongs to one address: it must not follow a changed URL to a new host.
-    const movedAddress = next.remoteUrl !== prev.remoteUrl;
-    if (remoteToken) {
-      if (!secrets.remember(BACKEND_SECRET_ID, { remoteToken })) next.remoteToken = remoteToken;
-    } else if (movedAddress) {
-      secrets.forget(BACKEND_SECRET_ID);
-    } else if (prev.remoteToken) {
-      next.remoteToken = prev.remoteToken;
-    }
+    const next = applyIncomingSettings(settingsBox.current, incoming, secrets);
     settingsBox.current = next;
     saveSettings(next);
     if (next.trayEnabled) createTray();
