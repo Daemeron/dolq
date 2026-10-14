@@ -75,7 +75,7 @@ export class BackendClient extends EventEmitter {
 
   private async connectRemote(remote: RemoteTarget): Promise<void> {
     // Running without TLS and/or a token is allowed (a backend started with
-    // -insecure, a tunnel, a trusted LAN), but only after the user has agreed.
+    // -tls=false / -token=false, a tunnel, a trusted LAN), but only after the user has agreed.
     const reasons = insecureReasons(remote);
     if (reasons.length > 0) {
       const ok = (await this.hooks?.confirmInsecure(remote.host, reasons)) ?? false;

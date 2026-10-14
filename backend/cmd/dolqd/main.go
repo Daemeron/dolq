@@ -32,8 +32,8 @@ func main() {
 	acmeEmail := flag.String("acme-email", "", "contact address for Let's Encrypt expiry notices (optional)")
 	acmeStaging := flag.Bool("acme-staging", false, "use Let's Encrypt's staging CA (untrusted certificates) to test the setup")
 	secure := flag.Bool("secure", false, "with TLS on -addr, accept only TLS connections that present the access token, refusing plain unauthenticated ones. By default those are still accepted on the same port so clients and setups from before access tokens keep working; once every client is paired, turn this on (also DOLQ_SECURE=1)")
-	insecure := flag.Bool("insecure", false, "serve -addr with no TLS and no access token, as older dolqd versions did - anyone who can reach the port can use it, so only on a network you fully trust (also DOLQ_INSECURE=1)")
-	noTLS := flag.Bool("no-tls", false, "serve -addr without TLS, e.g. behind a TLS-terminating proxy or an SSH tunnel")
+	useTLSFlag := flag.Bool("tls", true, "serve -addr over TLS; -tls=false for plain TCP, e.g. behind a TLS-terminating proxy or an SSH tunnel")
+	useTokenFlag := flag.Bool("token", true, "require an access token on -addr (DOLQ_TOKEN, or generated once and kept next to the database); -token=false means anyone who can reach the port can use it, so only on a network you fully trust. Independent of -tls")
 	retentionDays := flag.Int("retention-days", 0, "prune history older than this many days (0 = keep forever)")
 	flag.Parse()
 
@@ -49,10 +49,10 @@ func main() {
 	// a process listing. A network listener always needs one: if none is given,
 	// a random one is created once and kept next to the database.
 	token := os.Getenv("DOLQ_TOKEN")
-	openAccess := network == "tcp" && (*insecure || os.Getenv("DOLQ_INSECURE") == "1")
-	if openAccess {
+	useToken := network != "tcp" || *useTokenFlag
+	if network == "tcp" && !useToken {
 		token = ""
-		log.Print("warning: -insecure: no encryption and no access token; anyone who can reach this port can read your history and use your IRC sessions")
+		log.Print("warning: -token=false: no access token; anyone who can reach this port can read your history and use your IRC sessions")
 	} else if network == "tcp" && token == "" {
 		var err error
 		if token, err = ipcproto.LoadOrCreateToken(filepath.Join(filepath.Dir(resolveDBPath(*dbPath)), "token")); err != nil {
@@ -62,7 +62,11 @@ func main() {
 	var fingerprint string
 
 	var tlsCfg *tls.Config
-	useTLS := network == "tcp" && !*noTLS && !openAccess
+	useTLS := network == "tcp" && *useTLSFlag
+	secureOnly := *secure || os.Getenv("DOLQ_SECURE") == "1"
+	if secureOnly && network == "tcp" && (!useTLS || !useToken) {
+		log.Fatal("-secure refuses connections that are not TLS with an access token, so it cannot be combined with -tls=false or -token=false")
+	}
 	if useTLS && *acmeDomain != "" {
 		cacheDir := filepath.Join(filepath.Dir(resolveDBPath(*dbPath)), "acme")
 		tlsCfg = ipcproto.ACMEConfig(*acmeDomain, *acmeEmail, cacheDir, *acmeStaging)
@@ -81,7 +85,7 @@ func main() {
 		tlsCfg = ipcproto.ServerTLSConfig(cert)
 		fingerprint = ipcproto.Fingerprint(cert)
 		log.Printf("serving TLS, certificate SHA-256 fingerprint: %s", fingerprint)
-	} else if network == "tcp" && !openAccess && !ipcproto.IsLoopback(path) {
+	} else if network == "tcp" && !ipcproto.IsLoopback(path) {
 		log.Print("warning: listening without TLS on a non-loopback address; passwords and chat cross the network in the clear")
 	}
 
@@ -98,11 +102,13 @@ func main() {
 	if err != nil {
 		log.Fatalf("listen on %s %s: %v", network, path, err)
 	}
-	if network == "tcp" && !openAccess {
-		logPairing(path, token, fingerprint)
+	if network == "tcp" && useToken {
+		logPairing(path, token, fingerprint, useTLS)
 	}
 	if tlsCfg != nil {
-		allowPlain := !(*secure || os.Getenv("DOLQ_SECURE") == "1")
+		// Plain connections are the legacy path for clients that predate tokens;
+		// with no token to protect there is nothing to stay compatible with.
+		allowPlain := useToken && !secureOnly
 		if allowPlain {
 			log.Print("warning: plain, unauthenticated connections are still accepted on this port so older clients keep working; pair your clients and restart with -secure to refuse them")
 		}
@@ -170,7 +176,7 @@ func resolveDBPath(explicit string) string {
 // host is DOLQ_PUBLIC_HOST (and the port DOLQ_PUBLIC_PORT) if set, else this machine's LAN addresses (inside a
 // container those are not reachable from outside: set DOLQ_PUBLIC_HOST, or
 // replace the host in the link with the machine's name).
-func logPairing(listenAddr, token, fingerprint string) {
+func logPairing(listenAddr, token, fingerprint string, tls bool) {
 	_, portStr, err := net.SplitHostPort(listenAddr)
 	port, _ := strconv.Atoi(portStr)
 	if err != nil || port == 0 {
@@ -189,6 +195,6 @@ func logPairing(listenAddr, token, fingerprint string) {
 	}
 	log.Print("pair a client by pasting one of these into Preferences > Remote Backend (keep it private, it contains the access token):")
 	for _, h := range hosts {
-		log.Printf("  %s", ipcproto.PairingLink(h, port, token, fingerprint))
+		log.Printf("  %s", ipcproto.PairingLink(h, port, token, fingerprint, tls))
 	}
 }

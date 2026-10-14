@@ -68,11 +68,13 @@ token.
   first.
 - **Run without encryption or a token** (a network you fully trust, or an
   existing setup you have not re-paired yet): the manifests pass `-secure`,
-  which refuses plain connections; remove it to accept them again, or use
-  `-insecure` in `args` to drop TLS and the token entirely. `-no-tls` drops only the encryption and keeps the token, for use
-  behind a TLS-terminating proxy or tunnel. In Dolq, untick **Encrypt the
-  connection** and/or leave the token empty; it asks you to confirm each time
-  it connects.
+  which refuses plain connections; remove it to accept them again. TLS and the
+  token are independent switches on `dolqd`: `-tls=false` serves plain TCP
+  (behind a TLS-terminating proxy or tunnel) and `-token=false` drops the
+  access token (anyone who can reach the port can use it). Use them in `args`
+  instead of `-secure`, which cannot be combined with either. In Dolq, untick
+  **Encrypt the connection** and/or leave the token empty to match; it asks
+  you to confirm each time it connects.
 - **Rotate the token or certificate:** delete `token` / `tls-cert.pem` /
   `tls-key.pem` from the PVC (or change the secret) and restart; paste the new
   pairing link into each client.

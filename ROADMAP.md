@@ -1199,10 +1199,11 @@ will hang the UI.
       `-secure` (or `DOLQ_SECURE=1`) refuses plain connections; the Kubernetes
       manifests ship with it, having no legacy deployments to protect. Client
       settings saved before TLS existed stay plain until a token or pin is
-      set. `-no-tls` (token, no TLS) and `-insecure` (neither, and no TLS
-      offered) remain for proxies and trusted networks; the client asks the
-      user to confirm which protections are missing every time it connects to
-      a non-loopback host.
+      set. TLS and the token are independent switches, `-tls=false` (proxies,
+      tunnels) and `-token=false` (trusted networks), refused together with
+      `-secure`; the pairing link carries `tls=0` for a plain backend, and the
+      client asks the user to confirm which protections are missing every time
+      it connects to a non-loopback host.
       `deploy/kubernetes/` runs it on a cluster/NAS (single replica, PVC,
       NodePort; `DOLQ_PUBLIC_PORT` makes the pairing link carry the mapped
       port); a release workflow (`create-a-release-build-docker-image.yml`)
