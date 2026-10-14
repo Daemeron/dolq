@@ -49,6 +49,7 @@ type Client struct {
 	nickCollisions int
 	joinedChannels map[string]struct{}
 	namesBuffer    map[string][]ircparse.User
+	members        map[string]map[string]struct{}
 	whoisBuffer    map[string]ircparse.WhoisEvent
 	lineListeners  []func(line string)
 	eventListeners []func(event any)
@@ -103,6 +104,7 @@ func newClient(conn net.Conn, nick string) *Client {
 		nick:              nick,
 		joinedChannels:    make(map[string]struct{}),
 		namesBuffer:       make(map[string][]ircparse.User),
+		members:           make(map[string]map[string]struct{}),
 		whoisBuffer:       make(map[string]ircparse.WhoisEvent),
 		closed:            make(chan struct{}),
 		capLines:          make(chan string, 16),
@@ -410,6 +412,13 @@ func (c *Client) handleLine(line string) {
 		if users == nil {
 			users = []ircparse.User{}
 		}
+		c.mu.Lock()
+		set := make(map[string]struct{}, len(users))
+		for _, u := range users {
+			set[u.Nick] = struct{}{}
+		}
+		c.members[e.Channel] = set
+		c.mu.Unlock()
 		c.emitEvent(NamesEvent{Type: "names", Channel: e.Channel, Users: users})
 		return
 	case ircparse.WhoisUserEvent:
@@ -474,36 +483,83 @@ func (c *Client) handleLine(line string) {
 		retrying := c.handleNickInUse(e.Nick)
 		c.emitEvent(ircparse.NickInUseEvent{Type: "NICKINUSE", Nick: e.Nick, Retrying: retrying})
 		return
+	case ircparse.QuitEvent:
+		c.mu.Lock()
+		e.Channels = c.dropMember(e.Nick)
+		c.mu.Unlock()
+		event = e
 	case ircparse.NickEvent:
 		c.mu.Lock()
 		if e.OldNick == c.nick {
 			c.nick = e.NewNick
 		}
+		e.Channels = c.renameMember(e.OldNick, e.NewNick)
 		c.mu.Unlock()
+		event = e
 	case ircparse.JoinEvent:
+		c.mu.Lock()
 		if e.Nick == c.nick {
-			c.mu.Lock()
 			c.joinedChannels[e.Channel] = struct{}{}
-			c.mu.Unlock()
+			c.members[e.Channel] = make(map[string]struct{})
 		}
+		if set, ok := c.members[e.Channel]; ok {
+			set[e.Nick] = struct{}{}
+		}
+		c.mu.Unlock()
 	case ircparse.PartEvent:
-		if e.Nick == c.nick {
-			c.mu.Lock()
-			delete(c.joinedChannels, e.Channel)
-			c.mu.Unlock()
-		}
+		c.mu.Lock()
+		c.dropFromChannel(e.Channel, e.Nick)
+		c.mu.Unlock()
 	case ircparse.KickEvent:
-		if e.Nick == c.nick {
-			c.mu.Lock()
-			delete(c.joinedChannels, e.Channel)
-			c.mu.Unlock()
-		}
+		c.mu.Lock()
+		c.dropFromChannel(e.Channel, e.Nick)
+		c.mu.Unlock()
 	}
 
 	c.emitEvent(event)
 }
 
 const clientVersion = "Dolq IRC Client"
+
+// dropFromChannel removes nick from channel's membership; when nick is the
+// client itself the channel is forgotten entirely. Callers hold c.mu.
+func (c *Client) dropFromChannel(channel, nick string) {
+	if nick == c.nick {
+		delete(c.joinedChannels, channel)
+		delete(c.members, channel)
+		return
+	}
+	delete(c.members[channel], nick)
+}
+
+// dropMember removes nick from every channel and returns the (sorted) channels
+// it was in. Callers hold c.mu.
+func (c *Client) dropMember(nick string) []string {
+	var channels []string
+	for ch, set := range c.members {
+		if _, ok := set[nick]; ok {
+			delete(set, nick)
+			channels = append(channels, ch)
+		}
+	}
+	slices.Sort(channels)
+	return channels
+}
+
+// renameMember moves oldNick to newNick in every channel it is in and returns
+// the (sorted) channels affected. Callers hold c.mu.
+func (c *Client) renameMember(oldNick, newNick string) []string {
+	var channels []string
+	for ch, set := range c.members {
+		if _, ok := set[oldNick]; ok {
+			delete(set, oldNick)
+			set[newNick] = struct{}{}
+			channels = append(channels, ch)
+		}
+	}
+	slices.Sort(channels)
+	return channels
+}
 
 func (c *Client) handleCTCPRequest(e ircparse.CTCPRequestEvent) {
 	switch e.Command {

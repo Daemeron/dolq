@@ -20,13 +20,20 @@ import { XDCCOfferModal } from './components/XDCCOfferModal';
 import { scopeKey, useStore } from './store';
 import type { Message, Server } from './types';
 import { expandAlias } from './utils/aliases';
+import { describeEvent, eventChannels } from './utils/eventMessages';
 import { formatEntry } from './utils/exportFormat';
 import { comboFromEvent } from './utils/keybind';
+import { isChannelScopedLine } from './utils/logFilter';
 import { mentionsNick } from './utils/mentions';
 import { isNickServIdentifyPrompt } from './utils/nickserv';
 import { buildServerId, normalizeHost, resolveHostPort } from './utils/server';
 
 const HISTORY_PAGE_SIZE = 100;
+
+// The Log hides channel traffic, so a page of raw history can come back nearly
+// empty; keep fetching older pages until there is something to show.
+const LOG_MIN_MESSAGES = 30;
+const LOG_MAX_PAGES = 20;
 
 const MAX_ALIAS_DEPTH = 8;
 
@@ -42,12 +49,26 @@ const FONT_FAMILY_STACKS: Record<'system' | 'serif' | 'monospace', string> = {
   monospace: "'JetBrains Mono', 'Fira Code', 'Courier New', monospace",
 };
 
-function toMessages(entries: HistoryEntry[]): Message[] {
+function toMessages(entries: HistoryEntry[], forLog: boolean, selfNick: string): Message[] {
   const messages: Message[] = [];
   for (const e of entries) {
     const timestamp = new Date(e.timestamp);
-    if (e.isRaw) {
-      messages.push({ id: e.id, nick: '', text: e.line ?? '', timestamp, isRaw: true });
+    if (forLog) {
+      if (e.isRaw && !isChannelScopedLine(e.line ?? '')) {
+        messages.push({ id: e.id, nick: '', text: e.line ?? '', timestamp, isRaw: true });
+      }
+      continue;
+    }
+    const described = e.event ? describeEvent(e.event, selfNick) : null;
+    if (described) {
+      messages.push({
+        id: e.id,
+        nick: '',
+        text: described.text,
+        timestamp,
+        system: true,
+        membership: described.membership,
+      });
     } else if (e.event?.type === 'PRIVMSG') {
       messages.push({ id: e.id, nick: e.event.nick, text: e.event.text, timestamp });
     } else if (e.event?.type === 'ACTION') {
@@ -99,6 +120,7 @@ export default function App() {
     lastReadMap,
     notificationsEnabled,
     soundAlertsEnabled,
+    showMembershipEvents,
     mutedChannels,
     timestampFormat,
     messageDensity,
@@ -135,6 +157,7 @@ export default function App() {
     toggleMuteChannel,
     setNotificationsEnabled,
     setSoundAlertsEnabled,
+    setShowMembershipEvents,
     setTimestampFormat,
     setMessageDensity,
     setFontSize,
@@ -364,6 +387,7 @@ export default function App() {
         });
         return;
       }
+      if (isChannelScopedLine(line)) return;
       const key = `${serverId}:__log__`;
       const msg: Message = {
         id: nextMsgId.current++,
@@ -407,6 +431,22 @@ export default function App() {
 
   useEffect(() => {
     return window.irc.onEvent((serverId, event) => {
+      const described = describeEvent(event, nickMap[serverId] ?? '');
+      if (described) {
+        const actor = 'nick' in event ? event.nick : event.type === 'NICK' ? event.oldNick : '';
+        if (!(described.membership && actor && isIgnored(serverId, actor))) {
+          for (const channel of eventChannels(event)) {
+            appendMessage(scopeKey(serverId, channel), {
+              id: nextMsgId.current++,
+              nick: '',
+              text: described.text,
+              timestamp: new Date(),
+              system: true,
+              membership: described.membership,
+            });
+          }
+        }
+      }
       switch (event.type) {
         case 'PRIVMSG': {
           if (isIgnored(serverId, event.nick)) break;
@@ -477,13 +517,6 @@ export default function App() {
           removeUser(scopeKey(serverId, event.channel), event.nick);
           if (event.nick === nickMap[serverId]) {
             setChannelJoined(serverId, event.channel, false);
-            appendMessage(scopeKey(serverId, event.channel), {
-              id: nextMsgId.current++,
-              nick: '',
-              text: `You were kicked by ${event.by}${event.reason ? `: ${event.reason}` : ''}`,
-              timestamp: new Date(),
-              system: true,
-            });
           }
           break;
         case 'QUIT':
@@ -624,6 +657,26 @@ export default function App() {
     checkMention,
   ]);
 
+  async function fetchHistoryPage(serverId: string, channelId: string, page: HistoryPage): Promise<Message[]> {
+    const backendChannel = backendChannelFor(serverId, channelId);
+    const forLog = backendChannel === '__log__';
+    const selfNick = nickMap[serverId] ?? '';
+    let collected: Message[] = [];
+    for (let i = 0; i < (forLog ? LOG_MAX_PAGES : 1); i++) {
+      const entries = await window.irc.getHistory(
+        serverId,
+        backendChannel,
+        page.oldestId ?? undefined,
+        HISTORY_PAGE_SIZE,
+      );
+      page.exhausted = entries.length < HISTORY_PAGE_SIZE;
+      if (entries[0]) page.oldestId = entries[0].id;
+      collected = [...toMessages(entries, forLog, selfNick), ...collected];
+      if (page.exhausted || collected.length >= LOG_MIN_MESSAGES) break;
+    }
+    return collected;
+  }
+
   useEffect(() => {
     if (!selectedServerId) return;
     const key = scopeKey(selectedServerId, selectedChannelId);
@@ -631,18 +684,13 @@ export default function App() {
     const page: HistoryPage = { oldestId: null, exhausted: false, loading: true };
     historyPages.current.set(key, page);
 
-    const backendChannel = backendChannelFor(selectedServerId, selectedChannelId);
-    window.irc
-      .getHistory(selectedServerId, backendChannel, undefined, HISTORY_PAGE_SIZE)
-      .then((entries) => {
+    fetchHistoryPage(selectedServerId, selectedChannelId, page)
+      .then((messages) => {
         page.loading = false;
-        page.exhausted = entries.length < HISTORY_PAGE_SIZE;
-        page.oldestId = entries[0]?.id ?? null;
-        const messages = toMessages(entries);
         if (messages.length > 0) setHistory(key, messages);
       })
       .catch(() => historyPages.current.delete(key));
-  }, [selectedServerId, selectedChannelId, setHistory, backendChannelFor]);
+  }, [selectedServerId, selectedChannelId, setHistory, backendChannelFor, fetchHistoryPage]);
 
   const loadOlderHistory = useCallback(() => {
     const key = scopeKey(selectedServerId, selectedChannelId);
@@ -650,20 +698,15 @@ export default function App() {
     if (!selectedServerId || !page || page.loading || page.exhausted || page.oldestId === null) return;
     page.loading = true;
 
-    const backendChannel = backendChannelFor(selectedServerId, selectedChannelId);
-    window.irc
-      .getHistory(selectedServerId, backendChannel, page.oldestId, HISTORY_PAGE_SIZE)
-      .then((entries) => {
+    fetchHistoryPage(selectedServerId, selectedChannelId, page)
+      .then((messages) => {
         page.loading = false;
-        page.exhausted = entries.length < HISTORY_PAGE_SIZE;
-        if (entries[0]) page.oldestId = entries[0].id;
-        const messages = toMessages(entries);
         if (messages.length > 0) setHistory(key, messages);
       })
       .catch(() => {
         page.loading = false;
       });
-  }, [selectedServerId, selectedChannelId, setHistory, backendChannelFor]);
+  }, [selectedServerId, selectedChannelId, setHistory, fetchHistoryPage]);
 
   async function handleConnect(form: ConnectForm) {
     const id = crypto.randomUUID();
@@ -921,7 +964,11 @@ export default function App() {
   }, [channels, messageMap, lastReadMap, selectedServerId]);
 
   const selectedChannel = channels.find((c) => c.id === selectedChannelId) ?? channels[0];
-  const messages = messageMap[scopeKey(selectedServerId, selectedChannelId)] ?? [];
+  const allMessages = messageMap[scopeKey(selectedServerId, selectedChannelId)] ?? [];
+  const messages = useMemo(
+    () => (showMembershipEvents ? allMessages : allMessages.filter((m) => !m.membership)),
+    [allMessages, showMembershipEvents],
+  );
   const users = userMap[scopeKey(selectedServerId, selectedChannelId)] ?? [];
   const isLog = selectedChannel?.isLog ?? true;
   const isQuery = selectedChannel?.isQuery ?? false;
@@ -1119,6 +1166,8 @@ export default function App() {
             onNotificationsEnabledChange={setNotificationsEnabled}
             soundAlertsEnabled={soundAlertsEnabled}
             onSoundAlertsEnabledChange={setSoundAlertsEnabled}
+            showMembershipEvents={showMembershipEvents}
+            onShowMembershipEventsChange={setShowMembershipEvents}
             timestampFormat={timestampFormat}
             onTimestampFormatChange={setTimestampFormat}
             messageDensity={messageDensity}

@@ -41,9 +41,24 @@ func eventChannel(event any) string {
 		return e.Channel
 	case ircparse.TopicWhoTimeEvent:
 		return e.Channel
+	case ircparse.SystemEvent:
+		return e.Channel
 	default:
 		return logChannel
 	}
+}
+
+// sharedChannels lists the channels a QUIT or NICK touched. They have no
+// channel of their own, so besides the copy in the log they are stored once per
+// channel the user was in, which lets each channel's history show them.
+func sharedChannels(event any) []string {
+	switch e := event.(type) {
+	case ircparse.QuitEvent:
+		return e.Channels
+	case ircparse.NickEvent:
+		return e.Channels
+	}
+	return nil
 }
 
 func dmOrChannel(target, nick string) string {
@@ -197,33 +212,47 @@ func (b *Bouncer) wire(serverID string, sess *session, client *ircclient.Client)
 	})
 	client.AddEventListener(func(event any) {
 		if _, ok := event.(ircclient.NamesEvent); !ok {
-			b.store.AppendEvent(serverID, eventChannel(event), event, time.Now())
+			now := time.Now()
+			b.store.AppendEvent(serverID, eventChannel(event), event, now)
+			for _, ch := range sharedChannels(event) {
+				b.store.AppendEvent(serverID, ch, event, now)
+			}
 		}
 		sess.fanOutEvent(serverID, event)
 	})
 	client.OnClose(func() { b.handleClose(serverID, sess) })
 }
 
-func (b *Bouncer) logLine(serverID string, sess *session, line string) {
-	b.store.AppendLine(serverID, logChannel, line, time.Now())
+// logLine records a connection notice in the log and, for each channel that
+// was joined, as a system event in that channel too.
+func (b *Bouncer) logLine(serverID string, sess *session, line string, channels []string) {
+	now := time.Now()
+	b.store.AppendLine(serverID, logChannel, line, now)
 	sess.fanOutLine(serverID, line)
+	text := strings.TrimSpace(strings.TrimPrefix(line, "***"))
+	for _, ch := range channels {
+		event := ircparse.SystemEvent{Type: "SYSTEM", Channel: ch, Text: text}
+		b.store.AppendEvent(serverID, ch, event, now)
+		sess.fanOutEvent(serverID, event)
+	}
 }
 
 func (b *Bouncer) handleClose(serverID string, sess *session) {
 	sess.mu.Lock()
 	closing := sess.closing
 	dial := sess.dial
+	channels := sess.client.GetJoinedChannels()
 	sess.mu.Unlock()
 
 	if closing || dial == nil {
 		b.forget(serverID, sess)
 		sess.setStatus(serverID, "disconnected")
-		b.logLine(serverID, sess, "*** Disconnected")
+		b.logLine(serverID, sess, "*** Disconnected", channels)
 		return
 	}
 
 	sess.setStatus(serverID, "connecting")
-	b.logLine(serverID, sess, "*** Connection lost - reconnecting...")
+	b.logLine(serverID, sess, "*** Connection lost - reconnecting...", channels)
 	go b.reconnect(serverID, sess)
 }
 
@@ -253,7 +282,7 @@ func (b *Bouncer) reconnect(serverID string, sess *session) {
 		case <-sess.stop:
 			b.forget(serverID, sess)
 			sess.setStatus(serverID, "disconnected")
-			b.logLine(serverID, sess, "*** Disconnected")
+			b.logLine(serverID, sess, "*** Disconnected", previousChannels)
 			return
 		}
 
@@ -268,7 +297,7 @@ func (b *Bouncer) reconnect(serverID string, sess *session) {
 			}
 			b.forget(serverID, sess)
 			sess.setStatus(serverID, "disconnected")
-			b.logLine(serverID, sess, "*** Disconnected")
+			b.logLine(serverID, sess, "*** Disconnected", previousChannels)
 			return
 		}
 		if err != nil {
@@ -283,7 +312,7 @@ func (b *Bouncer) reconnect(serverID string, sess *session) {
 		b.wire(serverID, sess, client)
 		rejoinOnWelcome(client, previousChannels)
 		sess.setStatus(serverID, "connected")
-		b.logLine(serverID, sess, "*** Reconnected")
+		b.logLine(serverID, sess, "*** Reconnected", previousChannels)
 		client.Start()
 		return
 	}

@@ -166,7 +166,7 @@ func TestParseLine(t *testing.T) {
 			name: "parses a channel MODE granting a privilege",
 			line: ":alice!u@host MODE #general +o bob",
 			want: ModeEvent{
-				Type: "MODE", Channel: "#general",
+				Type: "MODE", By: "alice", Channel: "#general",
 				Changes: []ModeChange{{Nick: "bob", Privilege: PrivilegeOp, Granted: true}},
 			},
 		},
@@ -174,7 +174,7 @@ func TestParseLine(t *testing.T) {
 			name: "parses a channel MODE with mixed grants and revokes for multiple nicks",
 			line: ":alice!u@host MODE #general +o-v bob carol",
 			want: ModeEvent{
-				Type: "MODE", Channel: "#general",
+				Type: "MODE", By: "alice", Channel: "#general",
 				Changes: []ModeChange{
 					{Nick: "bob", Privilege: PrivilegeOp, Granted: true},
 					{Nick: "carol", Privilege: PrivilegeVoice, Granted: false},
@@ -185,7 +185,7 @@ func TestParseLine(t *testing.T) {
 			name: "extracts a privilege grant bundled with a known list/key/limit mode",
 			line: ":alice!u@host MODE #general +ok bob secretkey",
 			want: ModeEvent{
-				Type: "MODE", Channel: "#general",
+				Type: "MODE", By: "alice", Channel: "#general",
 				Changes: []ModeChange{{Nick: "bob", Privilege: PrivilegeOp, Granted: true}},
 			},
 		},
@@ -193,7 +193,7 @@ func TestParseLine(t *testing.T) {
 			name: "does not consume an argument for a ban set alongside a privilege grant",
 			line: ":alice!u@host MODE #general +ob bob carol!*@*",
 			want: ModeEvent{
-				Type: "MODE", Channel: "#general",
+				Type: "MODE", By: "alice", Channel: "#general",
 				Changes: []ModeChange{{Nick: "bob", Privilege: PrivilegeOp, Granted: true}},
 			},
 		},
@@ -201,7 +201,7 @@ func TestParseLine(t *testing.T) {
 			name: "only consumes a limit argument when the limit is being set, not unset",
 			line: ":alice!u@host MODE #general +l-o 50 bob",
 			want: ModeEvent{
-				Type: "MODE", Channel: "#general",
+				Type: "MODE", By: "alice", Channel: "#general",
 				Changes: []ModeChange{{Nick: "bob", Privilege: PrivilegeOp, Granted: false}},
 			},
 		},
@@ -209,7 +209,7 @@ func TestParseLine(t *testing.T) {
 			name: "skips known no-argument flags without losing a later privilege change",
 			line: ":alice!u@host MODE #general +nto bob",
 			want: ModeEvent{
-				Type: "MODE", Channel: "#general",
+				Type: "MODE", By: "alice", Channel: "#general",
 				Changes: []ModeChange{{Nick: "bob", Privilege: PrivilegeOp, Granted: true}},
 			},
 		},
@@ -222,7 +222,7 @@ func TestParseLine(t *testing.T) {
 			name: "stops at a fully unrecognized letter but keeps changes found before it",
 			line: ":alice!u@host MODE #general +oZ bob mystery",
 			want: ModeEvent{
-				Type: "MODE", Channel: "#general",
+				Type: "MODE", By: "alice", Channel: "#general",
 				Changes: []ModeChange{{Nick: "bob", Privilege: PrivilegeOp, Granted: true}},
 			},
 		},

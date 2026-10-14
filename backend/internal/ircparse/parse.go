@@ -125,21 +125,32 @@ type KickEvent struct {
 }
 
 type QuitEvent struct {
-	Type   string `json:"type"`
-	Nick   string `json:"nick"`
-	Reason string `json:"reason,omitempty"`
+	Type     string   `json:"type"`
+	Nick     string   `json:"nick"`
+	Reason   string   `json:"reason,omitempty"`
+	Channels []string `json:"channels,omitempty"`
 }
 
 type NickEvent struct {
-	Type    string `json:"type"`
-	OldNick string `json:"oldNick"`
-	NewNick string `json:"newNick"`
+	Type     string   `json:"type"`
+	OldNick  string   `json:"oldNick"`
+	NewNick  string   `json:"newNick"`
+	Channels []string `json:"channels,omitempty"`
 }
 
 type ModeEvent struct {
 	Type    string       `json:"type"`
+	By      string       `json:"by,omitempty"`
 	Channel string       `json:"channel"`
 	Changes []ModeChange `json:"changes"`
+}
+
+// SystemEvent is a client-generated notice scoped to one channel, such as the
+// connection dropping while the channel was joined.
+type SystemEvent struct {
+	Type    string `json:"type"`
+	Channel string `json:"channel"`
+	Text    string `json:"text"`
 }
 
 type TopicEvent struct {
@@ -377,14 +388,14 @@ var rules = []rule{
 		},
 	},
 	{
-		pattern: regexp.MustCompile(`^:[^!\s]+!\S+ MODE (#\S+) ([-+]\S+)(.*)$`),
+		pattern: regexp.MustCompile(`^:([^!\s]+)!\S+ MODE (#\S+) ([-+]\S+)(.*)$`),
 		build: func(m []string) any {
-			args := strings.Fields(m[3])
-			changes := parseChannelModeChanges(m[2], args)
+			args := strings.Fields(m[4])
+			changes := parseChannelModeChanges(m[3], args)
 			if changes == nil {
 				return nil
 			}
-			return ModeEvent{Type: "MODE", Channel: m[1], Changes: changes}
+			return ModeEvent{Type: "MODE", By: m[1], Channel: m[2], Changes: changes}
 		},
 	},
 	{
