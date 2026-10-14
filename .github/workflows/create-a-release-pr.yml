@@ -26,13 +26,13 @@ jobs:
   create-release-pr:
     runs-on: ubuntu-latest
     steps:
-      # release-please-action@v4 only honours its release-as/versioning-strategy
+      # release-please-action only honours its release-as/versioning-strategy
       # inputs when release-type is set, which bypasses release-please-config.json
       # (and with it our PR title pattern and dolq-v tags). In manifest mode the
       # only per-run override release-please offers is the CLI's --release-as,
       # so a forced bump is turned into an exact version from the manifest here.
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
       - env:
