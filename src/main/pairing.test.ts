@@ -1,15 +1,21 @@
 import { describe, expect, it } from 'vitest';
 import { formatHostPort, parsePairingLink } from '../shared/pairing';
 
+const FP = Array.from({ length: 32 }, (_, i) => i.toString(16).padStart(2, '0').toUpperCase()).join(':');
+
 describe('parsePairingLink', () => {
   it('reads host, port, token and fingerprint', () => {
-    expect(parsePairingLink('dolq://192.168.1.5:6789?token=abc123&fp=AA%3ABB')).toEqual({
+    expect(parsePairingLink(`dolq://192.168.1.5:6789?token=abc123&fp=${encodeURIComponent(FP)}`)).toEqual({
       host: '192.168.1.5',
       port: 6789,
       token: 'abc123',
-      fingerprint: 'AA:BB',
+      fingerprint: FP,
       tls: true,
     });
+  });
+
+  it('accepts a lowercase fingerprint and stores it uppercase, like dolqd and Node print it', () => {
+    expect(parsePairingLink(`dolq://10.0.0.2:6789?token=t&fp=${FP.toLowerCase()}`)?.fingerprint).toBe(FP);
   });
 
   it('allows a link without a fingerprint (CA-issued certificate) and surrounding whitespace', () => {
@@ -37,6 +43,11 @@ describe('parsePairingLink', () => {
     'dolq://:6789?token=t',
     'not a link',
     '',
+    'dolq://10.0.0.2:6789?token=t&fp=AA:BB',
+    `dolq://10.0.0.2:6789?token=t&fp=${FP.replaceAll(':', '')}`,
+    `dolq://10.0.0.2:6789?token=t&fp=${FP}:00`,
+    `dolq://10.0.0.2:6789?token=t&fp=${FP.slice(0, -2)}ZZ`,
+    `dolq://10.0.0.2:6789?token=t&fp=${FP}%0A`,
   ])('rejects %j', (text) => {
     expect(parsePairingLink(text)).toBeNull();
   });
