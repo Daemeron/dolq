@@ -7,29 +7,30 @@ Works on k3s, TrueNAS SCALE, Synology/QNAP container platforms, or any cluster.
 Connections are encrypted (TLS) and need an access token. Both are created for
 you on first start; you pair a client by pasting one link.
 
-## 1. Build and publish the image
+## 1. Get the image
 
-There is no public image yet, so build it and put it somewhere your cluster can
-pull from (a registry on the NAS works fine). Match your NAS's CPU:
+Each release publishes a multi-arch image (amd64 and arm64, so it fits Intel and
+ARM NASes alike) to `ghcr.io/daemeron/dolqd`; the manifests use it by default,
+so there is nothing to build. Tags: `latest`, `0.1.5`, `0.1`. Pin a version in
+`kustomization.yaml` (`images:`) rather than running `latest` unattended.
+
+If the cluster cannot pull it (the package is private until its visibility is
+set to public under the repository's **Packages** settings, or you run your own
+changes), build and push your own:
 
 ```sh
-# amd64 only
-docker build -t registry.nas.local:5000/dolqd:latest backend
-docker push registry.nas.local:5000/dolqd:latest
-
-# or both amd64 and arm64
 docker buildx build --platform linux/amd64,linux/arm64 \
   -t registry.nas.local:5000/dolqd:latest --push backend
 ```
 
-On a single-node k3s you can skip the registry:
-`docker save dolqd:latest | sudo k3s ctr images import -`.
+then point `images:` in `kustomization.yaml` at it. On a single-node k3s you can
+skip the registry: `docker save dolqd:latest | sudo k3s ctr images import -`.
 
 ## 2. Configure
 
 1. `configmap.yaml`: set `DOLQ_PUBLIC_HOST` to your NAS's name or LAN IP. It is
    only used to build the pairing link.
-2. `kustomization.yaml`: uncomment `images:` and point it at your image.
+2. `kustomization.yaml`: optionally pin a version or use your own image (`images:`).
 3. `pvc.yaml`: optionally set `storageClassName` and the size. It holds the
    history database, the access token and the TLS certificate.
 

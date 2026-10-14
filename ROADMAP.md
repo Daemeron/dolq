@@ -1193,8 +1193,10 @@ will hang the UI.
       keychain-backed secrets store and never returned to the renderer.
       `deploy/kubernetes/` runs it on a cluster/NAS (single replica, PVC,
       NodePort; `DOLQ_PUBLIC_PORT` makes the pairing link carry the mapped
-      port); the manifests were validated structurally but not applied to a
-      real cluster. Let's Encrypt validation (TLS-ALPN-01) is implemented with `autocert` but
+      port); a release workflow (`create-a-release-build-docker-image.yml`)
+      publishes the multi-arch image to `ghcr.io/daemeron/dolqd` - not yet
+      run, and the package starts private on GHCR. The manifests were
+      validated structurally but not applied to a real cluster. Let's Encrypt validation (TLS-ALPN-01) is implemented with `autocert` but
       has not been exercised against the live CA. Not done: LAN discovery
       (mDNS) so a client can find a backend without typing an address. Covered
       by `auth_test.go`, `pairing_test.go`, `remoteBackend.test.ts`,
