@@ -34,6 +34,7 @@ func main() {
 	secure := flag.Bool("secure", false, "with TLS on -addr, accept only TLS connections that present the access token, refusing plain unauthenticated ones. By default those are still accepted on the same port so clients and setups from before access tokens keep working; once every client is paired, turn this on (also DOLQ_SECURE=1)")
 	useTLSFlag := flag.Bool("tls", true, "serve -addr over TLS; -tls=false for plain TCP, e.g. behind a TLS-terminating proxy or an SSH tunnel")
 	useTokenFlag := flag.Bool("token", true, "require an access token on -addr (DOLQ_TOKEN, or generated once and kept next to the database); -token=false means anyone who can reach the port can use it, so only on a network you fully trust. Independent of -tls")
+	downloadDir := flag.String("download-dir", "", "with -addr, where XDCC downloads are saved; clients cannot choose another directory (also DOLQ_DOWNLOAD_DIR; default: a downloads dir next to the database). A locally spawned dolqd saves where the app asks")
 	retentionDays := flag.Int("retention-days", 0, "prune history older than this many days (0 = keep forever)")
 	flag.Parse()
 
@@ -119,6 +120,14 @@ func main() {
 
 	b := bouncer.New(store)
 	srv := ipcproto.NewServer(b).RequireToken(token)
+	if network == "tcp" {
+		dir := serverDownloadDir(*downloadDir, os.Getenv("DOLQ_DOWNLOAD_DIR"), *dbPath)
+		if err := os.MkdirAll(dir, 0o700); err != nil {
+			log.Fatalf("create download dir %s: %v", dir, err)
+		}
+		log.Printf("saving downloads to %s", dir)
+		srv.DownloadDir(dir)
+	}
 
 	serveErr := make(chan error, 1)
 	go func() { serveErr <- srv.Serve(ln) }()
@@ -158,6 +167,18 @@ func resolveDBPath(explicit string) string {
 		log.Fatalf("create config dir %s: %v", dir, err)
 	}
 	return filepath.Join(dir, "history.db")
+}
+
+// serverDownloadDir picks the directory a network listener saves downloads to:
+// -download-dir, else DOLQ_DOWNLOAD_DIR, else "downloads" next to the database.
+func serverDownloadDir(flagDir, envDir, dbPath string) string {
+	if flagDir != "" {
+		return flagDir
+	}
+	if envDir != "" {
+		return envDir
+	}
+	return filepath.Join(filepath.Dir(resolveDBPath(dbPath)), "downloads")
 }
 
 // logPairing prints the link a client pastes into Preferences to connect. The

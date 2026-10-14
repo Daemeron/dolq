@@ -82,3 +82,15 @@ func TestDaemonLifecycle(t *testing.T) {
 		t.Fatalf("socket not removed: %v", err)
 	}
 }
+
+func TestServerDownloadDir(t *testing.T) {
+	if got := serverDownloadDir("/f", "/e", "/x/h.db"); got != "/f" {
+		t.Errorf("flag: got %q", got)
+	}
+	if got := serverDownloadDir("", "/e", "/x/h.db"); got != "/e" {
+		t.Errorf("env: got %q", got)
+	}
+	if got, want := serverDownloadDir("", "", "/x/h.db"), filepath.Join("/x", "downloads"); got != want {
+		t.Errorf("default: got %q, want %q", got, want)
+	}
+}

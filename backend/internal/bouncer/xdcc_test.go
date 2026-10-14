@@ -205,3 +205,64 @@ func TestXDCCAcceptFallsBackToFreshWhenBotIgnoresResume(t *testing.T) {
 		t.Errorf("file (1).zip = %q, want %q", got, full)
 	}
 }
+
+// A symlink in the download dir must not let a resume truncate or append to
+// the file it points at, nor a new download write through it.
+func TestOpenDestinationIgnoresSymlinks(t *testing.T) {
+	dir, outside := t.TempDir(), t.TempDir()
+	victim := filepath.Join(outside, "victim")
+	if err := os.WriteFile(victim, []byte("0123456789"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(victim, filepath.Join(dir, "file.zip")); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+	if err := os.Symlink(filepath.Join(outside, "dangling"), filepath.Join(dir, "file (1).zip")); err != nil {
+		t.Fatal(err)
+	}
+
+	// A nil client: a resume attempt would panic, so this also proves none is made.
+	offer := ircparse.XDCCSendOfferEvent{Nick: "alice", Filename: "file.zip", Size: 100}
+	path, base, f, err := openDestination(nil, offer, dir, time.Millisecond)
+	if err != nil {
+		t.Fatalf("openDestination: %v", err)
+	}
+	f.Close()
+	if want := filepath.Join(dir, "file (2).zip"); path != want || base != 0 {
+		t.Fatalf("got %q at %d, want a fresh %q", path, base, want)
+	}
+	if got, _ := os.ReadFile(victim); string(got) != "0123456789" {
+		t.Fatalf("symlink target modified: %q", got)
+	}
+	if _, err := os.Lstat(filepath.Join(outside, "dangling")); !os.IsNotExist(err) {
+		t.Fatalf("wrote through a dangling symlink: %v", err)
+	}
+}
+
+func TestOpenForResumeRefusesSwappedFile(t *testing.T) {
+	dir := t.TempDir()
+	a, b := filepath.Join(dir, "a"), filepath.Join(dir, "b")
+	for _, p := range []string{a, b} {
+		if err := os.WriteFile(p, []byte("0123456789"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	statA, err := os.Lstat(a)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := openForResume(b, statA, 5); err == nil {
+		t.Fatal("resumed onto a file other than the one checked")
+	}
+	if got, _ := os.ReadFile(b); string(got) != "0123456789" {
+		t.Fatalf("swapped file modified: %q", got)
+	}
+	f, err := openForResume(a, statA, 5)
+	if err != nil {
+		t.Fatalf("openForResume: %v", err)
+	}
+	f.Close()
+	if got, _ := os.ReadFile(a); string(got) != "01234" {
+		t.Fatalf("not truncated to the resume position: %q", got)
+	}
+}
