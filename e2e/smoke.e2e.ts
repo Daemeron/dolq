@@ -16,7 +16,8 @@ function goEnv(): Record<string, string> {
   return Object.fromEntries(names.map((n, i) => [n, values[i]]));
 }
 
-const dolqFiles = (dir: string) => fs.readdirSync(dir).filter((f) => f.startsWith('dolq'));
+// dolqd's socket directory is dolq-<random>; the dev binary (dolqd-dev-<pid>) can share the same temp dir.
+const socketDirs = (dir: string) => fs.readdirSync(dir).filter((f) => f.startsWith('dolq-'));
 
 test('launches, renders and talks to its local backend', async () => {
   // userData holds settings/secrets; HOME is where dolqd keeps its history db;
@@ -57,7 +58,7 @@ test('launches, renders and talks to its local backend', async () => {
       const [appTemp, pid] = await app.evaluate(({ app }) => [app.getPath('temp'), process.pid]);
       bin = path.join(String(appTemp), `dolqd-dev-${pid}`);
       expect(fs.existsSync(bin)).toBe(true);
-      expect(dolqFiles(tmp)).toHaveLength(1);
+      expect(socketDirs(tmp)).toHaveLength(1);
 
       expect(errors).toEqual([]);
     } finally {
@@ -65,7 +66,7 @@ test('launches, renders and talks to its local backend', async () => {
     }
 
     // dolqd removes its socket dir on shutdown, and the app deletes the binary only after dolqd has exited.
-    expect(dolqFiles(tmp)).toEqual([]);
+    expect(socketDirs(tmp)).toEqual([]);
     expect(fs.existsSync(bin)).toBe(false);
   } finally {
     fs.rmSync(home, { recursive: true, force: true });
