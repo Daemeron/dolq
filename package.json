@@ -32,7 +32,7 @@
     "@types/react": "^18.0.0",
     "@types/react-dom": "^18.0.0",
     "@vitejs/plugin-react": "^4.0.0",
-    "electron": "^42.4.1",
+    "electron": "^42.11.14",
     "electron-builder": "^26.0.0",
     "electron-devtools-installer": "^4.0.0",
     "electron-vite": "^5.0.0",
