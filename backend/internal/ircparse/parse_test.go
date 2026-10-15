@@ -104,12 +104,12 @@ func TestParseLine(t *testing.T) {
 		{
 			name: "parses a CTCP VERSION request",
 			line: ":alice!u@host PRIVMSG dolq_user :\x01VERSION\x01",
-			want: CTCPRequestEvent{Nick: "alice", Target: "dolq_user", Command: "VERSION"},
+			want: CTCPRequestEvent{Nick: "alice", Host: "u@host", Target: "dolq_user", Command: "VERSION"},
 		},
 		{
 			name: "parses a CTCP PING request with its token",
 			line: ":alice!u@host PRIVMSG dolq_user :\x01PING 1600000000\x01",
-			want: CTCPRequestEvent{Nick: "alice", Target: "dolq_user", Command: "PING", Param: "1600000000"},
+			want: CTCPRequestEvent{Nick: "alice", Host: "u@host", Target: "dolq_user", Command: "PING", Param: "1600000000"},
 		},
 		{
 			name: "parses a live TOPIC change",

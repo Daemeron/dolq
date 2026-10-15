@@ -61,7 +61,11 @@ type NoticeEvent struct {
 }
 
 type CTCPRequestEvent struct {
-	Nick    string
+	Nick string
+	// Host is the sender's user@host; Account is the services account the
+	// server tagged the message with, empty when it did not.
+	Host    string
+	Account string
 	Target  string
 	Command string
 	Param   string
@@ -82,6 +86,8 @@ type XDCCSendOfferEvent struct {
 	Port     int    `json:"port"`
 	Size     int64  `json:"size"`
 	Token    string `json:"token,omitempty"`
+	Host     string `json:"host,omitempty"`
+	Account  string `json:"account,omitempty"`
 }
 
 type XDCCPackEvent struct {
@@ -336,12 +342,12 @@ type rule struct {
 
 var rules = []rule{
 	{
-		pattern: regexp.MustCompile(`^:([^!\s]+)!\S+ PRIVMSG (\S+) :\x01(\S+)(?: ([^\x01]*))?\x01$`),
+		pattern: regexp.MustCompile(`^:([^!\s]+)!(\S+) PRIVMSG (\S+) :\x01(\S+)(?: ([^\x01]*))?\x01$`),
 		build: func(m []string) any {
-			if m[3] == "ACTION" {
-				return ActionEvent{Type: "ACTION", Nick: m[1], Target: m[2], Text: m[4]}
+			if m[4] == "ACTION" {
+				return ActionEvent{Type: "ACTION", Nick: m[1], Target: m[3], Text: m[5]}
 			}
-			return CTCPRequestEvent{Nick: m[1], Target: m[2], Command: m[3], Param: m[4]}
+			return CTCPRequestEvent{Nick: m[1], Host: m[2], Target: m[3], Command: m[4], Param: m[5]}
 		},
 	},
 	{

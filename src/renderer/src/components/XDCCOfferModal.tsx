@@ -5,7 +5,11 @@ type Props = {
   nick: string;
   filename: string;
   size: number;
+  // False when the offer carries nothing to recognise the sender by
+  trustable: boolean;
   onAccept: () => void;
+  onAcceptSession: () => void;
+  onAcceptAlways: () => void;
   onDecline: () => void;
 };
 
@@ -21,7 +25,16 @@ function formatBytes(n: number): string {
   return `${v.toFixed(1)} ${units[i]}`;
 }
 
-export function XDCCOfferModal({ nick, filename, size, onAccept, onDecline }: Props) {
+export function XDCCOfferModal({
+  nick,
+  filename,
+  size,
+  trustable,
+  onAccept,
+  onAcceptSession,
+  onAcceptAlways,
+  onDecline,
+}: Props) {
   const dialogRef = useModalA11y<HTMLDivElement>();
 
   useEffect(() => {
@@ -57,6 +70,24 @@ export function XDCCOfferModal({ nick, filename, size, onAccept, onDecline }: Pr
         <p className="text-(--dolq-text) text-[14px] font-mono mb-5 break-all">
           {filename} <span className="text-(--dolq-text-faint)">({formatBytes(size)})</span>
         </p>
+        {trustable && (
+          <div className="flex flex-col gap-1 mb-4 items-start">
+            <button
+              type="button"
+              onClick={onAcceptSession}
+              className="text-(--dolq-text-muted) text-[12px] bg-transparent border-0 p-0 cursor-pointer hover:text-(--dolq-text) hover:underline"
+            >
+              Accept and trust {nick} until this server disconnects
+            </button>
+            <button
+              type="button"
+              onClick={onAcceptAlways}
+              className="text-(--dolq-text-muted) text-[12px] bg-transparent border-0 p-0 cursor-pointer hover:text-(--dolq-text) hover:underline"
+            >
+              Accept and always trust {nick}
+            </button>
+          </div>
+        )}
         <div className="flex gap-3 justify-end">
           <button
             type="button"

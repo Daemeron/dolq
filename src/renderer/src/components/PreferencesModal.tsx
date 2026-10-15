@@ -4,6 +4,7 @@ import { formatHostPort, parsePairingLink } from '../../../shared/pairing';
 import type { KeybindAction } from '../store';
 import type { Server } from '../types';
 import { comboFromEvent } from '../utils/keybind';
+import { type XdccSender, xdccSenderKey } from '../utils/xdcc';
 import { ViewPanel } from './ViewPanel';
 
 const KEYBIND_LABELS: Record<KeybindAction, string> = {
@@ -36,6 +37,8 @@ type Props = {
   servers: Server[];
   ignoredNicks: Record<string, string[]>;
   onRemoveIgnore: (serverId: string, nick: string) => void;
+  xdccTrusted: Record<string, XdccSender[]>;
+  onUntrustXdcc: (serverId: string, sender: XdccSender) => void;
   aliases: Record<string, string>;
   onRemoveAlias: (name: string) => void;
   keybindings: Record<KeybindAction, string>;
@@ -70,6 +73,8 @@ export function PreferencesModal({
   servers,
   ignoredNicks,
   onRemoveIgnore,
+  xdccTrusted,
+  onUntrustXdcc,
   aliases,
   onRemoveAlias,
   keybindings,
@@ -101,11 +106,15 @@ export function PreferencesModal({
     setRemoteTls(p.tls);
   }
   const [retentionDays, setRetentionDays] = useState(String(settings.retentionDays));
+  const [xdccAutoAccept, setXdccAutoAccept] = useState(settings.xdccAutoAccept ?? false);
   const [downloadDir, setDownloadDir] = useState(settings.downloadDir ?? '');
   const [dccPortMin, setDccPortMin] = useState(settings.dccPortMin ? String(settings.dccPortMin) : '');
   const [dccPortMax, setDccPortMax] = useState(settings.dccPortMax ? String(settings.dccPortMax) : '');
   const ignoredEntries = Object.entries(ignoredNicks).flatMap(([serverId, nicks]) =>
     nicks.map((nick) => ({ serverId, nick })),
+  );
+  const trustedEntries = Object.entries(xdccTrusted).flatMap(([serverId, senders]) =>
+    senders.map((sender) => ({ serverId, sender })),
   );
   const aliasEntries = Object.entries(aliases);
   const [recording, setRecording] = useState<KeybindAction | null>(null);
@@ -157,6 +166,7 @@ export function PreferencesModal({
       downloadDir: downloadDir || undefined,
       dccPortMin: portMin || undefined,
       dccPortMax: portMax || undefined,
+      xdccAutoAccept,
       trayEnabled,
       remoteEnabled,
       remoteUrl: remoteUrl || undefined,
@@ -318,6 +328,37 @@ export function PreferencesModal({
                     className="shrink-0 text-[#ff5555] text-[12px] font-medium bg-transparent border-0 cursor-pointer hover:underline"
                   >
                     Unignore
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {trustedEntries.length > 0 && (
+          <div className="flex flex-col gap-1.5 mb-5">
+            <span className="text-[11px] font-bold uppercase tracking-[0.5px] text-(--dolq-text-muted)">
+              Trusted XDCC Senders
+            </span>
+            <div className="flex flex-col gap-1 max-h-32 overflow-y-auto scroll-thin pr-1">
+              {trustedEntries.map(({ serverId, sender }) => (
+                <div
+                  key={`${serverId}:${xdccSenderKey(sender)}`}
+                  className="flex items-center justify-between gap-3 px-3 py-1.5 rounded bg-(--dolq-bg-input)"
+                >
+                  <span className="text-(--dolq-text) text-[13px] truncate">
+                    {sender.nick}{' '}
+                    <span className="text-(--dolq-text-faint)">
+                      {sender.account ? `account ${sender.account}` : sender.host} on{' '}
+                      {servers.find((s) => s.id === serverId)?.name ?? serverId}
+                    </span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => onUntrustXdcc(serverId, sender)}
+                    className="shrink-0 text-[#ff5555] text-[12px] font-medium bg-transparent border-0 cursor-pointer hover:underline"
+                  >
+                    Remove
                   </button>
                 </div>
               ))}
@@ -495,6 +536,20 @@ export function PreferencesModal({
           </label>
           <p className="text-(--dolq-text-faint) text-[12px] -mt-2.5">
             Where XDCC downloads are saved. Empty uses the OS Downloads folder.
+          </p>
+
+          <label className="flex items-center gap-2 text-[13px] text-(--dolq-text) cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={xdccAutoAccept}
+              onChange={(e) => setXdccAutoAccept(e.target.checked)}
+              className="accent-[#c792ea]"
+            />
+            Auto-accept XDCC downloads
+          </label>
+          <p className="text-(--dolq-text-faint) text-[12px] -mt-2.5">
+            Start a download without asking when the bot answers a pack you requested from Dolq. Offers you didn't ask
+            for still prompt.
           </p>
 
           <div className="flex gap-3">

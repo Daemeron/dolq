@@ -53,7 +53,17 @@ export type IrcEvent =
     }
   | { type: 'DCCCHATOFFER'; nick: string; ip: string; port: number }
   | { type: 'XDCCPACK'; nick: string; target: string; number: number; gets: number; size: string; filename: string }
-  | { type: 'XDCCSENDOFFER'; nick: string; filename: string; ip: string; port: number; size: number; token?: string }
+  | {
+      type: 'XDCCSENDOFFER';
+      nick: string;
+      filename: string;
+      ip: string;
+      port: number;
+      size: number;
+      token?: string;
+      host?: string;
+      account?: string;
+    }
   | { type: 'XDCCTRANSFER'; received: number; total: number; path: string; done?: boolean; error?: string };
 
 export type HistoryEntry = {
@@ -69,6 +79,7 @@ export type HistoryEntry = {
 export type Settings = {
   retentionDays: number;
   downloadDir?: string;
+  xdccAutoAccept?: boolean;
   dccPortMin?: number;
   dccPortMax?: number;
   trayEnabled?: boolean;

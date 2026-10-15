@@ -27,6 +27,7 @@ import { isChannelScopedLine } from './utils/logFilter';
 import { mentionsNick } from './utils/mentions';
 import { isNickServIdentifyPrompt } from './utils/nickserv';
 import { buildServerId, normalizeHost, resolveHostPort } from './utils/server';
+import { takeAutoAccept, xdccRequestKey, xdccRequestTarget, xdccSenderKey } from './utils/xdcc';
 
 const HISTORY_PAGE_SIZE = 100;
 
@@ -104,6 +105,18 @@ function notify(title: string, body: string, onClick: () => void): void {
   n.onclick = onClick;
 }
 
+type PendingXDCCOffer = {
+  serverId: string;
+  nick: string;
+  filename: string;
+  ip: string;
+  port: number;
+  size: number;
+  token?: string;
+  host?: string;
+  account?: string;
+};
+
 export default function App() {
   const {
     servers,
@@ -128,6 +141,9 @@ export default function App() {
     fontFamily,
     theme,
     ignoredNicks,
+    xdccTrusted,
+    trustXdccSender,
+    untrustXdccSender,
     selfAwayMap,
     aliases,
     keybindings,
@@ -184,6 +200,12 @@ export default function App() {
   } | null>(null);
   const [showSearch, setShowSearch] = useState(false);
   const [settings, setSettingsState] = useState<Settings>({ retentionDays: 0 });
+  const settingsRef = useRef(settings);
+  settingsRef.current = settings;
+  const requestedPacks = useRef(new Set<string>());
+  const sessionTrusted = useRef(new Set<string>());
+  const xdccTrustedRef = useRef(xdccTrusted);
+  xdccTrustedRef.current = xdccTrusted;
   const [whoisNick, setWhoisNick] = useState<string | null>(null);
   const [whoisResult, setWhoisResult] = useState<Extract<IrcEvent, { type: 'whois' }> | null>(null);
   const [pendingDCCOffer, setPendingDCCOffer] = useState<{
@@ -192,15 +214,7 @@ export default function App() {
     ip: string;
     port: number;
   } | null>(null);
-  const [pendingXDCCOffer, setPendingXDCCOffer] = useState<{
-    serverId: string;
-    nick: string;
-    filename: string;
-    ip: string;
-    port: number;
-    size: number;
-    token?: string;
-  } | null>(null);
+  const [pendingXDCCOffer, setPendingXDCCOffer] = useState<PendingXDCCOffer | null>(null);
   const [transfers, setTransfers] = useState<Record<string, Transfer & { serverId: string; path: string }>>({});
   const transferSpeedTrack = useRef<Record<string, { received: number; at: number }>>({});
   const [pendingIdentifyServerId, setPendingIdentifyServerId] = useState<string | null>(null);
@@ -304,7 +318,14 @@ export default function App() {
   }
 
   useEffect(() => {
-    return window.irc.onStatus((serverId, status) => setConnectionStatus(serverId, status));
+    return window.irc.onStatus((serverId, status) => {
+      if (status === 'disconnected') {
+        for (const key of sessionTrusted.current) {
+          if (key.startsWith(`${serverId}\0`)) sessionTrusted.current.delete(key);
+        }
+      }
+      setConnectionStatus(serverId, status);
+    });
   }, [setConnectionStatus]);
 
   useEffect(() => {
@@ -452,6 +473,12 @@ export default function App() {
     ],
   );
 
+  const startXDCCDownload = useCallback(async (offer: PendingXDCCOffer) => {
+    const { serverId, nick, filename, ip, port, size, token } = offer;
+    const id = await window.irc.xdccAccept(serverId, nick, ip, port, filename, size, token);
+    setTransfers((prev) => ({ ...prev, [id]: { serverId, nick, filename, received: 0, total: size, path: '' } }));
+  }, []);
+
   const isIgnored = useCallback(
     (serverId: string, nick: string): boolean => {
       return (ignoredNicks[serverId] ?? []).includes(nick);
@@ -596,8 +623,8 @@ export default function App() {
         case 'DCCCHATOFFER':
           setPendingDCCOffer({ serverId, nick: event.nick, ip: event.ip, port: event.port });
           break;
-        case 'XDCCSENDOFFER':
-          setPendingXDCCOffer({
+        case 'XDCCSENDOFFER': {
+          const offer = {
             serverId,
             nick: event.nick,
             filename: event.filename,
@@ -605,8 +632,23 @@ export default function App() {
             port: event.port,
             size: event.size,
             token: event.token,
-          });
+            host: event.host,
+            account: event.account,
+          };
+          const senderKey = xdccSenderKey(offer);
+          const trusted =
+            senderKey !== '' &&
+            (sessionTrusted.current.has(`${serverId}\0${senderKey}`) ||
+              (xdccTrustedRef.current[serverId] ?? []).some((t) => xdccSenderKey(t) === senderKey));
+          if (
+            takeAutoAccept(!!settingsRef.current.xdccAutoAccept, trusted, requestedPacks.current, serverId, event.nick)
+          ) {
+            void startXDCCDownload(offer);
+          } else {
+            setPendingXDCCOffer(offer);
+          }
           break;
+        }
         case 'XDCCTRANSFER': {
           const id = serverId;
           if (event.done || event.error) {
@@ -683,6 +725,7 @@ export default function App() {
     isIgnored,
     dmKey,
     ensureQuery,
+    startXDCCDownload,
     setChannelJoined,
     checkMention,
   ]);
@@ -901,24 +944,33 @@ export default function App() {
     setPendingDCCOffer(null);
   }
 
+  // Every outgoing line that may ask a bot for a pack goes through here, typed or clicked.
+  function sendTracked(serverId: string, line: string) {
+    const bot = xdccRequestTarget(line);
+    if (bot) requestedPacks.current.add(xdccRequestKey(serverId, bot));
+    return window.irc.sendLine(serverId, line);
+  }
+
   function handleGetPack(nick: string, packNumber: number) {
-    window.irc.sendLine(selectedServerId, `PRIVMSG ${nick} :XDCC SEND #${packNumber}`);
+    sendTracked(selectedServerId, `PRIVMSG ${nick} :XDCC SEND #${packNumber}`);
   }
 
   function handleGetPackFrom(serverId: string, nick: string, packNumber: number) {
     ensureQuery(serverId, nick);
     handleSelectServer(serverId);
     handleSelectChannel(nick);
-    window.irc.sendLine(serverId, `PRIVMSG ${nick} :XDCC SEND #${packNumber}`);
+    sendTracked(serverId, `PRIVMSG ${nick} :XDCC SEND #${packNumber}`);
     setShowSearch(false);
   }
 
-  async function handleAcceptXDCCOffer() {
+  async function handleAcceptXDCCOffer(trust?: 'session' | 'always') {
     if (!pendingXDCCOffer) return;
-    const { serverId, nick, filename, ip, port, size, token } = pendingXDCCOffer;
+    const offer = pendingXDCCOffer;
     setPendingXDCCOffer(null);
-    const id = await window.irc.xdccAccept(serverId, nick, ip, port, filename, size, token);
-    setTransfers((prev) => ({ ...prev, [id]: { serverId, nick, filename, received: 0, total: size, path: '' } }));
+    const key = xdccSenderKey(offer);
+    if (trust === 'session' && key) sessionTrusted.current.add(`${offer.serverId}\0${key}`);
+    if (trust === 'always') trustXdccSender(offer.serverId, offer);
+    await startXDCCDownload(offer);
   }
 
   function handleDeclineXDCCOffer() {
@@ -1047,7 +1099,7 @@ export default function App() {
       await window.irc.sendLine(selectedServerId, awayMatch[1] ? `AWAY :${awayMatch[1]}` : 'AWAY');
     } else if (msgMatch) {
       const [, nick, msg] = msgMatch;
-      await window.irc.sendLine(selectedServerId, `PRIVMSG ${nick} :${msg}`);
+      await sendTracked(selectedServerId, `PRIVMSG ${nick} :${msg}`);
       handleOpenQuery(nick);
       appendMessage(scopeKey(selectedServerId, nick), {
         id: nextMsgId.current++,
@@ -1066,7 +1118,7 @@ export default function App() {
       }
       await handleSend(expandAlias(aliases[aliasName], aliasInvokeMatch?.[2] ?? ''), aliasDepth + 1);
     } else if (selectedChannel?.isLog) {
-      await window.irc.sendLine(selectedServerId, text);
+      await sendTracked(selectedServerId, text);
     } else if (selectedChannel?.isDCC) {
       await window.irc.dccSend(selectedChannelId, text);
       appendMessage(scopeKey(selectedServerId, selectedChannelId), {
@@ -1086,7 +1138,7 @@ export default function App() {
         action: true,
       });
     } else {
-      await window.irc.sendLine(selectedServerId, `PRIVMSG ${selectedChannelId} :${text}`);
+      await sendTracked(selectedServerId, `PRIVMSG ${selectedChannelId} :${text}`);
       appendMessage(scopeKey(selectedServerId, selectedChannelId), {
         id: nextMsgId.current++,
         nick: currentNick,
@@ -1116,7 +1168,10 @@ export default function App() {
           nick={pendingXDCCOffer.nick}
           filename={pendingXDCCOffer.filename}
           size={pendingXDCCOffer.size}
-          onAccept={handleAcceptXDCCOffer}
+          trustable={xdccSenderKey(pendingXDCCOffer) !== ''}
+          onAccept={() => handleAcceptXDCCOffer()}
+          onAcceptSession={() => handleAcceptXDCCOffer('session')}
+          onAcceptAlways={() => handleAcceptXDCCOffer('always')}
           onDecline={handleDeclineXDCCOffer}
         />
       )}
@@ -1232,6 +1287,8 @@ export default function App() {
             servers={servers}
             ignoredNicks={ignoredNicks}
             onRemoveIgnore={removeIgnore}
+            xdccTrusted={xdccTrusted}
+            onUntrustXdcc={untrustXdccSender}
             aliases={aliases}
             onRemoveAlias={removeAlias}
             keybindings={keybindings}
