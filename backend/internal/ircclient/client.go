@@ -153,7 +153,7 @@ func (c *Client) handshake() {
 	c.negotiateCaps()
 }
 
-var baselineCaps = []string{"multi-prefix", "away-notify", "server-time"}
+var baselineCaps = []string{"multi-prefix", "away-notify", "server-time", "account-tag"}
 
 func (c *Client) negotiateCaps() {
 	var offered []string
@@ -331,6 +331,21 @@ func stripMessageTags(line string) string {
 	return rest
 }
 
+// messageTag returns the value of one IRCv3 message tag, or "" when the line
+// has no such tag.
+func messageTag(line, name string) string {
+	if !strings.HasPrefix(line, "@") {
+		return ""
+	}
+	tags, _, _ := strings.Cut(line[1:], " ")
+	for _, t := range strings.Split(tags, ";") {
+		if k, v, _ := strings.Cut(t, "="); k == name {
+			return v
+		}
+	}
+	return ""
+}
+
 func isCapOrAuthLine(line string) bool {
 	switch capCommand(line) {
 	case "CAP", "AUTHENTICATE", "900", "901", "902", "903", "904", "905", "906", "907":
@@ -404,6 +419,7 @@ func (c *Client) handleLine(line string) {
 
 	switch e := event.(type) {
 	case ircparse.CTCPRequestEvent:
+		e.Account = messageTag(line, "account")
 		c.handleCTCPRequest(e)
 		return
 	case ircparse.NamesReplyEvent:
@@ -575,11 +591,12 @@ func (c *Client) handleCTCPRequest(e ircparse.CTCPRequestEvent) {
 	case "PING":
 		c.sendCTCPReply(e.Nick, "PING "+e.Param)
 	case "DCC":
-		c.handleDCCRequest(e.Nick, e.Param)
+		c.handleDCCRequest(e, e.Param)
 	}
 }
 
-func (c *Client) handleDCCRequest(nick, param string) {
+func (c *Client) handleDCCRequest(from ircparse.CTCPRequestEvent, param string) {
+	nick := from.Nick
 	fields := strings.Fields(param)
 	if len(fields) == 0 {
 		return
@@ -607,6 +624,7 @@ func (c *Client) handleDCCRequest(nick, param string) {
 		c.emitEvent(ircparse.XDCCSendOfferEvent{
 			Type: "XDCCSENDOFFER", Nick: nick, Filename: offer.Filename,
 			IP: offer.IP, Port: offer.Port, Size: offer.Size, Token: offer.Token,
+			Host: from.Host, Account: from.Account,
 		})
 	case "ACCEPT":
 		accept, ok := dcc.ParseResumeAccept(param)

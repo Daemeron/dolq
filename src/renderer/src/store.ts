@@ -3,6 +3,7 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 import type { PrivilegeLevel } from '../../shared/ipc';
 import { PUBLIC_SERVERS, type ServerPreset } from './data/servers';
 import type { Channel, Message, Server, User } from './types';
+import { type XdccSender, xdccSenderKey } from './utils/xdcc';
 
 type State = {
   servers: Server[];
@@ -29,6 +30,8 @@ type State = {
   fontFamily: 'system' | 'serif' | 'monospace';
   theme: 'dark' | 'light';
   ignoredNicks: Record<string, string[]>;
+  // Senders whose XDCC offers start without a prompt, per server
+  xdccTrusted: Record<string, XdccSender[]>;
   selfAwayMap: Record<string, boolean>;
   aliases: Record<string, string>;
   keybindings: Record<KeybindAction, string>;
@@ -99,6 +102,8 @@ type Actions = {
   setTheme: (theme: 'dark' | 'light') => void;
   addIgnore: (serverId: string, nick: string) => void;
   removeIgnore: (serverId: string, nick: string) => void;
+  trustXdccSender: (serverId: string, sender: XdccSender) => void;
+  untrustXdccSender: (serverId: string, sender: XdccSender) => void;
   applyAwayEverywhere: (serverId: string, nick: string, away: boolean) => void;
   setSelfAway: (serverId: string, away: boolean) => void;
   setAlias: (name: string, template: string) => void;
@@ -135,6 +140,7 @@ export const useStore = create<State & Actions>()(
       fontFamily: 'system',
       theme: 'dark',
       ignoredNicks: {},
+      xdccTrusted: {},
       selfAwayMap: {},
       aliases: {},
       keybindings: DEFAULT_KEYBINDINGS,
@@ -169,6 +175,8 @@ export const useStore = create<State & Actions>()(
           delete passwordMap[id];
           const ignoredNicks = { ...s.ignoredNicks };
           delete ignoredNicks[id];
+          const xdccTrusted = { ...s.xdccTrusted };
+          delete xdccTrusted[id];
           const selfAwayMap = { ...s.selfAwayMap };
           delete selfAwayMap[id];
           const lastChannelMap = { ...s.lastChannelMap };
@@ -185,6 +193,7 @@ export const useStore = create<State & Actions>()(
               saslMap,
               passwordMap,
               ignoredNicks,
+              xdccTrusted,
               selfAwayMap,
               lastChannelMap,
             };
@@ -204,6 +213,7 @@ export const useStore = create<State & Actions>()(
             saslMap,
             passwordMap,
             ignoredNicks,
+            xdccTrusted,
             selfAwayMap,
             lastChannelMap,
             selectedServerId,
@@ -406,6 +416,22 @@ export const useStore = create<State & Actions>()(
           ignoredNicks: { ...s.ignoredNicks, [serverId]: (s.ignoredNicks[serverId] ?? []).filter((n) => n !== nick) },
         })),
 
+      trustXdccSender: (serverId, sender) =>
+        set((s) => {
+          const key = xdccSenderKey(sender);
+          const existing = s.xdccTrusted[serverId] ?? [];
+          if (!key || existing.some((t) => xdccSenderKey(t) === key)) return {};
+          return { xdccTrusted: { ...s.xdccTrusted, [serverId]: [...existing, sender] } };
+        }),
+
+      untrustXdccSender: (serverId, sender) =>
+        set((s) => ({
+          xdccTrusted: {
+            ...s.xdccTrusted,
+            [serverId]: (s.xdccTrusted[serverId] ?? []).filter((t) => xdccSenderKey(t) !== xdccSenderKey(sender)),
+          },
+        })),
+
       setAlias: (name, template) => set((s) => ({ aliases: { ...s.aliases, [name]: template } })),
 
       removeAlias: (name) =>
@@ -445,6 +471,7 @@ export const useStore = create<State & Actions>()(
         fontFamily: s.fontFamily,
         theme: s.theme,
         ignoredNicks: s.ignoredNicks,
+        xdccTrusted: s.xdccTrusted,
         aliases: s.aliases,
         keybindings: s.keybindings,
       }),

@@ -481,9 +481,29 @@ func TestCTCP(t *testing.T) {
 		case e := <-events:
 			want := ircparse.XDCCSendOfferEvent{
 				Type: "XDCCSENDOFFER", Nick: "alice", Filename: "file.txt", IP: "192.168.1.1", Port: 5000, Size: 1024,
+				Host: "u@host",
 			}
 			if !reflect.DeepEqual(e, want) {
 				t.Errorf("got %#v, want %#v", e, want)
+			}
+		case <-time.After(2 * time.Second):
+			t.Fatal("timed out waiting for the XDCCSendOfferEvent")
+		}
+	})
+
+	t.Run("an XDCCSendOfferEvent carries the sender's account from the account tag", func(t *testing.T) {
+		c, server, r := pipeClient(t, "testnick")
+		events := make(chan any, 1)
+		c.AddEventListener(func(e any) { events <- e })
+		c.Start()
+		drainHandshake(t, r)
+
+		writeLine(t, server, "@time=2026-01-01T00:00:00.000Z;account=alice_acct :alice!u@host PRIVMSG testnick :\x01DCC SEND f 3232235777 5000 1\x01")
+		select {
+		case e := <-events:
+			offer, ok := e.(ircparse.XDCCSendOfferEvent)
+			if !ok || offer.Account != "alice_acct" || offer.Host != "u@host" {
+				t.Errorf("got %#v, want account alice_acct and host u@host", e)
 			}
 		case <-time.After(2 * time.Second):
 			t.Fatal("timed out waiting for the XDCCSendOfferEvent")
@@ -502,6 +522,7 @@ func TestCTCP(t *testing.T) {
 		case e := <-events:
 			want := ircparse.XDCCSendOfferEvent{
 				Type: "XDCCSENDOFFER", Nick: "alice", Filename: "my file.txt", IP: "192.168.1.1", Size: 1024, Token: "7",
+				Host: "u@host",
 			}
 			if !reflect.DeepEqual(e, want) {
 				t.Errorf("got %#v, want %#v", e, want)
@@ -1234,5 +1255,20 @@ func TestQuitAndNickReportSharedChannels(t *testing.T) {
 	}
 	if len(quits[1].Channels) != 0 {
 		t.Errorf("quit of nick that left #a channels = %v, want none", quits[1].Channels)
+	}
+}
+
+func TestMessageTag(t *testing.T) {
+	cases := []struct{ line, name, want string }{
+		{"@time=x;account=bob :b!u@h PRIVMSG a :hi", "account", "bob"},
+		{"@account=bob :b!u@h PRIVMSG a :hi", "account", "bob"},
+		{"@time=x :b!u@h PRIVMSG a :hi", "account", ""},
+		{":b!u@h PRIVMSG a :account=bob", "account", ""},
+		{"@xaccount=bob :b!u@h PRIVMSG a :hi", "account", ""},
+	}
+	for _, tc := range cases {
+		if got := messageTag(tc.line, tc.name); got != tc.want {
+			t.Errorf("messageTag(%q, %q) = %q, want %q", tc.line, tc.name, got, tc.want)
+		}
 	}
 }
