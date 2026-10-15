@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/Daemeron/dolq/compare/dolq-v0.2.0...dolq-v0.3.0) (2026-10-15)
+
+
+### Features
+
+* **xdcc:** auto-accept downloads, globally or from trusted senders ([2c30b12](https://github.com/Daemeron/dolq/commit/2c30b12e3dc151d76a02def92b3b2c4e56e01439))
+
 ## [0.2.0](https://github.com/Daemeron/dolq/compare/dolq-v0.1.4...dolq-v0.2.0) (2026-10-14)
 
 
