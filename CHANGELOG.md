@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.3](https://github.com/Daemeron/dolq/compare/dolq-v0.3.2...dolq-v0.3.3) (2026-10-17)
+
+
+### Bug Fixes
+
+* **history:** keep download results across restarts ([a5fa099](https://github.com/Daemeron/dolq/commit/a5fa099bc1c356b5988d1dafcc19bd0652da9fd5))
+
 ## [0.3.2](https://github.com/Daemeron/dolq/compare/dolq-v0.3.1...dolq-v0.3.2) (2026-10-17)
 
 
