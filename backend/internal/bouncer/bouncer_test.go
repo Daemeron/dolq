@@ -449,3 +449,87 @@ func TestEventChannelBucketing(t *testing.T) {
 		})
 	}
 }
+
+func TestOutgoingEvent(t *testing.T) {
+	cases := []struct {
+		name, line, wantChannel string
+		want                    any
+	}{
+		{"private message goes to the other party's nick", "PRIVMSG bob :hi", "bob",
+			ircparse.PrivmsgEvent{Type: "PRIVMSG", Nick: "me", Target: "bob", Text: "hi"}},
+		{"channel message goes to the channel", "PRIVMSG #chan :hi there", "#chan",
+			ircparse.PrivmsgEvent{Type: "PRIVMSG", Nick: "me", Target: "#chan", Text: "hi there"}},
+		{"action", "PRIVMSG bob :\x01ACTION waves\x01", "bob",
+			ircparse.ActionEvent{Type: "ACTION", Nick: "me", Target: "bob", Text: "waves"}},
+		{"not a message", "JOIN #chan", "", nil},
+		{"CTCP request", "PRIVMSG bob :\x01VERSION\x01", "", nil},
+		{"services password", "PRIVMSG NickServ :identify hunter2", "", nil},
+		{"services by host", "PRIVMSG Q@CServe.quakenet.org :AUTH me pw", "", nil},
+		{"credentials to a plain nick", "PRIVMSG bot :identify hunter2", "", nil},
+		{"pack request", "PRIVMSG bot :XDCC SEND #5", "", nil},
+	}
+	for _, tc := range cases {
+		ch, ev, ok := outgoingEvent("me", tc.line)
+		if ok != (tc.want != nil) || ch != tc.wantChannel || ev != tc.want {
+			t.Errorf("%s: got (%q, %#v, %v)", tc.name, ch, ev, ok)
+		}
+	}
+	if _, _, ok := outgoingEvent("", "PRIVMSG bob :hi"); ok {
+		t.Error("stored a message before the nick was known")
+	}
+}
+
+func TestSendStoresOwnMessagesAcrossRestart(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "history.db")
+	store, err := history.Open(path, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b := New(store)
+	_, r := pipeSession(t, b, "server-a", &fakeSubscriber{})
+	read := make(chan struct{}, 2)
+	go func() {
+		for range 2 {
+			if _, err := r.ReadString('\n'); err != nil {
+				return
+			}
+			read <- struct{}{}
+		}
+	}()
+	for _, line := range []string{"PRIVMSG bob :hello", "PRIVMSG NickServ :identify hunter2"} {
+		if err := b.Send("server-a", line); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for range 2 {
+		select {
+		case <-read:
+		case <-time.After(5 * time.Second):
+			t.Fatal("lines were not written to the server")
+		}
+	}
+	done := make(chan error, 1)
+	go func() { done <- b.Disconnect("server-a") }()
+	if _, err := r.ReadString('\n'); err != nil {
+		t.Fatalf("read QUIT: %v", err)
+	}
+	if err := <-done; err != nil {
+		t.Fatalf("Disconnect: %v", err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	reopened, err := history.Open(path, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reopened.Close()
+	dm, _ := reopened.Recent("server-a", "bob", 0, 10)
+	if len(dm) != 1 {
+		t.Fatalf("got %d entries for bob, want 1", len(dm))
+	}
+	all, _ := reopened.Recent("server-a", "NickServ", 0, 10)
+	if len(all) != 0 {
+		t.Fatalf("services message was stored: %#v", all)
+	}
+}

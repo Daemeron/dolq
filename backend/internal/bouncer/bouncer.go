@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -415,7 +416,44 @@ func (b *Bouncer) Send(serverID, line string) error {
 	sess.mu.Lock()
 	client := sess.client
 	sess.mu.Unlock()
-	return client.SendPaced(line)
+	if err := client.SendPaced(line); err != nil {
+		return err
+	}
+	// The server does not echo our own messages back, so they are stored here.
+	if ch, event, ok := outgoingEvent(client.Nick(), line); ok {
+		b.store.AppendEvent(serverID, ch, event, time.Now())
+	}
+	return nil
+}
+
+var (
+	outgoingMessage = regexp.MustCompile(`(?i)^PRIVMSG (\S+) :(.*)$`)
+	// Services take passwords in plain messages; those must never reach the history.
+	servicesTarget  = regexp.MustCompile(`(?i)serv$|@`)
+	credentialsText = regexp.MustCompile(`(?i)^(identify|login|auth|register|group|ghost|release|recover)\b`)
+	packRequestText = regexp.MustCompile(`(?i)^xdcc\s`)
+)
+
+// outgoingEvent turns a line we are about to send into the event the server
+// would have delivered for it, and the history channel it belongs to: the
+// channel itself, or the other party's nick for a private message. ok is false
+// for anything that is not a chat message worth keeping.
+func outgoingEvent(self, line string) (channel string, event any, ok bool) {
+	m := outgoingMessage.FindStringSubmatch(line)
+	if m == nil || self == "" {
+		return "", nil, false
+	}
+	target, text := m[1], m[2]
+	if servicesTarget.MatchString(target) || credentialsText.MatchString(text) || packRequestText.MatchString(text) {
+		return "", nil, false
+	}
+	if rest, found := strings.CutPrefix(text, "\x01ACTION "); found {
+		return target, ircparse.ActionEvent{Type: "ACTION", Nick: self, Target: target, Text: strings.TrimSuffix(rest, "\x01")}, true
+	}
+	if strings.HasPrefix(text, "\x01") {
+		return "", nil, false
+	}
+	return target, ircparse.PrivmsgEvent{Type: "PRIVMSG", Nick: self, Target: target, Text: text}, true
 }
 
 func (b *Bouncer) Shutdown(ctx context.Context) {
