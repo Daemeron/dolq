@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import type { PrivilegeLevel } from '../../shared/ipc';
 import { PUBLIC_SERVERS, type ServerPreset } from './data/servers';
+import { migrateStore, STORE_VERSION } from './storeMigrations';
 import type { Channel, Message, Server, User } from './types';
 import { type XdccSender, xdccSenderKey } from './utils/xdcc';
 
@@ -451,6 +452,8 @@ export const useStore = create<State & Actions>()(
     {
       name: 'dolq',
       storage: createJSONStorage(() => localStorage),
+      version: STORE_VERSION,
+      migrate: (persisted, version) => migrateStore(persisted, version) as unknown as State & Actions,
       partialize: (s) => ({
         servers: s.servers,
         presets: s.presets,
