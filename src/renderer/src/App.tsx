@@ -375,8 +375,8 @@ export default function App() {
           const joined = new Set(await window.irc.getJoinedChannels(s.id).catch(() => [] as string[]));
           (channelMap[s.id] ?? []).forEach((ch) => {
             if (ch.isLog || ch.isQuery) return;
+            setChannelJoined(s.id, ch.id, joined.has(ch.id));
             if (joined.has(ch.id)) window.irc.sendLine(s.id, `NAMES ${ch.id}`);
-            else setChannelJoined(s.id, ch.id, false);
           });
           continue;
         }
@@ -898,7 +898,7 @@ export default function App() {
     if (channel?.isDCC) {
       await window.irc.dccClose(channelId);
     } else {
-      if (channel && !channel.isQuery && channel.joined !== false) {
+      if (channel && !channel.isQuery && channel.joined === true) {
         await window.irc.sendLine(selectedServerId, `PART ${channelId}`);
       }
     }

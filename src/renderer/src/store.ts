@@ -454,7 +454,10 @@ export const useStore = create<State & Actions>()(
       partialize: (s) => ({
         servers: s.servers,
         presets: s.presets,
-        channelMap: s.channelMap,
+        // joined is live connection state, never restored from a previous session
+        channelMap: Object.fromEntries(
+          Object.entries(s.channelMap).map(([id, chs]) => [id, chs.map(({ joined: _, ...c }) => c)]),
+        ),
         userMap: s.userMap,
         nickMap: s.nickMap,
         selectedServerId: s.selectedServerId,

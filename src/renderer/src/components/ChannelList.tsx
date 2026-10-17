@@ -40,7 +40,7 @@ export function ChannelList({
   const dccChats = queries.filter((c) => c.isDCC);
   const { menu, open, close, dismissIfUnhandled } = useContextMenu<string>();
   const menuChannel = regularChannels.find((c) => c.id === menu?.target);
-  const menuChannelJoined = menuChannel?.joined !== false;
+  const menuChannelJoined = menuChannel?.joined === true;
   const menuQuery = queries.find((c) => c.id === menu?.target);
 
   return (
@@ -84,7 +84,7 @@ export function ChannelList({
 
       <div className="flex-1 min-h-0 overflow-y-auto px-2 pb-3 scroll-thin mb-30">
         {regularChannels.map((ch) => {
-          const joined = ch.joined !== false;
+          const joined = ch.joined === true;
           const mentioned = !!mentionedChannels[ch.id];
           const muted = !!mutedChannels[ch.id];
           const away = awayStats[ch.id];
@@ -101,10 +101,11 @@ export function ChannelList({
                   : mentioned
                     ? 'bg-transparent text-(--dolq-mention) font-semibold hover:bg-(--dolq-bg-row-hover)'
                     : 'bg-transparent text-(--dolq-text-dim) hover:bg-(--dolq-bg-row-hover) hover:text-(--dolq-text)'
-              } ${joined ? '' : 'opacity-50 italic'}`}
+              } ${joined ? '' : 'opacity-40 italic'}`}
             >
               <span className="text-[16px] mr-1.5 opacity-50">#</span>
               <span className="flex-1 truncate">{ch.name}</span>
+              {!joined && <span className="text-[10px] uppercase shrink-0 mr-1">not joined</span>}
               {muted && <span className="text-[12px] opacity-50 shrink-0">🔕</span>}
               {away && (
                 <span
