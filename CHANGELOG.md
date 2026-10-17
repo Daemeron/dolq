@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.1](https://github.com/Daemeron/dolq/compare/dolq-v0.3.0...dolq-v0.3.1) (2026-10-17)
+
+
+### Bug Fixes
+
+* show channels from previous sessions as not joined ([893557d](https://github.com/Daemeron/dolq/commit/893557de013bb571fd3b1798aa4edd0e1373a042))
+
 ## [0.3.0](https://github.com/Daemeron/dolq/compare/dolq-v0.2.0...dolq-v0.3.0) (2026-10-15)
 
 
