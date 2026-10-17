@@ -431,7 +431,6 @@ var (
 	// Services take passwords in plain messages; those must never reach the history.
 	servicesTarget  = regexp.MustCompile(`(?i)serv$|@`)
 	credentialsText = regexp.MustCompile(`(?i)^(identify|login|auth|register|group|ghost|release|recover)\b`)
-	packRequestText = regexp.MustCompile(`(?i)^xdcc\s`)
 )
 
 // outgoingEvent turns a line we are about to send into the event the server
@@ -444,7 +443,7 @@ func outgoingEvent(self, line string) (channel string, event any, ok bool) {
 		return "", nil, false
 	}
 	target, text := m[1], m[2]
-	if servicesTarget.MatchString(target) || credentialsText.MatchString(text) || packRequestText.MatchString(text) {
+	if servicesTarget.MatchString(target) || credentialsText.MatchString(text) {
 		return "", nil, false
 	}
 	if rest, found := strings.CutPrefix(text, "\x01ACTION "); found {
