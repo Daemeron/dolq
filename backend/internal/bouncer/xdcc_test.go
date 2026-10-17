@@ -1,6 +1,7 @@
 package bouncer
 
 import (
+	"encoding/json"
 	"io"
 	"net"
 	"os"
@@ -9,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Daemeron/dolq/backend/internal/history"
 	"github.com/Daemeron/dolq/backend/internal/ircparse"
 )
 
@@ -265,4 +267,63 @@ func TestOpenForResumeRefusesSwappedFile(t *testing.T) {
 	if got, _ := os.ReadFile(a); string(got) != "01234" {
 		t.Fatalf("not truncated to the resume position: %q", got)
 	}
+}
+
+func TestXDCCOutcomeIsStoredInTheSendersHistory(t *testing.T) {
+	data := []byte("some-file-bytes")
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+	go func() {
+		conn, err := ln.Accept()
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+		conn.Write(data)
+		io.Copy(io.Discard, conn)
+	}()
+
+	dir := t.TempDir()
+	store, err := history.Open(filepath.Join(dir, "history.db"), 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b := New(store)
+	sub := &fakeSubscriber{}
+	_, r := pipeSession(t, b, "server-a", sub)
+
+	offer := ircparse.XDCCSendOfferEvent{
+		Nick: "alice", Filename: "file.zip", IP: "127.0.0.1", Port: ln.Addr().(*net.TCPAddr).Port, Size: int64(len(data)),
+	}
+	if _, err := b.XDCCAccept("server-a", offer, dir, 0, 0, sub); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, func() bool { return sub.lastStatus() == "disconnected" })
+
+	var entries []history.Entry
+	waitFor(t, func() bool {
+		entries, _ = store.Recent("server-a", "alice", 0, 10)
+		return len(entries) > 0
+	})
+	var ev ircparse.SystemEvent
+	if err := json.Unmarshal(entries[len(entries)-1].Event, &ev); err != nil {
+		t.Fatal(err)
+	}
+	want := "Downloaded file.zip to " + filepath.Join(dir, "file.zip")
+	if ev.Type != "SYSTEM" || ev.Text != want {
+		t.Fatalf("got %#v, want a system line %q", ev, want)
+	}
+
+	done := make(chan error, 1)
+	go func() { done <- b.Disconnect("server-a") }()
+	if _, err := r.ReadString('\n'); err != nil {
+		t.Fatalf("read QUIT: %v", err)
+	}
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	store.Close()
 }

@@ -64,7 +64,7 @@ func (b *Bouncer) XDCCAccept(
 				f.Close()
 				return
 			}
-			b.runXDCCTransfer(id, conn, f, destPath, base, offer.Size, sub)
+			b.runXDCCTransfer(id, serverID, offer, conn, f, destPath, base, sub)
 		}()
 		return id, nil
 	}
@@ -98,7 +98,7 @@ func (b *Bouncer) XDCCAccept(
 			f.Close()
 			return
 		}
-		b.runXDCCTransfer(id, conn, f, destPath, base, offer.Size, sub)
+		b.runXDCCTransfer(id, serverID, offer, conn, f, destPath, base, sub)
 	}()
 	return id, nil
 }
@@ -178,7 +178,8 @@ func requestResume(client *ircclient.Client, offer ircparse.XDCCSendOfferEvent, 
 	}
 }
 
-func (b *Bouncer) runXDCCTransfer(id string, conn net.Conn, f *os.File, destPath string, base, size int64, sub Subscriber) {
+func (b *Bouncer) runXDCCTransfer(id, serverID string, offer ircparse.XDCCSendOfferEvent, conn net.Conn, f *os.File, destPath string, base int64, sub Subscriber) {
+	size := offer.Size
 	t := &xdccTransfer{conn: conn, pause: dcc.NewPauseGate()}
 	b.dccMu.Lock()
 	b.xdccConns[id] = t
@@ -204,9 +205,17 @@ func (b *Bouncer) runXDCCTransfer(id string, conn net.Conn, f *os.File, destPath
 	if err != nil {
 		log.Printf("bouncer: XDCC transfer %s: %v", id, err)
 		sub.SendEvent(id, XDCCTransferEvent{Type: "XDCCTRANSFER", Path: destPath, Error: err.Error()})
+		b.recordTransfer(serverID, offer.Nick, fmt.Sprintf("Download of %s failed: %s", offer.Filename, err))
 		return
 	}
 	sub.SendEvent(id, XDCCTransferEvent{Type: "XDCCTRANSFER", Received: size, Total: size, Path: destPath, Done: true})
+	b.recordTransfer(serverID, offer.Nick, fmt.Sprintf("Downloaded %s to %s", offer.Filename, destPath))
+}
+
+// recordTransfer keeps the outcome of a download in the history of the
+// conversation with the sender, so it is still there after a restart.
+func (b *Bouncer) recordTransfer(serverID, nick, text string) {
+	b.store.AppendEvent(serverID, nick, ircparse.SystemEvent{Type: "SYSTEM", Channel: nick, Text: text}, time.Now())
 }
 
 func (b *Bouncer) XDCCClose(id string) error {
