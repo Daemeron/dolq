@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.2](https://github.com/Daemeron/dolq/compare/dolq-v0.3.1...dolq-v0.3.2) (2026-10-17)
+
+
+### Bug Fixes
+
+* **history:** keep the messages you send across restarts ([fb7bb4c](https://github.com/Daemeron/dolq/commit/fb7bb4cab14cd1e0656c925be8aa8cdcc511b805))
+
 ## [0.3.1](https://github.com/Daemeron/dolq/compare/dolq-v0.3.0...dolq-v0.3.1) (2026-10-17)
 
 
