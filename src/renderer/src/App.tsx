@@ -951,15 +951,28 @@ export default function App() {
     return window.irc.sendLine(serverId, line);
   }
 
+  // A pack request from a button reads in the chat like the same line typed by hand.
+  function requestPack(serverId: string, nick: string, packNumber: number) {
+    const text = `XDCC SEND #${packNumber}`;
+    ensureQuery(serverId, nick);
+    sendTracked(serverId, `PRIVMSG ${nick} :${text}`);
+    appendMessage(scopeKey(serverId, nick), {
+      id: nextMsgId.current++,
+      nick: nickMap[serverId] ?? '',
+      text,
+      timestamp: new Date(),
+    });
+  }
+
   function handleGetPack(nick: string, packNumber: number) {
-    sendTracked(selectedServerId, `PRIVMSG ${nick} :XDCC SEND #${packNumber}`);
+    requestPack(selectedServerId, nick, packNumber);
   }
 
   function handleGetPackFrom(serverId: string, nick: string, packNumber: number) {
     ensureQuery(serverId, nick);
     handleSelectServer(serverId);
     handleSelectChannel(nick);
-    sendTracked(serverId, `PRIVMSG ${nick} :XDCC SEND #${packNumber}`);
+    requestPack(serverId, nick, packNumber);
     setShowSearch(false);
   }
 

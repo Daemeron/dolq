@@ -466,7 +466,8 @@ func TestOutgoingEvent(t *testing.T) {
 		{"services password", "PRIVMSG NickServ :identify hunter2", "", nil},
 		{"services by host", "PRIVMSG Q@CServe.quakenet.org :AUTH me pw", "", nil},
 		{"credentials to a plain nick", "PRIVMSG bot :identify hunter2", "", nil},
-		{"pack request", "PRIVMSG bot :XDCC SEND #5", "", nil},
+		{"pack request", "PRIVMSG bot :XDCC SEND #5", "bot",
+			ircparse.PrivmsgEvent{Type: "PRIVMSG", Nick: "me", Target: "bot", Text: "XDCC SEND #5"}},
 	}
 	for _, tc := range cases {
 		ch, ev, ok := outgoingEvent("me", tc.line)
