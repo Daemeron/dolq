@@ -1,6 +1,6 @@
 {
   "name": "dolq",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "description": "A Discord-like IRC client",
   "author": {
     "email": "daemeron@icloud.com",
