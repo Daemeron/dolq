@@ -584,6 +584,13 @@ func (c *Client) renameMember(oldNick, newNick string) []string {
 	return channels
 }
 
+// Nick returns the nick the server last confirmed for this connection.
+func (c *Client) Nick() string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.nick
+}
+
 func (c *Client) handleCTCPRequest(e ircparse.CTCPRequestEvent) {
 	switch e.Command {
 	case "VERSION":
