@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.4.0](https://github.com/Daemeron/dolq/compare/dolq-v0.3.3...dolq-v0.4.0) (2026-10-19)
+
+
+### Features
+
+* **store:** version the persisted store with migrate-or-flush ([c742113](https://github.com/Daemeron/dolq/commit/c74211336e50044d451b48fb4e1143c8cb5a14d1))
+
+
+### Bug Fixes
+
+* **history:** keep pack requests and show them for button requests ([a651e9a](https://github.com/Daemeron/dolq/commit/a651e9ad00116db8588dd74b91da7a85b02b3771))
+
 ## [0.3.3](https://github.com/Daemeron/dolq/compare/dolq-v0.3.2...dolq-v0.3.3) (2026-10-17)
 
 
