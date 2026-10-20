@@ -11,6 +11,8 @@ import { app } from 'electron';
 import type { ConnectionStatus, HistoryEntry, IrcEvent } from '../../shared/ipc';
 import { decideTrust, insecureReasons, type RemoteHooks, type RemoteTarget } from '../remoteBackend';
 
+import { stopChild } from './stopChild';
+
 const execFileAsync = promisify(execFile);
 
 interface ServerFrame {
@@ -135,7 +137,13 @@ export class BackendClient extends EventEmitter {
   // anything else is sent; the backend drops connections that skip this.
   private attach(socket: net.Socket, token?: string): Promise<void> {
     this.socket = socket;
-    createInterface({ input: socket }).on('line', (line) => this.handleFrame(JSON.parse(line)));
+    createInterface({ input: socket }).on('line', (line) => {
+      try {
+        this.handleFrame(JSON.parse(line));
+      } catch (err) {
+        console.error('backend sent an unreadable frame:', err);
+      }
+    });
     socket.on('error', (err) => console.error('backend connection error:', err));
     socket.on('close', () => {
       this.socket = undefined;
@@ -276,14 +284,7 @@ export class BackendClient extends EventEmitter {
     }
     const child = this.child;
     if (!child) return;
-    await new Promise<void>((resolve) => {
-      const timer = setTimeout(() => child.kill('SIGKILL'), 12_000);
-      child.once('exit', () => {
-        clearTimeout(timer);
-        resolve();
-      });
-      child.kill('SIGTERM');
-    });
+    await stopChild(child, 12_000);
     if (this.devBinaryPath) await fs.promises.rm(this.devBinaryPath, { force: true });
   }
 
