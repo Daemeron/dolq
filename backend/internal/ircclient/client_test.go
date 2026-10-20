@@ -6,6 +6,7 @@ import (
 	"net"
 	"reflect"
 	"slices"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -1284,5 +1285,34 @@ func TestDisconnectOnNeverStartedClientReturns(t *testing.T) {
 	case <-done:
 	case <-time.After(2 * time.Second):
 		t.Fatal("Disconnect hung on a client that was never started")
+	}
+}
+
+func TestOnCloseFiresExactlyOnceWhenRegisteredAroundTheClose(t *testing.T) {
+	for i := 0; i < 200; i++ {
+		client, server, _ := pipeClient(t, "me")
+		client.Start()
+
+		var fired atomic.Int32
+		done := make(chan struct{})
+		go func() {
+			client.OnClose(func() { fired.Add(1) })
+			close(done)
+		}()
+		server.Close()
+		<-done
+
+		select {
+		case <-client.closed:
+		case <-time.After(2 * time.Second):
+			t.Fatal("client never closed")
+		}
+		deadline := time.Now().Add(time.Second)
+		for fired.Load() == 0 && time.Now().Before(deadline) {
+			time.Sleep(time.Millisecond)
+		}
+		if n := fired.Load(); n != 1 {
+			t.Fatalf("iteration %d: close callback fired %d times, want 1", i, n)
+		}
 	}
 }

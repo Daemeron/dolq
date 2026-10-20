@@ -54,6 +54,7 @@ type Client struct {
 	lineListeners  []func(line string)
 	eventListeners []func(event any)
 	closeListeners []func()
+	closeFired     bool
 
 	lastActivity atomic.Int64
 
@@ -385,6 +386,7 @@ func (c *Client) readLoop() {
 
 	c.mu.Lock()
 	closeListeners := c.closeListeners
+	c.closeFired = true
 	c.mu.Unlock()
 	for _, cb := range closeListeners {
 		cb()
@@ -727,20 +729,15 @@ func (c *Client) AddEventListener(cb func(event any)) {
 }
 
 func (c *Client) OnClose(cb func()) {
-	select {
-	case <-c.closed:
-		cb()
-		return
-	default:
-	}
 	c.mu.Lock()
-	defer c.mu.Unlock()
-	select {
-	case <-c.closed:
-		cb()
-	default:
+	if !c.closeFired {
 		c.closeListeners = append(c.closeListeners, cb)
+		c.mu.Unlock()
+		return
 	}
+	c.mu.Unlock()
+	// readLoop already took its snapshot, so it will never call this one.
+	cb()
 }
 
 func (c *Client) Send(msg string) error {
