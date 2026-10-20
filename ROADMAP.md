@@ -1248,16 +1248,16 @@ High
 
 Medium
 
-- [ ] Channels lost across a second drop - `previousChannels` comes from
+- [x] Channels lost across a second drop - `previousChannels` comes from
       `sess.client`, which after a drop is the new, empty client
       (`bouncer.go:277`); keep the last known list on the session
-- [ ] `OnClose` race - listeners are snapshotted before `c.closed` closes
+- [x] `OnClose` race - listeners are snapshotted before `c.closed` closes
       (`client.go:384-390`), so one registered in between never fires and the
       session stays "connected"
-- [ ] Stale reconnect goroutine reports "disconnected" after a new `Connect`
+- [x] Stale reconnect goroutine reports "disconnected" after a new `Connect`
       already reached "connected" (`bouncer.go:370`); editing a server during
       an outage triggers it
-- [ ] Frames are handled in a goroutine each (`server.go:182`), so consecutive
+- [x] Frames are handled in a goroutine each (`server.go:182`), so consecutive
       `send` actions (or `send` right after `connect`) can reorder or race the
       flood limiter
 - [ ] Search runs `LIKE` over the JSON payload (`history.go:259`): queries with
@@ -1281,7 +1281,7 @@ Medium
       `JSON.parse` in `handleFrame` (`:138`)
 - [ ] A malformed `%` in an `irc://` link throws in the main process -
       `decodeURIComponent` is unguarded (`ircUrl.ts:24-25`)
-- [ ] Chat dropped from history - `credentialsText` (`bouncer.go:433`) skips any
+- [x] Chat dropped from history - `credentialsText` (`bouncer.go:433`) skips any
       outgoing line starting with login/release/group/register/..., including
       channel messages; only apply it to NickServ/ChanServ/service targets
 - [x] Unknown slash commands (`/nick`, `/part`, `/topic`, `/whois`, `/mode`)
