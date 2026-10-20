@@ -1272,3 +1272,17 @@ func TestMessageTag(t *testing.T) {
 		}
 	}
 }
+
+func TestDisconnectOnNeverStartedClientReturns(t *testing.T) {
+	client, _, _ := pipeClient(t, "me")
+	done := make(chan struct{})
+	go func() {
+		client.Disconnect()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Disconnect hung on a client that was never started")
+	}
+}

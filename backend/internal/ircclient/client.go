@@ -57,7 +57,8 @@ type Client struct {
 
 	lastActivity atomic.Int64
 
-	closed chan struct{}
+	closed  chan struct{}
+	started atomic.Bool
 
 	capLines chan string
 
@@ -122,6 +123,7 @@ func newClient(conn net.Conn, nick string) *Client {
 }
 
 func (c *Client) Start() {
+	c.started.Store(true)
 	go c.readLoop()
 	go c.watchPingTimeout()
 	go c.handshake()
@@ -796,6 +798,10 @@ func (fl *floodLimiter) wait(burst int, interval time.Duration, done <-chan stru
 }
 
 func (c *Client) Disconnect() error {
+	if !c.started.Load() {
+		// readLoop is what closes c.closed; without it there is nothing to wait for.
+		return c.conn.Close()
+	}
 	var errs []error
 	for _, ch := range c.GetJoinedChannels() {
 		if err := c.Send("PART " + ch); err != nil {
