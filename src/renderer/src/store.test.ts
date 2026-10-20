@@ -174,3 +174,13 @@ describe('store: joined follows the connection', () => {
     expect(joined('server-a')).toBe(true);
   });
 });
+
+describe('store: reading', () => {
+  it('marks the channel being left as read, so its unread count restarts', () => {
+    useStore.setState({ selectedServerId: 'a', selectedChannelId: '#one' });
+    const before = Date.now();
+    useStore.getState().selectChannel('#two');
+    expect(useStore.getState().lastReadMap['a:#one']).toBeGreaterThanOrEqual(before);
+    expect(useStore.getState().lastReadMap['a:#two']).toBeUndefined();
+  });
+});

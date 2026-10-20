@@ -19,6 +19,7 @@ import { WhoisModal } from './components/WhoisModal';
 import { XDCCOfferModal } from './components/XDCCOfferModal';
 import { scopeKey, useStore } from './store';
 import type { Message, Server } from './types';
+import { shouldAlert } from './utils/alerts';
 import { expandAlias } from './utils/aliases';
 import { parseSlashCommand } from './utils/commands';
 import { attemptConnect } from './utils/connectAttempt';
@@ -29,6 +30,7 @@ import { isChannelScopedLine } from './utils/logFilter';
 import { mentionsNick } from './utils/mentions';
 import { isNickServIdentifyPrompt } from './utils/nickserv';
 import { buildServerId, normalizeHost, resolveHostPort } from './utils/server';
+import { computeAwayStats } from './utils/unread';
 import { takeAutoAccept, xdccRequestKey, xdccRequestTarget, xdccSenderKey } from './utils/xdcc';
 
 const HISTORY_PAGE_SIZE = 100;
@@ -466,11 +468,20 @@ export default function App() {
 
   const checkMention = useCallback(
     (serverId: string, channelId: string, target: string, text: string) => {
-      if (!target.startsWith('#') || channelId === selectedChannelId || mutedChannels[channelId]) return;
-      if (!mentionsNick(text, nickMap[serverId])) return;
-      markMentioned(channelId);
+      const { selectedServerId: onScreenServer } = useStore.getState();
+      const alert = shouldAlert({
+        target,
+        channelId,
+        selectedChannelId: onScreenServer === serverId ? selectedChannelId : '',
+        muted: !!mutedChannels[channelId],
+        windowFocused: document.hasFocus(),
+        mentioned: mentionsNick(text, nickMap[serverId]),
+      });
+      if (!alert) return;
+      // A channel already on screen needs no unread dot, only the alert.
+      if (!(onScreenServer === serverId && channelId === selectedChannelId)) markMentioned(channelId);
       if (notificationsEnabled) {
-        notify(`Mentioned in ${channelId}`, text, () => {
+        notify(target.startsWith('#') ? `Mentioned in ${channelId}` : `Message from ${channelId}`, text, () => {
           handleSelectServer(serverId);
           handleSelectChannel(channelId);
         });
@@ -1078,23 +1089,16 @@ export default function App() {
   const selectedServer = servers.find((s) => s.id === selectedServerId);
   const channels = channelMap[selectedServerId] ?? [];
 
-  const awayStats = useMemo(() => {
-    const stats: Record<string, { count: number; people: number }> = {};
-    for (const ch of channels) {
-      if (ch.isLog) continue;
-      const key = scopeKey(selectedServerId, ch.id);
-      const since = lastReadMap[key] ?? 0;
-      const nicks = new Set<string>();
-      let count = 0;
-      for (const msg of messageMap[key] ?? []) {
-        if (msg.system || msg.timestamp.getTime() <= since) continue;
-        count++;
-        if (msg.nick) nicks.add(msg.nick);
-      }
-      if (count > 0) stats[ch.id] = { count, people: nicks.size };
-    }
-    return stats;
-  }, [channels, messageMap, lastReadMap, selectedServerId]);
+  const awayStats = useMemo(
+    () =>
+      computeAwayStats(
+        channels,
+        selectedChannelId,
+        (id) => lastReadMap[scopeKey(selectedServerId, id)] ?? 0,
+        (id) => messageMap[scopeKey(selectedServerId, id)] ?? [],
+      ),
+    [channels, messageMap, lastReadMap, selectedServerId, selectedChannelId],
+  );
 
   const selectedChannel = channels.find((c) => c.id === selectedChannelId) ?? channels[0];
   const allMessages = messageMap[scopeKey(selectedServerId, selectedChannelId)] ?? [];

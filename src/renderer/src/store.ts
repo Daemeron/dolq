@@ -368,10 +368,14 @@ export const useStore = create<State & Actions>()(
       selectChannel: (id) =>
         set((s) => {
           const lastChannelMap = { ...s.lastChannelMap, [s.selectedServerId]: id };
-          if (!s.mentionedChannels[id]) return { selectedChannelId: id, lastChannelMap };
+          // Everything that arrived while the old channel was on screen has been seen.
+          const lastReadMap = s.selectedChannelId
+            ? { ...s.lastReadMap, [scopeKey(s.selectedServerId, s.selectedChannelId)]: Date.now() }
+            : s.lastReadMap;
+          if (!s.mentionedChannels[id]) return { selectedChannelId: id, lastChannelMap, lastReadMap };
           const mentionedChannels = { ...s.mentionedChannels };
           delete mentionedChannels[id];
-          return { selectedChannelId: id, lastChannelMap, mentionedChannels };
+          return { selectedChannelId: id, lastChannelMap, lastReadMap, mentionedChannels };
         }),
 
       selectChannelOnServer: (serverId, id) => {
