@@ -1215,6 +1215,126 @@ will hang the UI.
       by `auth_test.go`, `pairing_test.go`, `remoteBackend.test.ts`,
       `pairing.test.ts`
 
+### Bug audit (2026-10-19)
+
+Read-only sweep of the Go backend, Electron main process and the main
+renderer files. Go tests and `go vet` were clean, so none of this is covered by
+tests today; items 2 and 3 were reproduced with throwaway tests, the rest come
+from reading the code. Each fix should land with a regression test.
+
+High
+
+- [x] Duplicate messages in channels opened for the first time after live
+      traffic - live messages go into `messageMap` at once, then `setHistory`
+      prepends the last 100 stored entries with no dedupe (`App.tsx:756-769`,
+      `store.ts:289`)
+- [x] Disconnecting during a reconnect hangs forever - `bouncer.reconnect`
+      calls `Disconnect()` on a freshly dialed, never-`Start()`ed client
+      (`bouncer.go:296-299`), which waits on `c.closed` that only `readLoop`
+      closes (`client.go:809`); `forget`, the "disconnected" status and the log
+      line never run (reproduced)
+- [x] Panic on shutdown - `history.Close` closes `s.entries` while IRC readLoops
+      can still `append` to it (`history.go:165`, `:304`), "send on closed
+      channel"; `Shutdown` only waits 10s before `main.go:127` closes the
+      store (reproduced)
+- [x] A self-JOIN on a background server steals the selection - the JOIN handler
+      calls `selectChannel(event.channel)` with no server check
+      (`App.tsx:564`); autojoin and reconnect rejoin blank the view and
+      pollute `lastChannelMap`
+- [ ] Default config lets plain clients skip the token - `allowPlain` is on
+      whenever TLS and a token are on but `-secure` isn't (`plan.go:99`), and
+      `server.go:172-173` skips auth for them. Decide whether to flip the
+      default or warn louder
+
+Medium
+
+- [ ] Channels lost across a second drop - `previousChannels` comes from
+      `sess.client`, which after a drop is the new, empty client
+      (`bouncer.go:277`); keep the last known list on the session
+- [ ] `OnClose` race - listeners are snapshotted before `c.closed` closes
+      (`client.go:384-390`), so one registered in between never fires and the
+      session stays "connected"
+- [ ] Stale reconnect goroutine reports "disconnected" after a new `Connect`
+      already reached "connected" (`bouncer.go:370`); editing a server during
+      an outage triggers it
+- [ ] Frames are handled in a goroutine each (`server.go:182`), so consecutive
+      `send` actions (or `send` right after `connect`) can reorder or race the
+      flood limiter
+- [ ] Search runs `LIKE` over the JSON payload (`history.go:259`): queries with
+      `& < > "` or control chars never match (Go escapes them, e.g. XDCC
+      filenames with `&`), and words like "nick" or "text" match every event
+- [ ] "Packs only" filters after the backend `LIMIT` (`SearchModal.tsx:71`),
+      so older packs are missed; needs a type filter in `Search`
+- [x] Can't remove a channel while offline - `joined` is never cleared on
+      disconnect, so the PART rejects and `removeChannel` never runs
+      (`App.tsx:896-905`)
+- [x] A failed connect leaves the server "connecting" forever, shows no error
+      and, since the server is already added, a retry duplicates it
+      (`App.tsx:349`, `:820`; `ConnectModal` doesn't catch)
+- [ ] One dead host delays every other server at startup - `ircclient.Dial` has
+      no timeout and `reconcile` connects sequentially (`App.tsx:368`)
+- [x] Quit hangs forever if `dolqd` already exited - `BackendClient.stop` waits
+      for an `exit` event that already fired (`BackendClient.ts:279-286`) while
+      `before-quit` has `preventDefault`ed; nothing watches the child dying
+- [ ] Remote backend never reconnects after the socket closes
+      (`BackendClient.ts:140`), and the UI isn't told; also guard the
+      `JSON.parse` in `handleFrame` (`:138`)
+- [ ] A malformed `%` in an `irc://` link throws in the main process -
+      `decodeURIComponent` is unguarded (`ircUrl.ts:24-25`)
+- [ ] Chat dropped from history - `credentialsText` (`bouncer.go:433`) skips any
+      outgoing line starting with login/release/group/register/..., including
+      channel messages; only apply it to NickServ/ChanServ/service targets
+- [x] Unknown slash commands (`/nick`, `/part`, `/topic`, `/whois`, `/mode`)
+      are sent as literal PRIVMSG text in a channel (`App.tsx:1153-1160`)
+- [ ] Notifications - the selected channel never notifies, even with the
+      window in the background (`App.tsx:453`); DMs never notify or badge; and
+      `mutedChannels`/`mentionedChannels`/the `selectedChannelId` comparison
+      are keyed by channel name alone, so `#linux` on two networks share state
+      (the cross-server sharing of the first two was a documented tradeoff,
+      the `selectedChannelId` one is not)
+- [ ] Unread counts include messages read while the channel was open -
+      `lastReadMap` is only set on select (`App.tsx:256`)
+- [ ] `recordTransfer`/`appendMessage` run inside a `setTransfers` updater
+      (`App.tsx:662-663`), which React may run twice; a user-cancelled download
+      is also stored as "failed: use of closed network connection"
+      (`xdcc.go:208`)
+
+Low
+
+- [ ] The remove-server dialog says "This clears its local history"
+      (`App.tsx:882`) but nothing deletes the rows; either add a delete action
+      or fix the text
+- [ ] Saved credentials can't be blanked - `secrets.remember` ignores empty
+      fields and `withSavedSecrets` falls back to the old value
+      (`secrets.ts:53`, `:92`)
+- [x] `MessageInput` clears the box before `onSend` resolves, so a failed send
+      vanishes with an unhandled rejection
+- [ ] SASL logs "authentication failed (900)" on success - the first non-CAP
+      reply is 900 (`client.go:241`)
+- [ ] The nick-collision fallback compounds underscores (`foo_`, `foo___`, ...)
+      because it re-appends to the already-suffixed nick (`client.go:671`)
+- [ ] `PRAGMA auto_vacuum = INCREMENTAL` (`history.go:54`) doesn't apply to
+      existing DBs without a one-time `VACUUM`, so prune never shrinks them
+- [ ] `requestResume` leaks an event listener per resume, and `openForResume`
+      truncates to a peer-supplied position that can extend the file with zeros
+      (`xdcc.go:153`, `:140`); `ReceiveFile` can also write past `size`
+- [ ] `AcceptOnceRaw` leaks the connection if accept races the timeout; and
+      `EncodeIP` panics on an IPv6 address (`dcc.go`)
+- [ ] `installReactDevTools` is awaited at startup in packaged builds too
+      (`index.ts:301`); offline it delays `registerAppLifecycleHandlers`, so an
+      early quit skips stopping `dolqd`
+- [ ] `registerIrcHandlers` captures the first `mainWindow` (`index.ts`); on
+      macOS with the tray off, a window recreated on `activate` gets no events
+- [ ] Only `#` channels are recognized (`&`, `+`, `!` aren't), and
+      `parseChannelModeChanges` stops at the first unknown mode letter
+- [ ] `messageMap` has no cap and `appendMessage` copies the whole array per
+      line (`store.ts`); `removeServer` also leaves `mentionedChannels`,
+      `mutedChannels` and `lastReadMap` behind
+- [ ] Case-sensitive nick, channel and ignore comparisons; history events are
+      described with the current nick rather than the one at the time
+- [ ] WELCOME re-sends the autojoin list on every reconnect, rejoining channels
+      the user parted; `URL_RE` drops a URL's closing `)`
+
 ---
 
 ## Non-goals (for now)
