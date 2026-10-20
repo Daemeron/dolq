@@ -1,25 +1,32 @@
 import { useRef, useState } from 'react';
 import { insertAtCaret } from '../utils/insertAtCaret';
+import { restoreDraft, trySend } from '../utils/trySend';
 import { EmojiPicker } from './EmojiPicker';
 
 type Props = {
   channelName: string;
   isLog: boolean;
   isQuery?: boolean;
-  onSend: (text: string) => void;
+  onSend: (text: string) => void | Promise<void>;
 };
 
 export function MessageInput({ channelName, isLog, isQuery, onSend }: Props) {
   const [value, setValue] = useState('');
   const [showEmoji, setShowEmoji] = useState(false);
+  const [error, setError] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const trimmed = value.trim();
     if (!trimmed) return;
-    onSend(trimmed);
     setValue('');
+    setError('');
+    const result = await trySend(trimmed, onSend);
+    if (!result.ok) {
+      setValue((current) => restoreDraft(current, trimmed));
+      setError(`Not sent: ${result.error}`);
+    }
   }
 
   function insertEmoji(emoji: string) {
@@ -38,6 +45,11 @@ export function MessageInput({ channelName, isLog, isQuery, onSend }: Props) {
   return (
     <div className="relative px-4 pb-2.5 pt-2 shrink-0">
       {showEmoji && <EmojiPicker onSelect={insertEmoji} onClose={() => setShowEmoji(false)} />}
+      {error && (
+        <div role="alert" className="mb-1 text-[12px] text-red-400">
+          {error}
+        </div>
+      )}
       <form onSubmit={handleSubmit} className="flex items-center gap-2">
         <button
           type="button"
@@ -55,7 +67,10 @@ export function MessageInput({ channelName, isLog, isQuery, onSend }: Props) {
           ref={inputRef}
           className="flex-1 bg-(--dolq-bg-input) border-0 rounded-lg text-(--dolq-text) text-[15px] px-4 py-3 outline-none caret-(--dolq-text) placeholder:text-(--dolq-text-faint) disabled:opacity-40 disabled:cursor-not-allowed"
           value={value}
-          onChange={(e) => setValue(e.target.value)}
+          onChange={(e) => {
+            setValue(e.target.value);
+            setError('');
+          }}
           placeholder={
             isLog
               ? 'Log view — type commands here like /join #channel'
