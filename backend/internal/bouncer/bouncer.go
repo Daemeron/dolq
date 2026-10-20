@@ -86,6 +86,22 @@ type session struct {
 	dial    dialFunc
 	closing bool
 	stop    chan struct{}
+
+	reconnecting sync.WaitGroup
+
+	// rejoin is what to join again after a drop; welcomed says the current
+	// client got far enough to have rejoined it, so its own joined list is trusted again.
+	rejoin   []string
+	welcomed bool
+}
+
+// channelsToRestore is called with s.mu held. A client dropped before its
+// welcome never rejoined anything, so the list from before it still stands.
+func (s *session) channelsToRestore() []string {
+	if !s.welcomed && len(s.rejoin) > 0 {
+		return s.rejoin
+	}
+	return s.client.GetJoinedChannels()
 }
 
 func (s *session) markClosing() {
@@ -222,6 +238,13 @@ func (b *Bouncer) wire(serverID string, sess *session, client *ircclient.Client)
 		}
 		sess.fanOutEvent(serverID, event)
 	})
+	client.AddEventListener(func(event any) {
+		if _, ok := event.(ircparse.WelcomeEvent); ok {
+			sess.mu.Lock()
+			sess.welcomed = true
+			sess.mu.Unlock()
+		}
+	})
 	client.OnClose(func() { b.handleClose(serverID, sess) })
 }
 
@@ -243,7 +266,8 @@ func (b *Bouncer) handleClose(serverID string, sess *session) {
 	sess.mu.Lock()
 	closing := sess.closing
 	dial := sess.dial
-	channels := sess.client.GetJoinedChannels()
+	channels := sess.channelsToRestore()
+	sess.rejoin = channels
 	sess.mu.Unlock()
 
 	if closing || dial == nil {
@@ -255,7 +279,11 @@ func (b *Bouncer) handleClose(serverID string, sess *session) {
 
 	sess.setStatus(serverID, "connecting")
 	b.logLine(serverID, sess, "*** Connection lost - reconnecting...", channels)
-	go b.reconnect(serverID, sess)
+	sess.reconnecting.Add(1)
+	go func() {
+		defer sess.reconnecting.Done()
+		b.reconnect(serverID, sess)
+	}()
 }
 
 func rejoinOnWelcome(client *ircclient.Client, channels []string) {
@@ -274,7 +302,7 @@ func rejoinOnWelcome(client *ircclient.Client, channels []string) {
 
 func (b *Bouncer) reconnect(serverID string, sess *session) {
 	sess.mu.Lock()
-	previousChannels := sess.client.GetJoinedChannels()
+	previousChannels := sess.rejoin
 	sess.mu.Unlock()
 
 	backoff := b.ReconnectBackoffBase
@@ -310,6 +338,7 @@ func (b *Bouncer) reconnect(serverID string, sess *session) {
 
 		sess.mu.Lock()
 		sess.client = client
+		sess.welcomed = false
 		sess.mu.Unlock()
 		b.wire(serverID, sess, client)
 		rejoinOnWelcome(client, previousChannels)
@@ -368,6 +397,8 @@ func (b *Bouncer) Disconnect(serverID string) error {
 	client := sess.client
 	sess.mu.Unlock()
 	if client.Closed() {
+		// A redial loop is winding down; wait so its "disconnected" can't land after whatever replaces this session.
+		sess.reconnecting.Wait()
 		return nil
 	}
 	return client.Disconnect()
@@ -443,7 +474,8 @@ func outgoingEvent(self, line string) (channel string, event any, ok bool) {
 		return "", nil, false
 	}
 	target, text := m[1], m[2]
-	if servicesTarget.MatchString(target) || credentialsText.MatchString(text) {
+	// Only a private message can carry a password; "release notes tomorrow" in a channel is chat.
+	if servicesTarget.MatchString(target) || (!isChannelTarget(target) && credentialsText.MatchString(text)) {
 		return "", nil, false
 	}
 	if rest, found := strings.CutPrefix(text, "\x01ACTION "); found {
@@ -453,6 +485,10 @@ func outgoingEvent(self, line string) (channel string, event any, ok bool) {
 		return "", nil, false
 	}
 	return target, ircparse.PrivmsgEvent{Type: "PRIVMSG", Nick: self, Target: target, Text: text}, true
+}
+
+func isChannelTarget(target string) bool {
+	return target != "" && strings.ContainsRune("#&+!", rune(target[0]))
 }
 
 func (b *Bouncer) Shutdown(ctx context.Context) {

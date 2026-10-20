@@ -314,6 +314,36 @@ func TestDisconnectDuringBackoffCancelsReconnect(t *testing.T) {
 	}
 }
 
+func TestDisconnectDuringBackoffReturnsOnlyOnceReconnectHasStopped(t *testing.T) {
+	dial, servers := pipeDial(t)
+	b := New(nil)
+	b.ReconnectBackoffBase = 10 * time.Second
+	b.ReconnectBackoffMax = 10 * time.Second
+
+	sub := &fakeSubscriber{}
+	client, err := dial()
+	if err != nil {
+		t.Fatal(err)
+	}
+	first := <-servers
+	b.connect("server-a", client, sub, dial)
+	drainHandshake(t, bufio.NewReader(first))
+
+	first.Close()
+	waitFor(t, func() bool { return sub.lastStatus() == "connecting" })
+
+	if err := b.Disconnect("server-a"); err != nil {
+		t.Fatalf("Disconnect: %v", err)
+	}
+	// No waiting: a Connect that follows must not be followed by a stale "disconnected".
+	if got := sub.lastStatus(); got != "disconnected" {
+		t.Errorf("status right after Disconnect = %q, want disconnected", got)
+	}
+	if got := b.Status("server-a"); got != "disconnected" {
+		t.Errorf("Status(server-a) right after Disconnect = %q, want disconnected", got)
+	}
+}
+
 func TestReconnectRejoinsPreviouslyJoinedChannels(t *testing.T) {
 	dial, servers := pipeDial(t)
 	b := New(nil)
@@ -341,6 +371,44 @@ func TestReconnectRejoinsPreviouslyJoinedChannels(t *testing.T) {
 	writeLine(t, second, ":irc.example.net 001 testnick :Welcome back")
 
 	line, err := secondReader.ReadString('\n')
+	if err != nil {
+		t.Fatalf("read rejoin: %v", err)
+	}
+	if line != "JOIN #chat\r\n" {
+		t.Errorf("got %q, want JOIN #chat\\r\\n", line)
+	}
+}
+
+func TestSecondDropBeforeWelcomeKeepsTheChannels(t *testing.T) {
+	dial, servers := pipeDial(t)
+	b := New(nil)
+	b.ReconnectBackoffBase = 20 * time.Millisecond
+	b.ReconnectBackoffMax = 20 * time.Millisecond
+
+	sub := &fakeSubscriber{}
+	client, err := dial()
+	if err != nil {
+		t.Fatal(err)
+	}
+	first := <-servers
+	b.connect("server-a", client, sub, dial)
+	drainHandshake(t, bufio.NewReader(first))
+	writeLine(t, first, ":irc.example.net 001 testnick :Welcome")
+	writeLine(t, first, ":testnick!u@h JOIN :#chat")
+	waitFor(t, func() bool { return slices.Contains(b.JoinedChannels("server-a"), "#chat") })
+
+	first.Close()
+	second := <-servers
+	drainHandshake(t, bufio.NewReader(second))
+	// Dropped again before the welcome, so nothing was rejoined on this one.
+	second.Close()
+
+	third := <-servers
+	thirdReader := bufio.NewReader(third)
+	drainHandshake(t, thirdReader)
+	writeLine(t, third, ":irc.example.net 001 testnick :Welcome back")
+
+	line, err := thirdReader.ReadString('\n')
 	if err != nil {
 		t.Fatalf("read rejoin: %v", err)
 	}
@@ -466,6 +534,8 @@ func TestOutgoingEvent(t *testing.T) {
 		{"services password", "PRIVMSG NickServ :identify hunter2", "", nil},
 		{"services by host", "PRIVMSG Q@CServe.quakenet.org :AUTH me pw", "", nil},
 		{"credentials to a plain nick", "PRIVMSG bot :identify hunter2", "", nil},
+		{"channel chat that starts like a credential", "PRIVMSG #chan :release notes tomorrow", "#chan",
+			ircparse.PrivmsgEvent{Type: "PRIVMSG", Nick: "me", Target: "#chan", Text: "release notes tomorrow"}},
 		{"pack request", "PRIVMSG bot :XDCC SEND #5", "bot",
 			ircparse.PrivmsgEvent{Type: "PRIVMSG", Nick: "me", Target: "bot", Text: "XDCC SEND #5"}},
 	}
