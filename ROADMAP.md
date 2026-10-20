@@ -1286,13 +1286,13 @@ Medium
       channel messages; only apply it to NickServ/ChanServ/service targets
 - [x] Unknown slash commands (`/nick`, `/part`, `/topic`, `/whois`, `/mode`)
       are sent as literal PRIVMSG text in a channel (`App.tsx:1153-1160`)
-- [ ] Notifications - the selected channel never notifies, even with the
+- [x] Notifications - the selected channel never notifies, even with the
       window in the background (`App.tsx:453`); DMs never notify or badge; and
       `mutedChannels`/`mentionedChannels`/the `selectedChannelId` comparison
       are keyed by channel name alone, so `#linux` on two networks share state
       (the cross-server sharing of the first two was a documented tradeoff,
       the `selectedChannelId` one is not)
-- [ ] Unread counts include messages read while the channel was open -
+- [x] Unread counts include messages read while the channel was open -
       `lastReadMap` is only set on select (`App.tsx:256`)
 - [ ] `recordTransfer`/`appendMessage` run inside a `setTransfers` updater
       (`App.tsx:662-663`), which React may run twice; a user-cancelled download
