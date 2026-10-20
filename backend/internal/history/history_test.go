@@ -281,3 +281,16 @@ func TestOpenMakesDBOwnerOnly(t *testing.T) {
 		}
 	}
 }
+
+func TestAppendAfterCloseIsDropped(t *testing.T) {
+	s, err := Open(":memory:", 0)
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	if err := s.Close(); err != nil {
+		t.Fatalf("close: %v", err)
+	}
+	// A late IRC read loop must not panic with "send on closed channel".
+	s.AppendLine("srv", "#chan", "late", time.Now())
+	s.AppendEvent("srv", "#chan", testEvent{Type: "JOIN", Nick: "a"}, time.Now())
+}

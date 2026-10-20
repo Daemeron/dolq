@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	_ "modernc.org/sqlite"
@@ -40,6 +41,10 @@ type Store struct {
 	retentionDays int
 	stopPrune     chan struct{}
 	pruneDone     chan struct{}
+
+	// sendMu keeps append from sending on entries once Close has closed it.
+	sendMu sync.RWMutex
+	closed bool
 }
 
 func Open(path string, retentionDays int) (*Store, error) {
@@ -159,6 +164,11 @@ func (s *Store) AppendEvent(serverID, channel string, event any, ts time.Time) {
 
 func (s *Store) append(e Entry) {
 	if s == nil {
+		return
+	}
+	s.sendMu.RLock()
+	defer s.sendMu.RUnlock()
+	if s.closed {
 		return
 	}
 	select {
@@ -301,7 +311,10 @@ func (s *Store) Close() error {
 		close(s.stopPrune)
 		<-s.pruneDone
 	}
+	s.sendMu.Lock()
+	s.closed = true
 	close(s.entries)
+	s.sendMu.Unlock()
 	<-s.done
 	return s.db.Close()
 }
