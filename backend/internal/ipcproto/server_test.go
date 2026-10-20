@@ -262,3 +262,59 @@ func TestServerDownloadDirOverridesClient(t *testing.T) {
 		}
 	}
 }
+
+func TestSendsToOneServerArriveInOrder(t *testing.T) {
+	const lines = 4 // the flood limiter's burst, so none of them is delayed
+	for round := 0; round < 25; round++ {
+		fakeIRC, err := net.Listen("tcp", "127.0.0.1:0")
+		if err != nil {
+			t.Fatalf("listen: %v", err)
+		}
+		got := make(chan string, 16)
+		go func() {
+			conn, err := fakeIRC.Accept()
+			if err != nil {
+				return
+			}
+			defer conn.Close()
+			r := bufio.NewReader(conn)
+			for i := 0; i < 3; i++ { // CAP LS, PASS, NICK/USER lines
+				if _, err := r.ReadString('\n'); err != nil {
+					return
+				}
+			}
+			conn.Write([]byte(":irc.example.net 001 testnick :Welcome\r\n"))
+			for {
+				line, err := r.ReadString('\n')
+				if err != nil {
+					return
+				}
+				if len(line) > 8 && line[:8] == "PRIVMSG " {
+					got <- line
+				}
+			}
+		}()
+
+		tc := dialTestClient(t, startTestServer(t))
+		host, portStr, _ := net.SplitHostPort(fakeIRC.Addr().String())
+		port, _ := strconv.Atoi(portStr)
+		tc.send(t, ClientFrame{ID: "c", Action: ActionConnect, ServerID: "s1", Host: host, Port: port, Nick: "testnick"})
+		if result := tc.recv(t); !result.OK {
+			t.Fatalf("connect: %#v", result)
+		}
+		for i := 0; i < lines; i++ {
+			tc.send(t, ClientFrame{ID: strconv.Itoa(i), Action: ActionSend, ServerID: "s1", Line: "PRIVMSG #c :msg" + strconv.Itoa(i)})
+		}
+		for i := 0; i < lines; i++ {
+			select {
+			case line := <-got:
+				if want := "PRIVMSG #c :msg" + strconv.Itoa(i) + "\r\n"; line != want {
+					t.Fatalf("round %d: line %d = %q, want %q", round, i, line, want)
+				}
+			case <-time.After(2 * time.Second):
+				t.Fatalf("round %d: timed out waiting for line %d", round, i)
+			}
+		}
+		fakeIRC.Close()
+	}
+}

@@ -161,7 +161,11 @@ func (c *conn) writeFrame(f ServerFrame) {
 func (s *Server) handleConn(netConn net.Conn) {
 	c := &conn{netConn: netConn, enc: json.NewEncoder(netConn)}
 	var inFlight sync.WaitGroup
+	lanes := map[string]chan ClientFrame{}
 	defer func() {
+		for _, lane := range lanes {
+			close(lane)
+		}
 		inFlight.Wait()
 		s.b.Detach(c)
 		netConn.Close()
@@ -177,6 +181,23 @@ func (s *Server) handleConn(netConn net.Conn) {
 		var f ClientFrame
 		if err := json.Unmarshal(scanner.Bytes(), &f); err != nil {
 			c.writeFrame(ServerFrame{Type: FrameResult, OK: false, Error: err.Error()})
+			continue
+		}
+		if f.Action == ActionSend {
+			// Lines to one server must reach it in the order they were typed.
+			lane := lanes[f.ServerID]
+			if lane == nil {
+				lane = make(chan ClientFrame, 256)
+				lanes[f.ServerID] = lane
+				inFlight.Add(1)
+				go func() {
+					defer inFlight.Done()
+					for f := range lane {
+						s.handleFrame(c, f)
+					}
+				}()
+			}
+			lane <- f
 			continue
 		}
 		inFlight.Add(1)
