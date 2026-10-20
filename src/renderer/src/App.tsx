@@ -20,6 +20,8 @@ import { XDCCOfferModal } from './components/XDCCOfferModal';
 import { scopeKey, useStore } from './store';
 import type { Message, Server } from './types';
 import { expandAlias } from './utils/aliases';
+import { parseSlashCommand } from './utils/commands';
+import { attemptConnect } from './utils/connectAttempt';
 import { describeEvent, eventChannels } from './utils/eventMessages';
 import { formatEntry } from './utils/exportFormat';
 import { comboFromEvent } from './utils/keybind';
@@ -162,6 +164,7 @@ export default function App() {
     setServerPassword,
     selectServer,
     selectChannel,
+    selectChannelOnServer,
     setConnectionStatus,
     setUsers,
     addUser,
@@ -339,29 +342,42 @@ export default function App() {
     return window.irc.onOpenPreferences(() => setView({ kind: 'preferences' }));
   }, []);
 
+  const logConnectFailure = useCallback(
+    (serverId: string, message: string) =>
+      appendMessage(`${serverId}:__log__`, {
+        id: nextMsgId.current++,
+        nick: '',
+        text: `*** Could not connect: ${message}`,
+        timestamp: new Date(),
+        system: true,
+      }),
+    [appendMessage],
+  );
+
   const connectServer = useCallback(
     async (server: Server) => {
       const { host, port } = resolveHostPort(server);
       const { nickMap, saslMap, passwordMap } = useStore.getState();
       const nick = nickMap[server.id] ?? 'dolq_user';
       const sasl = saslMap[server.id];
-      setConnectionStatus(server.id, 'connecting');
-      await window.irc.connect(
-        server.id,
-        host,
-        port,
-        nick,
-        server.secure,
-        sasl?.user,
-        sasl?.pass,
-        server.username,
-        server.realname,
-        server.altNicks,
-        passwordMap[server.id] || undefined,
+      const failure = await attemptConnect(server.id, setConnectionStatus, () =>
+        window.irc.connect(
+          server.id,
+          host,
+          port,
+          nick,
+          server.secure,
+          sasl?.user,
+          sasl?.pass,
+          server.username,
+          server.realname,
+          server.altNicks,
+          passwordMap[server.id] || undefined,
+        ),
       );
-      setConnectionStatus(server.id, 'connected');
+      if (failure) logConnectFailure(server.id, failure);
     },
-    [setConnectionStatus],
+    [setConnectionStatus, logConnectFailure],
   );
 
   useEffect(() => {
@@ -561,7 +577,7 @@ export default function App() {
           if (event.nick === nickMap[serverId]) {
             addChannel(serverId, { id: event.channel, name: event.channel.slice(1), isLog: false });
             setChannelJoined(serverId, event.channel, true);
-            selectChannel(event.channel);
+            selectChannelOnServer(serverId, event.channel);
           } else {
             addUser(scopeKey(serverId, event.channel), { nick: event.nick, privileges: [] });
           }
@@ -707,7 +723,7 @@ export default function App() {
   }, [
     appendMessage,
     addChannel,
-    selectChannel,
+    selectChannelOnServer,
     addUser,
     removeUser,
     removeUserEverywhere,
@@ -816,21 +832,22 @@ export default function App() {
     setNick(id, form.nick);
     setSaslCreds(id, form.saslUser, form.saslPass);
     setServerPassword(id, form.password);
-    setConnectionStatus(id, 'connecting');
-    await window.irc.connect(
-      id,
-      host,
-      port,
-      form.nick,
-      form.secure,
-      form.saslUser,
-      form.saslPass,
-      form.username,
-      form.realname,
-      altNicks,
-      form.password || undefined,
+    const failure = await attemptConnect(id, setConnectionStatus, () =>
+      window.irc.connect(
+        id,
+        host,
+        port,
+        form.nick,
+        form.secure,
+        form.saslUser,
+        form.saslPass,
+        form.username,
+        form.realname,
+        altNicks,
+        form.password || undefined,
+      ),
     );
-    setConnectionStatus(id, 'connected');
+    if (failure) logConnectFailure(id, failure);
     handleSelectServer(id);
     setConnectPrefill(null);
   }
@@ -1097,9 +1114,11 @@ export default function App() {
     const msgMatch = text.match(/^\/msg\s+(\S+)\s+(.+)$/);
     const awayMatch = text.match(/^\/away(?:\s+(.+))?$/);
     const aliasDefMatch = text.match(/^\/alias\s+(\S+)\s+(.+)$/);
+    const whoisMatch = text.match(/^\/whois\s+(\S+)$/);
     const unaliasMatch = text.match(/^\/unalias\s+(\S+)$/);
     const aliasInvokeMatch = text.match(/^\/(\S+)(?:\s+(.*))?$/);
     const aliasName = aliasInvokeMatch?.[1].toLowerCase();
+    const slash = parseSlashCommand(text, selectedChannelId);
 
     if (text === '/connect') {
       if (connectionStatus === 'disconnected') connectToServer();
@@ -1120,6 +1139,8 @@ export default function App() {
         text: msg,
         timestamp: new Date(),
       });
+    } else if (whoisMatch) {
+      handleWhois(whoisMatch[1]);
     } else if (aliasDefMatch) {
       setAlias(aliasDefMatch[1].toLowerCase(), aliasDefMatch[2]);
     } else if (unaliasMatch) {
@@ -1150,8 +1171,21 @@ export default function App() {
         timestamp: new Date(),
         action: true,
       });
+    } else if (slash.kind === 'raw') {
+      await sendTracked(selectedServerId, slash.line);
+    } else if (slash.kind === 'unknown') {
+      appendMessage(scopeKey(selectedServerId, selectedChannelId), {
+        id: nextMsgId.current++,
+        nick: '',
+        text: `Unknown or incomplete command: /${slash.name} (use //${slash.name} to send it as text)`,
+        timestamp: new Date(),
+        system: true,
+      });
     } else {
-      await sendTracked(selectedServerId, `PRIVMSG ${selectedChannelId} :${text}`);
+      await sendTracked(
+        selectedServerId,
+        `PRIVMSG ${selectedChannelId} :${text.startsWith('//') ? text.slice(1) : text}`,
+      );
       appendMessage(scopeKey(selectedServerId, selectedChannelId), {
         id: nextMsgId.current++,
         nick: currentNick,

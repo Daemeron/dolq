@@ -123,3 +123,54 @@ describe('store: setChannelJoined', () => {
     expect(channels.find((c) => c.id === '#linux')?.joined).toBe(true);
   });
 });
+
+describe('store: selectChannelOnServer', () => {
+  it('selects only when the event is for the selected server', () => {
+    useStore.setState({ selectedServerId: 'a', selectedChannelId: '#one' });
+    useStore.getState().selectChannelOnServer('b', '#other');
+    expect(useStore.getState().selectedChannelId).toBe('#one');
+    expect(useStore.getState().lastChannelMap.b).toBeUndefined();
+
+    useStore.getState().selectChannelOnServer('a', '#two');
+    expect(useStore.getState().selectedChannelId).toBe('#two');
+  });
+});
+
+describe('store: setHistory', () => {
+  it('does not duplicate messages that arrived live before the history loaded', () => {
+    const t = new Date();
+    const m = (id: number) => ({ id, nick: 'a', text: 'hi', timestamp: t });
+    useStore.getState().appendMessage('k', m(100));
+    useStore.getState().setHistory('k', [m(1)]);
+    expect(useStore.getState().messageMap.k.map((x) => x.id)).toEqual([100]);
+  });
+});
+
+describe('store: joined follows the connection', () => {
+  const setup = () => {
+    const { addServer, addChannel, setChannelJoined } = useStore.getState();
+    addServer(server('server-a'), { id: 'server-a:__log__', name: 'Log', isLog: true });
+    addServer(server('server-b'), { id: 'server-b:__log__', name: 'Log', isLog: true });
+    addChannel('server-a', { id: '#linux', name: 'linux', isLog: false });
+    addChannel('server-b', { id: '#linux', name: 'linux', isLog: false });
+    setChannelJoined('server-a', '#linux', true);
+    setChannelJoined('server-b', '#linux', true);
+  };
+  const joined = (id: string) => useStore.getState().channelMap[id].find((c) => c.id === '#linux')?.joined;
+
+  it('marks channels as not joined when the server disconnects, only on that server', () => {
+    setup();
+    useStore.getState().setConnectionStatus('server-a', 'disconnected');
+    expect(joined('server-a')).toBe(false);
+    expect(joined('server-b')).toBe(true);
+  });
+
+  it('also clears while reconnecting, and keeps joined when status becomes connected', () => {
+    setup();
+    useStore.getState().setConnectionStatus('server-a', 'connecting');
+    expect(joined('server-a')).toBe(false);
+    useStore.getState().setChannelJoined('server-a', '#linux', true);
+    useStore.getState().setConnectionStatus('server-a', 'connected');
+    expect(joined('server-a')).toBe(true);
+  });
+});

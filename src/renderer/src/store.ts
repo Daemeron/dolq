@@ -4,6 +4,7 @@ import type { PrivilegeLevel } from '../../shared/ipc';
 import { PUBLIC_SERVERS, type ServerPreset } from './data/servers';
 import { migrateStore, STORE_VERSION } from './storeMigrations';
 import type { Channel, Message, Server, User } from './types';
+import { mergeHistory } from './utils/mergeHistory';
 import { type XdccSender, xdccSenderKey } from './utils/xdcc';
 
 type State = {
@@ -89,6 +90,8 @@ type Actions = {
   setServerPassword: (serverId: string, password: string) => void;
   selectServer: (id: string) => void;
   selectChannel: (id: string) => void;
+  // For events from a server that may not be the one on screen (autojoin, rejoin).
+  selectChannelOnServer: (serverId: string, id: string) => void;
   setConnectionStatus: (serverId: string, status: 'disconnected' | 'connecting' | 'connected') => void;
   markMentioned: (channelId: string) => void;
   markRead: (key: string) => void;
@@ -287,7 +290,7 @@ export const useStore = create<State & Actions>()(
         set((s) => ({ messageMap: { ...s.messageMap, [key]: [...(s.messageMap[key] ?? []), msg] } })),
 
       setHistory: (key, messages) =>
-        set((s) => ({ messageMap: { ...s.messageMap, [key]: [...messages, ...(s.messageMap[key] ?? [])] } })),
+        set((s) => ({ messageMap: { ...s.messageMap, [key]: mergeHistory(messages, s.messageMap[key] ?? []) } })),
 
       setUsers: (channelId, users) => set((s) => ({ userMap: { ...s.userMap, [channelId]: users } })),
 
@@ -371,7 +374,22 @@ export const useStore = create<State & Actions>()(
           return { selectedChannelId: id, lastChannelMap, mentionedChannels };
         }),
 
-      setConnectionStatus: (serverId, status) => set((s) => ({ statusMap: { ...s.statusMap, [serverId]: status } })),
+      selectChannelOnServer: (serverId, id) => {
+        if (get().selectedServerId === serverId) get().selectChannel(id);
+      },
+
+      setConnectionStatus: (serverId, status) =>
+        set((s) => {
+          const statusMap = { ...s.statusMap, [serverId]: status };
+          // Without a live connection we are in no channel; the bouncer's rejoin sends JOIN events again.
+          if (status === 'connected') return { statusMap };
+          const channels = s.channelMap[serverId];
+          if (!channels?.some((c) => c.joined)) return { statusMap };
+          return {
+            statusMap,
+            channelMap: { ...s.channelMap, [serverId]: channels.map((c) => (c.joined ? { ...c, joined: false } : c)) },
+          };
+        }),
 
       setSelfAway: (serverId, away) => set((s) => ({ selfAwayMap: { ...s.selfAwayMap, [serverId]: away } })),
 
