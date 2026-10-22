@@ -184,6 +184,10 @@ type Bouncer struct {
 	DCCAcceptTimeout time.Duration
 
 	ResumeAcceptTimeout time.Duration
+
+	// redialPause, when a test sets it, runs before the named step of a redial
+	// so a Disconnect can be made to land right there.
+	redialPause func(step string)
 }
 
 func New(store *history.Store) *Bouncer {
@@ -343,8 +347,15 @@ func (b *Bouncer) reconnect(serverID string, sess *session) {
 
 		client, err := sess.dial()
 
+		b.pauseRedial("install")
+		// Checked and installed under one lock: a Disconnect either stops this
+		// redial here or finds the new client in place.
 		sess.mu.Lock()
 		closing := sess.closing
+		if !closing && err == nil {
+			sess.client = client
+			sess.welcomed = false
+		}
 		sess.mu.Unlock()
 		if closing {
 			if err == nil {
@@ -361,16 +372,19 @@ func (b *Bouncer) reconnect(serverID string, sess *session) {
 			continue
 		}
 
-		sess.mu.Lock()
-		sess.client = client
-		sess.welcomed = false
-		sess.mu.Unlock()
 		b.wire(serverID, sess, client)
 		rejoinOnWelcome(client, previousChannels)
 		sess.setStatus(serverID, "connected")
 		b.logLine(serverID, sess, "*** Reconnected", previousChannels)
+		b.pauseRedial("start")
 		client.Start()
 		return
+	}
+}
+
+func (b *Bouncer) pauseRedial(step string) {
+	if b.redialPause != nil {
+		b.redialPause(step)
 	}
 }
 
@@ -425,6 +439,13 @@ func (b *Bouncer) Disconnect(serverID string) error {
 	// Disconnect returns only after the close listeners, so a redial they started is counted by now.
 	// Wait for it to wind down so its "disconnected" can't land after whatever replaces this session.
 	sess.reconnecting.Wait()
+	// A redial that installed its client before closing was set started it
+	// before returning, so this waits for that client's close too. When nothing
+	// was installed it is the client already disconnected above.
+	sess.mu.Lock()
+	latest := sess.client
+	sess.mu.Unlock()
+	latest.Disconnect()
 	return err
 }
 

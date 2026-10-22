@@ -789,3 +789,141 @@ func TestDisconnectWhileTheDropIsHandled(t *testing.T) {
 		})
 	}
 }
+
+// A Disconnect that lands while a redial is finishing must still leave the
+// session disconnected. Here the redial has dialed but not yet put the new
+// client in place.
+func TestDisconnectBeforeARedialInstallsItsClient(t *testing.T) {
+	dial, servers := pipeDial(t)
+	b := New(nil)
+	b.ReconnectBackoffBase = time.Millisecond
+	b.ReconnectBackoffMax = time.Millisecond
+
+	clientConn, first := net.Pipe()
+	t.Cleanup(func() { clientConn.Close(); first.Close() })
+	conn := &closeSignalConn{Conn: clientConn, closing: make(chan struct{})}
+
+	paused, resume := make(chan struct{}), make(chan struct{})
+	resumeOnce := sync.OnceFunc(func() { close(resume) })
+	t.Cleanup(resumeOnce)
+	b.redialPause = func(step string) {
+		if step == "install" {
+			close(paused)
+			<-resume
+		}
+	}
+
+	sub := &fakeSubscriber{}
+	b.connect("server-a", ircclient.New(conn, "testnick"), sub, dial)
+	drainHandshake(t, bufio.NewReader(first))
+
+	first.Close()
+	receive(t, paused, "the redial to dial")
+	second := <-servers
+
+	done := make(chan error, 1)
+	go func() { done <- b.Disconnect("server-a") }()
+	// Disconnect marks the session closing before it gives up the old connection.
+	receive(t, conn.closing, "Disconnect to close the dropped connection")
+	resumeOnce()
+
+	if err := receive(t, done, "Disconnect"); err != nil {
+		t.Fatalf("Disconnect: %v", err)
+	}
+	if got := sub.lastStatus(); got != "disconnected" {
+		t.Errorf("status right after Disconnect = %q, want disconnected", got)
+	}
+	if got := b.Status("server-a"); got != "disconnected" {
+		t.Errorf("Status(server-a) right after Disconnect = %q, want disconnected", got)
+	}
+	if line, err := bufio.NewReader(second).ReadString('\n'); err == nil {
+		t.Errorf("the redialed client is live after Disconnect, it sent %q", line)
+	}
+}
+
+// closeCountConn reports every Close, so a test can tell the first one apart
+// from a later one.
+type closeCountConn struct {
+	net.Conn
+	closes chan struct{}
+}
+
+func (c *closeCountConn) Close() error {
+	select {
+	case c.closes <- struct{}{}:
+	default:
+	}
+	return c.Conn.Close()
+}
+
+// Here the redial has put the new client in place but not yet started it, so
+// Disconnect finds a client whose close has not run and cannot be waited for.
+// Disconnect must still not return before that client's close has run, or its
+// "disconnected" lands after whatever replaces this session.
+func TestDisconnectBeforeARedialStartsItsClient(t *testing.T) {
+	realDial, servers := pipeDial(t)
+	b := New(nil)
+	b.ReconnectBackoffBase = time.Millisecond
+	b.ReconnectBackoffMax = time.Millisecond
+
+	release := make(chan struct{})
+	releaseOnce := sync.OnceFunc(func() { close(release) })
+	t.Cleanup(releaseOnce)
+	var redialed *closeCountConn
+	dial := func() (*ircclient.Client, error) {
+		clientConn, server := net.Pipe()
+		t.Cleanup(func() { clientConn.Close(); server.Close() })
+		redialed = &closeCountConn{Conn: clientConn, closes: make(chan struct{}, 4)}
+		client := ircclient.New(redialed, "testnick")
+		// Runs before the bouncer's own close listener, holding back its "disconnected".
+		client.OnClose(func() { <-release })
+		return client, nil
+	}
+
+	paused, resume := make(chan struct{}), make(chan struct{})
+	resumeOnce := sync.OnceFunc(func() { close(resume) })
+	t.Cleanup(resumeOnce)
+	b.redialPause = func(step string) {
+		if step == "start" {
+			close(paused)
+			<-resume
+		}
+	}
+
+	sub := &fakeSubscriber{}
+	client, err := realDial()
+	if err != nil {
+		t.Fatal(err)
+	}
+	first := <-servers
+	b.connect("server-a", client, sub, dial)
+	drainHandshake(t, bufio.NewReader(first))
+
+	first.Close()
+	receive(t, paused, "the redial to install its client")
+
+	done := make(chan error, 1)
+	go func() { done <- b.Disconnect("server-a") }()
+	receive(t, redialed.closes, "Disconnect to close the redialed client")
+	resumeOnce()
+
+	// The client's close is held, so Disconnect can only come back early.
+	select {
+	case err := <-done:
+		t.Fatalf("Disconnect returned (%v) before the redialed client's close had run", err)
+	case <-redialed.closes:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for Disconnect to settle the redialed client")
+	}
+	releaseOnce()
+
+	if err := receive(t, done, "Disconnect"); err != nil {
+		t.Fatalf("Disconnect: %v", err)
+	}
+	if got := sub.lastStatus(); got != "disconnected" {
+		t.Errorf("status right after Disconnect = %q, want disconnected", got)
+	}
+	if got := b.Status("server-a"); got != "disconnected" {
+		t.Errorf("Status(server-a) right after Disconnect = %q, want disconnected", got)
+	}
+}
