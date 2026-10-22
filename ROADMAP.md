@@ -1165,8 +1165,9 @@ will hang the UI.
       login, encrypted with Electron's `safeStorage` (Keychain / DPAPI /
       libsecret), in `secrets.json` under userData (mode 0600); the main
       process fills them in on `connect`, so a saved password never goes back
-      to the renderer, and the server then reconnects with them after a
-      restart. Linux without a keyring (`basic_text` backend) counts as
+      to the renderer, and the server can then connect with them after a
+      restart (on launch only when **Connect when the app opens** is on for
+      it). Linux without a keyring (`basic_text` backend) counts as
       unavailable and the checkbox is disabled. The Edit Server form still
       doesn't expose the server password itself. Covered by
       `TestHandshakeSendsServerPassword` and `secrets.test.ts`
@@ -1197,19 +1198,23 @@ will hang the UI.
       with a DACL for the current user only) and the child gets a random
       per-launch token over its environment. The token is kept in the
       keychain-backed secrets store and never returned to the renderer.
-      Not a breaking change: by default `dolqd -addr` serves both protocols on
-      the one port, telling them apart by the first byte (0x16 = TLS
-      handshake). TLS connections need the token; plain ones are accepted as
-      before, without it, with a warning in the log, so existing deployments
-      and older clients keep working untouched. Once every client is paired,
-      `-secure` (or `DOLQ_SECURE=1`) refuses plain connections; the Kubernetes
-      manifests ship with it, having no legacy deployments to protect. Client
-      settings saved before TLS existed stay plain until a token or pin is
-      set. TLS and the token are independent switches, `-tls=false` (proxies,
-      tunnels) and `-token=false` (trusted networks), refused together with
-      `-secure`; the pairing link carries `tls=0` for a plain backend, and the
-      client asks the user to confirm which protections are missing every time
-      it connects to a non-loopback host.
+      The first version was not a breaking change: `dolqd -addr` served both
+      protocols on the one port, telling them apart by the first byte (0x16 =
+      TLS handshake), and accepted plain connections without the token, with a
+      warning in the log, until `-secure` (or `DOLQ_SECURE=1`) refused them.
+      That default let anyone who could reach the port skip the token, so it
+      was flipped (0.5.0): `dolqd` now refuses plain connections unless started
+      with `-allow-legacy-plain` (or `DOLQ_ALLOW_LEGACY_PLAIN=1`), which logs a
+      warning saying so. `-secure` is still accepted but does nothing and
+      `DOLQ_SECURE` is ignored, so existing command lines keep starting and
+      setups that used them stay secure. A client saved before access tokens
+      existed (plain, no token) is refused until it is re-paired or the server
+      opts in. The Kubernetes manifests no longer need `args`. TLS and the
+      token are independent switches, `-tls=false` (proxies, tunnels) and
+      `-token=false` (trusted networks), refused together with
+      `-allow-legacy-plain`; the pairing link carries `tls=0` for a plain
+      backend, and the client asks the user to confirm which protections are
+      missing every time it connects to a non-loopback host.
       `deploy/kubernetes/` runs it on a cluster/NAS (single replica, PVC,
       NodePort; `DOLQ_PUBLIC_PORT` makes the pairing link carry the mapped
       port); a release workflow (`create-a-release-build-docker-image.yml`)
@@ -1247,10 +1252,11 @@ High
       calls `selectChannel(event.channel)` with no server check
       (`App.tsx:564`); autojoin and reconnect rejoin blank the view and
       pollute `lastChannelMap`
-- [ ] Default config lets plain clients skip the token - `allowPlain` is on
-      whenever TLS and a token are on but `-secure` isn't (`plan.go:99`), and
-      `server.go:172-173` skips auth for them. Decide whether to flip the
-      default or warn louder
+- [x] Default config lets plain clients skip the token - `allowPlain` was on
+      whenever TLS and a token were on but `-secure` wasn't (`plan.go:99`), and
+      `server.go:172-173` skips auth for them. Flipped: plain connections are
+      refused unless `-allow-legacy-plain` is passed, and `-secure` is now a
+      no-op (`plan_test.go`)
 
 Medium
 
@@ -1266,9 +1272,13 @@ Medium
 - [x] Frames are handled in a goroutine each (`server.go:182`), so consecutive
       `send` actions (or `send` right after `connect`) can reorder or race the
       flood limiter
-- [ ] Search runs `LIKE` over the JSON payload (`history.go:259`): queries with
+- [x] Search runs `LIKE` over the JSON payload (`history.go:259`): queries with
       `& < > "` or control chars never match (Go escapes them, e.g. XDCC
-      filenames with `&`), and words like "nick" or "text" match every event
+      filenames with `&`), and words like "nick" or "text" match every event -
+      events are now stored unescaped and searched on their text, filename,
+      topic or reason (`json_extract`), and channel lines are no longer also
+      written to the Log, which had made global search return each message
+      twice (`history_test.go`)
 - [ ] "Packs only" filters after the backend `LIMIT` (`SearchModal.tsx:71`),
       so older packs are missed; needs a type filter in `Search`
 - [x] Can't remove a channel while offline - `joined` is never cleared on
@@ -1278,13 +1288,21 @@ Medium
       and, since the server is already added, a retry duplicates it
       (`App.tsx:349`, `:820`; `ConnectModal` doesn't catch)
 - [ ] One dead host delays every other server at startup - `ircclient.Dial` has
-      no timeout and `reconcile` connects sequentially (`App.tsx:368`)
+      no timeout and `reconcile` connects sequentially (`App.tsx:368`). Partly
+      addressed: `Dial` now gives up after 15 seconds (TLS handshake
+      included), and only servers with **Connect when the app opens** on are
+      dialed at launch, but they are still dialed one after another
 - [x] Quit hangs forever if `dolqd` already exited - `BackendClient.stop` waits
       for an `exit` event that already fired (`BackendClient.ts:279-286`) while
       `before-quit` has `preventDefault`ed; nothing watches the child dying
-- [ ] Remote backend never reconnects after the socket closes
+- [x] Remote backend never reconnects after the socket closes
       (`BackendClient.ts:140`), and the UI isn't told; also guard the
-      `JSON.parse` in `handleFrame` (`:138`)
+      `JSON.parse` in `handleFrame` (`:138`) - pending requests are rejected
+      on close, a remote backend is redialed with backoff (1s doubling to 30s)
+      and re-authenticated, TCP keepalive notices a link that died silently,
+      and the renderer re-attaches and reloads history on `backendReconnected`;
+      a local `dolqd` that dies, a refused token or a changed certificate shows
+      a fatal error instead (`BackendClient.test.ts`)
 - [ ] A malformed `%` in an `irc://` link throws in the main process -
       `decodeURIComponent` is unguarded (`ircUrl.ts:24-25`)
 - [x] Chat dropped from history - `credentialsText` (`bouncer.go:433`) skips any
@@ -1326,11 +1344,13 @@ Low
       (`xdcc.go:153`, `:140`); `ReceiveFile` can also write past `size`
 - [ ] `AcceptOnceRaw` leaks the connection if accept races the timeout; and
       `EncodeIP` panics on an IPv6 address (`dcc.go`)
-- [ ] `installReactDevTools` is awaited at startup in packaged builds too
+- [x] `installReactDevTools` is awaited at startup in packaged builds too
       (`index.ts:301`); offline it delays `registerAppLifecycleHandlers`, so an
-      early quit skips stopping `dolqd`
-- [ ] `registerIrcHandlers` captures the first `mainWindow` (`index.ts`); on
+      early quit skips stopping `dolqd` - now dev builds only, and not awaited
+- [x] `registerIrcHandlers` captures the first `mainWindow` (`index.ts`); on
       macOS with the tray off, a window recreated on `activate` gets no events
+      - listeners now send through `sendToWindow`, which skips a destroyed
+      window, and `showWindow` rebuilds it
 - [ ] Only `#` channels are recognized (`&`, `+`, `!` aren't), and
       `parseChannelModeChanges` stops at the first unknown mode letter
 - [ ] `messageMap` has no cap and `appendMessage` copies the whole array per

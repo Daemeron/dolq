@@ -62,8 +62,9 @@ progress.
 | Backend daemon | Go, SQLite (`modernc.org/sqlite`) |
 
 The Electron app talks to a small Go daemon (`dolqd`) over a local Unix domain
-socket — it owns the actual IRC/DCC/XDCC connections and the SQLite history
-store, while the renderer stays a thin UI on top.
+socket (a named pipe on Windows), or over TLS TCP when it points at a
+[remote backend](#remote-backend) — it owns the actual IRC/DCC/XDCC connections
+and the SQLite history store, while the renderer stays a thin UI on top.
 
 ---
 
@@ -123,6 +124,12 @@ in `docker compose logs dolqd`). In Dolq open **Preferences**, tick **Connect
 to a remote backend instead of running one locally**, paste the link into
 **Pairing Link**, save and restart. The link carries the address, the token and
 the certificate fingerprint, so nothing else needs confirming. Keep it private.
+
+If the connection to a remote backend drops (the laptop sleeps, the Wi-Fi
+changes), the app redials it with backoff (1 second, doubling up to 30) and
+signs in again; your servers stay as the backend left them and the open
+channels reload their history. A refused token or a changed certificate stops
+the retries and shows an error instead.
 
 The link is logged only when the token is first generated, so it does not sit
 in routinely kept logs; later starts log a hint instead. To see it again,
@@ -289,14 +296,19 @@ src/
 │   ├── index.ts              # Entry point, window/tray management, IPC handlers
 │   ├── ircUrl.ts             # irc://ircs:// link parsing
 │   ├── settings.ts           # Persisted main-process settings (retention, downloads, ports)
+│   ├── remoteBackend.ts      # Dials a remote dolqd: TLS, token, pinned fingerprint
+│   ├── secrets.ts            # Saved passwords, encrypted with Electron's safeStorage
 │   └── irc/
-│       └── BackendClient.ts  # Spawns dolqd, talks to it over its Unix socket
+│       ├── BackendClient.ts  # Spawns dolqd or connects to a remote one, talks to it over its socket
+│       └── redial.ts         # Backoff for redialing a remote backend that dropped
 ├── preload/
 │   └── index.ts              # Exposes a typed window.irc API via contextBridge
 ├── renderer/
 │   └── src/
 │       ├── App.tsx           # Root layout and event wiring
 │       ├── store.ts          # zustand store (servers, channels, messages, users, preferences)
+│       ├── utils/            # Pure, unit-tested logic: commands, aliases, reconcile on launch,
+│       │                      # history paging, log filter, alerts, export, ...
 │       └── components/       # ServerList, ChannelList, TopicBar, MessageArea, UserList,
 │                              # MessageInput, PreferencesModal, SearchModal, XDCC/DCC modals, ...
 └── shared/

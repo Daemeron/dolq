@@ -11,7 +11,7 @@ you on first start; you pair a client by pasting one link.
 
 Each release publishes a multi-arch image (amd64 and arm64, so it fits Intel and
 ARM NASes alike) to `ghcr.io/daemeron/dolqd`; the manifests use it by default,
-so there is nothing to build. Tags: `latest`, `0.1.5`, `0.1`. Pin a version in
+so there is nothing to build. Tags: `latest`, `0.5.0`, `0.5`. Pin a version in
 `kustomization.yaml` (`images:`) rather than running `latest` unattended.
 
 If the cluster cannot pull it (the package is private until its visibility is
