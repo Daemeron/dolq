@@ -18,6 +18,7 @@ export type EditServerForm = {
   saslUser: string;
   saslPass: string;
   remember: boolean;
+  connectOnStartup: boolean;
 };
 
 type Props = {
@@ -49,6 +50,7 @@ export function EditServerModal({ server, nick, saslUser, saslPass, onSave, onCa
     saslUser,
     saslPass,
     remember: server.rememberCredentials ?? false,
+    connectOnStartup: server.connectOnStartup ?? false,
   });
 
   function set(field: keyof EditServerForm) {
@@ -180,6 +182,16 @@ export function EditServerModal({ server, nick, saslUser, saslPass, onSave, onCa
             checked={form.remember}
             onChange={(remember) => setForm((prev) => ({ ...prev, remember }))}
           />
+
+          <label className="flex items-center gap-2 text-[13px] text-(--dolq-text) cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={form.connectOnStartup}
+              onChange={(e) => setForm((prev) => ({ ...prev, connectOnStartup: e.target.checked }))}
+              className="accent-[#c792ea]"
+            />
+            Connect when the app opens
+          </label>
 
           <div className="flex gap-3 justify-end mt-2">
             <button

@@ -887,6 +887,7 @@ export default function App() {
         realname: form.realname || undefined,
         autojoinChannels,
         rememberCredentials: remembered || undefined,
+        connectOnStartup: form.connectOnStartup || undefined,
       },
       { id: `${id}:__log__`, name: 'Log', isLog: true },
     );
@@ -939,6 +940,7 @@ export default function App() {
       username: form.username || undefined,
       realname: form.realname || undefined,
       autojoinChannels,
+      connectOnStartup: form.connectOnStartup || undefined,
     });
     setNick(id, form.nick);
     setSaslCreds(id, form.saslUser, form.saslPass);

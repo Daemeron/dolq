@@ -18,6 +18,7 @@ type ConnectForm = {
   username: string;
   realname: string;
   autojoinChannels: string;
+  connectOnStartup: boolean;
 };
 
 function parseList(value: string): string[] {
@@ -49,6 +50,7 @@ const DEFAULTS: ConnectForm = {
   username: '',
   realname: '',
   autojoinChannels: '',
+  connectOnStartup: false,
 };
 
 const inputClass =
@@ -253,6 +255,16 @@ export function ConnectModal({ presets, nickMap, onConnect, onCancel, initial }:
             checked={form.remember}
             onChange={(remember) => setForm((prev) => ({ ...prev, remember }))}
           />
+
+          <label className="flex items-center gap-2 text-[13px] text-(--dolq-text) cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={form.connectOnStartup}
+              onChange={(e) => setForm((prev) => ({ ...prev, connectOnStartup: e.target.checked }))}
+              className="accent-[#c792ea]"
+            />
+            Connect when the app opens
+          </label>
 
           <div className="flex gap-3 justify-end mt-2">
             <button

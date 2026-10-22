@@ -39,7 +39,7 @@ export function RememberCredentials({ checked, onChange }: Props) {
       </label>
       <p className="text-(--dolq-text-faint) text-[12px]">
         {available
-          ? "Stored encrypted with your operating system's keychain, so the server reconnects with them after a restart."
+          ? "Stored encrypted with your operating system's keychain, so the server can connect with them after a restart."
           : 'Unavailable: no secure OS keychain was found, so passwords are only kept until you quit.'}
       </p>
     </div>
