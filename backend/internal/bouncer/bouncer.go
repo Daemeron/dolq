@@ -421,12 +421,11 @@ func (b *Bouncer) Disconnect(serverID string) error {
 	sess.mu.Lock()
 	client := sess.client
 	sess.mu.Unlock()
-	if client.Closed() {
-		// A redial loop is winding down; wait so its "disconnected" can't land after whatever replaces this session.
-		sess.reconnecting.Wait()
-		return nil
-	}
-	return client.Disconnect()
+	err := client.Disconnect()
+	// Disconnect returns only after the close listeners, so a redial they started is counted by now.
+	// Wait for it to wind down so its "disconnected" can't land after whatever replaces this session.
+	sess.reconnecting.Wait()
+	return err
 }
 
 func (b *Bouncer) History(serverID, channel string, before int64, limit int) ([]history.Entry, error) {

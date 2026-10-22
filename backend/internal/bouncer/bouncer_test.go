@@ -671,3 +671,100 @@ func TestLogKeepsOnlyServerLines(t *testing.T) {
 		t.Fatalf("got %+v in #chan, want just the PRIVMSG event", entries)
 	}
 }
+
+// closeSignalConn reports the first Close, so a test can act at exactly the
+// point Disconnect gives the connection up.
+type closeSignalConn struct {
+	net.Conn
+	once    sync.Once
+	closing chan struct{}
+}
+
+func (c *closeSignalConn) Close() error {
+	c.once.Do(func() { close(c.closing) })
+	return c.Conn.Close()
+}
+
+func receive[T any](t *testing.T, ch <-chan T, what string) T {
+	t.Helper()
+	select {
+	case v := <-ch:
+		return v
+	case <-time.After(5 * time.Second):
+		t.Fatalf("timed out waiting for %s", what)
+		var zero T
+		return zero
+	}
+}
+
+// A Disconnect that lands while the drop is still being handled must neither
+// fail nor return before the session has settled. A close listener that blocks
+// holds the client in that window for as long as the test needs.
+func TestDisconnectWhileTheDropIsHandled(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		// holdFirst blocks before the bouncer sees the drop instead of after.
+		holdFirst bool
+	}{
+		{"after the bouncer started a redial", false},
+		{"before the bouncer saw the drop", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			dial, servers := pipeDial(t)
+			b := New(nil)
+			b.ReconnectBackoffBase = time.Hour
+			b.ReconnectBackoffMax = time.Hour
+
+			clientConn, server := net.Pipe()
+			t.Cleanup(func() { clientConn.Close(); server.Close() })
+			conn := &closeSignalConn{Conn: clientConn, closing: make(chan struct{})}
+			client := ircclient.New(conn, "testnick")
+
+			entered, release := make(chan struct{}), make(chan struct{})
+			releaseOnce := sync.OnceFunc(func() { close(release) })
+			t.Cleanup(releaseOnce)
+			hold := func() {
+				close(entered)
+				<-release
+			}
+			if tc.holdFirst {
+				client.OnClose(hold)
+			}
+			sub := &fakeSubscriber{}
+			b.connect("server-a", client, sub, dial)
+			if !tc.holdFirst {
+				client.OnClose(hold)
+			}
+			drainHandshake(t, bufio.NewReader(server))
+
+			server.Close()
+			receive(t, entered, "the drop to be handled")
+
+			done := make(chan error, 1)
+			go func() { done <- b.Disconnect("server-a") }()
+			select {
+			case <-conn.closing:
+			case err := <-done:
+				t.Fatalf("Disconnect returned (%v) while the drop was still being handled", err)
+			case <-time.After(5 * time.Second):
+				t.Fatal("timed out waiting for Disconnect to close the connection")
+			}
+			releaseOnce()
+
+			if err := receive(t, done, "Disconnect"); err != nil {
+				t.Fatalf("Disconnect: %v", err)
+			}
+			if got := sub.lastStatus(); got != "disconnected" {
+				t.Errorf("status right after Disconnect = %q, want disconnected", got)
+			}
+			if got := b.Status("server-a"); got != "disconnected" {
+				t.Errorf("Status(server-a) right after Disconnect = %q, want disconnected", got)
+			}
+			select {
+			case <-servers:
+				t.Error("redialed after Disconnect")
+			default:
+			}
+		})
+	}
+}
