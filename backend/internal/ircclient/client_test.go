@@ -1365,3 +1365,41 @@ func TestDisconnectIgnoresAFailedGoodbye(t *testing.T) {
 		t.Errorf("Disconnect = %v, want nil: the connection is closed either way", err)
 	}
 }
+
+// A server that accepts the connection but never answers the TLS handshake must
+// not hold a dial, and with it a Disconnect waiting on a redial, forever.
+func TestDialGivesUpOnAStalledHandshake(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { ln.Close() })
+	go func() {
+		for {
+			conn, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			t.Cleanup(func() { conn.Close() })
+		}
+	}()
+
+	old := dialTimeout
+	dialTimeout = 50 * time.Millisecond
+	t.Cleanup(func() { dialTimeout = old })
+
+	addr := ln.Addr().(*net.TCPAddr)
+	done := make(chan error, 1)
+	go func() {
+		_, err := Dial("127.0.0.1", addr.Port, "testnick", true)
+		done <- err
+	}()
+	select {
+	case err := <-done:
+		if err == nil {
+			t.Fatal("Dial succeeded against a server that never answered the handshake")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Dial still waiting on the handshake after the dial timeout")
+	}
+}

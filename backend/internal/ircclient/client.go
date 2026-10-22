@@ -24,6 +24,9 @@ const (
 	DefaultPingCheckInterval = 30 * time.Second
 )
 
+// dialTimeout covers the whole connect, TLS handshake included; a variable so a test can shorten it.
+var dialTimeout = 15 * time.Second
+
 const DefaultCapTimeout = 10 * time.Second
 
 const maxNickCollisionRetries = 5
@@ -88,10 +91,11 @@ func Dial(host string, port int, nick string, secure bool) (*Client, error) {
 	addr := net.JoinHostPort(host, strconv.Itoa(port))
 	var conn net.Conn
 	var err error
+	dialer := &net.Dialer{Timeout: dialTimeout}
 	if secure {
-		conn, err = tls.Dial("tcp", addr, &tls.Config{ServerName: host})
+		conn, err = tls.DialWithDialer(dialer, "tcp", addr, &tls.Config{ServerName: host})
 	} else {
-		conn, err = net.Dial("tcp", addr)
+		conn, err = dialer.Dial("tcp", addr)
 	}
 	if err != nil {
 		return nil, err
