@@ -142,6 +142,9 @@ export class BackendClient extends EventEmitter {
   // anything else is sent; the backend drops connections that skip this.
   // Requests only go out on it once that is done.
   private async attach(socket: net.Socket, token?: string): Promise<void> {
+    // Without keepalive a link that dies silently (sleep, a NAT timeout) never
+    // closes, so the redial below would never start.
+    socket.setKeepAlive(true, 30_000);
     createInterface({ input: socket }).on('line', (line) => {
       try {
         this.handleFrame(JSON.parse(line));

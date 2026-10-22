@@ -3,7 +3,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BackendClient } from './BackendClient';
 import { redialDelay } from './redial';
 
-type FakeSocket = Duplex & { written: { id: string; action: string; authToken?: string }[] };
+type FakeSocket = Duplex & {
+  written: { id: string; action: string; authToken?: string }[];
+  keepAlive?: [boolean, number];
+};
 
 // Every dialled connection, newest last. Each answers auth (as fake.authOk
 // says) and getStatus by itself; anything else is left pending. With
@@ -28,6 +31,12 @@ vi.mock('node:net', async (importOriginal) => {
       },
     }) as FakeSocket;
     s.written = [];
+    Object.assign(s, {
+      setKeepAlive(enable: boolean, delay: number) {
+        s.keepAlive = [enable, delay];
+        return s;
+      },
+    });
     fake.sockets.push(s);
     process.nextTick(() => (fake.refuse ? s.emit('error', new Error('ECONNREFUSED')) : s.emit('connect')));
     return s;
@@ -103,6 +112,13 @@ describe('BackendClient', () => {
     expect(statuses.at(-1)).toEqual(['s1', 'disconnected']);
     await vi.advanceTimersByTimeAsync(redialDelay(5));
     expect(fake.sockets).toHaveLength(2);
+  });
+
+  it('turns on TCP keepalive so a silently dead link is noticed', async () => {
+    const client = new BackendClient(0, remote);
+    await client.getStatus('s1');
+    expect(fake.sockets[0].keepAlive).toEqual([true, 30_000]);
+    await client.stop();
   });
 
   it('does not redial after stop', async () => {
