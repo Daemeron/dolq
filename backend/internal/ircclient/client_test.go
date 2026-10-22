@@ -57,6 +57,18 @@ func expectNoLine(t *testing.T, conn net.Conn, r *bufio.Reader) {
 	}
 }
 
+// expectNothingSent proves the client wrote nothing for the lines before it
+// without waiting out a window: lines are handled in order and a PING is
+// answered right away, so anything they caused would come before the PONG.
+// Their events have been emitted by then too.
+func expectNothingSent(t *testing.T, conn net.Conn, r *bufio.Reader) {
+	t.Helper()
+	go conn.Write([]byte("PING :barrier\r\n"))
+	if got := expectLine(t, r); got != "PONG :barrier\r\n" {
+		t.Fatalf("got unexpected line %q", got)
+	}
+}
+
 func writeLine(t *testing.T, conn net.Conn, line string) {
 	t.Helper()
 	done := make(chan error, 1)
@@ -356,18 +368,7 @@ func TestPingPong(t *testing.T) {
 		drainHandshake(t, r)
 		writeLine(t, server, ":nick!user@host PRIVMSG #chan :hello")
 
-		ch := make(chan string, 1)
-		go func() {
-			line, err := r.ReadString('\n')
-			if err == nil {
-				ch <- line
-			}
-		}()
-		select {
-		case line := <-ch:
-			t.Errorf("unexpected line written by client: %q", line)
-		case <-time.After(100 * time.Millisecond):
-		}
+		expectNothingSent(t, server, r)
 	})
 }
 
@@ -400,18 +401,7 @@ func TestCTCP(t *testing.T) {
 		drainHandshake(t, r)
 		writeLine(t, server, ":alice!u@host PRIVMSG #chan :\x01ACTION waves\x01")
 
-		ch := make(chan string, 1)
-		go func() {
-			line, err := r.ReadString('\n')
-			if err == nil {
-				ch <- line
-			}
-		}()
-		select {
-		case line := <-ch:
-			t.Errorf("unexpected line written by client: %q", line)
-		case <-time.After(100 * time.Millisecond):
-		}
+		expectNothingSent(t, server, r)
 	})
 
 	t.Run("emits an ActionEvent for a CTCP ACTION", func(t *testing.T) {
@@ -458,18 +448,7 @@ func TestCTCP(t *testing.T) {
 		drainHandshake(t, r)
 		writeLine(t, server, ":alice!u@host PRIVMSG testnick :\x01DCC CHAT chat 3232235777 5000\x01")
 
-		ch := make(chan string, 1)
-		go func() {
-			line, err := r.ReadString('\n')
-			if err == nil {
-				ch <- line
-			}
-		}()
-		select {
-		case line := <-ch:
-			t.Errorf("unexpected line written by client: %q", line)
-		case <-time.After(100 * time.Millisecond):
-		}
+		expectNothingSent(t, server, r)
 	})
 
 	t.Run("emits an XDCCSendOfferEvent for an active-mode DCC SEND request", func(t *testing.T) {
@@ -541,18 +520,7 @@ func TestCTCP(t *testing.T) {
 		drainHandshake(t, r)
 		writeLine(t, server, ":alice!u@host PRIVMSG testnick :\x01DCC SEND file.txt 3232235777 5000 1024\x01")
 
-		ch := make(chan string, 1)
-		go func() {
-			line, err := r.ReadString('\n')
-			if err == nil {
-				ch <- line
-			}
-		}()
-		select {
-		case line := <-ch:
-			t.Errorf("unexpected line written by client: %q", line)
-		case <-time.After(100 * time.Millisecond):
-		}
+		expectNothingSent(t, server, r)
 	})
 
 	t.Run("emits an XDCCResumeAcceptEvent for a DCC ACCEPT reply", func(t *testing.T) {
@@ -584,10 +552,11 @@ func TestCTCP(t *testing.T) {
 		drainHandshake(t, r)
 
 		writeLine(t, server, ":alice!u@host PRIVMSG testnick :\x01DCC RESUME file.txt 5000 512\x01")
+		expectNothingSent(t, server, r)
 		select {
 		case e := <-events:
 			t.Errorf("expected no event, got %#v", e)
-		case <-time.After(100 * time.Millisecond):
+		default:
 		}
 	})
 }
@@ -648,10 +617,11 @@ func TestNamesAccumulation(t *testing.T) {
 
 		writeLine(t, server, ":irc.example.net 353 testnick = #general :alice @bob")
 		writeLine(t, server, ":irc.example.net 353 testnick = #general :carol")
+		expectNothingSent(t, server, r)
 		select {
 		case e := <-events:
 			t.Fatalf("expected no event yet, got %v", e)
-		case <-time.After(50 * time.Millisecond):
+		default:
 		}
 
 		writeLine(t, server, ":irc.example.net 366 testnick #general :End of /NAMES list.")
@@ -706,10 +676,11 @@ func TestWhoisAccumulation(t *testing.T) {
 		writeLine(t, server, ":irc.example.net 317 testnick alice 300 1700000000 :seconds idle, signon time")
 		writeLine(t, server, ":irc.example.net 319 testnick alice :@#general +#offtopic")
 		writeLine(t, server, ":irc.example.net 330 testnick alice alice_account :is logged in as")
+		expectNothingSent(t, server, r)
 		select {
 		case e := <-events:
 			t.Fatalf("expected no event yet, got %#v", e)
-		case <-time.After(50 * time.Millisecond):
+		default:
 		}
 
 		writeLine(t, server, ":irc.example.net 318 testnick alice :End of /WHOIS list.")
@@ -1030,7 +1001,7 @@ func TestNickCollisionHandling(t *testing.T) {
 			t.Fatal("timed out waiting for the NICKINUSE event")
 		}
 
-		expectNoLine(t, server, r)
+		expectNothingSent(t, server, r)
 	})
 
 	t.Run("RPL_WELCOME confirms the nick and marks registration complete", func(t *testing.T) {
@@ -1083,7 +1054,7 @@ func TestNickCollisionHandling(t *testing.T) {
 			t.Errorf("nick = %q, want unchanged testnick", got)
 		}
 
-		expectNoLine(t, server, r)
+		expectNothingSent(t, server, r)
 	})
 }
 
