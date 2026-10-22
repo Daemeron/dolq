@@ -184,3 +184,12 @@ describe('store: reading', () => {
     expect(useStore.getState().lastReadMap['a:#two']).toBeUndefined();
   });
 });
+
+describe('store: persistence', () => {
+  it('does not save user lists, which change with every join and part', () => {
+    useStore.getState().setUsers(scopeKey('a', '#one'), [{ nick: 'alice', privileges: [] }]);
+    const saved = JSON.parse(localStorage.getItem('dolq') ?? '{}');
+    expect(saved.state).toBeDefined();
+    expect(saved.state.userMap).toBeUndefined();
+  });
+});

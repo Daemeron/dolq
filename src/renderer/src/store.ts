@@ -483,7 +483,6 @@ export const useStore = create<State & Actions>()(
         channelMap: Object.fromEntries(
           Object.entries(s.channelMap).map(([id, chs]) => [id, chs.map(({ joined: _, ...c }) => c)]),
         ),
-        userMap: s.userMap,
         nickMap: s.nickMap,
         selectedServerId: s.selectedServerId,
         selectedChannelId: s.selectedChannelId,
