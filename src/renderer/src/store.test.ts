@@ -88,6 +88,13 @@ describe('store: per-nick updates are scoped to one server', () => {
 });
 
 describe('store: updateServer', () => {
+  it('turning connect on startup off clears the old value', () => {
+    const { addServer, updateServer } = useStore.getState();
+    addServer({ ...server('server-a'), connectOnStartup: true }, { id: 'server-a:__log__', name: 'Log', isLog: true });
+    updateServer('server-a', { connectOnStartup: undefined });
+    expect(useStore.getState().servers[0].connectOnStartup).toBeFalsy();
+  });
+
   it('patches only the given fields, leaving the rest of the Server untouched', () => {
     const { addServer, updateServer } = useStore.getState();
     addServer(server('server-a'), { id: 'server-a:__log__', name: 'Log', isLog: true });
