@@ -377,36 +377,41 @@ export default function App() {
     [setConnectionStatus, logConnectFailure],
   );
 
-  useEffect(() => {
-    async function reconcile() {
-      const { servers, channelMap } = useStore.getState();
-      for (const s of servers) {
-        const status = await window.irc.getStatus(s.id).catch(() => 'disconnected' as const);
-        setConnectionStatus(s.id, status);
+  // Brings statuses and joined channels in line with the backend, attaching to
+  // its sessions (getStatus) and connecting the servers it has none for.
+  const reconcile = useCallback(async () => {
+    const { servers, channelMap } = useStore.getState();
+    for (const s of servers) {
+      const status = await window.irc.getStatus(s.id).catch(() => 'disconnected' as const);
+      setConnectionStatus(s.id, status);
 
-        if (status === 'connected') {
-          const joined = new Set(await window.irc.getJoinedChannels(s.id).catch(() => [] as string[]));
-          (channelMap[s.id] ?? []).forEach((ch) => {
-            if (ch.isLog || ch.isQuery) return;
-            setChannelJoined(s.id, ch.id, joined.has(ch.id));
-            if (joined.has(ch.id)) window.irc.sendLine(s.id, `NAMES ${ch.id}`);
-          });
-          continue;
-        }
+      if (status === 'connected') {
+        const joined = new Set(await window.irc.getJoinedChannels(s.id).catch(() => [] as string[]));
+        (channelMap[s.id] ?? []).forEach((ch) => {
+          if (ch.isLog || ch.isQuery) return;
+          setChannelJoined(s.id, ch.id, joined.has(ch.id));
+          if (joined.has(ch.id)) window.irc.sendLine(s.id, `NAMES ${ch.id}`);
+        });
+        continue;
+      }
 
-        try {
-          await connectServer(s);
-        } catch {
-          setConnectionStatus(s.id, 'disconnected');
-        }
+      try {
+        await connectServer(s);
+      } catch {
+        setConnectionStatus(s.id, 'disconnected');
       }
     }
+  }, [setConnectionStatus, setChannelJoined, connectServer]);
+
+  useEffect(() => {
     if (useStore.persist.hasHydrated()) {
       reconcile();
       return;
     }
     return useStore.persist.onFinishHydration(reconcile);
-  }, [setConnectionStatus, setChannelJoined, connectServer]);
+  }, [reconcile]);
+
+  useEffect(() => window.irc.onBackendReconnected(reconcile), [reconcile]);
 
   const dccPeerNick = useCallback(
     (dccId: string): string => {

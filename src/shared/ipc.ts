@@ -151,6 +151,9 @@ export type IrcApi = {
     callback: (prefill: { host: string; port: number; secure: boolean; channel?: string }) => void,
   ) => () => void;
   onOpenPreferences: (callback: () => void) => () => void;
+  // The connection to a remote backend dropped and came back; its sessions
+  // may have changed meanwhile.
+  onBackendReconnected: (callback: () => void) => () => void;
 };
 
 export type ConnectionStatus = 'connected' | 'connecting' | 'disconnected';
@@ -184,6 +187,7 @@ export enum IrcMessages {
   status = 'irc:status',
   openIrcUrl = 'irc:openIrcUrl',
   openPreferences = 'irc:openPreferences',
+  backendReconnected = 'irc:backendReconnected',
   secretsAvailable = 'secrets:available',
   secretsRemember = 'secrets:remember',
   secretsForget = 'secrets:forget',

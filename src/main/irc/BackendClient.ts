@@ -10,7 +10,7 @@ import { promisify } from 'node:util';
 import { app } from 'electron';
 import type { ConnectionStatus, HistoryEntry, IrcEvent } from '../../shared/ipc';
 import { decideTrust, insecureReasons, type RemoteHooks, type RemoteTarget } from '../remoteBackend';
-
+import { PermanentError, redial } from './redial';
 import { stopChild } from './stopChild';
 
 const execFileAsync = promisify(execFile);
@@ -37,6 +37,9 @@ export class BackendClient extends EventEmitter {
   private pending = new Map<string, Pending>();
   private devBinaryPath?: string;
   private ready: Promise<void>;
+  private stopping = false;
+  // Servers this client attached to, shown as connecting while a redial is under way.
+  private servers = new Set<string>();
 
   constructor(
     private retentionDays: number,
@@ -75,11 +78,11 @@ export class BackendClient extends EventEmitter {
     await this.attach(socket, token);
   }
 
-  private async connectRemote(remote: RemoteTarget): Promise<void> {
+  private async connectRemote(remote: RemoteTarget, agreed = false): Promise<void> {
     // Running without TLS and/or a token is allowed (a backend started with
     // -tls=false / -token=false, a tunnel, a trusted LAN), but only after the user has agreed.
     const reasons = insecureReasons(remote);
-    if (reasons.length > 0) {
+    if (reasons.length > 0 && !agreed) {
       const ok = (await this.hooks?.confirmInsecure(remote.host, reasons)) ?? false;
       if (!ok) throw new Error('Connection to the remote backend cancelled (it is not fully secured).');
     }
@@ -113,7 +116,7 @@ export class BackendClient extends EventEmitter {
         if (decision === 'mismatch') {
           s.destroy();
           reject(
-            new Error(
+            new PermanentError(
               `The remote backend's certificate changed (now ${fingerprint}). If you did not expect that, someone may be intercepting the connection. Paste its pairing link in Preferences to trust the new certificate.`,
             ),
           );
@@ -123,10 +126,12 @@ export class BackendClient extends EventEmitter {
           const ok = (await this.hooks?.confirmTrust(fingerprint, remote.host)) ?? false;
           if (!ok) {
             s.destroy();
-            reject(new Error('The remote backend certificate was not trusted.'));
+            reject(new PermanentError('The remote backend certificate was not trusted.'));
             return;
           }
           this.hooks?.onPin(fingerprint);
+          // so a redial does not ask again
+          if (this.remote) this.remote = { ...this.remote, fingerprint };
         }
         resolve(s);
       });
@@ -135,8 +140,8 @@ export class BackendClient extends EventEmitter {
 
   // Wires up an established, trusted connection and authenticates it before
   // anything else is sent; the backend drops connections that skip this.
-  private attach(socket: net.Socket, token?: string): Promise<void> {
-    this.socket = socket;
+  // Requests only go out on it once that is done.
+  private async attach(socket: net.Socket, token?: string): Promise<void> {
     createInterface({ input: socket }).on('line', (line) => {
       try {
         this.handleFrame(JSON.parse(line));
@@ -146,19 +151,50 @@ export class BackendClient extends EventEmitter {
     });
     socket.on('error', (err) => console.error('backend connection error:', err));
     socket.on('close', () => {
-      this.socket = undefined;
       this.rejectAllPending(new Error('backend connection closed'));
+      // Closed before it was ready: whoever was attaching it gets the error above.
+      if (this.socket !== socket) return;
+      this.socket = undefined;
+      this.lost();
     });
     // No token: a backend that does not ask for one. If it does, the first call fails as unauthorized.
-    if (!token) return Promise.resolve();
-    return new Promise((resolve, reject) => {
-      const id = randomUUID();
-      this.pending.set(id, {
-        resolve: (f) => (f.ok ? resolve() : reject(new Error(`The backend refused the access token (${f.error}).`))),
-        reject,
+    if (token) {
+      await new Promise<void>((resolve, reject) => {
+        const id = randomUUID();
+        this.pending.set(id, {
+          resolve: (f) =>
+            f.ok ? resolve() : reject(new PermanentError(`The backend refused the access token (${f.error}).`)),
+          reject,
+        });
+        socket.write(`${JSON.stringify({ id, action: 'auth', authToken: token })}\n`);
       });
-      socket.write(`${JSON.stringify({ id, action: 'auth', authToken: token })}\n`);
-    });
+    }
+    this.socket = socket;
+  }
+
+  // The connection dropped. A local backend that went away has crashed, so say
+  // so; a remote one is redialled until it answers again, then 'reconnected'
+  // tells the app to attach to its sessions again (getStatus) and catch up.
+  private lost(): void {
+    if (this.stopping) return;
+    const remote = this.remote;
+    for (const id of this.servers) this.emit('status', id, remote ? 'connecting' : 'disconnected');
+    if (!remote) {
+      this.emit('fatal', 'The Dolq backend stopped unexpectedly. Restart Dolq to reconnect.');
+      return;
+    }
+    redial(
+      () => this.connectRemote(this.remote ?? remote, true),
+      () => this.stopping,
+    ).then(
+      (connected) => {
+        if (connected) this.emit('reconnected');
+      },
+      (err) => {
+        for (const id of this.servers) this.emit('status', id, 'disconnected');
+        this.emit('fatal', err instanceof Error ? err.message : String(err));
+      },
+    );
   }
 
   connect(
@@ -174,6 +210,7 @@ export class BackendClient extends EventEmitter {
     altNicks?: string[],
     password?: string,
   ): Promise<void> {
+    this.servers.add(serverId);
     return this.call('connect', {
       serverId,
       host,
@@ -198,6 +235,7 @@ export class BackendClient extends EventEmitter {
   }
 
   async getStatus(serverId: string): Promise<ConnectionStatus> {
+    this.servers.add(serverId);
     const f = await this.request('getStatus', { serverId });
     return f.status ?? 'disconnected';
   }
@@ -278,6 +316,7 @@ export class BackendClient extends EventEmitter {
   }
 
   async stop(): Promise<void> {
+    this.stopping = true;
     if (this.remote) {
       this.socket?.end();
       return;

@@ -105,7 +105,10 @@ function createWindow(): void {
   mainWindow.webContents.on('did-finish-load', flushPendingIrcUrl);
 }
 
+// With the tray off, closing the window destroys it (on macOS the app keeps
+// running), so bring back a fresh one.
 function showWindow(): void {
+  if (mainWindow.isDestroyed()) createWindow();
   mainWindow.show();
   mainWindow.focus();
 }
@@ -132,7 +135,13 @@ function handleIrcUrl(url: string): void {
 }
 
 function flushPendingIrcUrl(): void {
-  if (!pendingIrcUrl || !mainWindow || mainWindow.webContents.isLoadingMainFrame()) return;
+  if (!pendingIrcUrl || !mainWindow) return;
+  // A closed window's replacement flushes this once it has loaded.
+  if (mainWindow.isDestroyed()) {
+    showWindow();
+    return;
+  }
+  if (mainWindow.webContents.isLoadingMainFrame()) return;
   const url = pendingIrcUrl;
   pendingIrcUrl = null;
   const prefill = parseIrcUrl(url);
@@ -165,7 +174,7 @@ function createTray(): void {
   );
   // Right-click already opens the context menu above (setContextMenu's own
   // behavior); a plain click toggles the window the way most tray apps do.
-  tray.on('click', () => (mainWindow.isVisible() ? mainWindow.hide() : showWindow()));
+  tray.on('click', () => (!mainWindow.isDestroyed() && mainWindow.isVisible() ? mainWindow.hide() : showWindow()));
 }
 
 function destroyTray(): void {
@@ -247,7 +256,7 @@ if (!app.requestSingleInstanceLock()) {
     handleIrcUrl(url);
   });
 
-  app.whenReady().then(async () => {
+  app.whenReady().then(() => {
     // packaged macOS builds get their Dock icon from icon.icns automatically -
     // this only matters for `npm run frontend:dev`/`electron .`, where macOS would
     // otherwise show the generic Electron icon (BrowserWindow's `icon` option
@@ -294,12 +303,12 @@ if (!app.requestSingleInstanceLock()) {
     // registerIrcHandlers' closures see whatever Preferences last saved
     // (registerSettingsHandlers writes into the same box) instead of the
     // value that was current when the app started.
-    registerIrcHandlers(mainWindow, backend, settingsBox, secrets);
+    registerIrcHandlers(backend, settingsBox, secrets);
     registerSecretsHandlers(secrets);
     registerSettingsHandlers(settingsBox, secrets);
     registerShellHandlers();
-    await installReactDevTools();
     registerAppLifecycleHandlers(backend);
+    if (!app.isPackaged) installReactDevTools();
   });
 }
 
@@ -359,12 +368,13 @@ function registerSecretsHandlers(secrets: SecretsStore): void {
   ipcMain.handle(IrcMessages.secretsForget, (_event, serverId: string) => secrets.forget(serverId));
 }
 
-function registerIrcHandlers(
-  mainWindow: BrowserWindow,
-  backend: BackendClient,
-  settingsBox: { current: Settings },
-  secrets: SecretsStore,
-): void {
+// Backend traffic goes to whichever window is current, and nowhere while
+// there is none: the first one may have been closed and another opened since.
+function sendToWindow(channel: string, ...args: unknown[]): void {
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(channel, ...args);
+}
+
+function registerIrcHandlers(backend: BackendClient, settingsBox: { current: Settings }, secrets: SecretsStore): void {
   ipcMain.handle(
     IrcMessages.connect,
     (
@@ -464,13 +474,12 @@ function registerIrcHandlers(
   // The backend already tags every unsolicited frame with the serverId it
   // belongs to, so a single subscription per frame type covers every server
   // - no per-connect listener wiring needed.
-  backend.on('line', (serverId: string, line: string) => mainWindow.webContents.send(IrcMessages.line, serverId, line));
-  backend.on('event', (serverId: string, event: unknown) =>
-    mainWindow.webContents.send(IrcMessages.event, serverId, event),
-  );
+  backend.on('line', (serverId: string, line: string) => sendToWindow(IrcMessages.line, serverId, line));
+  backend.on('event', (serverId: string, event: unknown) => sendToWindow(IrcMessages.event, serverId, event));
   backend.on('status', (serverId: string, status: ConnectionStatus) =>
-    mainWindow.webContents.send(IrcMessages.status, serverId, status),
+    sendToWindow(IrcMessages.status, serverId, status),
   );
+  backend.on('reconnected', () => sendToWindow(IrcMessages.backendReconnected));
 }
 
 // Settings live for the process's lifetime in settingsBox.current (shared
@@ -535,17 +544,10 @@ function registerSettingsHandlers(settingsBox: { current: Settings }, secrets: S
 }
 
 function registerAppLifecycleHandlers(backend: BackendClient): void {
-  // The window now survives a close (see createWindow's 'close' listener -
-  // it hides instead), so there's always at least one to just re-show;
-  // getAllWindows().length === 0 only happens if something else destroyed
-  // it outright, same fallback as before this existed.
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      createWindow();
-    } else {
-      showWindow();
-    }
-  });
+  // With the tray on the window survives a close (see createWindow's 'close'
+  // listener - it hides instead); with it off the window is gone and
+  // showWindow builds a new one.
+  app.on('activate', showWindow);
 
   app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') app.quit();
@@ -568,6 +570,7 @@ function registerAppLifecycleHandlers(backend: BackendClient): void {
   });
 }
 
+// Development only: it downloads the extension from the Chrome Web Store.
 async function installReactDevTools(): Promise<void> {
   try {
     const ext = await installExtension(REACT_DEVELOPER_TOOLS, { loadExtensionOptions: { allowFileAccess: true } });
