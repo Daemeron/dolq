@@ -7,11 +7,11 @@ import type { ConnectionStatus } from '../../../shared/ipc';
 // opens; the rest stay disconnected until the user connects them.
 export function reconcileStep(
   status: ConnectionStatus,
-  connectOnStartup: boolean,
+  server: { connectOnStartup?: boolean },
 ): 'sync' | 'wait' | 'connect' | 'skip' {
   if (status === 'connected') return 'sync';
   if (status === 'connecting') return 'wait';
-  return connectOnStartup ? 'connect' : 'skip';
+  return server.connectOnStartup ? 'connect' : 'skip';
 }
 
 // Asking for a server's status also attaches this window to its live lines, so
