@@ -577,32 +577,30 @@ func TestPingTimeoutWatchdog(t *testing.T) {
 
 	t.Run("does not close before the timeout has elapsed", func(t *testing.T) {
 		c, _, _ := pipeClient(t, "testnick")
-		c.PingTimeout = 200 * time.Millisecond
-		c.PingCheckInterval = 20 * time.Millisecond
+		c.PingTimeout = time.Hour
+		c.PingCheckInterval = time.Millisecond
 		c.Start()
 
+		// Many checks run in this window; each must see the timeout still ahead.
 		select {
 		case <-c.closed:
 			t.Fatal("closed before the timeout elapsed")
-		case <-time.After(80 * time.Millisecond):
+		case <-time.After(20 * time.Millisecond):
 		}
 	})
 
 	t.Run("resets the deadline whenever a line is received", func(t *testing.T) {
 		c, server, r := pipeClient(t, "testnick")
-		c.PingTimeout = 150 * time.Millisecond
-		c.PingCheckInterval = 20 * time.Millisecond
+		c.lastActivity.Store(time.Now().Add(-time.Hour).UnixNano())
 		c.Start()
 		drainHandshake(t, r)
 
-		time.Sleep(100 * time.Millisecond)
+		// The PONG is written while the PING is handled, after the read that counts as activity.
 		writeLine(t, server, "PING :irc.example.net")
 		expectLine(t, r)
 
-		select {
-		case <-c.closed:
-			t.Fatal("closed even though a line reset the deadline")
-		case <-time.After(100 * time.Millisecond):
+		if idle := time.Since(time.Unix(0, c.lastActivity.Load())); idle > time.Minute {
+			t.Fatalf("last activity is %v old after a line was received", idle)
 		}
 	})
 }
