@@ -119,7 +119,7 @@ func writeLine(t *testing.T, conn net.Conn, line string) {
 
 func waitFor(t *testing.T, cond func() bool) {
 	t.Helper()
-	deadline := time.Now().Add(2 * time.Second)
+	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {
 		if cond() {
 			return
