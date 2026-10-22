@@ -27,12 +27,15 @@ function formatTime(d: Date, timestampFormat: '12h' | '24h'): string {
 
 const AT_BOTTOM_THRESHOLD = 40;
 const LOAD_OLDER_THRESHOLD = 100;
+// Pages a view may ask for in a row without a scroll, so lines hidden at draw time cannot make it crawl all history.
+const MAX_AUTO_LOADS = 20;
 
 export function MessageArea({ messages, isLog, channelId, onLoadOlder, timestampFormat, density, onGetPack }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const prevChannelId = useRef(channelId);
   const scrollTop = useRef<Map<string, number>>(new Map());
   const isAtBottom = useRef<Map<string, boolean>>(new Map());
+  const autoLoads = useRef(0);
 
   const switchedChannel = prevChannelId.current !== channelId;
   const compact = density === 'compact';
@@ -60,19 +63,28 @@ export function MessageArea({ messages, isLog, channelId, onLoadOlder, timestamp
     prevChannelId.current = channelId;
   }, [channelId, switchedChannel]);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: a new channel starts its own count
+  useLayoutEffect(() => {
+    autoLoads.current = 0;
+  }, [channelId]);
+
   // Older pages load on scroll, and a view whose lines do not fill it yet has
-  // nothing to scroll, so it asks for the next page itself. onLoadOlder does
-  // nothing while a page is loading or once history runs out, and a failed
-  // fetch changes no messages, so this does not run again on its own.
+  // nothing to scroll, so it asks for the next page itself, up to
+  // MAX_AUTO_LOADS times until the next scroll. onLoadOlder does nothing while
+  // a page is loading or once history runs out, and a failed fetch changes no
+  // messages, so this does not run again on its own.
   // biome-ignore lint/correctness/useExhaustiveDependencies: messages changes whenever a page lands
   useLayoutEffect(() => {
     const el = containerRef.current;
-    if (el && onLoadOlder && el.scrollHeight <= el.clientHeight) onLoadOlder();
+    if (!el || !onLoadOlder || el.scrollHeight > el.clientHeight || autoLoads.current >= MAX_AUTO_LOADS) return;
+    autoLoads.current++;
+    onLoadOlder();
   }, [messages, onLoadOlder]);
 
   function handleScroll() {
     const el = containerRef.current;
     if (!el) return;
+    autoLoads.current = 0;
     scrollTop.current.set(channelId, el.scrollTop);
     isAtBottom.current.set(channelId, el.scrollHeight - el.scrollTop - el.clientHeight < AT_BOTTOM_THRESHOLD);
     if (onLoadOlder && el.scrollTop < LOAD_OLDER_THRESHOLD) onLoadOlder();
