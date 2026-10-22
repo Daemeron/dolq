@@ -29,6 +29,7 @@ import { comboFromEvent } from './utils/keybind';
 import { isChannelScopedLine } from './utils/logFilter';
 import { mentionsNick } from './utils/mentions';
 import { isNickServIdentifyPrompt } from './utils/nickserv';
+import { reconcileStep } from './utils/reconcile';
 import { buildServerId, normalizeHost, resolveHostPort } from './utils/server';
 import { computeAwayStats } from './utils/unread';
 import { takeAutoAccept, xdccRequestKey, xdccRequestTarget, xdccSenderKey } from './utils/xdcc';
@@ -378,14 +379,17 @@ export default function App() {
   );
 
   // Brings statuses and joined channels in line with the backend, attaching to
-  // its sessions (getStatus) and connecting the servers it has none for.
+  // its sessions (getStatus) and connecting the servers it has none for. One it
+  // is still reconnecting is left to finish; its rejoins arrive as JOIN events.
   const reconcile = useCallback(async () => {
     const { servers, channelMap } = useStore.getState();
     for (const s of servers) {
       const status = await window.irc.getStatus(s.id).catch(() => 'disconnected' as const);
       setConnectionStatus(s.id, status);
+      const step = reconcileStep(status);
+      if (step === 'wait') continue;
 
-      if (status === 'connected') {
+      if (step === 'sync') {
         const joined = new Set(await window.irc.getJoinedChannels(s.id).catch(() => [] as string[]));
         (channelMap[s.id] ?? []).forEach((ch) => {
           if (ch.isLog || ch.isQuery) return;
