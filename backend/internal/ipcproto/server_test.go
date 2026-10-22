@@ -318,3 +318,24 @@ func TestSendsToOneServerArriveInOrder(t *testing.T) {
 		fakeIRC.Close()
 	}
 }
+
+func TestWriteToAClientThatStopsReadingTimesOutAndHangsUp(t *testing.T) {
+	client, server := net.Pipe()
+	defer client.Close()
+	c := &conn{netConn: server, writeTimeout: 50 * time.Millisecond, enc: json.NewEncoder(server)}
+
+	done := make(chan struct{})
+	go func() {
+		c.SendLine("srv", "a line nobody reads")
+		c.SendLine("srv", "and another")
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("writing to a client that does not read blocked")
+	}
+	if _, err := client.Read(make([]byte, 1)); err != io.EOF {
+		t.Fatalf("read after the timeout: %v, want the connection closed", err)
+	}
+}

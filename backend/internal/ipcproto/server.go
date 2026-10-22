@@ -60,12 +60,17 @@ type Server struct {
 	downloadDir string
 	// authTimeout bounds how long a fresh connection may take to present its token.
 	authTimeout time.Duration
+	// writeTimeout bounds each frame written to a client; see conn.writeFrame.
+	writeTimeout time.Duration
 }
 
-const defaultAuthTimeout = 10 * time.Second
+const (
+	defaultAuthTimeout  = 10 * time.Second
+	defaultWriteTimeout = 10 * time.Second
+)
 
 func NewServer(b *bouncer.Bouncer) *Server {
-	return &Server{b: b, authTimeout: defaultAuthTimeout}
+	return &Server{b: b, authTimeout: defaultAuthTimeout, writeTimeout: defaultWriteTimeout}
 }
 
 // RequireToken makes every connection open with an auth frame carrying token
@@ -124,7 +129,8 @@ func (s *Server) Serve(ln net.Listener) error {
 }
 
 type conn struct {
-	netConn net.Conn
+	netConn      net.Conn
+	writeTimeout time.Duration
 
 	writeMu sync.Mutex
 	enc     *json.Encoder
@@ -150,16 +156,22 @@ func (c *conn) writeResult(id string, err error) {
 	c.writeFrame(ServerFrame{ID: id, Type: FrameResult, OK: true})
 }
 
+// writeFrame gives up on a client that stops reading after writeTimeout and
+// hangs up on it: lines and events are written to every attached client from
+// the IRC session's read loop, so one stuck client would stall the session for all.
 func (c *conn) writeFrame(f ServerFrame) {
 	c.writeMu.Lock()
 	defer c.writeMu.Unlock()
+	c.netConn.SetWriteDeadline(time.Now().Add(c.writeTimeout))
 	if err := c.enc.Encode(f); err != nil {
 		log.Printf("ipcproto: write error: %v", err)
+		// A frame cut off midway leaves the stream unreadable anyway.
+		c.netConn.Close()
 	}
 }
 
 func (s *Server) handleConn(netConn net.Conn) {
-	c := &conn{netConn: netConn, enc: json.NewEncoder(netConn)}
+	c := &conn{netConn: netConn, writeTimeout: s.writeTimeout, enc: json.NewEncoder(netConn)}
 	var inFlight sync.WaitGroup
 	lanes := map[string]chan ClientFrame{}
 	defer func() {
