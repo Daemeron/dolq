@@ -12,12 +12,13 @@
 #
 # On a NAS/cluster running Kubernetes see deploy/kubernetes/.
 #
-# By default dolqd also still accepts plain, unauthenticated connections on the
-# same port, so setups and clients from before access tokens keep working. Once
-# every client is paired, refuse them with `command: ['-secure']`. TLS and the
-# token are independent: `-tls=false` serves plain TCP (behind a proxy or
-# tunnel), `-token=false` drops the access token (a network you fully trust).
-# Neither can be combined with -secure.
+# dolqd accepts only TLS connections that present the access token. To keep
+# clients from before access tokens working until they are paired, accept
+# their plain, unauthenticated connections too with
+# `command: ['-allow-legacy-plain']`. TLS and the token are independent:
+# `-tls=false` serves plain TCP (behind a proxy or tunnel), `-token=false` drops
+# the access token (a network you fully trust). Neither can be combined with
+# -allow-legacy-plain.
 #
 # For a truly remote box with a domain name, add to the entrypoint
 # `-acme-domain your.domain` (and publish host port 443 to 6789) to get a

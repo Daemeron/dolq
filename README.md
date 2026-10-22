@@ -136,19 +136,18 @@ directory. Files go to `-download-dir` (or `DOLQ_DOWNLOAD_DIR`), by default
 `downloads` next to the history database (`/data/downloads` in the Docker
 image). A locally spawned `dolqd` still saves where the app asks.
 
-**Legacy plain connections and `-secure`.** So that setups and clients from
-before access tokens keep working, `dolqd` by default still accepts plain,
-unauthenticated connections on the same port, and logs a warning saying so.
-Once every client is paired, start it with `-secure` (or `DOLQ_SECURE=1`) to
-accept only TLS connections that present the token. The Kubernetes manifests
-pass `-secure` already, since a fresh install has nothing to stay compatible
-with.
+**Legacy plain connections.** `dolqd` accepts only TLS connections that
+present the token. Clients and setups from before access tokens connected
+plainly, without one; to keep those working until every client is paired,
+start it with `-allow-legacy-plain` (or `DOLQ_ALLOW_LEGACY_PLAIN=1`), which
+accepts them on the same port and logs a warning saying so. `-secure`, which
+used to turn that refusal on, is now the default and does nothing.
 
 | Flag                                             | Meaning                                                                                                               |
 | ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------- |
 | `-addr host:port`                                | Listen on TCP for remote clients instead of a local socket                                                            |
 | `-db path`                                       | History database; the token and certificate live in the same directory by default                                     |
-| `-secure`                                        | Refuse plain, unauthenticated connections (see above)                                                                 |
+| `-allow-legacy-plain`                            | Also accept plain, unauthenticated connections from unpaired clients (see above)                                      |
 | `-tls=false`                                     | Serve plain TCP, e.g. behind a TLS-terminating proxy or an SSH tunnel                                                 |
 | `-token=false`                                   | No access token: anyone who can reach the port can use it. Only on a network you fully trust                          |
 | `-tls-cert` / `-tls-key`                         | Use this certificate and key (generated there if neither file exists)                                                 |
@@ -158,16 +157,16 @@ with.
 | `-retention-days n`                              | Prune history older than `n` days (0 keeps everything)                                                                |
 
 `-tls=false` and `-token=false` are independent, and neither can be combined
-with `-secure`. In the client, untick **Encrypt the connection (TLS)** and/or
-leave the token empty to match.
+with `-allow-legacy-plain`. In the client, untick **Encrypt the connection
+(TLS)** and/or leave the token empty to match.
 
-| Environment variable | Meaning                                                                                    |
-| -------------------- | ------------------------------------------------------------------------------------------ |
-| `DOLQ_TOKEN`         | Use this access token instead of a generated one (kept out of `ps`, so there is no flag)   |
-| `DOLQ_SECURE=1`      | Same as `-secure`                                                                          |
-| `DOLQ_PUBLIC_HOST`   | Host name or IP to put in the pairing link (inside a container `dolqd` cannot tell)        |
-| `DOLQ_PUBLIC_PORT`   | Port to put in the pairing link, when clients reach it through a different one (NodePort)  |
-| `DOLQ_DOWNLOAD_DIR`  | Same as `-download-dir`                                                                    |
+| Environment variable        | Meaning                                                                                   |
+| --------------------------- | ----------------------------------------------------------------------------------------- |
+| `DOLQ_TOKEN`                | Use this access token instead of a generated one (kept out of `ps`, so there is no flag)  |
+| `DOLQ_ALLOW_LEGACY_PLAIN=1` | Same as `-allow-legacy-plain`                                                             |
+| `DOLQ_PUBLIC_HOST`          | Host name or IP to put in the pairing link (inside a container `dolqd` cannot tell)       |
+| `DOLQ_PUBLIC_PORT`          | Port to put in the pairing link, when clients reach it through a different one (NodePort) |
+| `DOLQ_DOWNLOAD_DIR`         | Same as `-download-dir`                                                                   |
 
 To rotate the token or certificate, delete `token` or `tls-cert.pem` /
 `tls-key.pem` from the data directory, restart (with `-print-pairing` if you

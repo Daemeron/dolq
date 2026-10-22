@@ -15,9 +15,10 @@ type options struct {
 	tlsCert    string
 	tlsKey     string
 	acmeDomain string
-	secure     bool
-	tls        bool
-	token      bool
+	// allowLegacyPlain: with TLS, also accept plain unauthenticated connections.
+	allowLegacyPlain bool
+	tls              bool
+	token            bool
 }
 
 // listenPlan is what main does with options and the environment, decided
@@ -42,7 +43,6 @@ type listenPlan struct {
 	acme              bool
 	certFile, keyFile string
 
-	secureOnly bool
 	// allowPlain: with TLS, still accept plain unauthenticated connections.
 	allowPlain bool
 	pairing    bool // log the pairing link
@@ -51,7 +51,7 @@ type listenPlan struct {
 	plainWarning   bool // tcp without TLS on a non-loopback address
 }
 
-var errSecureConflict = errors.New("-secure refuses connections that are not TLS with an access token, so it cannot be combined with -tls=false or -token=false")
+var errLegacyPlainConflict = errors.New("-allow-legacy-plain accepts plain connections next to TLS ones that present the access token, so it cannot be combined with -tls=false or -token=false")
 
 // plan turns flags, the environment (getenv) and the OS into a listenPlan.
 // pid names the Windows pipe. It does no I/O.
@@ -79,9 +79,9 @@ func plan(o options, getenv func(string) string, goos string, pid int) (listenPl
 	}
 
 	p.useTLS = tcp && o.tls
-	p.secureOnly = o.secure || getenv("DOLQ_SECURE") == "1"
-	if p.secureOnly && tcp && (!p.useTLS || !p.useToken) {
-		return listenPlan{}, errSecureConflict
+	legacyPlain := o.allowLegacyPlain || getenv("DOLQ_ALLOW_LEGACY_PLAIN") == "1"
+	if legacyPlain && tcp && (!p.useTLS || !p.useToken) {
+		return listenPlan{}, errLegacyPlainConflict
 	}
 	if p.useTLS && o.acmeDomain != "" {
 		p.acme = true
@@ -94,8 +94,8 @@ func plan(o options, getenv func(string) string, goos string, pid int) (listenPl
 	}
 
 	p.pairing = tcp && p.useToken
-	// Plain connections are the legacy path for clients that predate tokens;
-	// with no token to protect there is nothing to stay compatible with.
-	p.allowPlain = p.useTLS && p.useToken && !p.secureOnly
+	// Plain connections are the legacy path for clients that predate tokens,
+	// refused unless asked for: they skip the token entirely.
+	p.allowPlain = tcp && legacyPlain
 	return p, nil
 }

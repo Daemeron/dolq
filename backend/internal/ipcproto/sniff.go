@@ -45,7 +45,7 @@ type sniffListener struct {
 // NewSniffingListener serves TLS (cfg) and, if allowPlain, the legacy plain
 // protocol on the same port, deciding per connection from its first byte.
 // Plain connections come out wrapped as legacyPlainConn; with allowPlain false
-// they are dropped, which is what -secure wants.
+// they are dropped, which is the default (see -allow-legacy-plain).
 func NewSniffingListener(ln net.Listener, cfg *tls.Config, allowPlain bool) net.Listener {
 	return newSniffingListener(ln, cfg, allowPlain, defaultSniffTimeout)
 }

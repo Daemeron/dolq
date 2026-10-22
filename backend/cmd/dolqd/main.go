@@ -31,7 +31,9 @@ func main() {
 	acmeDomain := flag.String("acme-domain", "", "get and renew a Let's Encrypt certificate for this domain (needs port 443 reachable from the internet and the name pointing here); replaces the self-signed certificate")
 	acmeEmail := flag.String("acme-email", "", "contact address for Let's Encrypt expiry notices (optional)")
 	acmeStaging := flag.Bool("acme-staging", false, "use Let's Encrypt's staging CA (untrusted certificates) to test the setup")
-	secure := flag.Bool("secure", false, "with TLS on -addr, accept only TLS connections that present the access token, refusing plain unauthenticated ones. By default those are still accepted on the same port so clients and setups from before access tokens keep working; once every client is paired, turn this on (also DOLQ_SECURE=1)")
+	allowLegacyPlain := flag.Bool("allow-legacy-plain", false, "with TLS on -addr, also accept plain connections without the access token on the same port, for clients and setups from before access tokens; anyone who can reach the port can then use it (also DOLQ_ALLOW_LEGACY_PLAIN=1)")
+	// Refusing plain connections is the default now; still accepted so existing command lines keep starting.
+	flag.Bool("secure", false, "deprecated, has no effect: plain unauthenticated connections are refused unless -allow-legacy-plain")
 	useTLSFlag := flag.Bool("tls", true, "serve -addr over TLS; -tls=false for plain TCP, e.g. behind a TLS-terminating proxy or an SSH tunnel")
 	useTokenFlag := flag.Bool("token", true, "require an access token on -addr (DOLQ_TOKEN, or generated once and kept next to the database); -token=false means anyone who can reach the port can use it, so only on a network you fully trust. Independent of -tls")
 	downloadDir := flag.String("download-dir", "", "with -addr, where XDCC downloads are saved; clients cannot choose another directory (also DOLQ_DOWNLOAD_DIR; default: a downloads dir next to the database). A locally spawned dolqd saves where the app asks")
@@ -46,7 +48,7 @@ func main() {
 
 	p, err := plan(options{
 		socket: *socketPath, addr: *addr, tlsCert: *tlsCert, tlsKey: *tlsKey, acmeDomain: *acmeDomain,
-		secure: *secure, tls: *useTLSFlag, token: *useTokenFlag,
+		allowLegacyPlain: *allowLegacyPlain, tls: *useTLSFlag, token: *useTokenFlag,
 	}, os.Getenv, runtime.GOOS, os.Getpid())
 	if err != nil {
 		log.Fatal(err)
@@ -110,7 +112,7 @@ func main() {
 	}
 	if tlsCfg != nil {
 		if p.allowPlain {
-			log.Print("warning: plain, unauthenticated connections are still accepted on this port so older clients keep working; pair your clients and restart with -secure to refuse them")
+			log.Print("warning: -allow-legacy-plain: plain, unauthenticated connections are accepted on this port so older clients keep working; pair your clients and restart without it to refuse them")
 		}
 		ln = ipcproto.NewSniffingListener(ln, tlsCfg, p.allowPlain)
 	}
