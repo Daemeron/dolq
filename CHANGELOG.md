@@ -1,5 +1,43 @@
 # Changelog
 
+## [0.5.0](https://github.com/Daemeron/dolq/compare/dolq-v0.4.0...dolq-v0.5.0) (2026-10-22)
+
+
+### Features
+
+* **renderer:** add a connect when the app opens toggle per server ([4ceee18](https://github.com/Daemeron/dolq/commit/4ceee18fa5826c11ee605a18939cc089c8f012ab))
+* **renderer:** only connect servers set to connect on startup ([594a082](https://github.com/Daemeron/dolq/commit/594a082d8adedd5d63058363bcd8090ca3c8f908))
+
+
+### Bug Fixes
+
+* **bouncer:** keep channels across drops and stop stale notices ([99f6db5](https://github.com/Daemeron/dolq/commit/99f6db5a6004c7c2c82aacb57d3a0baf724acf87))
+* **bouncer:** stop an XDCC transfer cancelled before the peer connects ([c64f992](https://github.com/Daemeron/dolq/commit/c64f992cd330e8f18ca42dccfe6bc8fc41678081))
+* **dolqd:** refuse plain connections unless asked to allow them ([fdd8800](https://github.com/Daemeron/dolq/commit/fdd8800ed9089665ea21081e9f45cb19acc2cf4e))
+* **history:** drop appends that arrive after the store is closed ([4c1ad72](https://github.com/Daemeron/dolq/commit/4c1ad72fa160460955763c4578e92f577992e480))
+* **history:** find topics and part/kick/quit reasons in search ([e4afdeb](https://github.com/Daemeron/dolq/commit/e4afdeb0cc31f1fb2a40e7f03dd6ca2d99ff6c6b))
+* **history:** search the message text and keep channel lines out of the log ([fe81d4a](https://github.com/Daemeron/dolq/commit/fe81d4ad16539469803e2b21b835b72936608650))
+* **input:** bring back a message that failed to send ([4dc3a46](https://github.com/Daemeron/dolq/commit/4dc3a46aaf9f50f29f648a94bbeebc1b1720adc9))
+* **ipcproto:** drop a client that stops reading instead of blocking ([79ddbe1](https://github.com/Daemeron/dolq/commit/79ddbe1930496a8b2cc6f14ee71cf9036cc707b9))
+* **ipcproto:** keep sends to one server in the order they were typed ([ec17b3a](https://github.com/Daemeron/dolq/commit/ec17b3a2649ac57cb8ed9c2722401712ea8080b4))
+* **ircclient:** do not wait for close on a client that never started ([f376147](https://github.com/Daemeron/dolq/commit/f376147d4b87ebc74f346bf77d0e234000e49965))
+* **ircclient:** never miss a close callback registered during the close ([004b2ff](https://github.com/Daemeron/dolq/commit/004b2ff41bf0d63d62a4b21aa7106617fd953b58))
+* **main:** do not hang on quit when the backend already exited ([5559727](https://github.com/Daemeron/dolq/commit/555972766db695e99c2b00fd9ab68116153ba31f))
+* **main:** survive a closed window and redial a dropped remote backend ([7516ab7](https://github.com/Daemeron/dolq/commit/7516ab76be7edd2126771bad0e107766c5e93373))
+* **main:** turn on TCP keepalive for the backend connection ([2b822e7](https://github.com/Daemeron/dolq/commit/2b822e7d1c6ae1bb44f20dfd8d4db8d24b5b9016))
+* **renderer:** ask for older history on a wheel up at the top ([d86e8d2](https://github.com/Daemeron/dolq/commit/d86e8d282b8c755d2f492b8c02904190a21b4e24))
+* **renderer:** attach to every server before reloading history after a redial ([7546926](https://github.com/Daemeron/dolq/commit/7546926b93b070c15e5f6e2c80e7d2eb7c9556ef))
+* **renderer:** count unread correctly and alert when it matters ([848f222](https://github.com/Daemeron/dolq/commit/848f222c04b188bfae06f5c6a25d6ad0d769653b))
+* **renderer:** fix selection, history, joined state, connect and commands ([b39859a](https://github.com/Daemeron/dolq/commit/b39859a60415c0fc46b69a223710d6a1eeac806e))
+* **renderer:** forget how far back history was loaded when a channel closes ([ac6e058](https://github.com/Daemeron/dolq/commit/ac6e058a716bbcdc35cb296e758ab6ae5fa49ef3))
+* **renderer:** keep loading the Log until it has lines to scroll ([37e18e9](https://github.com/Daemeron/dolq/commit/37e18e95f0c87e3641ce032a5bcaa9244fb2235e))
+* **renderer:** leave a reconnecting server alone after a backend redial ([2ad692f](https://github.com/Daemeron/dolq/commit/2ad692fb60416e88466fa07769709f45f91f1858))
+* **renderer:** load older history until the view has something to scroll ([e04064c](https://github.com/Daemeron/dolq/commit/e04064ca1337620e546837065e1defcbfe193451))
+* **renderer:** refetch loaded history after the backend link comes back ([d166d5d](https://github.com/Daemeron/dolq/commit/d166d5da4325a388cb3b966a2fec43bb70ce69f5))
+* **renderer:** stop loading older pages on its own after 20 in a row ([d80820d](https://github.com/Daemeron/dolq/commit/d80820d906ff25dee17ae75f4cd785f65040f30f))
+* **renderer:** stop persisting user lists to localStorage ([695080d](https://github.com/Daemeron/dolq/commit/695080d2c24b7b60a9133c45241725663e33f6b7))
+* **renderer:** test the checks that end loading older history ([1684b64](https://github.com/Daemeron/dolq/commit/1684b64803bfe6adaae7b41efedb27a212606e59))
+
 ## [0.4.0](https://github.com/Daemeron/dolq/compare/dolq-v0.3.3...dolq-v0.4.0) (2026-10-19)
 
 
