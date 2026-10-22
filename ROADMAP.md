@@ -902,7 +902,13 @@ will hang the UI.
       it off; every configured server just gets dialed on launch, same as
       most IRC clients' default. A dial failure (bad host, network down) is
       caught per-server so one dead network doesn't stop the rest from being
-      attempted, leaving it `disconnected` for the user to retry manually
+      attempted, leaving it `disconnected` for the user to retry manually.
+      Later made opt-in per server: a **Connect when the app opens** toggle
+      (Add a Server and Edit Server, off by default and for servers saved
+      before it existed) sets `connectOnStartup`, and `reconcileStep` only
+      dials a server with no backend session when it is on - at startup and
+      after a backend redial alike. A server the backend still has a session
+      for is shown connected and synced either way
 - [x] `MODE` parsing only handles lines where every letter is a privilege letter
       (`qaohv`); lines mixing in other channel modes (`+k`, `+b`, ...) are
       silently dropped (see the comment in `parseLine.ts`) - now extracts

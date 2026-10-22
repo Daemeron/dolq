@@ -24,7 +24,8 @@ support planned.
 ## Features
 
 - **Multi-server** — connect to as many networks/identities as you want at once,
-  switch between them from the server rail
+  switch between them from the server rail; nothing connects on launch unless
+  you tick **Connect when the app opens** for that server
 - **Channel list** — joined channels, DMs, and DCC chats, with a persistent
   **Log** view showing raw server output
 - **XDCC file transfers** — browse pack listings, request/accept `DCC SEND` in
