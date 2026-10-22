@@ -3,9 +3,11 @@ package ircclient
 import (
 	"bufio"
 	"encoding/base64"
+	"io"
 	"net"
 	"reflect"
 	"slices"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -1314,5 +1316,85 @@ func TestOnCloseFiresExactlyOnceWhenRegisteredAroundTheClose(t *testing.T) {
 		if n := fired.Load(); n != 1 {
 			t.Fatalf("iteration %d: close callback fired %d times, want 1", i, n)
 		}
+	}
+}
+
+// closeSignalConn reports the first Close, so a test can act at exactly the
+// point Disconnect gives the connection up.
+type closeSignalConn struct {
+	net.Conn
+	once    sync.Once
+	closing chan struct{}
+}
+
+func (c *closeSignalConn) Close() error {
+	c.once.Do(func() { close(c.closing) })
+	return c.Conn.Close()
+}
+
+func receive[T any](t *testing.T, ch <-chan T, what string) T {
+	t.Helper()
+	select {
+	case v := <-ch:
+		return v
+	case <-time.After(5 * time.Second):
+		t.Fatalf("timed out waiting for %s", what)
+		var zero T
+		return zero
+	}
+}
+
+func TestDisconnectWhileCloseListenersRun(t *testing.T) {
+	clientConn, server := net.Pipe()
+	t.Cleanup(func() { clientConn.Close(); server.Close() })
+	conn := &closeSignalConn{Conn: clientConn, closing: make(chan struct{})}
+	c := New(conn, "me")
+
+	entered, release := make(chan struct{}), make(chan struct{})
+	var listenerDone atomic.Bool
+	c.OnClose(func() {
+		close(entered)
+		<-release
+		listenerDone.Store(true)
+	})
+	c.Start()
+	drainHandshake(t, bufio.NewReader(server))
+
+	server.Close()
+	receive(t, entered, "the close listener")
+
+	// A listener may already have told the world the connection is gone.
+	if !c.Closed() {
+		t.Error("Closed() = false while the close listeners run")
+	}
+
+	done := make(chan error, 1)
+	go func() { done <- c.Disconnect() }()
+	// Hold the listener until Disconnect has let go of the connection, so it
+	// makes every decision while the close is still in progress.
+	receive(t, conn.closing, "Disconnect to close the connection")
+	close(release)
+
+	if err := receive(t, done, "Disconnect"); err != nil {
+		t.Errorf("Disconnect on a dropped connection = %v, want nil", err)
+	}
+	if !listenerDone.Load() {
+		t.Error("Disconnect returned before the close listeners finished")
+	}
+}
+
+type failingWriteConn struct{ net.Conn }
+
+func (failingWriteConn) Write([]byte) (int, error) { return 0, io.ErrClosedPipe }
+
+func TestDisconnectIgnoresAFailedGoodbye(t *testing.T) {
+	clientConn, server := net.Pipe()
+	t.Cleanup(func() { clientConn.Close(); server.Close() })
+	c := New(failingWriteConn{clientConn}, "me")
+	c.Start()
+
+	// The read side has not seen the drop yet, so the QUIT is attempted and fails.
+	if err := c.Disconnect(); err != nil {
+		t.Errorf("Disconnect = %v, want nil: the connection is closed either way", err)
 	}
 }

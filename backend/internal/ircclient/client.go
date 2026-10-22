@@ -688,13 +688,13 @@ func (c *Client) handleNickInUse(nick string) string {
 	return retry
 }
 
+// Closed reports whether the connection has dropped. It turns true before the
+// close listeners run, so nothing they publish can be seen while it is false;
+// c.closed only closes once they have all returned.
 func (c *Client) Closed() bool {
-	select {
-	case <-c.closed:
-		return true
-	default:
-		return false
-	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.closeFired
 }
 
 func (c *Client) GetJoinedChannels() []string {
@@ -799,16 +799,15 @@ func (c *Client) Disconnect() error {
 		// readLoop is what closes c.closed; without it there is nothing to wait for.
 		return c.conn.Close()
 	}
-	var errs []error
-	for _, ch := range c.GetJoinedChannels() {
-		if err := c.Send("PART " + ch); err != nil {
-			errs = append(errs, err)
+	// The goodbye is best effort: a write only fails on a connection that is
+	// already gone, which is where Disconnect leaves it anyway.
+	if !c.Closed() {
+		for _, ch := range c.GetJoinedChannels() {
+			c.Send("PART " + ch)
 		}
-	}
-	if err := c.Send("QUIT"); err != nil {
-		errs = append(errs, err)
+		c.Send("QUIT")
 	}
 	c.conn.Close()
 	<-c.closed
-	return errors.Join(errs...)
+	return nil
 }
