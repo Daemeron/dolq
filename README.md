@@ -129,7 +129,9 @@ If the connection to a remote backend drops (the laptop sleeps, the Wi-Fi
 changes), the app redials it with backoff (1 second, doubling up to 30) and
 signs in again; your servers stay as the backend left them and the open
 channels reload their history. A refused token or a changed certificate stops
-the retries and shows an error instead.
+the retries and shows an error instead. If the backend itself restarted and
+lost its IRC sessions, only servers with **Connect when the app opens** on are
+dialed again; the others stay disconnected until you connect them.
 
 The link is logged only when the token is first generated, so it does not sit
 in routinely kept logs; later starts log a hint instead. To see it again,
