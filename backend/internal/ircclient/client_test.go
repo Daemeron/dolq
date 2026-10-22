@@ -1280,10 +1280,8 @@ func TestOnCloseFiresExactlyOnceWhenRegisteredAroundTheClose(t *testing.T) {
 		case <-time.After(2 * time.Second):
 			t.Fatal("client never closed")
 		}
-		deadline := time.Now().Add(time.Second)
-		for fired.Load() == 0 && time.Now().Before(deadline) {
-			time.Sleep(time.Millisecond)
-		}
+		// Settled: the read loop runs its listeners before closing, and a late
+		// OnClose runs the callback itself before done.
 		if n := fired.Load(); n != 1 {
 			t.Fatalf("iteration %d: close callback fired %d times, want 1", i, n)
 		}
