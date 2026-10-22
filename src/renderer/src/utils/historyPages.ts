@@ -1,4 +1,4 @@
-import type { Channel } from '../types';
+import type { Channel, Message } from '../types';
 
 // How far back one channel's history has been loaded.
 export type HistoryPage = {
@@ -26,4 +26,23 @@ export function pagesToReload(pages: Map<string, HistoryPage>, channelMap: Recor
     else if (!c.isDCC) reload.push(page);
   }
   return reload;
+}
+
+// An older page is fetched only after the latest one landed, never while
+// another is loading, and not once history runs out. The view keeps asking
+// while it does not fill, so these are what end that.
+export function canLoadOlder(page: HistoryPage | undefined): page is HistoryPage {
+  return !!page && !page.loading && !page.exhausted && page.oldestId !== null;
+}
+
+// The lines to store when a fetch for page lands, or null when reloadHistory
+// or a close replaced the page meanwhile. A page with nothing to show is still
+// stored, so the view re-renders and can ask for the next one.
+export function linesToStore(
+  pages: Map<string, HistoryPage>,
+  key: string,
+  page: HistoryPage,
+  messages: Message[],
+): Message[] | null {
+  return pages.get(key) === page ? messages : null;
 }

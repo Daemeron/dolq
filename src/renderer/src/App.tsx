@@ -25,7 +25,7 @@ import { parseSlashCommand } from './utils/commands';
 import { attemptConnect } from './utils/connectAttempt';
 import { describeEvent, eventChannels } from './utils/eventMessages';
 import { formatEntry } from './utils/exportFormat';
-import { dropServerPages, type HistoryPage, pagesToReload } from './utils/historyPages';
+import { canLoadOlder, dropServerPages, type HistoryPage, linesToStore, pagesToReload } from './utils/historyPages';
 import { comboFromEvent } from './utils/keybind';
 import { isChannelScopedLine } from './utils/logFilter';
 import { mentionsNick } from './utils/mentions';
@@ -801,7 +801,8 @@ export default function App() {
       fetchHistoryPage(serverId, channelId, page)
         .then((messages) => {
           page.loading = false;
-          if (historyPages.current.get(key) === page) setHistory(key, messages);
+          const lines = linesToStore(historyPages.current, key, page, messages);
+          if (lines) setHistory(key, lines);
         })
         .catch(() => {
           if (historyPages.current.get(key) === page) historyPages.current.delete(key);
@@ -839,13 +840,14 @@ export default function App() {
   const loadOlderHistory = useCallback(() => {
     const key = scopeKey(selectedServerId, selectedChannelId);
     const page = historyPages.current.get(key);
-    if (!selectedServerId || !page || page.loading || page.exhausted || page.oldestId === null) return;
+    if (!selectedServerId || !canLoadOlder(page)) return;
     page.loading = true;
 
     fetchHistoryPage(selectedServerId, selectedChannelId, page)
       .then((messages) => {
         page.loading = false;
-        if (historyPages.current.get(key) === page) setHistory(key, messages);
+        const lines = linesToStore(historyPages.current, key, page, messages);
+        if (lines) setHistory(key, lines);
       })
       .catch(() => {
         page.loading = false;
