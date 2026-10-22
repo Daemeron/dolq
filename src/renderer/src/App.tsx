@@ -395,7 +395,7 @@ export default function App() {
         },
         onAttached,
         async (s, status) => {
-          const step = reconcileStep(status, !!s.connectOnStartup);
+          const step = reconcileStep(status, s);
           if (step === 'wait' || step === 'skip') return;
 
           if (step === 'sync') {

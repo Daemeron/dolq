@@ -2,23 +2,47 @@ import { describe, expect, it } from 'vitest';
 import type { ConnectionStatus } from '../../../shared/ipc';
 import { reconcileServers, reconcileStep } from './reconcile';
 
+const optedIn = { connectOnStartup: true };
+const optedOut = { connectOnStartup: false };
+
 describe('reconcileStep', () => {
   it('syncs joined channels for a connected server, whether or not it connects on startup', () => {
-    expect(reconcileStep('connected', true)).toBe('sync');
-    expect(reconcileStep('connected', false)).toBe('sync');
+    expect(reconcileStep('connected', optedIn)).toBe('sync');
+    expect(reconcileStep('connected', optedOut)).toBe('sync');
   });
 
   it('leaves a server that is already reconnecting alone, whether or not it connects on startup', () => {
-    expect(reconcileStep('connecting', true)).toBe('wait');
-    expect(reconcileStep('connecting', false)).toBe('wait');
+    expect(reconcileStep('connecting', optedIn)).toBe('wait');
+    expect(reconcileStep('connecting', optedOut)).toBe('wait');
   });
 
   it('connects a server with no session when it is set to connect on startup', () => {
-    expect(reconcileStep('disconnected', true)).toBe('connect');
+    expect(reconcileStep('disconnected', optedIn)).toBe('connect');
   });
 
   it('leaves a server with no session disconnected when it is not set to connect on startup', () => {
-    expect(reconcileStep('disconnected', false)).toBe('skip');
+    expect(reconcileStep('disconnected', optedOut)).toBe('skip');
+  });
+});
+
+describe('reconcile at launch', () => {
+  // The rule the user asked for: nothing dials at launch unless that server opted in.
+  it('dials only the server that is set to connect on startup, not one that opted out or predates the option', async () => {
+    const servers = [
+      { id: 'in', connectOnStartup: true },
+      { id: 'out', connectOnStartup: false },
+      { id: 'old' }, // saved before the option existed
+    ];
+    const dialed: string[] = [];
+    await reconcileServers(
+      servers,
+      async () => 'disconnected',
+      () => {},
+      async (s, status) => {
+        if (reconcileStep(status, s) === 'connect') dialed.push(s.id);
+      },
+    );
+    expect(dialed).toEqual(['in']);
   });
 });
 
