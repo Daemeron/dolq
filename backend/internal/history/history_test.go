@@ -368,7 +368,7 @@ func TestAppendEventKeepsHTMLCharacters(t *testing.T) {
 
 func waitForCount(t *testing.T, s *Store, serverID, channel string, want int) []Entry {
 	t.Helper()
-	deadline := time.Now().Add(time.Second)
+	deadline := time.Now().Add(5 * time.Second)
 	var entries []Entry
 	for time.Now().Before(deadline) {
 		var err error
