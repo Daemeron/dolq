@@ -27,6 +27,7 @@ import { describeEvent, eventChannels } from './utils/eventMessages';
 import { formatEntry } from './utils/exportFormat';
 import { comboFromEvent } from './utils/keybind';
 import { isChannelScopedLine } from './utils/logFilter';
+import { wantsAnotherLogPage } from './utils/logPaging';
 import { mentionsNick } from './utils/mentions';
 import { isNickServIdentifyPrompt } from './utils/nickserv';
 import { reconcileStep } from './utils/reconcile';
@@ -766,15 +767,19 @@ export default function App() {
       const backendChannel = backendChannelFor(serverId, channelId);
       const forLog = backendChannel === '__log__';
       const selfNick = nickMap[serverId] ?? '';
-      const entries = await window.irc.getHistory(
-        serverId,
-        backendChannel,
-        page.oldestId ?? undefined,
-        HISTORY_PAGE_SIZE,
-      );
-      page.exhausted = entries.length < HISTORY_PAGE_SIZE;
-      if (entries[0]) page.oldestId = entries[0].id;
-      return toMessages(entries, forLog, selfNick);
+      let collected: Message[] = [];
+      for (let pages = 1; ; pages++) {
+        const entries = await window.irc.getHistory(
+          serverId,
+          backendChannel,
+          page.oldestId ?? undefined,
+          HISTORY_PAGE_SIZE,
+        );
+        page.exhausted = entries.length < HISTORY_PAGE_SIZE;
+        if (entries[0]) page.oldestId = entries[0].id;
+        collected = [...toMessages(entries, forLog, selfNick), ...collected];
+        if (!wantsAnotherLogPage(forLog, collected.length, pages, page.exhausted)) return collected;
+      }
     },
     [backendChannelFor, nickMap],
   );
