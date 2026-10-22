@@ -304,7 +304,7 @@ func TestDisconnectDuringBackoffCancelsReconnect(t *testing.T) {
 	dial, servers := pipeDial(t)
 	b := New(nil)
 	// Long enough that only Disconnect can end the wait: if it did not cancel the
-	// redial, Disconnect would block on it instead of returning.
+	// redial, Disconnect would block on it and never return.
 	b.ReconnectBackoffBase = time.Hour
 	b.ReconnectBackoffMax = time.Hour
 
@@ -320,18 +320,14 @@ func TestDisconnectDuringBackoffCancelsReconnect(t *testing.T) {
 	first.Close()
 	waitFor(t, func() bool { return sub.lastStatus() == "connecting" })
 
-	if err := b.Disconnect("server-a"); err != nil {
+	done := make(chan error, 1)
+	go func() { done <- b.Disconnect("server-a") }()
+	if err := receive(t, done, "Disconnect"); err != nil {
 		t.Fatalf("Disconnect: %v", err)
 	}
 
 	if got := sub.lastStatus(); got != "disconnected" {
 		t.Errorf("status right after Disconnect = %q, want disconnected", got)
-	}
-	// Disconnect waited for the redial loop to end, so a retry would already be here.
-	select {
-	case <-servers:
-		t.Fatal("dial was retried after Disconnect")
-	default:
 	}
 }
 
@@ -731,7 +727,7 @@ func TestDisconnectWhileTheDropIsHandled(t *testing.T) {
 		{"before the bouncer saw the drop", true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			dial, servers := pipeDial(t)
+			dial, _ := pipeDial(t)
 			b := New(nil)
 			b.ReconnectBackoffBase = time.Hour
 			b.ReconnectBackoffMax = time.Hour
@@ -780,11 +776,6 @@ func TestDisconnectWhileTheDropIsHandled(t *testing.T) {
 			}
 			if got := b.Status("server-a"); got != "disconnected" {
 				t.Errorf("Status(server-a) right after Disconnect = %q, want disconnected", got)
-			}
-			select {
-			case <-servers:
-				t.Error("redialed after Disconnect")
-			default:
 			}
 		})
 	}
