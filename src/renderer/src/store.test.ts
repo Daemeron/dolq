@@ -146,6 +146,16 @@ describe('store: setHistory', () => {
   });
 });
 
+describe('store: clearMessages', () => {
+  it('empties only the given channels', () => {
+    const m = { id: 1, nick: 'a', text: 'hi', timestamp: new Date() };
+    useStore.getState().appendMessage('a', m);
+    useStore.getState().appendMessage('b', m);
+    useStore.getState().clearMessages(['a', 'missing']);
+    expect(useStore.getState().messageMap).toEqual({ a: [], b: [m] });
+  });
+});
+
 describe('store: joined follows the connection', () => {
   const setup = () => {
     const { addServer, addChannel, setChannelJoined } = useStore.getState();

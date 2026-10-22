@@ -92,7 +92,13 @@ function toMessages(entries: HistoryEntry[], forLog: boolean, selfNick: string):
   return messages;
 }
 
-type HistoryPage = { oldestId: number | null; exhausted: boolean; loading: boolean };
+type HistoryPage = {
+  serverId: string;
+  channelId: string;
+  oldestId: number | null;
+  exhausted: boolean;
+  loading: boolean;
+};
 
 type MainView =
   | { kind: 'chat' }
@@ -158,6 +164,7 @@ export default function App() {
     setTopicWhoTime,
     appendMessage,
     setHistory,
+    clearMessages,
     setNick,
     setSaslCreds,
     setServerPassword,
@@ -415,8 +422,6 @@ export default function App() {
     }
     return useStore.persist.onFinishHydration(reconcile);
   }, [reconcile]);
-
-  useEffect(() => window.irc.onBackendReconnected(reconcile), [reconcile]);
 
   const dccPeerNick = useCallback(
     (dccId: string): string => {
@@ -784,20 +789,53 @@ export default function App() {
     [backendChannelFor, nickMap],
   );
 
+  // A page replaced by reloadHistory while its fetch was under way is stale:
+  // its results are dropped.
+  const loadLatestHistory = useCallback(
+    (serverId: string, channelId: string) => {
+      const key = scopeKey(serverId, channelId);
+      const page: HistoryPage = { serverId, channelId, oldestId: null, exhausted: false, loading: true };
+      historyPages.current.set(key, page);
+
+      fetchHistoryPage(serverId, channelId, page)
+        .then((messages) => {
+          page.loading = false;
+          if (historyPages.current.get(key) === page && messages.length > 0) setHistory(key, messages);
+        })
+        .catch(() => {
+          if (historyPages.current.get(key) === page) historyPages.current.delete(key);
+        });
+    },
+    [setHistory, fetchHistoryPage],
+  );
+
   useEffect(() => {
     if (!selectedServerId) return;
-    const key = scopeKey(selectedServerId, selectedChannelId);
-    if (historyPages.current.has(key)) return;
-    const page: HistoryPage = { oldestId: null, exhausted: false, loading: true };
-    historyPages.current.set(key, page);
+    if (historyPages.current.has(scopeKey(selectedServerId, selectedChannelId))) return;
+    loadLatestHistory(selectedServerId, selectedChannelId);
+  }, [selectedServerId, selectedChannelId, loadLatestHistory]);
 
-    fetchHistoryPage(selectedServerId, selectedChannelId, page)
-      .then((messages) => {
-        page.loading = false;
-        if (messages.length > 0) setHistory(key, messages);
-      })
-      .catch(() => historyPages.current.delete(key));
-  }, [selectedServerId, selectedChannelId, setHistory, fetchHistoryPage]);
+  // Messages that arrived while the backend link was down were stored but never
+  // reached this window. Each loaded channel (not DCC chats, which keep no
+  // history) is emptied and fetched again; setHistory drops anything that also
+  // comes in live meanwhile.
+  const reloadHistory = useCallback(() => {
+    const { channelMap } = useStore.getState();
+    const pages = [...historyPages.current.values()].filter(
+      (p) => !channelMap[p.serverId]?.find((c) => c.id === p.channelId)?.isDCC,
+    );
+    clearMessages(pages.map((p) => scopeKey(p.serverId, p.channelId)));
+    for (const p of pages) loadLatestHistory(p.serverId, p.channelId);
+  }, [clearMessages, loadLatestHistory]);
+
+  useEffect(
+    () =>
+      window.irc.onBackendReconnected(() => {
+        reconcile();
+        reloadHistory();
+      }),
+    [reconcile, reloadHistory],
+  );
 
   const loadOlderHistory = useCallback(() => {
     const key = scopeKey(selectedServerId, selectedChannelId);
@@ -808,7 +846,7 @@ export default function App() {
     fetchHistoryPage(selectedServerId, selectedChannelId, page)
       .then((messages) => {
         page.loading = false;
-        if (messages.length > 0) setHistory(key, messages);
+        if (historyPages.current.get(key) === page && messages.length > 0) setHistory(key, messages);
       })
       .catch(() => {
         page.loading = false;

@@ -76,6 +76,7 @@ type Actions = {
   setTopicWhoTime: (serverId: string, channelId: string, nick: string, setAt: Date) => void;
   appendMessage: (key: string, msg: Message) => void;
   setHistory: (key: string, messages: Message[]) => void;
+  clearMessages: (keys: string[]) => void;
   setUsers: (channelId: string, users: User[]) => void;
   addUser: (channelId: string, user: User) => void;
   removeUser: (channelId: string, nick: string) => void;
@@ -291,6 +292,13 @@ export const useStore = create<State & Actions>()(
 
       setHistory: (key, messages) =>
         set((s) => ({ messageMap: { ...s.messageMap, [key]: mergeHistory(messages, s.messageMap[key] ?? []) } })),
+
+      clearMessages: (keys) =>
+        set((s) => {
+          const messageMap = { ...s.messageMap };
+          for (const key of keys) if (messageMap[key]) messageMap[key] = [];
+          return { messageMap };
+        }),
 
       setUsers: (channelId, users) => set((s) => ({ userMap: { ...s.userMap, [channelId]: users } })),
 
