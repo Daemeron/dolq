@@ -604,3 +604,70 @@ func TestSendStoresOwnMessagesAcrossRestart(t *testing.T) {
 		t.Fatalf("services message was stored: %#v", all)
 	}
 }
+
+func TestChannelScopedLine(t *testing.T) {
+	for _, line := range []string{
+		":alice!u@h PRIVMSG #chan :hello",
+		":alice!u@h PRIVMSG me :psst",
+		":alice!u@h JOIN :#chan",
+		":alice!u@h PART #chan :bye",
+		":op!u@h KICK #chan bob :spam",
+		":alice!u@h QUIT :Ping timeout",
+		":alice!u@h NICK :alicia",
+		":op!u@h MODE #chan +o bob",
+		":op!u@h TOPIC #chan :new topic",
+		":alice!u@h NOTICE #chan :hi all",
+		":alice!u@h NOTICE @#chan :ops only",
+		":alice!u@h AWAY :gone",
+		":srv 332 me #chan :topic",
+		":srv 333 me #chan op!u@h 1700000000",
+		":srv 353 me = #chan :me @op alice",
+		":srv 366 me #chan :End of /NAMES list.",
+		"@time=2024-01-01T00:00:00Z :alice!u@h PRIVMSG #chan :tagged",
+	} {
+		if !channelScopedLine(line) {
+			t.Errorf("channelScopedLine(%q) = false, want true", line)
+		}
+	}
+	for _, line := range []string{
+		":srv 001 me :Welcome to the network",
+		":srv 372 me :- message of the day",
+		":srv 433 * me :Nickname is already in use",
+		":srv 404 me #chan :Cannot send to channel",
+		":NickServ!s@h NOTICE me :This nickname is registered",
+		":srv NOTICE * :*** Looking up your hostname",
+		":me!u@h MODE me +i",
+		"PING :token",
+		":srv 311 me alice u h * :Alice",
+		"*** Disconnected",
+		"*** Connection lost - reconnecting...",
+		"",
+	} {
+		if channelScopedLine(line) {
+			t.Errorf("channelScopedLine(%q) = true, want false", line)
+		}
+	}
+}
+
+func TestLogKeepsOnlyServerLines(t *testing.T) {
+	store, err := history.Open(":memory:", 0)
+	if err != nil {
+		t.Fatalf("open history: %v", err)
+	}
+	defer store.Close()
+	sub := &fakeSubscriber{}
+	b := New(store)
+	conn, _ := pipeSession(t, b, "server-a", sub)
+
+	writeLine(t, conn, ":alice!u@h PRIVMSG #chan :hello")
+	writeLine(t, conn, ":srv 372 me :- message of the day")
+	// Both still reach the client live.
+	waitFor(t, func() bool { return sub.lineCount() == 2 })
+	waitFor(t, func() bool {
+		entries, _ := store.Recent("server-a", logChannel, 0, 10)
+		return len(entries) == 1 && entries[0].Line == ":srv 372 me :- message of the day"
+	})
+	if entries, _ := store.Recent("server-a", "#chan", 0, 10); len(entries) != 1 || entries[0].IsRaw {
+		t.Fatalf("got %+v in #chan, want just the PRIVMSG event", entries)
+	}
+}

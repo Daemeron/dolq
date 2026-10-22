@@ -35,11 +35,6 @@ import { takeAutoAccept, xdccRequestKey, xdccRequestTarget, xdccSenderKey } from
 
 const HISTORY_PAGE_SIZE = 100;
 
-// The Log hides channel traffic, so a page of raw history can come back nearly
-// empty; keep fetching older pages until there is something to show.
-const LOG_MIN_MESSAGES = 30;
-const LOG_MAX_PAGES = 20;
-
 const MAX_ALIAS_DEPTH = 8;
 
 const FONT_SIZE_ZOOM: Record<'small' | 'medium' | 'large', number> = {
@@ -762,20 +757,15 @@ export default function App() {
       const backendChannel = backendChannelFor(serverId, channelId);
       const forLog = backendChannel === '__log__';
       const selfNick = nickMap[serverId] ?? '';
-      let collected: Message[] = [];
-      for (let i = 0; i < (forLog ? LOG_MAX_PAGES : 1); i++) {
-        const entries = await window.irc.getHistory(
-          serverId,
-          backendChannel,
-          page.oldestId ?? undefined,
-          HISTORY_PAGE_SIZE,
-        );
-        page.exhausted = entries.length < HISTORY_PAGE_SIZE;
-        if (entries[0]) page.oldestId = entries[0].id;
-        collected = [...toMessages(entries, forLog, selfNick), ...collected];
-        if (page.exhausted || collected.length >= LOG_MIN_MESSAGES) break;
-      }
-      return collected;
+      const entries = await window.irc.getHistory(
+        serverId,
+        backendChannel,
+        page.oldestId ?? undefined,
+        HISTORY_PAGE_SIZE,
+      );
+      page.exhausted = entries.length < HISTORY_PAGE_SIZE;
+      if (entries[0]) page.oldestId = entries[0].id;
+      return toMessages(entries, forLog, selfNick);
     },
     [backendChannelFor, nickMap],
   );

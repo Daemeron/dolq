@@ -1,6 +1,7 @@
 package history
 
 import (
+	"bytes"
 	"database/sql"
 	"encoding/json"
 	"log"
@@ -23,6 +24,9 @@ CREATE TABLE IF NOT EXISTS messages (
 );
 CREATE INDEX IF NOT EXISTS idx_messages_scope ON messages(server_id, channel, id);
 `
+
+// LogChannel holds a server's raw lines (and the events that belong to no channel).
+const LogChannel = "__log__"
 
 type Entry struct {
 	ID        int64           `json:"id"`
@@ -154,12 +158,15 @@ func (s *Store) AppendLine(serverID, channel, line string, ts time.Time) {
 }
 
 func (s *Store) AppendEvent(serverID, channel string, event any, ts time.Time) {
-	payload, err := json.Marshal(event)
-	if err != nil {
+	// Unescaped, so the stored text reads as sent: json.Marshal would turn & < > into \u0026...
+	var buf bytes.Buffer
+	enc := json.NewEncoder(&buf)
+	enc.SetEscapeHTML(false)
+	if err := enc.Encode(event); err != nil {
 		log.Printf("history: marshal event: %v", err)
 		return
 	}
-	s.append(Entry{ServerID: serverID, Channel: channel, Timestamp: ts, Event: payload})
+	s.append(Entry{ServerID: serverID, Channel: channel, Timestamp: ts, Event: bytes.TrimSuffix(buf.Bytes(), []byte("\n"))})
 }
 
 func (s *Store) append(e Entry) {
@@ -263,12 +270,21 @@ func (s *Store) Search(serverID, channel, query string, limit int) ([]Entry, err
 	if limit <= 0 {
 		limit = 200
 	}
+	// Events match on what they say (json_extract also decodes rows stored
+	// with escaped & < >), not on their JSON keys. A message is stored both as an
+	// event and, in the log, as its raw line (older versions kept every PRIVMSG
+	// there too); only one of the two may match. In the log that is the raw line,
+	// which is what the Log view shows.
 	rows, err := s.db.Query(
 		`SELECT id, server_id, channel, payload, ts, is_raw FROM messages
 		 WHERE (? = '' OR server_id = ?) AND (? = '' OR channel = ?)
-		   AND payload LIKE '%' || ? || '%' ESCAPE '\'
+		   AND CASE WHEN is_raw
+		     THEN payload NOT LIKE '% PRIVMSG %' AND payload LIKE '%' || ? || '%' ESCAPE '\'
+		     ELSE channel <> ? AND coalesce(json_extract(payload, '$.text'), json_extract(payload, '$.filename'), '')
+		       LIKE '%' || ? || '%' ESCAPE '\'
+		   END
 		 ORDER BY id DESC LIMIT ?`,
-		serverID, serverID, channel, channel, escapeLike(query), limit)
+		serverID, serverID, channel, channel, escapeLike(query), LogChannel, escapeLike(query), limit)
 	if err != nil {
 		return nil, err
 	}

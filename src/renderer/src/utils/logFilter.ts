@@ -1,6 +1,7 @@
-// Raw lines are always stored in full, but the Log view is meant for
-// server-level traffic: anything that is already shown inside a channel or
-// query window is hidden from it.
+// The Log view is meant for server-level traffic: anything that is already
+// shown inside a channel or query window is hidden from it. The backend no
+// longer stores those lines in the log (channelScopedLine in bouncer.go, keep
+// the two in step), but they still arrive live, and older history has them.
 
 const CHANNEL_NUMERICS = new Set(['324', '329', '332', '333', '353', '366']);
 const ALWAYS_SCOPED = new Set(['PRIVMSG', 'JOIN', 'PART', 'KICK', 'QUIT', 'NICK', 'TOPIC', 'AWAY']);

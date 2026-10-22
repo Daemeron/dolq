@@ -232,6 +232,95 @@ func TestSearch(t *testing.T) {
 	})
 }
 
+type textEvent struct {
+	Type   string `json:"type"`
+	Nick   string `json:"nick"`
+	Target string `json:"target"`
+	Text   string `json:"text"`
+}
+
+func TestSearchMatchesMessageText(t *testing.T) {
+	s, err := Open(":memory:", 0)
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	defer s.Close()
+
+	base := time.Now()
+	s.AppendEvent("srv", "#c", textEvent{Type: "PRIVMSG", Nick: "tom", Target: "#c", Text: "Tom & Jerry <3"}, base)
+	s.AppendEvent("srv", "#c", testEvent{Type: "JOIN", Nick: "jerry"}, base)
+	// A row written before events were stored unescaped.
+	if _, err := s.db.Exec(`INSERT INTO messages (server_id, channel, payload, ts) VALUES ('srv', '#c', ?, 0)`,
+		`{"type":"PRIVMSG","nick":"old","target":"#c","text":"fish \u0026 chips"}`); err != nil {
+		t.Fatalf("insert: %v", err)
+	}
+	waitForCount(t, s, "srv", "#c", 3)
+
+	for query, want := range map[string]int{
+		"Tom & Jerry":  1,
+		"<3":           1,
+		"fish & chips": 1,
+		"nick":         0, // a JSON key, not anything anyone said
+		"type":         0,
+		"jerry":        1, // the message, not the JOIN of the user called jerry
+	} {
+		got, err := s.Search("srv", "#c", query, 10)
+		if err != nil {
+			t.Fatalf("search %q: %v", query, err)
+		}
+		if len(got) != want {
+			t.Errorf("search %q: got %d results %+v, want %d", query, len(got), got, want)
+		}
+	}
+}
+
+func TestSearchReturnsEachMessageOnce(t *testing.T) {
+	s, err := Open(":memory:", 0)
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	defer s.Close()
+
+	base := time.Now()
+	// A channel message as older versions stored it: the raw line in the log, the event in the channel.
+	s.AppendLine("srv", LogChannel, ":tom!u@h PRIVMSG #c :hello there", base)
+	s.AppendEvent("srv", "#c", textEvent{Type: "PRIVMSG", Nick: "tom", Target: "#c", Text: "hello there"}, base)
+	// A notice to us: raw line and event, both in the log.
+	s.AppendLine("srv", LogChannel, ":NickServ!s@h NOTICE me :hello, please identify", base)
+	s.AppendEvent("srv", LogChannel, textEvent{Type: "NOTICE", Nick: "NickServ", Target: "me", Text: "hello, please identify"}, base)
+	waitForCount(t, s, "srv", LogChannel, 3)
+
+	got, err := s.Search("", "", "hello", 10)
+	if err != nil {
+		t.Fatalf("search: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("got %d results %+v, want 2", len(got), got)
+	}
+	var channelEvent, logLine bool
+	for _, e := range got {
+		channelEvent = channelEvent || (e.Channel == "#c" && !e.IsRaw)
+		logLine = logLine || (e.Channel == LogChannel && e.IsRaw && e.Line == ":NickServ!s@h NOTICE me :hello, please identify")
+	}
+	if !channelEvent || !logLine {
+		t.Fatalf("got %+v, want the #c event and the raw notice", got)
+	}
+}
+
+func TestAppendEventKeepsHTMLCharacters(t *testing.T) {
+	s, err := Open(":memory:", 0)
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	defer s.Close()
+
+	s.AppendEvent("srv", "#c", textEvent{Type: "PRIVMSG", Text: "a<b & c>d"}, time.Now())
+	entries := waitForCount(t, s, "srv", "#c", 1)
+	if want := `{"type":"PRIVMSG","nick":"","target":"","text":"a<b & c>d"}`; string(entries[0].Event) != want {
+		t.Fatalf("stored %s, want %s", entries[0].Event, want)
+	}
+}
+
 func waitForCount(t *testing.T, s *Store, serverID, channel string, want int) []Entry {
 	t.Helper()
 	deadline := time.Now().Add(time.Second)

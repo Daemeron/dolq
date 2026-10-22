@@ -15,7 +15,7 @@ import (
 	"github.com/Daemeron/dolq/backend/internal/ircparse"
 )
 
-const logChannel = "__log__"
+const logChannel = history.LogChannel
 
 func eventChannel(event any) string {
 	switch e := event.(type) {
@@ -47,6 +47,29 @@ func eventChannel(event any) string {
 	default:
 		return logChannel
 	}
+}
+
+var (
+	lineHead      = regexp.MustCompile(`^(?:@\S+ )?(?::\S+ )?(\S+)(?: (\S+))?`)
+	channelTarget = regexp.MustCompile(`^[@+%&~!]*[#&]`)
+	// Numerics address us first, then the channel: ":srv 353 me = #chan :..." or ":srv 332 me #chan :...".
+	channelNumerics = map[string]bool{"324": true, "329": true, "332": true, "333": true, "353": true, "366": true}
+	alwaysScoped    = map[string]bool{"PRIVMSG": true, "JOIN": true, "PART": true, "KICK": true, "QUIT": true, "NICK": true, "TOPIC": true, "AWAY": true}
+)
+
+// channelScopedLine reports whether a raw line is traffic a channel or query
+// window already shows, through its event. The log keeps only the rest, the
+// server-level lines its view is for.
+func channelScopedLine(line string) bool {
+	m := lineHead.FindStringSubmatch(line)
+	if m == nil {
+		return false
+	}
+	command := strings.ToUpper(m[1])
+	if command == "NOTICE" || command == "MODE" {
+		return channelTarget.MatchString(m[2])
+	}
+	return alwaysScoped[command] || channelNumerics[command]
 }
 
 // sharedChannels lists the channels a QUIT or NICK touched. They have no
@@ -225,7 +248,9 @@ func (b *Bouncer) connect(serverID string, client *ircclient.Client, initial Sub
 
 func (b *Bouncer) wire(serverID string, sess *session, client *ircclient.Client) {
 	client.AddLineListener(func(line string) {
-		b.store.AppendLine(serverID, logChannel, line, time.Now())
+		if !channelScopedLine(line) {
+			b.store.AppendLine(serverID, logChannel, line, time.Now())
+		}
 		sess.fanOutLine(serverID, line)
 	})
 	client.AddEventListener(func(event any) {
