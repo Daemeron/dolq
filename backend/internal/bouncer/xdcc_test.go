@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -326,4 +327,41 @@ func TestXDCCOutcomeIsStoredInTheSendersHistory(t *testing.T) {
 		t.Fatal(err)
 	}
 	store.Close()
+}
+
+func TestXDCCCloseBeforeThePeerConnectsStopsListening(t *testing.T) {
+	b := New(nil)
+	sub := &fakeSubscriber{}
+	_, r := pipeSession(t, b, "server-a", sub)
+
+	offer := ircparse.XDCCSendOfferEvent{Nick: "alice", Filename: "file.zip", Size: 10, Token: "7"}
+	idCh := make(chan string, 1)
+	go func() {
+		id, err := b.XDCCAccept("server-a", offer, t.TempDir(), 0, 0, sub)
+		if err != nil {
+			t.Errorf("XDCCAccept: %v", err)
+		}
+		idCh <- id
+	}()
+	line, err := r.ReadString('\n')
+	if err != nil {
+		t.Fatalf("read DCC SEND: %v", err)
+	}
+	// PRIVMSG alice :\x01DCC SEND file.zip <ip> <port> <size> <token>\x01
+	fields := strings.Fields(strings.Trim(strings.TrimSpace(line), "\x01"))
+	port := fields[len(fields)-3]
+	id := <-idCh
+	waitFor(t, func() bool { return sub.lastStatus() == "connecting" })
+
+	if err := b.XDCCClose(id); err != nil {
+		t.Fatalf("XDCCClose: %v", err)
+	}
+	waitFor(t, func() bool { return sub.lastStatus() == "disconnected" })
+	if conn, err := net.DialTimeout("tcp", net.JoinHostPort("127.0.0.1", port), time.Second); err == nil {
+		conn.Close()
+		t.Fatal("still listening for the peer after the transfer was cancelled")
+	}
+	if b.xdccTransfer(id) != nil {
+		t.Fatal("cancelled transfer is still registered")
+	}
 }

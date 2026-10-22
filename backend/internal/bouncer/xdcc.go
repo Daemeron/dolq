@@ -1,6 +1,7 @@
 package bouncer
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -27,9 +28,14 @@ type XDCCTransferEvent struct {
 
 const progressInterval = 250 * time.Millisecond
 
+// xdccTransfer is registered from accept on, so it can be cancelled before
+// the peer has connected too. Its fields other than pause are guarded by
+// Bouncer.dccMu.
 type xdccTransfer struct {
-	conn  net.Conn
-	pause *dcc.PauseGate
+	pause     *dcc.PauseGate
+	ln        net.Listener // passive, while waiting for the peer
+	conn      net.Conn     // once connected
+	cancelled bool
 }
 
 const DefaultResumeAcceptTimeout = 10 * time.Second
@@ -54,18 +60,38 @@ func (b *Bouncer) XDCCAccept(
 		return "", err
 	}
 
-	if offer.Port != 0 {
-		sub.SendStatus(id, "connecting")
-		go func() {
-			conn, err := dcc.DialRaw(offer.IP, offer.Port)
-			if err != nil {
-				log.Printf("bouncer: XDCC dial to %s: %v", offer.Nick, err)
-				sub.SendStatus(id, "disconnected")
-				f.Close()
-				return
+	t := &xdccTransfer{pause: dcc.NewPauseGate()}
+	// connected hands the peer's connection over to the transfer, or reports
+	// the transfer over: it failed to connect, or was cancelled meanwhile.
+	connected := func(conn net.Conn, err error) {
+		b.dccMu.Lock()
+		if err == nil && t.cancelled {
+			err = errors.New("cancelled")
+		}
+		if err == nil {
+			t.conn = conn
+		} else {
+			delete(b.xdccConns, id)
+		}
+		b.dccMu.Unlock()
+		if err != nil {
+			log.Printf("bouncer: XDCC from %s: %v", offer.Nick, err)
+			if conn != nil {
+				conn.Close()
 			}
-			b.runXDCCTransfer(id, serverID, offer, conn, f, destPath, base, sub)
-		}()
+			sub.SendStatus(id, "disconnected")
+			f.Close()
+			return
+		}
+		b.runXDCCTransfer(id, serverID, offer, t, f, destPath, base, sub)
+	}
+
+	if offer.Port != 0 {
+		b.dccMu.Lock()
+		b.xdccConns[id] = t
+		b.dccMu.Unlock()
+		sub.SendStatus(id, "connecting")
+		go func() { connected(dcc.DialRaw(offer.IP, offer.Port)) }()
 		return id, nil
 	}
 
@@ -81,25 +107,23 @@ func (b *Bouncer) XDCCAccept(
 		f.Close()
 		return "", err
 	}
+	t.ln = ln
+	b.dccMu.Lock()
+	b.xdccConns[id] = t
+	b.dccMu.Unlock()
 	line := fmt.Sprintf("PRIVMSG %s :\x01DCC SEND %s %d %d %d %s\x01",
 		offer.Nick, quoteIfSpaced(offer.Filename), dcc.EncodeIP(ip), port, offer.Size, offer.Token)
 	if err := client.SendPaced(line); err != nil {
+		b.dccMu.Lock()
+		delete(b.xdccConns, id)
+		b.dccMu.Unlock()
 		ln.Close()
 		f.Close()
 		return "", err
 	}
 
 	sub.SendStatus(id, "connecting")
-	go func() {
-		conn, err := dcc.AcceptOnceRaw(ln, b.DCCAcceptTimeout)
-		if err != nil {
-			log.Printf("bouncer: XDCC passive accept from %s: %v", offer.Nick, err)
-			sub.SendStatus(id, "disconnected")
-			f.Close()
-			return
-		}
-		b.runXDCCTransfer(id, serverID, offer, conn, f, destPath, base, sub)
-	}()
+	go func() { connected(dcc.AcceptOnceRaw(ln, b.DCCAcceptTimeout)) }()
 	return id, nil
 }
 
@@ -178,12 +202,9 @@ func requestResume(client *ircclient.Client, offer ircparse.XDCCSendOfferEvent, 
 	}
 }
 
-func (b *Bouncer) runXDCCTransfer(id, serverID string, offer ircparse.XDCCSendOfferEvent, conn net.Conn, f *os.File, destPath string, base int64, sub Subscriber) {
+func (b *Bouncer) runXDCCTransfer(id, serverID string, offer ircparse.XDCCSendOfferEvent, t *xdccTransfer, f *os.File, destPath string, base int64, sub Subscriber) {
 	size := offer.Size
-	t := &xdccTransfer{conn: conn, pause: dcc.NewPauseGate()}
-	b.dccMu.Lock()
-	b.xdccConns[id] = t
-	b.dccMu.Unlock()
+	conn := t.conn
 	defer func() {
 		b.dccMu.Lock()
 		delete(b.xdccConns, id)
@@ -223,8 +244,23 @@ func (b *Bouncer) XDCCClose(id string) error {
 	if t == nil {
 		return nil
 	}
+	b.cancelXDCC(t)
+	return nil
+}
+
+// cancelXDCC stops a transfer: a running one is cut off, one still waiting for
+// the peer stops listening, and a peer that connects after all is dropped.
+func (b *Bouncer) cancelXDCC(t *xdccTransfer) {
+	b.dccMu.Lock()
+	t.cancelled = true
+	ln, conn := t.ln, t.conn
+	b.dccMu.Unlock()
 	t.pause.Resume()
-	return t.conn.Close()
+	if conn != nil {
+		conn.Close()
+	} else if ln != nil {
+		ln.Close()
+	}
 }
 
 func (b *Bouncer) XDCCPause(id string) error {
@@ -259,8 +295,7 @@ func (b *Bouncer) closeAllXDCC() {
 	}
 	b.dccMu.Unlock()
 	for _, t := range transfers {
-		t.pause.Resume()
-		t.conn.Close()
+		b.cancelXDCC(t)
 	}
 }
 
