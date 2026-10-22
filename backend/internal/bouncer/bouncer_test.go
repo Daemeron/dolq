@@ -285,8 +285,10 @@ func TestReconnectRetriesOnDialFailure(t *testing.T) {
 func TestDisconnectDuringBackoffCancelsReconnect(t *testing.T) {
 	dial, servers := pipeDial(t)
 	b := New(nil)
-	b.ReconnectBackoffBase = 200 * time.Millisecond
-	b.ReconnectBackoffMax = 200 * time.Millisecond
+	// Long enough that only Disconnect can end the wait: if it did not cancel the
+	// redial, Disconnect would block on it instead of returning.
+	b.ReconnectBackoffBase = time.Hour
+	b.ReconnectBackoffMax = time.Hour
 
 	sub := &fakeSubscriber{}
 	client, err := dial()
@@ -304,13 +306,14 @@ func TestDisconnectDuringBackoffCancelsReconnect(t *testing.T) {
 		t.Fatalf("Disconnect: %v", err)
 	}
 
-	waitFor(t, func() bool { return sub.lastStatus() == "disconnected" })
-	waitFor(t, func() bool { return b.Status("server-a") == "disconnected" })
-
+	if got := sub.lastStatus(); got != "disconnected" {
+		t.Errorf("status right after Disconnect = %q, want disconnected", got)
+	}
+	// Disconnect waited for the redial loop to end, so a retry would already be here.
 	select {
 	case <-servers:
 		t.Fatal("dial was retried after Disconnect")
-	case <-time.After(300 * time.Millisecond):
+	default:
 	}
 }
 
