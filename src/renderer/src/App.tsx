@@ -27,7 +27,6 @@ import { describeEvent, eventChannels } from './utils/eventMessages';
 import { formatEntry } from './utils/exportFormat';
 import { comboFromEvent } from './utils/keybind';
 import { isChannelScopedLine } from './utils/logFilter';
-import { wantsAnotherLogPage } from './utils/logPaging';
 import { mentionsNick } from './utils/mentions';
 import { isNickServIdentifyPrompt } from './utils/nickserv';
 import { reconcileServers, reconcileStep } from './utils/reconcile';
@@ -783,25 +782,22 @@ export default function App() {
       const backendChannel = backendChannelFor(serverId, channelId);
       const forLog = backendChannel === '__log__';
       const selfNick = nickMap[serverId] ?? '';
-      let collected: Message[] = [];
-      for (let pages = 1; ; pages++) {
-        const entries = await window.irc.getHistory(
-          serverId,
-          backendChannel,
-          page.oldestId ?? undefined,
-          HISTORY_PAGE_SIZE,
-        );
-        page.exhausted = entries.length < HISTORY_PAGE_SIZE;
-        if (entries[0]) page.oldestId = entries[0].id;
-        collected = [...toMessages(entries, forLog, selfNick), ...collected];
-        if (!wantsAnotherLogPage(forLog, collected.length, pages, page.exhausted)) return collected;
-      }
+      const entries = await window.irc.getHistory(
+        serverId,
+        backendChannel,
+        page.oldestId ?? undefined,
+        HISTORY_PAGE_SIZE,
+      );
+      page.exhausted = entries.length < HISTORY_PAGE_SIZE;
+      if (entries[0]) page.oldestId = entries[0].id;
+      return toMessages(entries, forLog, selfNick);
     },
     [backendChannelFor, nickMap],
   );
 
   // A page replaced by reloadHistory while its fetch was under way is stale:
-  // its results are dropped.
+  // its results are dropped. A page with nothing to show is still set, so the
+  // view re-renders and can ask for the next one if it still does not scroll.
   const loadLatestHistory = useCallback(
     (serverId: string, channelId: string) => {
       const key = scopeKey(serverId, channelId);
@@ -811,7 +807,7 @@ export default function App() {
       fetchHistoryPage(serverId, channelId, page)
         .then((messages) => {
           page.loading = false;
-          if (historyPages.current.get(key) === page && messages.length > 0) setHistory(key, messages);
+          if (historyPages.current.get(key) === page) setHistory(key, messages);
         })
         .catch(() => {
           if (historyPages.current.get(key) === page) historyPages.current.delete(key);
@@ -858,7 +854,7 @@ export default function App() {
     fetchHistoryPage(selectedServerId, selectedChannelId, page)
       .then((messages) => {
         page.loading = false;
-        if (historyPages.current.get(key) === page && messages.length > 0) setHistory(key, messages);
+        if (historyPages.current.get(key) === page) setHistory(key, messages);
       })
       .catch(() => {
         page.loading = false;
