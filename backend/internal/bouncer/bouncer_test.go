@@ -52,6 +52,20 @@ func (f *fakeSubscriber) lastLine() string {
 	return f.lines[len(f.lines)-1]
 }
 
+// sawStatus and sawLine look at the whole history, so a wait for a state that
+// only lasts as long as a short backoff cannot miss it.
+func (f *fakeSubscriber) sawStatus(status string) bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return slices.Contains(f.status, status)
+}
+
+func (f *fakeSubscriber) sawLine(line string) bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return slices.Contains(f.lines, line)
+}
+
 func (f *fakeSubscriber) lastStatus() string {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -147,10 +161,14 @@ func TestDetachStopsFanOutWithoutClosingTheSession(t *testing.T) {
 	sub := &fakeSubscriber{}
 	server, _ := pipeSession(t, b, "server-a", sub)
 
+	// Lines reach every subscriber in one pass, so once the one still attached
+	// has the line, the detached one would have it too.
+	stillAttached := &fakeSubscriber{}
+	b.Attach(stillAttached, "server-a")
 	b.Detach(sub)
 	writeLine(t, server, ":irc.example.net 001 me :Welcome")
 
-	time.Sleep(50 * time.Millisecond)
+	waitFor(t, func() bool { return stillAttached.lineCount() == 1 })
 	if n := sub.lineCount(); n != 0 {
 		t.Errorf("expected no lines after Detach, got %d", n)
 	}
@@ -236,7 +254,7 @@ func TestReconnectsAfterUnexpectedDrop(t *testing.T) {
 
 	first.Close()
 
-	waitFor(t, func() bool { return sub.lastStatus() == "connecting" })
+	waitFor(t, func() bool { return sub.sawStatus("connecting") })
 
 	second := <-servers
 	drainHandshake(t, bufio.NewReader(second))
@@ -275,7 +293,7 @@ func TestReconnectRetriesOnDialFailure(t *testing.T) {
 	drainHandshake(t, bufio.NewReader(first))
 
 	first.Close()
-	waitFor(t, func() bool { return sub.lastStatus() == "connecting" })
+	waitFor(t, func() bool { return sub.sawStatus("connecting") })
 
 	second := <-servers
 	drainHandshake(t, bufio.NewReader(second))
@@ -366,7 +384,7 @@ func TestReconnectRejoinsPreviouslyJoinedChannels(t *testing.T) {
 	waitFor(t, func() bool { return slices.Contains(b.JoinedChannels("server-a"), "#chat") })
 
 	first.Close()
-	waitFor(t, func() bool { return sub.lastStatus() == "connecting" })
+	waitFor(t, func() bool { return sub.sawStatus("connecting") })
 
 	second := <-servers
 	secondReader := bufio.NewReader(second)
@@ -436,7 +454,7 @@ func TestUnexpectedDropAndReconnectLogSystemLines(t *testing.T) {
 	drainHandshake(t, bufio.NewReader(first))
 
 	first.Close()
-	waitFor(t, func() bool { return sub.lastLine() == "*** Connection lost - reconnecting..." })
+	waitFor(t, func() bool { return sub.sawLine("*** Connection lost - reconnecting...") })
 
 	second := <-servers
 	drainHandshake(t, bufio.NewReader(second))
