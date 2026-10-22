@@ -25,6 +25,7 @@ import { parseSlashCommand } from './utils/commands';
 import { attemptConnect } from './utils/connectAttempt';
 import { describeEvent, eventChannels } from './utils/eventMessages';
 import { formatEntry } from './utils/exportFormat';
+import { dropServerPages, type HistoryPage, pagesToReload } from './utils/historyPages';
 import { comboFromEvent } from './utils/keybind';
 import { isChannelScopedLine } from './utils/logFilter';
 import { mentionsNick } from './utils/mentions';
@@ -90,14 +91,6 @@ function toMessages(entries: HistoryEntry[], forLog: boolean, selfNick: string):
   }
   return messages;
 }
-
-type HistoryPage = {
-  serverId: string;
-  channelId: string;
-  oldestId: number | null;
-  exhausted: boolean;
-  loading: boolean;
-};
 
 type MainView =
   | { kind: 'chat' }
@@ -824,14 +817,11 @@ export default function App() {
   }, [selectedServerId, selectedChannelId, loadLatestHistory]);
 
   // Messages that arrived while the backend link was down were stored but never
-  // reached this window. Each loaded channel (not DCC chats, which keep no
-  // history) is emptied and fetched again; setHistory drops anything that also
-  // comes in live meanwhile.
+  // reached this window. Each loaded channel that is still open (not DCC chats,
+  // which keep no history) is emptied and fetched again; setHistory drops
+  // anything that also comes in live meanwhile.
   const reloadHistory = useCallback(() => {
-    const { channelMap } = useStore.getState();
-    const pages = [...historyPages.current.values()].filter(
-      (p) => !channelMap[p.serverId]?.find((c) => c.id === p.channelId)?.isDCC,
-    );
+    const pages = pagesToReload(historyPages.current, useStore.getState().channelMap);
     clearMessages(pages.map((p) => scopeKey(p.serverId, p.channelId)));
     for (const p of pages) loadLatestHistory(p.serverId, p.channelId);
   }, [clearMessages, loadLatestHistory]);
@@ -963,6 +953,7 @@ export default function App() {
     if (!confirm(`Remove ${server?.name ?? id}? This clears its local history.`)) return;
     await window.irc.disconnect(id);
     await window.irc.forgetSecrets(id).catch(() => undefined);
+    dropServerPages(historyPages.current, id);
     removeServer(id);
   }
 
@@ -983,6 +974,8 @@ export default function App() {
         await window.irc.sendLine(selectedServerId, `PART ${channelId}`);
       }
     }
+    // Forgetting how far back it was loaded makes a reopened channel start from its latest page.
+    historyPages.current.delete(scopeKey(selectedServerId, channelId));
     removeChannel(selectedServerId, channelId);
   }
 
