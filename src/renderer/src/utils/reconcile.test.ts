@@ -3,16 +3,22 @@ import type { ConnectionStatus } from '../../../shared/ipc';
 import { reconcileServers, reconcileStep } from './reconcile';
 
 describe('reconcileStep', () => {
-  it('syncs joined channels for a connected server', () => {
-    expect(reconcileStep('connected')).toBe('sync');
+  it('syncs joined channels for a connected server, whether or not it connects on startup', () => {
+    expect(reconcileStep('connected', true)).toBe('sync');
+    expect(reconcileStep('connected', false)).toBe('sync');
   });
 
-  it('leaves a server that is already reconnecting alone', () => {
-    expect(reconcileStep('connecting')).toBe('wait');
+  it('leaves a server that is already reconnecting alone, whether or not it connects on startup', () => {
+    expect(reconcileStep('connecting', true)).toBe('wait');
+    expect(reconcileStep('connecting', false)).toBe('wait');
   });
 
-  it('connects a server the backend has no session for', () => {
-    expect(reconcileStep('disconnected')).toBe('connect');
+  it('connects a server with no session when it is set to connect on startup', () => {
+    expect(reconcileStep('disconnected', true)).toBe('connect');
+  });
+
+  it('leaves a server with no session disconnected when it is not set to connect on startup', () => {
+    expect(reconcileStep('disconnected', false)).toBe('skip');
   });
 });
 

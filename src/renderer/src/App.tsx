@@ -386,8 +386,9 @@ export default function App() {
   );
 
   // Brings statuses and joined channels in line with the backend, attaching to
-  // its sessions (getStatus) and connecting the servers it has none for. One it
-  // is still reconnecting is left to finish; its rejoins arrive as JOIN events.
+  // its sessions (getStatus) and connecting the servers it has none for that are
+  // set to connect on startup; the others stay disconnected. One it is still
+  // reconnecting is left to finish; its rejoins arrive as JOIN events.
   // onAttached runs once every server is attached, before any sync or connect.
   const reconcile = useCallback(
     async (onAttached: () => void = () => {}) => {
@@ -401,8 +402,8 @@ export default function App() {
         },
         onAttached,
         async (s, status) => {
-          const step = reconcileStep(status);
-          if (step === 'wait') return;
+          const step = reconcileStep(status, !!s.connectOnStartup);
+          if (step === 'wait' || step === 'skip') return;
 
           if (step === 'sync') {
             const joined = new Set(await window.irc.getJoinedChannels(s.id).catch(() => [] as string[]));

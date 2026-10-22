@@ -13,6 +13,8 @@ export type Server = {
   autojoinChannels?: string[];
   color?: string;
   rememberCredentials?: boolean;
+  // Missing (every server saved before this option existed) means off.
+  connectOnStartup?: boolean;
 };
 
 export type Channel = {
