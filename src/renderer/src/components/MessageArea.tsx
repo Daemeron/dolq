@@ -90,11 +90,25 @@ export function MessageArea({ messages, isLog, channelId, onLoadOlder, timestamp
     if (onLoadOlder && el.scrollTop < LOAD_OLDER_THRESHOLD) onLoadOlder();
   }
 
+  // A wheel up at the top moves nothing, so no scroll comes to start a new
+  // count; a view that does not fill would stay stuck once it stopped asking.
+  function handleWheel(e: React.WheelEvent<HTMLDivElement>) {
+    const el = containerRef.current;
+    if (!el || !onLoadOlder || e.deltaY >= 0 || el.scrollTop > 0) return;
+    autoLoads.current = 0;
+    onLoadOlder();
+  }
+
   const virtualRows = rowVirtualizer.getVirtualItems();
 
   if (messages.length === 0) {
     return (
-      <div ref={containerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto px-4 py-4 scroll-thin">
+      <div
+        ref={containerRef}
+        onScroll={handleScroll}
+        onWheel={handleWheel}
+        className="flex-1 overflow-y-auto px-4 py-4 scroll-thin"
+      >
         <p
           className={
             isLog ? 'text-(--dolq-text-faint) text-[14px]' : 'text-(--dolq-text-faint) text-[14px] text-center mt-8'
@@ -107,7 +121,12 @@ export function MessageArea({ messages, isLog, channelId, onLoadOlder, timestamp
   }
 
   return (
-    <div ref={containerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto px-4 py-4 scroll-thin">
+    <div
+      ref={containerRef}
+      onScroll={handleScroll}
+      onWheel={handleWheel}
+      className="flex-1 overflow-y-auto px-4 py-4 scroll-thin"
+    >
       <div style={{ height: rowVirtualizer.getTotalSize(), position: 'relative' }}>
         {virtualRows.map((virtualRow) => {
           const m = messages[virtualRow.index];
