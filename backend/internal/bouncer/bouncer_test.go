@@ -783,7 +783,10 @@ func TestDisconnectWhileTheDropIsHandled(t *testing.T) {
 
 // A Disconnect that lands while a redial is finishing must still leave the
 // session disconnected. Here the redial has dialed but not yet put the new
-// client in place.
+// client in place. The pause is before the redial's closing check, so this
+// covers the branch where it sees closing and drops the dialed client. It does
+// not guard that the check and the install share one lock: no pause can sit
+// between them.
 func TestDisconnectBeforeARedialInstallsItsClient(t *testing.T) {
 	dial, servers := pipeDial(t)
 	b := New(nil)
