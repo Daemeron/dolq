@@ -107,6 +107,17 @@ describe('MessageArea', () => {
     expect(onLoadOlder).toHaveBeenCalledTimes(20);
   });
 
+  it('does not ask after a wheel up in the middle of the history', () => {
+    setHeights(200, 800);
+    vi.spyOn(HTMLElement.prototype, 'scrollTop', 'get').mockReturnValue(500);
+    const onLoadOlder = vi.fn();
+    const rerender = renderArea([line(1)], onLoadOlder);
+    landPages(rerender, 30);
+    fireEvent.wheel(document.querySelector('.overflow-y-auto') as Element, { deltaY: -100 });
+    landPages(rerender, 1);
+    expect(onLoadOlder).toHaveBeenCalledTimes(20);
+  });
+
   it('starts counting again in another channel', () => {
     setHeights(200, 800);
     const onLoadOlder = vi.fn();
