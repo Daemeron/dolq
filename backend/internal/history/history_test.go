@@ -274,6 +274,51 @@ func TestSearchMatchesMessageText(t *testing.T) {
 	}
 }
 
+type topicEvent struct {
+	Type    string `json:"type"`
+	Channel string `json:"channel"`
+	Topic   string `json:"topic"`
+	Nick    string `json:"nick,omitempty"`
+}
+
+type reasonEvent struct {
+	Type    string `json:"type"`
+	Nick    string `json:"nick"`
+	Channel string `json:"channel,omitempty"`
+	Reason  string `json:"reason,omitempty"`
+}
+
+func TestSearchMatchesTopicsAndReasons(t *testing.T) {
+	s, err := Open(":memory:", 0)
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	defer s.Close()
+
+	base := time.Now()
+	s.AppendEvent("srv", "#c", topicEvent{Type: "TOPIC", Channel: "#c", Topic: "Release day & cake", Nick: "op"}, base)
+	s.AppendEvent("srv", "#c", reasonEvent{Type: "QUIT", Nick: "tom", Reason: "Ping timeout"}, base)
+	s.AppendEvent("srv", "#c", reasonEvent{Type: "PART", Nick: "ann", Channel: "#c", Reason: "off to bed"}, base)
+	s.AppendEvent("srv", "#c", reasonEvent{Type: "PART", Nick: "bob", Channel: "#c"}, base)
+	waitForCount(t, s, "srv", "#c", 4)
+
+	for query, want := range map[string]int{
+		"release day & cake": 1,
+		"ping timeout":       1,
+		"off to bed":         1,
+		"bob":                0, // a nick, not a reason
+		"channel":            0,
+	} {
+		got, err := s.Search("srv", "#c", query, 10)
+		if err != nil {
+			t.Fatalf("search %q: %v", query, err)
+		}
+		if len(got) != want {
+			t.Errorf("search %q: got %d results %+v, want %d", query, len(got), got, want)
+		}
+	}
+}
+
 func TestSearchReturnsEachMessageOnce(t *testing.T) {
 	s, err := Open(":memory:", 0)
 	if err != nil {

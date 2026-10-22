@@ -271,7 +271,8 @@ func (s *Store) Search(serverID, channel, query string, limit int) ([]Entry, err
 		limit = 200
 	}
 	// Events match on what they say (json_extract also decodes rows stored
-	// with escaped & < >), not on their JSON keys. A message is stored both as an
+	// with escaped & < >), not on their JSON keys: a message's text, a pack's
+	// filename, a topic, or a part/kick/quit reason. A message is stored both as an
 	// event and, in the log, as its raw line (older versions kept every PRIVMSG
 	// there too); only one of the two may match. In the log that is the raw line,
 	// which is what the Log view shows.
@@ -280,7 +281,8 @@ func (s *Store) Search(serverID, channel, query string, limit int) ([]Entry, err
 		 WHERE (? = '' OR server_id = ?) AND (? = '' OR channel = ?)
 		   AND CASE WHEN is_raw
 		     THEN payload NOT LIKE '% PRIVMSG %' AND payload LIKE '%' || ? || '%' ESCAPE '\'
-		     ELSE channel <> ? AND coalesce(json_extract(payload, '$.text'), json_extract(payload, '$.filename'), '')
+		     ELSE channel <> ? AND coalesce(json_extract(payload, '$.text'), json_extract(payload, '$.filename'),
+		       json_extract(payload, '$.topic'), json_extract(payload, '$.reason'), '')
 		       LIKE '%' || ? || '%' ESCAPE '\'
 		   END
 		 ORDER BY id DESC LIMIT ?`,
