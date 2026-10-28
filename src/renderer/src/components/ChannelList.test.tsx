@@ -19,7 +19,6 @@ function renderList(channels: Channel[], handlers: Partial<Parameters<typeof Cha
     onLeaveChannel: vi.fn(),
     onRemoveChannel: vi.fn(),
     onCloseQuery: vi.fn(),
-    onOpenSearch: vi.fn(),
     ...handlers,
   };
   render(<ChannelList {...props} />);

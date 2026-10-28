@@ -3,6 +3,7 @@ import { useRef } from 'react';
 import { highestPrivilege, PRIVILEGE_RANK, type PrivilegeLevel } from '../../../shared/ipc';
 import { useContextMenu } from '../hooks/useContextMenu';
 import type { User } from '../types';
+import { nickColor, nickInitial } from '../utils/nickColor';
 import { ContextMenu, ContextMenuHeader, ContextMenuItem } from './ContextMenu';
 
 const GROUP_LABEL: Record<PrivilegeLevel, string> = {
@@ -21,15 +22,6 @@ const SYMBOL: Record<PrivilegeLevel, string> = {
   halfop: '%',
   voice: '+',
   none: '',
-};
-
-const COLOR: Record<PrivilegeLevel, string> = {
-  owner: '#ff92df',
-  admin: '#ff5555',
-  op: '#ffcb6b',
-  halfop: '#8be9fd',
-  voice: '#c792ea',
-  none: '#909090',
 };
 
 type Row = { type: 'header'; privilege: PrivilegeLevel; count: number; first: boolean } | { type: 'user'; user: User };
@@ -59,29 +51,29 @@ function UserRow({
   ignored: boolean;
 }) {
   const privilege = highestPrivilege(user.privileges);
-  const color = COLOR[privilege];
+  const color = nickColor(user.nick);
   return (
     <button
       type="button"
       onClick={onOpenQuery && (() => onOpenQuery(user.nick))}
       onContextMenu={onContextMenu}
       title={onOpenQuery ? `Message ${user.nick}` : undefined}
-      className={`flex items-center gap-2 w-full px-2 py-1 rounded border-0 bg-transparent text-left hover:bg-(--dolq-bg-row-hover) cursor-pointer ${ignored || user.away ? 'opacity-40' : ''}`}
+      className={`flex items-center gap-2 w-full px-2 py-1 rounded-lg border-0 bg-transparent text-left hover:bg-(--dolq-bg-row-hover) cursor-pointer ${ignored || user.away ? 'opacity-50' : ''}`}
     >
-      <div className="w-8 h-8 rounded-full bg-(--dolq-bg) text-(--dolq-text) flex items-center justify-center text-[13px] font-semibold shrink-0">
-        {user.nick[0]?.toUpperCase() ?? '?'}
+      <div
+        className="w-7 h-7 rounded-full text-white flex items-center justify-center text-[12px] font-semibold shrink-0"
+        style={{ background: color }}
+      >
+        {nickInitial(user.nick)}
       </div>
       <span
-        className={`text-[14px] truncate ${ignored ? 'line-through text-(--dolq-text-faint)' : privilege === 'none' ? 'text-(--dolq-text-dim)' : 'text-(--dolq-text)'}`}
+        className={`flex-1 min-w-0 text-[14px] font-medium truncate ${ignored ? 'line-through' : ''}`}
+        style={{ color: ignored ? 'var(--dolq-text-faint)' : color }}
       >
-        {SYMBOL[privilege] && (
-          <span className="mr-0.5" style={{ color }}>
-            {SYMBOL[privilege]}
-          </span>
-        )}
         {user.nick}
-        {user.away && !ignored && <span className="text-(--dolq-text-dim)"> (away)</span>}
+        {user.away && !ignored && <span className="text-(--dolq-text-dim) font-normal"> (away)</span>}
       </span>
+      {SYMBOL[privilege] && <span className="text-[12px] font-medium text-(--dolq-text-dim)">{SYMBOL[privilege]}</span>}
     </button>
   );
 }
@@ -112,7 +104,7 @@ export function UserList({
   const rowVirtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => containerRef.current,
-    estimateSize: () => 40,
+    estimateSize: () => 36,
     getItemKey: (index) => (rows[index].type === 'header' ? `h-${rows[index].privilege}` : rows[index].user.nick),
     overscan: 10,
   });
@@ -121,7 +113,7 @@ export function UserList({
     // biome-ignore lint/a11y/noStaticElementInteractions: context menu has no keyboard equivalent here
     <div
       ref={containerRef}
-      className="relative flex-1 min-h-0 overflow-y-auto pt-4 pb-18 px-2 scroll-thin"
+      className="relative flex-1 min-h-0 overflow-y-auto pt-1 pb-3 px-2"
       onContextMenu={dismissIfUnhandled}
     >
       <div style={{ height: rowVirtualizer.getTotalSize(), position: 'relative' }}>
@@ -142,8 +134,8 @@ export function UserList({
             >
               {row.type === 'header' ? (
                 <div className={row.first ? 'px-2 pb-1' : 'px-2 pb-1 mt-3'}>
-                  <div className="text-[11px] font-bold uppercase tracking-[0.5px] text-(--dolq-text-faint)">
-                    {GROUP_LABEL[row.privilege]} — {row.count}
+                  <div className="text-[12px] font-medium text-(--dolq-text-dim)">
+                    {GROUP_LABEL[row.privilege]} · {row.count}
                   </div>
                 </div>
               ) : (

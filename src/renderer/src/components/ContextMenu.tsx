@@ -9,7 +9,7 @@ export function ContextMenu({ x, y, children }: Props) {
     // biome-ignore lint/a11y/noStaticElementInteractions: backdrop click-to-dismiss, Escape is handled separately
     <div
       role="presentation"
-      className="fixed z-50 min-w-40 bg-(--dolq-bg-panel-alt) rounded-md shadow-[0_4px_16px_rgba(0,0,0,0.4)] py-1.5"
+      className="fixed z-50 min-w-40 bg-(--dolq-bg-input) rounded-lg shadow-(--dolq-shadow) py-1.5"
       style={{ left: x, top: y }}
       onClick={(e) => e.stopPropagation()}
     >
@@ -19,11 +19,7 @@ export function ContextMenu({ x, y, children }: Props) {
 }
 
 export function ContextMenuHeader({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="px-3 py-1.5 text-(--dolq-text-dim) text-[11px] font-bold uppercase tracking-[0.5px] truncate">
-      {children}
-    </div>
-  );
+  return <div className="px-3 py-1.5 text-(--dolq-text-dim) text-[12px] font-medium truncate">{children}</div>;
 }
 
 export function ContextMenuItem({
@@ -39,10 +35,8 @@ export function ContextMenuItem({
     <button
       type="button"
       onClick={onClick}
-      className={`w-full text-left px-3 py-1.5 text-[13px] font-medium bg-transparent border-0 cursor-pointer ${
-        danger
-          ? 'text-[#ff5555] hover:bg-[#ff5555] hover:text-white hover:text-shadow-sm'
-          : 'text-(--dolq-text) hover:bg-(--dolq-bg-hover)'
+      className={`w-[calc(100%-8px)] mx-1 text-left px-2.5 py-1.5 text-[13px] rounded-md bg-transparent border-0 cursor-pointer hover:bg-(--dolq-bg-row-hover) ${
+        danger ? 'text-(--dolq-danger)' : 'text-(--dolq-text)'
       }`}
     >
       {children}

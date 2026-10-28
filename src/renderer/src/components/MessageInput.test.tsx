@@ -47,4 +47,15 @@ describe('MessageInput', () => {
     fireEvent.change(input, { target: { value: 'hello!' } });
     expect(screen.queryByRole('alert')).toBeNull();
   });
+
+  it('disables the send button until there is text and sends on click', async () => {
+    const onSend = vi.fn();
+    const { input } = setup(onSend);
+    const send = screen.getByRole('button', { name: 'Send' }) as HTMLButtonElement;
+    expect(send.disabled).toBe(true);
+    fireEvent.change(input, { target: { value: 'hi' } });
+    expect(send.disabled).toBe(false);
+    fireEvent.click(send);
+    await waitFor(() => expect(onSend).toHaveBeenCalledWith('hi'));
+  });
 });

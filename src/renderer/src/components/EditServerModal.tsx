@@ -31,7 +31,7 @@ type Props = {
 };
 
 const inputClass =
-  'w-full bg-[var(--dolq-bg-input)] border-0 rounded text-[var(--dolq-text)] text-[14px] px-3 py-2.5 outline-none focus:ring-2 focus:ring-[#c792ea] placeholder:text-[var(--dolq-text-faint)]';
+  'w-full bg-[var(--dolq-bg-input)] border-0 rounded text-[var(--dolq-text)] text-[14px] px-3 py-2.5 outline-none focus:ring-2 focus:ring-(--dolq-accent) placeholder:text-[var(--dolq-text-faint)]';
 const labelClass =
   'flex flex-col gap-1.5 text-[11px] font-bold uppercase tracking-[0.5px] text-[var(--dolq-text-muted)]';
 
@@ -105,7 +105,7 @@ export function EditServerModal({ server, nick, saslUser, saslPass, onSave, onCa
           </div>
 
           <label className="flex items-center gap-2 text-[13px] text-(--dolq-text) cursor-pointer select-none">
-            <input type="checkbox" checked={form.secure} onChange={toggleSecure} className="accent-[#c792ea]" />
+            <input type="checkbox" checked={form.secure} onChange={toggleSecure} className="accent-(--dolq-accent)" />
             Use SSL/TLS
           </label>
 
@@ -188,7 +188,7 @@ export function EditServerModal({ server, nick, saslUser, saslPass, onSave, onCa
               type="checkbox"
               checked={form.connectOnStartup}
               onChange={(e) => setForm((prev) => ({ ...prev, connectOnStartup: e.target.checked }))}
-              className="accent-[#c792ea]"
+              className="accent-(--dolq-accent)"
             />
             Connect when the app opens
           </label>
@@ -203,7 +203,7 @@ export function EditServerModal({ server, nick, saslUser, saslPass, onSave, onCa
             </button>
             <button
               type="submit"
-              className="px-5 py-2 rounded bg-[#c792ea] text-white text-shadow-sm text-[14px] font-semibold border-0 cursor-pointer hover:bg-[#a579c2] transition-colors duration-150"
+              className="px-5 py-2 rounded bg-(--dolq-accent) text-white text-shadow-sm text-[14px] font-semibold border-0 cursor-pointer hover:bg-(--dolq-accent-hover) transition-colors duration-150"
             >
               Save
             </button>

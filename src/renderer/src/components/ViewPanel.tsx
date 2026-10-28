@@ -18,14 +18,14 @@ export function ViewPanel({ title, onClose, children }: Props) {
 
   return (
     <>
-      <div className="h-12 flex items-center justify-between px-4 border-b border-(--dolq-border) bg-(--dolq-bg) shrink-0 shadow-[0_1px_0_rgba(0,0,0,0.2)]">
-        <span className="font-semibold text-(--dolq-text) text-[15px]">{title}</span>
+      <div className="h-14 flex items-center justify-between pl-5 pr-3 border-b border-(--dolq-border) bg-(--dolq-bg) shrink-0">
+        <h1 className="m-0 font-(family-name:--dolq-font-serif) font-medium text-(--dolq-text) text-[20px]">{title}</h1>
         <button
           type="button"
           onClick={onClose}
           aria-label="Close"
           title="Close"
-          className="w-7 h-7 flex items-center justify-center rounded border-0 bg-transparent text-(--dolq-text-dim) cursor-pointer hover:text-(--dolq-text) hover:bg-(--dolq-bg-row-hover)"
+          className="w-8.5 h-8.5 flex items-center justify-center rounded-lg border-0 bg-transparent text-(--dolq-text-dim) cursor-pointer hover:text-(--dolq-text) hover:bg-(--dolq-bg-row-hover)"
         >
           ✕
         </button>

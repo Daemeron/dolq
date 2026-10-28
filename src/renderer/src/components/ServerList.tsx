@@ -1,4 +1,5 @@
 import { useRef } from 'react';
+import type { ConnectionStatus } from '../../../shared/ipc';
 import { useContextMenu } from '../hooks/useContextMenu';
 import type { Server } from '../types';
 import { ContextMenu, ContextMenuHeader, ContextMenuItem } from './ContextMenu';
@@ -11,9 +12,23 @@ type Props = {
   onRemove: (id: string) => void;
   onChangeColor: (id: string, color: string) => void;
   onEditServer: (id: string) => void;
+  statusMap: Record<string, ConnectionStatus>;
+  onToggleConnection: (id: string) => void;
 };
 
-export const DEFAULT_ACCENT = '#c792ea';
+export const STATUS_LABEL: Record<ConnectionStatus, string> = {
+  connected: 'Connected',
+  connecting: 'Connecting…',
+  disconnected: 'Disconnected',
+};
+
+const BADGE_COLOR: Record<ConnectionStatus, string> = {
+  connected: 'bg-(--dolq-ok)',
+  connecting: 'bg-(--dolq-warn)',
+  disconnected: 'bg-(--dolq-text-faint)',
+};
+
+export const DEFAULT_ACCENT = '#c6613f';
 
 export function ServerList({
   servers,
@@ -23,6 +38,8 @@ export function ServerList({
   onRemove,
   onChangeColor,
   onEditServer,
+  statusMap,
+  onToggleConnection,
 }: Props) {
   const { menu, open, close, dismissIfUnhandled } = useContextMenu<string>();
   const menuServer = servers.find((s) => s.id === menu?.target);
@@ -39,48 +56,54 @@ export function ServerList({
 
   return (
     <aside
-      className="relative flex flex-col w-18 bg-(--dolq-bg-panel-alt) shrink-0 overflow-hidden"
+      className="relative flex flex-col w-17 bg-(--dolq-bg-panel-alt) border-r border-(--dolq-border) shrink-0"
       onContextMenu={dismissIfUnhandled}
     >
-      <div className="flex-1 min-h-0 overflow-y-auto scroll-invisible flex flex-col items-center gap-2 px-3 pt-3 pb-3 mb-30">
-        {servers.map((s) => (
-          <button
-            type="button"
-            key={s.id}
-            title={s.name}
-            aria-label={s.name}
-            onClick={() => onSelect(s.id)}
-            onContextMenu={(e) => open(s.id, e)}
-            style={{ '--server-accent': s.color ?? DEFAULT_ACCENT } as React.CSSProperties}
-            className={`w-12 h-12 text-[18px] font-bold cursor-pointer select-none border-0 rounded-[30%] transition-[background] duration-150 ${
-              s.id === selectedId
-                ? 'bg-(--server-accent) text-white text-shadow-sm'
-                : 'bg-(--dolq-bg) text-(--dolq-text) hover:bg-(--server-accent) hover:text-white hover:text-shadow-sm'
-            }`}
-          >
-            {s.initial}
-          </button>
-        ))}
-        {servers.length !== 0 && <div className="w-8 h-px bg-(--dolq-bg) my-1" />}
+      <div className="flex-1 min-h-0 overflow-y-auto scroll-invisible flex flex-col items-center gap-2.5 px-3 py-3.5">
+        {servers.map((s) => {
+          const status = statusMap[s.id] ?? 'disconnected';
+          return (
+            <button
+              type="button"
+              key={s.id}
+              aria-label={s.name}
+              data-tip={s.name}
+              onClick={() => onSelect(s.id)}
+              onContextMenu={(e) => open(s.id, e)}
+              style={{ background: s.color ?? DEFAULT_ACCENT }}
+              className={`has-tip tip-right relative w-10.5 h-10.5 shrink-0 text-[15px] font-semibold text-white cursor-pointer select-none border-0 rounded-[13px] transition-[border-radius] duration-150 hover:rounded-2xl ${
+                s.id === selectedId ? 'ring-2 ring-offset-2 ring-(--dolq-text) ring-offset-(--dolq-bg-panel-alt)' : ''
+              }`}
+            >
+              {s.initial}
+              <span
+                role="img"
+                aria-label={STATUS_LABEL[status]}
+                data-tip={STATUS_LABEL[status]}
+                className={`has-tip tip-right absolute -right-1 -bottom-1 w-3.75 h-3.75 rounded-full border-[3px] border-(--dolq-bg-panel-alt) ${BADGE_COLOR[status]}`}
+              />
+            </button>
+          );
+        })}
+        {servers.length !== 0 && <div className="w-6 h-px bg-(--dolq-border) my-1" />}
         <button
           type="button"
-          title="Add server"
           aria-label="Add server"
+          data-tip="Add server"
           onClick={onAddServer}
-          className="w-12 h-12 rounded-full bg-(--dolq-bg) text-[#50fa7b] flex items-center justify-center cursor-pointer border-0 hover:bg-[#50fa7b] hover:text-white hover:text-shadow-sm transition-[border-radius,background] duration-150 select-none"
+          className="has-tip tip-right w-10.5 h-10.5 shrink-0 rounded-[13px] border-[1.5px] border-dashed border-(--dolq-border-strong) bg-transparent text-(--dolq-text-dim) flex items-center justify-center cursor-pointer hover:text-(--dolq-text) hover:border-(--dolq-text) transition-colors select-none"
         >
           <svg
             aria-hidden="true"
-            width="20"
-            height="20"
-            viewBox="0 0 20 20"
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
-            strokeWidth="2.5"
+            strokeWidth="1.8"
             strokeLinecap="round"
           >
-            <line x1="10" y1="3" x2="10" y2="17" />
-            <line x1="3" y1="10" x2="17" y2="10" />
+            <path d="M12 5v14M5 12h14" />
           </svg>
         </button>
       </div>
@@ -97,6 +120,14 @@ export function ServerList({
       {menu && menuServer && (
         <ContextMenu x={menu.x} y={menu.y}>
           <ContextMenuHeader>{menuServer.name}</ContextMenuHeader>
+          <ContextMenuItem
+            onClick={() => {
+              onToggleConnection(menuServer.id);
+              close();
+            }}
+          >
+            {(statusMap[menuServer.id] ?? 'disconnected') === 'disconnected' ? 'Connect' : 'Disconnect'}
+          </ContextMenuItem>
           <ContextMenuItem
             onClick={() => {
               onEditServer(menuServer.id);

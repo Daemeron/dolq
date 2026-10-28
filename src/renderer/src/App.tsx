@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { HistoryEntry, IrcEvent, Settings } from '../../shared/ipc';
 import { ChannelList } from './components/ChannelList';
-import { ConnectionStatus } from './components/ConnectionStatus';
 import { type ConnectForm, ConnectModal, parseList } from './components/ConnectModal';
 import { DCCOfferModal } from './components/DCCOfferModal';
 import { type EditServerForm, EditServerModal } from './components/EditServerModal';
@@ -939,15 +938,22 @@ export default function App() {
     setView({ kind: 'chat' });
   }
 
-  async function connectToServer() {
-    const server = servers.find((s) => s.id === selectedServerId);
+  async function connectToServer(id = selectedServerId) {
+    const server = servers.find((s) => s.id === id);
     if (!server) return;
     await connectServer(server);
   }
 
-  async function handleDisconnect() {
-    await window.irc.disconnect(selectedServerId);
-    setConnectionStatus(selectedServerId, 'disconnected');
+  async function handleDisconnect(id = selectedServerId) {
+    await window.irc.disconnect(id);
+    setConnectionStatus(id, 'disconnected');
+  }
+
+  // Connecting is already under way for 'connecting', so only the other two states act.
+  function handleToggleConnection(id: string) {
+    const status = statusMap[id] ?? 'disconnected';
+    if (status === 'connected') return handleDisconnect(id);
+    if (status === 'disconnected') return connectToServer(id);
   }
 
   async function handleRemoveServer(id: string) {
@@ -1159,6 +1165,7 @@ export default function App() {
   const isQuery = selectedChannel?.isQuery ?? false;
   const currentNick = nickMap[selectedServerId] ?? 'dolq_user';
   const connectionStatus = statusMap[selectedServerId] ?? 'disconnected';
+  const [showMembers, setShowMembers] = useState(true);
 
   async function handleSend(text: string, aliasDepth = 0): Promise<void> {
     const joinMatch = text.match(/^\/join\s+(#\S+)(?:\s+(\S+))?$/);
@@ -1297,17 +1304,19 @@ export default function App() {
       {pendingIdentifyServerId && (
         <NickServIdentifyModal onIdentify={handleIdentify} onDismiss={() => setPendingIdentifyServerId(null)} />
       )}
-      <div className="relative flex flex-col shrink-0">
-        <div className="flex flex-1 overflow-hidden">
-          <ServerList
-            servers={servers}
-            selectedId={selectedServerId}
-            onSelect={handleSelectServer}
-            onAddServer={() => setView({ kind: 'connect' })}
-            onRemove={handleRemoveServer}
-            onChangeColor={setServerColor}
-            onEditServer={(id) => setView({ kind: 'editServer', serverId: id })}
-          />
+      <div className="flex shrink-0">
+        <ServerList
+          servers={servers}
+          selectedId={selectedServerId}
+          onSelect={handleSelectServer}
+          onAddServer={() => setView({ kind: 'connect' })}
+          onRemove={handleRemoveServer}
+          onChangeColor={setServerColor}
+          onEditServer={(id) => setView({ kind: 'editServer', serverId: id })}
+          statusMap={statusMap}
+          onToggleConnection={handleToggleConnection}
+        />
+        <div className="flex flex-col">
           <ChannelList
             serverName={selectedServer?.name ?? ''}
             channels={channels}
@@ -1321,10 +1330,7 @@ export default function App() {
             onLeaveChannel={handleLeaveChannel}
             onRemoveChannel={handleRemoveChannel}
             onCloseQuery={handleRemoveChannel}
-            onOpenSearch={() => setShowSearch(true)}
           />
-        </div>
-        <div className="absolute bottom-0 left-0 w-full px-3 pt-2 pb-2">
           <UserPanel
             currentNick={currentNick}
             away={selfAwayMap[selectedServerId] ?? false}
@@ -1406,7 +1412,13 @@ export default function App() {
                 isDCC={selectedChannel?.isDCC}
                 dccStatus={selectedChannel?.isDCC ? statusMap[selectedChannelId] : undefined}
                 onExport={selectedChannel?.isDCC ? undefined : handleExportChannel}
-                serverColor={selectedServer?.color}
+                onOpenSearch={() => setShowSearch(true)}
+                connectionStatus={connectionStatus}
+                onToggleConnection={() => handleToggleConnection(selectedServerId)}
+                muted={!!mutedChannels[selectedChannelId]}
+                onToggleMute={isLog || isQuery ? undefined : () => toggleMuteChannel(selectedChannelId)}
+                showMembers={showMembers}
+                onToggleMembers={isLog || isQuery ? undefined : () => setShowMembers((v) => !v)}
               />
               <MessageArea
                 messages={messages}
@@ -1424,8 +1436,12 @@ export default function App() {
                 onSend={handleSend}
               />
             </div>
-            <aside className="w-52 py-3 bg-(--dolq-bg-panel) border-l border-(--dolq-border) shrink-0 flex flex-col overflow-hidden relative">
-              {!isLog && !isQuery && (
+            {!isLog && !isQuery && showMembers && (
+              <aside className="w-58 bg-(--dolq-bg-panel) border-l border-(--dolq-border) shrink-0 flex flex-col overflow-hidden">
+                <div className="h-14 px-4 flex items-center justify-between shrink-0">
+                  <span className="font-semibold text-[15px] text-(--dolq-text)">Members</span>
+                  <span className="text-[12px] text-(--dolq-text-dim)">{users.length} online</span>
+                </div>
                 <UserList
                   users={users}
                   currentNick={currentNick}
@@ -1435,15 +1451,8 @@ export default function App() {
                   onToggleIgnore={handleToggleIgnore}
                   onDCCOffer={handleDCCOffer}
                 />
-              )}
-              <div className="absolute bottom-0 left-0 w-full px-3 pt-2 pb-2">
-                <ConnectionStatus
-                  connectionStatus={connectionStatus}
-                  onConnect={connectToServer}
-                  onDisconnect={handleDisconnect}
-                />
-              </div>
-            </aside>
+              </aside>
+            )}
           </div>
         )}
       </main>

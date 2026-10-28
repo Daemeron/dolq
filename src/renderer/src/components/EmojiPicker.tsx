@@ -41,7 +41,7 @@ export function EmojiPicker({ onSelect, onClose }: Props) {
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         placeholder="Search emoji…"
-        className="m-2 bg-(--dolq-bg-input) border-0 rounded text-(--dolq-text) text-[13px] px-2.5 py-1.5 outline-none focus:ring-2 focus:ring-[#c792ea] placeholder:text-(--dolq-text-faint)"
+        className="m-2 bg-(--dolq-bg-input) border-0 rounded text-(--dolq-text) text-[13px] px-2.5 py-1.5 outline-none focus:ring-2 focus:ring-(--dolq-accent) placeholder:text-(--dolq-text-faint)"
       />
       <div className="flex-1 overflow-y-auto scroll-thin px-2 pb-2">
         {groups.length === 0 && <p className="text-(--dolq-text-faint) text-[12px] text-center py-4">No matches</p>}

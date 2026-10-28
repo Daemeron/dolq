@@ -46,7 +46,7 @@ type Props = {
 };
 
 const inputClass =
-  'w-full bg-[var(--dolq-bg-input)] border-0 rounded text-[var(--dolq-text)] text-[14px] px-3 py-2.5 outline-none focus:ring-2 focus:ring-[#c792ea] placeholder:text-[var(--dolq-text-faint)]';
+  'w-full bg-[var(--dolq-bg-input)] border-0 rounded text-[var(--dolq-text)] text-[14px] px-3 py-2.5 outline-none focus:ring-2 focus:ring-(--dolq-accent) placeholder:text-[var(--dolq-text-faint)]';
 const labelClass =
   'flex flex-col gap-1.5 text-[11px] font-bold uppercase tracking-[0.5px] text-[var(--dolq-text-muted)]';
 
@@ -188,7 +188,7 @@ export function PreferencesModal({
             type="checkbox"
             checked={notificationsEnabled}
             onChange={(e) => onNotificationsEnabledChange(e.target.checked)}
-            className="accent-[#c792ea]"
+            className="accent-(--dolq-accent)"
           />
           Desktop notifications when mentioned in a channel you're not viewing
         </label>
@@ -198,7 +198,7 @@ export function PreferencesModal({
             type="checkbox"
             checked={soundAlertsEnabled}
             onChange={(e) => onSoundAlertsEnabledChange(e.target.checked)}
-            className="accent-[#c792ea]"
+            className="accent-(--dolq-accent)"
           />
           Play a sound on the same mentions - independent of the notification above
         </label>
@@ -208,7 +208,7 @@ export function PreferencesModal({
             type="checkbox"
             checked={showMembershipEvents}
             onChange={(e) => onShowMembershipEventsChange(e.target.checked)}
-            className="accent-[#c792ea]"
+            className="accent-(--dolq-accent)"
           />
           Show joins, parts, quits and nick changes in channels
         </label>
@@ -294,7 +294,7 @@ export function PreferencesModal({
                   onClick={() => setRecording(action)}
                   className={`shrink-0 px-2.5 py-1 rounded text-[12px] font-medium border-0 cursor-pointer ${
                     recording === action
-                      ? 'bg-[#c792ea] text-white'
+                      ? 'bg-(--dolq-accent) text-white'
                       : 'bg-(--dolq-bg-input) text-(--dolq-text) hover:bg-(--dolq-bg-hover)'
                   }`}
                 >
@@ -325,7 +325,7 @@ export function PreferencesModal({
                   <button
                     type="button"
                     onClick={() => onRemoveIgnore(serverId, nick)}
-                    className="shrink-0 text-[#ff5555] text-[12px] font-medium bg-transparent border-0 cursor-pointer hover:underline"
+                    className="shrink-0 text-(--dolq-danger) text-[12px] font-medium bg-transparent border-0 cursor-pointer hover:underline"
                   >
                     Unignore
                   </button>
@@ -356,7 +356,7 @@ export function PreferencesModal({
                   <button
                     type="button"
                     onClick={() => onUntrustXdcc(serverId, sender)}
-                    className="shrink-0 text-[#ff5555] text-[12px] font-medium bg-transparent border-0 cursor-pointer hover:underline"
+                    className="shrink-0 text-(--dolq-danger) text-[12px] font-medium bg-transparent border-0 cursor-pointer hover:underline"
                   >
                     Remove
                   </button>
@@ -386,7 +386,7 @@ export function PreferencesModal({
                   <button
                     type="button"
                     onClick={() => onRemoveAlias(name)}
-                    className="shrink-0 text-[#ff5555] text-[12px] font-medium bg-transparent border-0 cursor-pointer hover:underline"
+                    className="shrink-0 text-(--dolq-danger) text-[12px] font-medium bg-transparent border-0 cursor-pointer hover:underline"
                   >
                     Remove
                   </button>
@@ -402,7 +402,7 @@ export function PreferencesModal({
               type="checkbox"
               checked={trayEnabled}
               onChange={(e) => setTrayEnabled(e.target.checked)}
-              className="accent-[#c792ea]"
+              className="accent-(--dolq-accent)"
             />
             Show a tray/menu bar icon
           </label>
@@ -412,7 +412,7 @@ export function PreferencesModal({
               type="checkbox"
               checked={remoteEnabled}
               onChange={(e) => setRemoteEnabled(e.target.checked)}
-              className="accent-[#c792ea]"
+              className="accent-(--dolq-accent)"
             />
             Connect to a remote backend instead of running one locally
           </label>
@@ -436,7 +436,7 @@ export function PreferencesModal({
                 </p>
               )}
               {pairingInvalid && (
-                <p className="text-[#f04747] text-[12px] -mt-1.5">That is not a valid Dolq pairing link.</p>
+                <p className="text-(--dolq-danger) text-[12px] -mt-1.5">That is not a valid Dolq pairing link.</p>
               )}
               <label className={labelClass}>
                 Remote Backend URL
@@ -468,12 +468,12 @@ export function PreferencesModal({
                   type="checkbox"
                   checked={remoteTls}
                   onChange={(e) => setRemoteTls(e.target.checked)}
-                  className="accent-[#c792ea]"
+                  className="accent-(--dolq-accent)"
                 />
                 Encrypt the connection (TLS)
               </label>
               {unprotected && (
-                <p className="text-[#faa61a] text-[12px] -mt-1.5">
+                <p className="text-(--dolq-warn) text-[12px] -mt-1.5">
                   {!remoteTls && 'Without TLS, passwords and messages cross the network in the clear. '}
                   {noToken && 'Without a token, anyone who can reach the backend can use it. '}
                   Only run like this for a tunnel, a trusted proxy, or a network you fully trust (a backend started with
@@ -486,7 +486,7 @@ export function PreferencesModal({
                   <button
                     type="button"
                     onClick={() => setRemoteFingerprint('')}
-                    className="bg-transparent border-0 p-0 text-[#c792ea] cursor-pointer underline"
+                    className="bg-transparent border-0 p-0 text-(--dolq-accent) cursor-pointer underline"
                   >
                     Forget
                   </button>
@@ -543,7 +543,7 @@ export function PreferencesModal({
               type="checkbox"
               checked={xdccAutoAccept}
               onChange={(e) => setXdccAutoAccept(e.target.checked)}
-              className="accent-[#c792ea]"
+              className="accent-(--dolq-accent)"
             />
             Auto-accept XDCC downloads
           </label>
@@ -593,7 +593,7 @@ export function PreferencesModal({
             </button>
             <button
               type="submit"
-              className="px-5 py-2 rounded bg-[#c792ea] text-white text-shadow-sm text-[14px] font-semibold border-0 cursor-pointer hover:bg-[#a579c2] transition-colors duration-150"
+              className="px-5 py-2 rounded bg-(--dolq-accent) text-white text-shadow-sm text-[14px] font-semibold border-0 cursor-pointer hover:bg-(--dolq-accent-hover) transition-colors duration-150"
             >
               Save
             </button>

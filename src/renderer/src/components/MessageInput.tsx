@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { insertAtCaret } from '../utils/insertAtCaret';
 import { restoreDraft, trySend } from '../utils/trySend';
 import { EmojiPicker } from './EmojiPicker';
+import { Icon } from './Icon';
 
 type Props = {
   channelName: string;
@@ -43,29 +44,32 @@ export function MessageInput({ channelName, isLog, isQuery, onSend }: Props) {
   }
 
   return (
-    <div className="relative px-4 pb-2.5 pt-2 shrink-0">
+    <div className="relative px-7 pb-5 pt-2 shrink-0">
       {showEmoji && <EmojiPicker onSelect={insertEmoji} onClose={() => setShowEmoji(false)} />}
       {error && (
-        <div role="alert" className="mb-1 text-[12px] text-red-400">
+        <div role="alert" className="mb-1 text-[12px] text-(--dolq-danger)">
           {error}
         </div>
       )}
-      <form onSubmit={handleSubmit} className="flex items-center gap-2">
+      <form
+        onSubmit={handleSubmit}
+        className="flex items-center gap-1 rounded-2xl border border-(--dolq-border-strong) bg-(--dolq-bg-input) pl-2 pr-2 py-1.5 focus-within:border-(--dolq-accent) focus-within:shadow-[0_0_0_3px_var(--dolq-accent-soft)]"
+      >
         <button
           type="button"
           onClick={(e) => {
             e.stopPropagation();
             setShowEmoji((v) => !v);
           }}
-          title="Emoji"
+          data-tip="Emoji"
           aria-label="Emoji"
-          className="shrink-0 w-9 h-9 flex items-center justify-center text-[18px] rounded-lg border-0 bg-(--dolq-bg-input) cursor-pointer hover:bg-(--dolq-bg-hover)"
+          className="has-tip shrink-0 w-8.5 h-8.5 flex items-center justify-center rounded-lg border-0 bg-transparent text-(--dolq-text-dim) cursor-pointer hover:text-(--dolq-text) hover:bg-(--dolq-bg-row-hover)"
         >
-          🙂
+          <Icon name="smile" />
         </button>
         <input
           ref={inputRef}
-          className="flex-1 bg-(--dolq-bg-input) border-0 rounded-lg text-(--dolq-text) text-[15px] px-4 py-3 outline-none caret-(--dolq-text) placeholder:text-(--dolq-text-faint) disabled:opacity-40 disabled:cursor-not-allowed"
+          className="flex-1 min-w-0 bg-transparent border-0 text-(--dolq-text) text-[15px] px-2 py-2 outline-none caret-(--dolq-text) placeholder:text-(--dolq-text-faint) disabled:opacity-40 disabled:cursor-not-allowed"
           value={value}
           onChange={(e) => {
             setValue(e.target.value);
@@ -79,6 +83,14 @@ export function MessageInput({ channelName, isLog, isQuery, onSend }: Props) {
                 : `Message #${channelName}`
           }
         />
+        <button
+          type="submit"
+          aria-label="Send"
+          disabled={!value.trim()}
+          className="shrink-0 w-8 h-8 flex items-center justify-center rounded-lg border-0 bg-(--dolq-accent) text-(--dolq-on-accent) cursor-pointer hover:bg-(--dolq-accent-hover) disabled:bg-(--dolq-bg-row-selected) disabled:text-(--dolq-text-faint) disabled:cursor-default"
+        >
+          <Icon name="send" />
+        </button>
       </form>
     </div>
   );

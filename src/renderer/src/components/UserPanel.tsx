@@ -1,3 +1,5 @@
+import { nickColor, nickInitial } from '../utils/nickColor';
+
 type Props = {
   currentNick: string;
   away: boolean;
@@ -6,24 +8,39 @@ type Props = {
 
 export function UserPanel({ currentNick, away, onOpenPreferences }: Props) {
   return (
-    <div className="flex items-center gap-3 px-4 py-3.5 bg-(--dolq-bg-raised) rounded-lg shrink-0">
+    <div className="flex items-center gap-2.5 px-3 py-2.5 border-t border-(--dolq-border) shrink-0">
       <div
-        className={`w-9 h-9 rounded-full text-white text-shadow-sm flex items-center justify-center font-bold text-sm shrink-0 ${away ? 'bg-(--dolq-text-faint)' : 'bg-[#c792ea]'}`}
+        className="w-7 h-7 rounded-full text-white flex items-center justify-center font-semibold text-xs shrink-0"
+        style={{ background: away ? 'var(--dolq-text-faint)' : nickColor(currentNick) }}
       >
-        {currentNick[0]?.toUpperCase() ?? '?'}
+        {nickInitial(currentNick)}
       </div>
-      <span className="text-[14px] font-semibold text-(--dolq-text) truncate flex-1">
-        {currentNick}
-        {away && <span className="text-(--dolq-text-dim) font-normal"> (away)</span>}
-      </span>
+      <div className="flex-1 min-w-0 leading-tight">
+        <div className="text-[13px] font-medium text-(--dolq-text) truncate">{currentNick}</div>
+        <div className="text-[12px] text-(--dolq-text-dim)">{away ? 'Away' : 'Online'}</div>
+      </div>
       <button
         type="button"
         onClick={onOpenPreferences}
-        title="Preferences"
+        data-tip="Preferences"
         aria-label="Preferences"
-        className="shrink-0 w-9 h-9 flex items-center justify-center rounded border-0 bg-transparent text-[28px] text-(--dolq-text-dim) cursor-pointer hover:text-(--dolq-text) hover:bg-(--dolq-bg-row-hover)"
+        className="has-tip shrink-0 w-8.5 h-8.5 flex items-center justify-center rounded-lg border-0 bg-transparent text-(--dolq-text-dim) cursor-pointer hover:text-(--dolq-text) hover:bg-(--dolq-bg-row-hover)"
       >
-        ⚙
+        <svg
+          aria-hidden="true"
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.6"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M4 7h9M17 7h3M4 17h3M11 17h9" />
+          <circle cx="15" cy="7" r="2" />
+          <circle cx="9" cy="17" r="2" />
+        </svg>
       </button>
     </div>
   );

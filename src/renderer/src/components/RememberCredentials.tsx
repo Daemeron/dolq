@@ -33,7 +33,7 @@ export function RememberCredentials({ checked, onChange }: Props) {
           checked={checked && available}
           disabled={!available}
           onChange={(e) => onChange(e.target.checked)}
-          className="accent-[#c792ea]"
+          className="accent-(--dolq-accent)"
         />
         Remember passwords on this device
       </label>
