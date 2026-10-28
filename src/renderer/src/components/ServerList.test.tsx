@@ -51,4 +51,31 @@ describe('ServerList connection badge', () => {
     fireEvent.click(screen.getByText('Connect'));
     expect(onToggleConnection).toHaveBeenCalledWith('b');
   });
+
+  it('adds a server from the plus button', () => {
+    const { onAddServer } = renderList({});
+    fireEvent.click(screen.getByRole('button', { name: 'Add server' }));
+    expect(onAddServer).toHaveBeenCalled();
+  });
+
+  it('edits and removes a server from its menu', () => {
+    const { onEditServer, onRemove } = renderList({});
+    fireEvent.contextMenu(screen.getByRole('button', { name: 'Alpha' }));
+    fireEvent.click(screen.getByText('Edit Server…'));
+    expect(onEditServer).toHaveBeenCalledWith('a');
+    fireEvent.contextMenu(screen.getByRole('button', { name: 'Beta' }));
+    fireEvent.click(screen.getByText('Remove Server'));
+    expect(onRemove).toHaveBeenCalledWith('b');
+  });
+
+  it('recolours a server through the colour picker', () => {
+    const { onChangeColor } = renderList({});
+    const picker = document.querySelector('input[type="color"]') as HTMLInputElement;
+    const click = vi.spyOn(picker, 'click').mockImplementation(() => {});
+    fireEvent.contextMenu(screen.getByRole('button', { name: 'Alpha' }));
+    fireEvent.click(screen.getByText('Change Color…'));
+    expect(click).toHaveBeenCalled();
+    fireEvent.change(picker, { target: { value: '#112233' } });
+    expect(onChangeColor).toHaveBeenCalledWith('a', '#112233');
+  });
 });

@@ -3,12 +3,17 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   test: {
-    coverage: { provider: 'v8', include: ['src/**/*.{ts,tsx}'], exclude: ['**/*.test.*', 'src/**/*.d.ts'] },
+    coverage: {
+      provider: 'v8',
+      include: ['src/**/*.{ts,tsx}'],
+      exclude: ['**/*.test.*', 'src/**/*.d.ts'],
+      thresholds: { statements: 70, branches: 70, functions: 70, lines: 70 },
+    },
     projects: [
       {
         test: {
           name: 'main',
-          include: ['src/main/**/*.test.ts'],
+          include: ['src/main/**/*.test.ts', 'src/preload/**/*.test.ts'],
           environment: 'node',
         },
       },

@@ -44,3 +44,40 @@ describe('ConnectModal connect on startup', () => {
     expect(onConnect).toHaveBeenCalledWith(expect.objectContaining({ connectOnStartup: true }));
   });
 });
+
+describe('EditServerModal form', () => {
+  const tlsBox = () => screen.getByRole('checkbox', { name: /TLS|Secure/i }) as HTMLInputElement;
+  const portInput = () => screen.getByPlaceholderText('6667') as HTMLInputElement;
+
+  it('starts from the saved server and saves edits', () => {
+    const onSave = renderEdit({ ...server, altNicks: ['alt1', 'alt2'], autojoinChannels: ['#a'] });
+    expect((screen.getByPlaceholderText('My Server') as HTMLInputElement).value).toBe('Libera');
+    expect((screen.getByPlaceholderText('irc.libera.chat') as HTMLInputElement).value).toBe('irc.libera.chat');
+    expect((screen.getByPlaceholderText('yournick') as HTMLInputElement).value).toBe('me');
+    expect((screen.getByPlaceholderText('#general, #offtopic') as HTMLInputElement).value).toBe('#a');
+    fireEvent.change(screen.getByPlaceholderText('My Server'), { target: { value: 'Renamed' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    expect(onSave).toHaveBeenCalledWith('s1', expect.objectContaining({ name: 'Renamed', nick: 'me' }));
+  });
+
+  it('does not save without a host', () => {
+    const onSave = renderEdit(server);
+    fireEvent.change(screen.getByPlaceholderText('irc.libera.chat'), { target: { value: ' ' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it('follows the default port when TLS is toggled', () => {
+    renderEdit(server);
+    expect(portInput().value).toBe('6697');
+    fireEvent.click(tlsBox());
+    expect(portInput().value).toBe('6667');
+  });
+
+  it('cancels on Escape', () => {
+    const onCancel = vi.fn();
+    render(<EditServerModal server={server} nick="me" saslUser="" saslPass="" onSave={vi.fn()} onCancel={onCancel} />);
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(onCancel).toHaveBeenCalled();
+  });
+});
