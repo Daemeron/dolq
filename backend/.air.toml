@@ -6,8 +6,9 @@ root = "."
 tmp_dir = "tmp"
 
 [build]
-  cmd = "go build -o ./tmp/dolqd ./cmd/dolqd"
-  entrypoint = ["./tmp/dolqd"]
+  # The .exe suffix is for Windows, where air only runs files that have it; other platforms ignore it.
+  cmd = "go build -o ./tmp/dolqd.exe ./cmd/dolqd"
+  entrypoint = ["./tmp/dolqd.exe"]
   include_ext = ["go"]
   exclude_dir = ["tmp", "bin"]
   # dolqd already handles SIGINT/SIGTERM for a graceful shutdown (flushing
