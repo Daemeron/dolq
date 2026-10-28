@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.1](https://github.com/Daemeron/dolq/compare/dolq-v0.6.0...dolq-v0.6.1) (2026-10-28)
+
+
+### Bug Fixes
+
+* **backend:** make the signal test vet-clean on Windows, and vet for Windows in CI ([#50](https://github.com/Daemeron/dolq/issues/50)) ([ee18ade](https://github.com/Daemeron/dolq/commit/ee18ade29f4380e3073383db80520461b9b013bb))
+
 ## [0.6.0](https://github.com/Daemeron/dolq/compare/dolq-v0.5.0...dolq-v0.6.0) (2026-10-28)
 
 
