@@ -19,7 +19,7 @@
     "frontend:lint": "biome check .",
     "frontend:lint:fix": "biome check --write .",
     "backend:build": "go build -C backend -o bin/ ./cmd/dolqd",
-    "backend:dev": "go -C backend run github.com/air-verse/air@v1.67.4",
+    "backend:dev": "node backend/scripts/dev.mjs",
     "backend:test": "go -C backend test ./...",
     "backend:test:coverage": "cd backend && ./scripts/check-coverage.sh",
     "backend:test:dev": "go -C backend run github.com/air-verse/air@v1.67.4 -c .air.test.toml",

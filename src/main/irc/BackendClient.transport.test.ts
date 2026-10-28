@@ -10,6 +10,7 @@ const h = vi.hoisted(() => ({
   socketLine: '/tmp/dolqd.sock',
   tlsCert: { fingerprint256: 'AA:BB', authorized: false },
   dialled: [] as unknown[],
+  refuseDials: 0,
   stopChild: vi.fn(),
   rm: vi.fn(),
 }));
@@ -50,6 +51,11 @@ vi.mock('node:net', async (importOriginal) => {
   const actual = await importOriginal<typeof import('node:net')>();
   const createConnection = () => {
     const s = fakeSocket();
+    if (h.refuseDials > 0) {
+      h.refuseDials--;
+      process.nextTick(() => s.emit('error', new Error('ECONNREFUSED')));
+      return s;
+    }
     process.nextTick(() => s.emit('connect'));
     return s;
   };
@@ -201,6 +207,27 @@ describe('remote backend over TLS', () => {
     const seen = fatals(client);
     await vi.waitFor(() => expect(seen[0]).toMatch(/cancelled/));
     expect(hk.confirmInsecure).toHaveBeenCalledWith('dolq.example', expect.arrayContaining([expect.any(String)]));
+    err.mockRestore();
+  });
+
+  it('waits for a backend that is not running yet instead of failing', async () => {
+    vi.useFakeTimers();
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {});
+    h.refuseDials = 2;
+    const client = new BackendClient(
+      0,
+      { host: 'dolq.example', port: 1, tls: false },
+      { ...hooks(), confirmInsecure: vi.fn().mockResolvedValue(true) },
+    );
+    const seen = fatals(client);
+    const status = client.getStatus('s1');
+    await vi.advanceTimersByTimeAsync(1000);
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(await status).toBe('disconnected');
+    expect(seen).toEqual([]);
+    expect(h.refuseDials).toBe(0);
+    await client.stop();
+    vi.useRealTimers();
     err.mockRestore();
   });
 
