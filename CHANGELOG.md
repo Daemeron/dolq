@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.2](https://github.com/Daemeron/dolq/compare/dolq-v0.6.1...dolq-v0.6.2) (2026-10-28)
+
+
+### Bug Fixes
+
+* **renderer:** draw native controls in the active theme ([#53](https://github.com/Daemeron/dolq/issues/53)) ([a1173e5](https://github.com/Daemeron/dolq/commit/a1173e5f4a49368eda8ffed2426cd548c5454422))
+
 ## [0.6.1](https://github.com/Daemeron/dolq/compare/dolq-v0.6.0...dolq-v0.6.1) (2026-10-28)
 
 
