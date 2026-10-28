@@ -400,7 +400,10 @@ async function resolveBackendCommand(
     return { cmd: path.join(process.resourcesPath, 'bin', exe), args, cwd: process.resourcesPath };
   }
   const backendDir = path.resolve(__dirname, '../../backend');
-  const devBinaryPath = path.join(app.getPath('temp'), `dolqd-dev-${process.pid}`);
+  const devBinaryPath = path.join(
+    app.getPath('temp'),
+    `dolqd-dev-${process.pid}${process.platform === 'win32' ? '.exe' : ''}`,
+  );
   await execFileAsync('go', ['build', '-o', devBinaryPath, './cmd/dolqd'], { cwd: backendDir });
   return { cmd: devBinaryPath, args, cwd: backendDir, devBinaryPath };
 }
