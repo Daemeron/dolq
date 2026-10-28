@@ -47,7 +47,7 @@ export class BackendClient extends EventEmitter {
     private hooks?: RemoteHooks,
   ) {
     super();
-    this.ready = this.remote ? this.connectRemote(this.remote) : this.spawnAndDial();
+    this.ready = this.remote ? this.connectRemoteWhenUp(this.remote) : this.spawnAndDial();
     this.ready.catch((err) => {
       console.error('backend failed to connect:', err);
       this.emit('fatal', err instanceof Error ? err.message : String(err));
@@ -78,13 +78,28 @@ export class BackendClient extends EventEmitter {
     await this.attach(socket, token);
   }
 
+  // A remote backend that is not up yet is waited for, not treated as fatal; only an error retrying
+  // cannot fix (PermanentError) ends the wait. Calls made meanwhile queue on `ready`.
+  private async connectRemoteWhenUp(remote: RemoteTarget): Promise<void> {
+    try {
+      await this.connectRemote(remote);
+    } catch (err) {
+      if (err instanceof PermanentError) throw err;
+      console.error('remote backend not reachable yet, retrying:', err);
+      await redial(
+        () => this.connectRemote(this.remote ?? remote, true),
+        () => this.stopping,
+      );
+    }
+  }
+
   private async connectRemote(remote: RemoteTarget, agreed = false): Promise<void> {
     // Running without TLS and/or a token is allowed (a backend started with
     // -tls=false / -token=false, a tunnel, a trusted LAN), but only after the user has agreed.
     const reasons = insecureReasons(remote);
     if (reasons.length > 0 && !agreed) {
       const ok = (await this.hooks?.confirmInsecure(remote.host, reasons)) ?? false;
-      if (!ok) throw new Error('Connection to the remote backend cancelled (it is not fully secured).');
+      if (!ok) throw new PermanentError('Connection to the remote backend cancelled (it is not fully secured).');
     }
     const socket = remote.tls ? await this.dialTls(remote) : await this.dialPlain(remote);
     await this.attach(socket, remote.token);
