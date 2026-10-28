@@ -88,3 +88,15 @@ describe('MessageInput emoji', () => {
     expect(screen.getByPlaceholderText(/Log view/)).toBeTruthy();
   });
 });
+
+describe('MessageInput emoji picker', () => {
+  it('closes with Escape without touching the draft', async () => {
+    const { input } = setup(vi.fn());
+    fireEvent.change(input, { target: { value: 'draft' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Emoji' }));
+    expect(screen.getByPlaceholderText('Search emoji…')).toBeTruthy();
+    fireEvent.keyDown(window, { key: 'Escape' });
+    await waitFor(() => expect(screen.queryByPlaceholderText('Search emoji…')).toBeNull());
+    expect(input.value).toBe('draft');
+  });
+});

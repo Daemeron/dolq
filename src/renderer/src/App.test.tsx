@@ -1062,3 +1062,142 @@ describe('App: trust and recovery', () => {
     await waitFor(() => expect(useStore.getState().statusMap.s1).toBe('disconnected'));
   });
 });
+
+describe('App: trust ends with the connection', () => {
+  it('asks again after the server disconnects, for a sender trusted only for the session', async () => {
+    const irc = await mount();
+    const offer: IrcEvent = {
+      type: 'XDCCSENDOFFER',
+      nick: 'bot',
+      filename: 'f.iso',
+      ip: '1.2.3.4',
+      port: 5000,
+      size: 10,
+      host: 'bot.example',
+    };
+    await irc.event('s1', offer);
+    fireEvent.click(await screen.findByText(/until this server disconnects/));
+    await waitFor(() => expect(irc.spies.xdccAccept).toHaveBeenCalledTimes(1));
+    irc.emit('onStatus', 's1', 'disconnected');
+    irc.emit('onStatus', 's1', 'connected');
+    await irc.event('s1', offer);
+    expect(await screen.findByText('File Offer')).toBeTruthy();
+    expect(irc.spies.xdccAccept).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('App: older history', () => {
+  const page = (from: number, count: number) =>
+    Array.from({ length: count }, (_, i) =>
+      entry(from + i, { event: { type: 'PRIVMSG', nick: 'mira', target: '#dolq', text: `old line ${from + i}` } }),
+    );
+
+  it('loads the next page when scrolled to the top, and not again once history runs out', async () => {
+    const irc = await mount({ getHistory: page(1000, 100) });
+    await screen.findAllByText(/old line/);
+    const before = irc.spies.getHistory.mock.calls.length;
+    irc.spies.getHistory.mockResolvedValueOnce(page(900, 3));
+    const scroller = document.querySelector('.overflow-y-auto.py-2') as HTMLElement;
+    scroller.scrollTop = 0;
+    fireEvent.scroll(scroller);
+    await waitFor(() => expect(irc.spies.getHistory.mock.calls.length).toBe(before + 1));
+    expect(irc.spies.getHistory.mock.calls.at(-1)?.[2]).toBe(1000); // continues from the oldest line it has
+    await waitFor(() =>
+      expect(useStore.getState().messageMap['s1:#dolq'].some((m) => m.text === 'old line 902')).toBe(true),
+    );
+
+    // that short page was the last one
+    fireEvent.scroll(scroller);
+    await new Promise((r) => setTimeout(r, 20));
+    expect(irc.spies.getHistory.mock.calls.length).toBe(before + 1);
+  });
+
+  it('keeps working when history cannot be read', async () => {
+    const irc = installIrc({});
+    irc.spies.getHistory.mockRejectedValue(new Error('backend down'));
+    render(<App />);
+    await waitFor(() => expect(irc.spies.getHistory).toHaveBeenCalled());
+    await irc.event('s1', { type: 'PRIVMSG', nick: 'mira', target: '#dolq', text: 'live line' });
+    expect(await screen.findByText('live line')).toBeTruthy();
+  });
+});
+
+describe('App: odd input', () => {
+  it('ignores progress for a transfer it does not know', async () => {
+    const irc = await mount();
+    await irc.event('ghost', { type: 'XDCCTRANSFER', received: 5, total: 10, path: '/x' });
+    await irc.event('ghost', { type: 'XDCCTRANSFER', received: 10, total: 10, path: '/x', done: true });
+    expect(screen.queryByText('Done')).toBeNull();
+  });
+
+  it('ignores keys that are not shortcuts', async () => {
+    await mount();
+    fireEvent.keyDown(window, { key: 'x', altKey: true });
+    fireEvent.keyDown(window, { key: 'a' });
+    expect(screen.getByRole('heading', { name: '#dolq' })).toBeTruthy();
+    expect(useStore.getState().mutedChannels).toEqual({});
+  });
+
+  it('puts the remembered nick into the preset for a server we already use', async () => {
+    await mount();
+    fireEvent.click(screen.getByRole('button', { name: 'Add server' }));
+    fireEvent.click(screen.getByText('Libera.Chat'));
+    expect((screen.getByPlaceholderText('yournick') as HTMLInputElement).value).toBe('me');
+  });
+
+  it('still syncs a server whose channel list cannot be read', async () => {
+    const irc = installIrc({});
+    irc.spies.getJoinedChannels.mockRejectedValue(new Error('down'));
+    render(<App />);
+    await waitFor(() => expect(irc.spies.getJoinedChannels).toHaveBeenCalled());
+    await waitFor(() => expect(useStore.getState().channelMap.s1.find((c) => c.id === '#dolq')?.joined).toBe(false));
+  });
+});
+
+describe('App: connection errors and credentials', () => {
+  it('writes why a new server could not be reached into its log', async () => {
+    const irc = await mount();
+    irc.spies.connect.mockRejectedValueOnce(new Error('getaddrinfo ENOTFOUND irc.nowhere.test'));
+    fireEvent.click(screen.getByRole('button', { name: 'Add server' }));
+    fireEvent.change(screen.getByPlaceholderText('irc.libera.chat'), { target: { value: 'irc.nowhere.test' } });
+    fireEvent.change(screen.getByPlaceholderText('yournick'), { target: { value: 'newme' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Connect' }));
+    await waitFor(() => expect(useStore.getState().servers).toHaveLength(2));
+    const added = useStore.getState().servers[1].id;
+    await waitFor(() => expect(useStore.getState().messageMap[`${added}:__log__`]?.[0]?.text).toMatch(/ENOTFOUND/));
+  });
+
+  it('remembers SASL credentials from the editor only when asked', async () => {
+    const irc = await mount({ rememberSecrets: true });
+    fireEvent.contextMenu(screen.getByRole('button', { name: 'Libera' }));
+    fireEvent.click(screen.getByText('Edit Server…'));
+    const remember = await screen.findByRole('checkbox', { name: /Remember/i });
+    await waitFor(() => expect(remember).not.toBeDisabled());
+    fireEvent.click(remember);
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(irc.spies.rememberSecrets).toHaveBeenCalledWith('s1', expect.any(Object)));
+    expect(useStore.getState().servers[0].rememberCredentials).toBe(true);
+  });
+});
+
+describe('App: more flows', () => {
+  it('exports an empty channel as an empty file rather than failing', async () => {
+    const irc = await mount();
+    fireEvent.click(screen.getByRole('button', { name: 'Export log' }));
+    fireEvent.click(screen.getByText('Export as Text'));
+    await waitFor(() => expect(irc.spies.saveTextFile).toHaveBeenCalledWith('dolq.txt', ''));
+  });
+
+  it('keeps the credentials of a new server in the keystore when asked', async () => {
+    const irc = await mount({ rememberSecrets: true });
+    fireEvent.click(screen.getByRole('button', { name: 'Add server' }));
+    fireEvent.change(screen.getByPlaceholderText('irc.libera.chat'), { target: { value: 'irc.example.org' } });
+    fireEvent.change(screen.getByPlaceholderText('yournick'), { target: { value: 'newme' } });
+    const remember = await screen.findByRole('checkbox', { name: /Remember/i });
+    await waitFor(() => expect(remember).not.toBeDisabled());
+    fireEvent.click(remember);
+    fireEvent.click(screen.getByRole('button', { name: 'Connect' }));
+    await waitFor(() => expect(irc.spies.rememberSecrets).toHaveBeenCalled());
+    await waitFor(() => expect(useStore.getState().servers.at(-1)?.rememberCredentials).toBe(true));
+  });
+});

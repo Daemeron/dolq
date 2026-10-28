@@ -185,7 +185,7 @@ func (s *Store) append(e Entry) {
 	}
 }
 
-const pruneInterval = time.Hour
+var pruneInterval = time.Hour
 
 func (s *Store) pruneLoop() {
 	defer close(s.pruneDone)

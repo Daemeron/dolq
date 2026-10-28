@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ErrorBoundary } from './ErrorBoundary';
 
@@ -32,5 +32,26 @@ describe('ErrorBoundary', () => {
     expect(screen.getByText('kaput')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Reload' })).toBeTruthy();
     window.removeEventListener('error', swallow);
+  });
+
+  it('reloads the page from the Reload button', () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const swallow = (e: ErrorEvent) => e.preventDefault();
+    window.addEventListener('error', swallow);
+    const reload = vi.fn();
+    const original = window.location;
+    Object.defineProperty(window, 'location', { configurable: true, value: { ...original, reload } });
+    try {
+      render(
+        <ErrorBoundary>
+          <Boom />
+        </ErrorBoundary>,
+      );
+      fireEvent.click(screen.getByRole('button', { name: 'Reload' }));
+      expect(reload).toHaveBeenCalled();
+    } finally {
+      Object.defineProperty(window, 'location', { configurable: true, value: original });
+      window.removeEventListener('error', swallow);
+    }
   });
 });

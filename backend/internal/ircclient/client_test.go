@@ -1556,3 +1556,49 @@ func TestMalformedDCCRequestsAreIgnored(t *testing.T) {
 		t.Fatal("no event")
 	}
 }
+
+func TestDialConnectsAndRefusesCleanly(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	port := ln.Addr().(*net.TCPAddr).Port
+	accepted := make(chan net.Conn, 1)
+	go func() {
+		if c, err := ln.Accept(); err == nil {
+			accepted <- c
+		}
+	}()
+	c, err := Dial("127.0.0.1", port, "mira", false)
+	if err != nil {
+		t.Fatalf("Dial: %v", err)
+	}
+	if c.Nick() != "mira" {
+		t.Errorf("Nick = %q", c.Nick())
+	}
+	(<-accepted).Close()
+	ln.Close()
+
+	if _, err := Dial("127.0.0.1", port, "mira", false); err == nil {
+		t.Error("Dial to a closed port succeeded")
+	}
+}
+
+func TestDialSecureFailsAgainstAServerThatDoesNotSpeakTLS(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+	go func() {
+		c, err := ln.Accept()
+		if err != nil {
+			return
+		}
+		c.Write([]byte("this is not tls\r\n"))
+		c.Close()
+	}()
+	if _, err := Dial("127.0.0.1", ln.Addr().(*net.TCPAddr).Port, "mira", true); err == nil {
+		t.Error("a TLS dial to a plain server succeeded")
+	}
+}

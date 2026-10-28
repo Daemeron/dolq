@@ -145,13 +145,16 @@ export class BackendClient extends EventEmitter {
     // Without keepalive a link that dies silently (sleep, a NAT timeout) never
     // closes, so the redial below would never start.
     socket.setKeepAlive(true, 30_000);
-    createInterface({ input: socket }).on('line', (line) => {
+    const lines = createInterface({ input: socket });
+    lines.on('line', (line) => {
       try {
         this.handleFrame(JSON.parse(line));
       } catch (err) {
         console.error('backend sent an unreadable frame:', err);
       }
     });
+    // readline re-emits its input's errors, and an unhandled one would crash the app; the socket's own handler below logs it.
+    lines.on('error', () => {});
     socket.on('error', (err) => console.error('backend connection error:', err));
     socket.on('close', () => {
       this.rejectAllPending(new Error('backend connection closed'));

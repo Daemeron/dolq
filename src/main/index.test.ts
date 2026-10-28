@@ -20,6 +20,7 @@ const h = vi.hoisted(() => {
     backends: [] as unknown[],
     menuTemplate: undefined as unknown,
     saved: [] as unknown[],
+    enc: { available: false, backend: 'basic_text' },
     dialog: {
       showMessageBox: undefined as unknown as ReturnType<typeof import('vitest').vi.fn>,
     },
@@ -126,8 +127,8 @@ vi.mock('electron', () => {
       showOpenDialog: vi.fn(),
     },
     safeStorage: {
-      isEncryptionAvailable: () => false,
-      getSelectedStorageBackend: () => 'basic_text',
+      isEncryptionAvailable: () => h.enc.available,
+      getSelectedStorageBackend: () => h.enc.backend,
       encryptString: (s: string) => Buffer.from(s),
       decryptString: (b: Buffer) => b.toString(),
     },
@@ -225,6 +226,7 @@ beforeEach(() => {
   h.backends.length = 0;
   h.saved.length = 0;
   h.menuTemplate = undefined;
+  h.enc = { available: false, backend: 'basic_text' };
   h.dialog.showMessageBox = vi.fn().mockResolvedValue({ response: 0 });
   originalArgv = process.argv;
   vi.spyOn(console, 'log').mockImplementation(() => {});
@@ -593,6 +595,85 @@ describe('settings and secrets', () => {
     expect(await invoke(IrcMessages.secretsAvailable)).toBe(false);
     await invoke(IrcMessages.secretsRemember, 's1', { password: 'p' });
     await invoke(IrcMessages.secretsForget, 's1');
+  });
+});
+
+describe('saved credentials', () => {
+  it('stores secrets in the OS keystore and fills them in when connecting', async () => {
+    h.enc = { available: true, backend: 'gnome_libsecret' };
+    await boot();
+    expect(await invoke(IrcMessages.secretsAvailable)).toBe(true);
+    await invoke(IrcMessages.secretsRemember, 's1', { password: 'server-pw', saslUser: 'u', saslPass: 'p' });
+    await invoke(IrcMessages.connect, 's1', 'irc.example', 6697, 'me', true);
+    const args = backend().calls.find(([m]) => m === 'connect')?.[1] as unknown[];
+    expect(args[5]).toBe('u');
+    expect(args[6]).toBe('p');
+    expect(args[10]).toBe('server-pw');
+    // the file on disk holds no plain text
+    const stored = fs.readFileSync(path.join(h.userData, 'secrets.json'), 'utf-8');
+    expect(stored).not.toContain('server-pw');
+  });
+
+  it('refuses the keystore on Linux when it would only store plain text', async () => {
+    h.enc = { available: true, backend: 'basic_text' };
+    const original = process.platform;
+    Object.defineProperty(process, 'platform', { value: 'linux', configurable: true });
+    try {
+      await boot();
+      expect(await invoke(IrcMessages.secretsAvailable)).toBe(false);
+    } finally {
+      Object.defineProperty(process, 'platform', { value: original, configurable: true });
+    }
+  });
+});
+
+describe('platform differences', () => {
+  const asPlatform = async (platform: string, fn: () => Promise<void>) => {
+    const original = process.platform;
+    Object.defineProperty(process, 'platform', { value: platform, configurable: true });
+    try {
+      await fn();
+    } finally {
+      Object.defineProperty(process, 'platform', { value: original, configurable: true });
+    }
+  };
+
+  it('has no app menu or Preferences item outside macOS, and quits when the window closes', async () => {
+    await asPlatform('linux', async () => {
+      const { electron } = await boot();
+      const menu = h.menuTemplate as { label?: string }[];
+      expect(menu.some((m) => m.label === 'Dolq')).toBe(false);
+      appHandler('window-all-closed')();
+      expect(electron.app.quit).toHaveBeenCalled();
+    });
+  });
+
+  it('opens Preferences from the macOS app menu', async () => {
+    await asPlatform('darwin', async () => {
+      await boot();
+      const menu = h.menuTemplate as { label?: string; submenu?: { label?: string; click?: () => void }[] }[];
+      const prefs = menu.find((m) => m.label === 'Dolq')?.submenu?.find((i) => i.label === 'Preferences…');
+      win().visible = false;
+      prefs?.click?.();
+      expect(win().sent).toContainEqual([IrcMessages.openPreferences]);
+      expect(win().show).toHaveBeenCalled();
+    });
+  });
+
+  it('registers a development build with the path of the script it runs', async () => {
+    const proc = process as unknown as { defaultApp?: boolean };
+    const originalArgv = process.argv;
+    proc.defaultApp = true;
+    process.argv = ['electron', '/work/dolq/out/main/index.js'];
+    try {
+      const { electron } = await boot();
+      expect(electron.app.setAsDefaultProtocolClient).toHaveBeenCalledWith('irc', process.execPath, [
+        path.resolve('/work/dolq/out/main/index.js'),
+      ]);
+    } finally {
+      proc.defaultApp = undefined;
+      process.argv = originalArgv;
+    }
   });
 });
 

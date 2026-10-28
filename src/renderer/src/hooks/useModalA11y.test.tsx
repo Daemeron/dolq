@@ -45,4 +45,20 @@ describe('useModalA11y', () => {
     expect(document.activeElement).toBe(outside);
     outside.remove();
   });
+
+  it('does nothing on Tab when the dialog has nothing focusable', () => {
+    function Empty() {
+      const ref = useModalA11y<HTMLDivElement>();
+      return (
+        <div ref={ref} tabIndex={-1} data-testid="empty">
+          just text
+        </div>
+      );
+    }
+    render(<Empty />);
+    const empty = screen.getByTestId('empty');
+    expect(document.activeElement).toBe(empty);
+    expect(fireEvent.keyDown(empty, { key: 'Tab' })).toBe(true);
+    expect(document.activeElement).toBe(empty);
+  });
 });

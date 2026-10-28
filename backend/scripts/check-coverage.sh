@@ -1,8 +1,8 @@
 #!/bin/sh
 # Runs the backend tests with the race detector and fails if total statement
-# coverage is below MIN_COVERAGE (percent, default 85).
+# coverage is below MIN_COVERAGE (percent, default 90).
 set -eu
-min="${MIN_COVERAGE:-85}"
+min="${MIN_COVERAGE:-90}"
 profile="$(mktemp)"
 trap 'rm -f "$profile"' EXIT
 

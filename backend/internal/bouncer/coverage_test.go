@@ -3,9 +3,11 @@ package bouncer
 import (
 	"bufio"
 	"context"
+	"io"
 	"net"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -301,4 +303,172 @@ func TestDCCOfferRejectsAnInvalidPortRange(t *testing.T) {
 	if _, err := b.DCCOffer("server-a", "kestrel", 6000, 5000, &fakeSubscriber{}); err == nil {
 		t.Error("accepted a backwards port range")
 	}
+}
+
+func TestAnInterruptedDownloadIsReportedAsFailed(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+	go func() {
+		c, err := ln.Accept()
+		if err != nil {
+			return
+		}
+		c.Write([]byte("only part")) // far less than the offered size, then hang up
+		c.Close()
+	}()
+
+	dir := t.TempDir()
+	store, err := history.Open(filepath.Join(dir, "h.db"), 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	b := New(store)
+	sub := &eventSubscriber{}
+	pipeSession(t, b, "server-a", sub)
+	offer := ircparse.XDCCSendOfferEvent{Nick: "alice", Filename: "big.iso", IP: "127.0.0.1", Port: ln.Addr().(*net.TCPAddr).Port, Size: 1000}
+	if _, err := b.XDCCAccept("server-a", offer, dir, 0, 0, sub); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, func() bool { return sub.transferError() != "" })
+
+	var entries []history.Entry
+	waitFor(t, func() bool {
+		entries, _ = store.Recent("server-a", "alice", 0, 10)
+		return len(entries) > 0
+	})
+	if !strings.Contains(string(entries[len(entries)-1].Event), "Download of big.iso failed") {
+		t.Errorf("history = %s", entries[len(entries)-1].Event)
+	}
+}
+
+// eventSubscriber is a fakeSubscriber that also keeps events, for transfer outcomes.
+type eventSubscriber struct {
+	fakeSubscriber
+	mu2    sync.Mutex
+	events []any
+}
+
+func (e *eventSubscriber) SendEvent(serverID string, event any) {
+	e.mu2.Lock()
+	defer e.mu2.Unlock()
+	e.events = append(e.events, event)
+}
+
+func (e *eventSubscriber) transferError() string {
+	e.mu2.Lock()
+	defer e.mu2.Unlock()
+	for _, ev := range e.events {
+		if t, ok := ev.(XDCCTransferEvent); ok && t.Error != "" {
+			return t.Error
+		}
+	}
+	return ""
+}
+
+func TestXDCCAcceptFailsWhenTheDownloadFolderCannotBeWrittenTo(t *testing.T) {
+	b := New(nil)
+	sub := &fakeSubscriber{}
+	pipeSession(t, b, "server-a", sub)
+	offer := ircparse.XDCCSendOfferEvent{Nick: "alice", Filename: "f.zip", IP: "127.0.0.1", Port: 1, Size: 10}
+	if _, err := b.XDCCAccept("server-a", offer, filepath.Join(t.TempDir(), "missing"), 0, 0, sub); err == nil {
+		t.Error("accepted an offer with nowhere to save it")
+	}
+}
+
+func TestPassiveXDCCRejectsAnInvalidPortRange(t *testing.T) {
+	b := New(nil)
+	sub := &fakeSubscriber{}
+	pipeSession(t, b, "server-a", sub)
+	offer := ircparse.XDCCSendOfferEvent{Nick: "alice", Filename: "f.zip", Size: 10, Token: "1"} // port 0: we must listen
+	if _, err := b.XDCCAccept("server-a", offer, t.TempDir(), 6000, 5000, sub); err == nil {
+		t.Error("accepted a backwards port range")
+	}
+}
+
+func TestJoinedChannelsFollowTheSessionAndAreEmptyWithoutOne(t *testing.T) {
+	b := New(nil)
+	if got := b.JoinedChannels("nope"); got != nil {
+		t.Errorf("no session: got %v", got)
+	}
+	conn, _ := pipeSession(t, b, "server-a", &fakeSubscriber{})
+	writeLine(t, conn, ":irc.example 001 testnick :Welcome")
+	writeLine(t, conn, ":testnick!u@h JOIN #dolq")
+	waitFor(t, func() bool { return len(b.JoinedChannels("server-a")) == 1 })
+	if got := b.JoinedChannels("server-a"); got[0] != "#dolq" {
+		t.Errorf("got %v", got)
+	}
+}
+
+func TestSendStoresTheMessageUnderItsChannelAndSkipsCredentials(t *testing.T) {
+	store, err := history.Open(filepath.Join(t.TempDir(), "h.db"), 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	b := New(store)
+	conn, r := pipeSession(t, b, "server-a", &fakeSubscriber{})
+	writeLine(t, conn, ":irc.example 001 testnick :Welcome")
+	waitFor(t, func() bool { return b.sessions["server-a"].client.Nick() == "testnick" })
+
+	// net.Pipe is synchronous, so the server side has to read while Send writes.
+	sent := make(chan error, 2)
+	go func() {
+		sent <- b.Send("server-a", "PRIVMSG #dolq :hello channel")
+		sent <- b.Send("server-a", "PRIVMSG NickServ :IDENTIFY hunter2")
+	}()
+	for range 2 {
+		if _, err := r.ReadString('\n'); err != nil {
+			t.Fatal(err)
+		}
+		if err := <-sent; err != nil {
+			t.Fatal(err)
+		}
+	}
+	var entries []history.Entry
+	waitFor(t, func() bool {
+		entries, _ = store.Recent("server-a", "#dolq", 0, 10)
+		return len(entries) == 1
+	})
+	if !strings.Contains(string(entries[0].Event), "hello channel") {
+		t.Errorf("stored %s", entries[0].Event)
+	}
+	if got, _ := store.Search("server-a", "", "hunter2", 10); len(got) != 0 {
+		t.Error("a password was written to the history")
+	}
+}
+
+func TestClosingARunningDownloadCutsItOff(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+	go func() {
+		c, err := ln.Accept()
+		if err != nil {
+			return
+		}
+		defer c.Close()
+		c.Write([]byte("start"))
+		io.Copy(io.Discard, c) // stays open until we hang up
+	}()
+	dir := t.TempDir()
+	b := New(nil)
+	sub := &eventSubscriber{}
+	pipeSession(t, b, "server-a", sub)
+	offer := ircparse.XDCCSendOfferEvent{Nick: "alice", Filename: "slow.iso", IP: "127.0.0.1", Port: ln.Addr().(*net.TCPAddr).Port, Size: 1 << 30}
+	id, err := b.XDCCAccept("server-a", offer, dir, 0, 0, sub)
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, func() bool { return sub.sawStatus("connected") })
+	if err := b.XDCCClose(id); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, func() bool { return sub.lastStatus() == "disconnected" })
+	waitFor(t, func() bool { return b.xdccTransfer(id) == nil })
 }

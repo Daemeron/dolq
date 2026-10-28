@@ -267,3 +267,26 @@ describe('ignore and trust lists', () => {
     expect(get().xdccTrusted.a).toEqual([]);
   });
 });
+
+describe('persistence: upgrading stored data', () => {
+  it('drops live connection state from data saved by an older version', async () => {
+    localStorage.setItem(
+      'dolq',
+      JSON.stringify({
+        version: 0,
+        state: { servers: [], channelMap: { s1: [{ id: '#a', name: 'a', isLog: false, joined: true }] } },
+      }),
+    );
+    await useStore.persist.rehydrate();
+    const channel = useStore.getState().channelMap.s1[0];
+    expect(channel).toMatchObject({ id: '#a', name: 'a' });
+    expect(channel.joined).toBeUndefined();
+  });
+
+  it('starts from defaults when the stored data is from a newer version', async () => {
+    useStore.setState({ theme: 'light' });
+    localStorage.setItem('dolq', JSON.stringify({ version: 999, state: { theme: 'light', servers: [{ id: 'x' }] } }));
+    await useStore.persist.rehydrate();
+    expect(useStore.getState().servers).toEqual([]);
+  });
+});

@@ -228,3 +228,31 @@ func TestLANHostsAreNonLoopbackIPv4(t *testing.T) {
 		}
 	}
 }
+
+func TestAClosedSniffingListenerStopsAccepting(t *testing.T) {
+	inner, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ln := NewSniffingListener(inner, nil, true)
+	ln.Close()
+	if _, err := ln.Accept(); err == nil {
+		t.Error("Accept succeeded after Close")
+	}
+}
+
+func TestListenRefusesAnAddressItCannotBind(t *testing.T) {
+	if _, err := Listen("tcp", "256.0.0.1:99999"); err == nil {
+		t.Error("bound an impossible address")
+	}
+}
+
+func TestTokenCannotBeStoredUnderAFile(t *testing.T) {
+	blocker := filepath.Join(t.TempDir(), "file")
+	if err := os.WriteFile(blocker, []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := LoadOrCreateToken(filepath.Join(blocker, "token")); err == nil {
+		t.Error("created a token somewhere it cannot exist")
+	}
+}

@@ -34,7 +34,8 @@ function fakeSocket() {
 }
 
 vi.mock('node:child_process', () => ({
-  execFile: vi.fn(),
+  // `go build` of the development binary: succeeds at once
+  execFile: (...args: unknown[]) => (args.at(-1) as (e: null, out: string, err: string) => void)(null, '', ''),
   spawn: (_cmd: string, _args: string[], opts: { env: Record<string, string | undefined> }) => {
     h.spawnEnv = opts.env;
     const child = new EventEmitter() as EventEmitter & { stdout: Readable; stderr: Readable };
@@ -65,7 +66,8 @@ vi.mock('node:tls', async (importOriginal) => {
   return { ...actual, default: { ...actual, connect } };
 });
 
-beforeEach(() => {
+beforeEach(async () => {
+  ((await import('electron')).app as { isPackaged: boolean }).isPackaged = true;
   h.spawned.length = 0;
   h.dialled.length = 0;
   h.tlsCert = { fingerprint256: 'AA:BB', authorized: false };
@@ -106,6 +108,47 @@ describe('local backend', () => {
     await vi.waitFor(() => expect(seen[0]).toMatch(/exited before reporting a socket/));
     err.mockRestore();
     h.socketLine = '/tmp/dolqd.sock';
+  });
+});
+
+describe('local backend: process details', () => {
+  it("passes the backend's own log output through to ours", async () => {
+    const write = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    const client = new BackendClient(0);
+    await client.getStatus('s1');
+    (h.spawned[0] as EventEmitter & { stderr: Readable }).stderr.push('listening\n');
+    await vi.waitFor(() => expect(write).toHaveBeenCalledWith('[dolqd] listening\n'));
+    write.mockRestore();
+    await client.stop();
+  });
+
+  it('builds and runs a development binary, and removes it on stop', async () => {
+    const { app } = await import('electron');
+    (app as { isPackaged: boolean }).isPackaged = false;
+    const client = new BackendClient(0);
+    await client.getStatus('s1');
+    expect(h.spawnEnv.DOLQ_TOKEN).toBeDefined();
+    await client.stop();
+    expect(h.stopChild).toHaveBeenCalled();
+  });
+
+  it('has nothing to stop before the backend has started', async () => {
+    h.socketLine = '';
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const client = new BackendClient(0);
+    await client.stop();
+    expect(h.stopChild).not.toHaveBeenCalled();
+    h.socketLine = '/tmp/dolqd.sock';
+    err.mockRestore();
+  });
+
+  it('logs connection errors without crashing', async () => {
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const client = new BackendClient(0);
+    await client.getStatus('s1');
+    (h.dialled[0] as Duplex).emit('error', new Error('ECONNRESET'));
+    expect(err).toHaveBeenCalledWith('backend connection error:', expect.any(Error));
+    await client.stop();
   });
 });
 

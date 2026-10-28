@@ -482,3 +482,79 @@ func TestAnEventThatCannotBeEncodedIsDroppedNotStored(t *testing.T) {
 		t.Errorf("encode failure not logged: %q", buf.String())
 	}
 }
+
+func TestReadsFailCleanlyOnceTheDatabaseIsGone(t *testing.T) {
+	s, err := Open(filepath.Join(t.TempDir(), "h.db"), 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.db.Close()
+	if _, err := s.Recent("s", "#c", 0, 10); err == nil {
+		t.Error("Recent succeeded on a closed database")
+	}
+	if _, err := s.Search("s", "#c", "x", 10); err == nil {
+		t.Error("Search succeeded on a closed database")
+	}
+	s.Close()
+}
+
+func TestAWriteToAMissingTableIsLoggedNotFatal(t *testing.T) {
+	s, err := Open(filepath.Join(t.TempDir(), "h.db"), 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	var buf bytes.Buffer
+	log.SetOutput(&buf)
+	defer log.SetOutput(os.Stderr)
+	if _, err := s.db.Exec(`DROP TABLE messages`); err != nil {
+		t.Fatal(err)
+	}
+	s.writeBatch([]Entry{{ServerID: "s", Channel: "#c", Timestamp: time.Now(), IsRaw: true, Line: "x"}})
+	if !strings.Contains(buf.String(), "history: prepare insert") {
+		t.Errorf("failure not logged: %q", buf.String())
+	}
+}
+
+func TestEntriesAreDroppedRatherThanBlockingWhenTheBufferIsFull(t *testing.T) {
+	// No writer is draining this store, so its one-slot buffer fills at once.
+	s := &Store{entries: make(chan Entry, 1)}
+	var buf bytes.Buffer
+	log.SetOutput(&buf)
+	defer log.SetOutput(os.Stderr)
+	s.AppendLine("s", "#c", "first", time.Now())
+	s.AppendLine("s", "#c", "second", time.Now())
+	if len(s.entries) != 1 {
+		t.Errorf("buffered %d entries, want 1", len(s.entries))
+	}
+	if !strings.Contains(buf.String(), "buffer full, dropping entry for s/#c") {
+		t.Errorf("drop not logged: %q", buf.String())
+	}
+}
+
+func TestOldEntriesArePrunedOnASchedule(t *testing.T) {
+	old := pruneInterval
+	pruneInterval = 20 * time.Millisecond
+	defer func() { pruneInterval = old }()
+
+	s, err := Open(filepath.Join(t.TempDir(), "h.db"), 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	// Written straight to the table, after the prune at startup has run, so only a later tick can remove it.
+	time.Sleep(50 * time.Millisecond)
+	stale := time.Now().AddDate(0, 0, -30).UnixMilli()
+	if _, err := s.db.Exec(`INSERT INTO messages (server_id, channel, payload, ts, is_raw) VALUES ('s', '#c', 'old', ?, 1)`, stale); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		var n int
+		if err := s.db.QueryRow(`SELECT COUNT(*) FROM messages`).Scan(&n); err == nil && n == 0 {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("the stale entry was never pruned")
+}

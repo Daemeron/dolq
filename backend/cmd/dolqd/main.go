@@ -178,22 +178,25 @@ func run(ctx context.Context, args []string, stdout io.Writer) error {
 // under the OS's standard per-user config dir (~/Library/Application
 // Support, %AppData%, ~/.config) - unlike the socket, this has to survive
 // across restarts.
+// fatalf ends the process on a startup problem; a variable so tests can observe it.
+var fatalf = log.Fatalf
+
 func resolveDBPath(explicit string) string {
 	if explicit != "" {
 		return explicit
 	}
 	dir, err := os.UserConfigDir()
 	if err != nil {
-		log.Fatalf("resolve config dir: %v", err)
+		fatalf("resolve config dir: %v", err)
 	}
 	dir = filepath.Join(dir, "dolq")
 	// Owner-only: it holds the history, the access token and the TLS key.
 	// Chmod as well, for a directory created by an older, laxer version.
 	if err := os.MkdirAll(dir, 0o700); err != nil {
-		log.Fatalf("create config dir %s: %v", dir, err)
+		fatalf("create config dir %s: %v", dir, err)
 	}
 	if err := os.Chmod(dir, 0o700); err != nil {
-		log.Fatalf("restrict config dir %s: %v", dir, err)
+		fatalf("restrict config dir %s: %v", dir, err)
 	}
 	return filepath.Join(dir, "history.db")
 }

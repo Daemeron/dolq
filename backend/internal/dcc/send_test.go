@@ -288,3 +288,19 @@ func TestReceiveFileReportsAPeerThatHangsUpEarly(t *testing.T) {
 		t.Errorf("wrote %q before the hang-up", out.String())
 	}
 }
+
+func TestParseSendOfferRejectsMalformedOffers(t *testing.T) {
+	for _, param := range []string{
+		"CHAT chat 1 2",               // not a SEND
+		`SEND "unterminated 1 2 3`,    // quote never closes
+		"SEND file",                   // no fields
+		"SEND file 3232235777 5000",   // size missing
+		"SEND file notanip 5000 10",   // ip not a number
+		"SEND file 3232235777 x 10",   // port not a number
+		"SEND file 3232235777 5000 x", // size not a number
+	} {
+		if got, ok := ParseSendOffer(param); ok {
+			t.Errorf("ParseSendOffer(%q) = %+v, want it rejected", param, got)
+		}
+	}
+}

@@ -4,12 +4,14 @@ import (
 	"bufio"
 	"context"
 	"crypto/tls"
+	"fmt"
 	"io"
 	"net"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -246,5 +248,87 @@ func TestRunReportsStartupProblems(t *testing.T) {
 				t.Fatal("run did not return")
 			}
 		})
+	}
+}
+
+// TestMainStartsAndStopsOnASignal drives the real entry point: it installs the
+// signal handler, serves, and shuts down cleanly when interrupted.
+func TestMainStartsAndStopsOnASignal(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("unix socket + signal flow")
+	}
+	dir, err := os.MkdirTemp("", "dq")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.RemoveAll(dir) })
+	sock := filepath.Join(dir, "m.sock")
+
+	oldArgs, oldStdout := os.Args, os.Stdout
+	devnull, _ := os.OpenFile(os.DevNull, os.O_WRONLY, 0)
+	os.Args, os.Stdout = []string{"dolqd", "-socket", sock, "-db", filepath.Join(dir, "h.db")}, devnull
+	t.Cleanup(func() { os.Args, os.Stdout = oldArgs, oldStdout; devnull.Close() })
+
+	done := make(chan struct{})
+	go func() {
+		main()
+		close(done)
+	}()
+	// Only signal once the socket exists: by then main has installed its handler.
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		if conn, err := net.Dial("unix", sock); err == nil {
+			conn.Close()
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("main never started listening")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if err := syscall.Kill(os.Getpid(), syscall.SIGINT); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-done:
+	case <-time.After(15 * time.Second):
+		t.Fatal("main did not return after SIGINT")
+	}
+	if _, err := os.Stat(sock); !os.IsNotExist(err) {
+		t.Errorf("socket not removed: %v", err)
+	}
+}
+
+func TestResolveDBPathReportsAnUnusableConfigDir(t *testing.T) {
+	var got string
+	old := fatalf
+	fatalf = func(format string, args ...any) { got = fmt.Sprintf(format, args...); panic("fatal") }
+	defer func() { fatalf = old }()
+	run := func() {
+		defer func() { _ = recover() }()
+		resolveDBPath("")
+	}
+
+	// No home directory at all.
+	t.Setenv("HOME", "")
+	t.Setenv("XDG_CONFIG_HOME", "")
+	t.Setenv("AppData", "")
+	run()
+	if !strings.Contains(got, "resolve config dir") {
+		t.Errorf("fatal = %q, want the config dir problem", got)
+	}
+
+	// A config directory that cannot be created because a file is in the way.
+	if runtime.GOOS == "windows" {
+		return
+	}
+	blocker := filepath.Join(t.TempDir(), "file")
+	os.WriteFile(blocker, []byte("x"), 0o600)
+	t.Setenv("XDG_CONFIG_HOME", blocker)
+	t.Setenv("HOME", blocker)
+	got = ""
+	run()
+	if !strings.Contains(got, "create config dir") {
+		t.Errorf("fatal = %q, want the create problem", got)
 	}
 }
