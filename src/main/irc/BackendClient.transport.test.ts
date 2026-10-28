@@ -7,6 +7,7 @@ import { BackendClient } from './BackendClient';
 const h = vi.hoisted(() => ({
   spawned: [] as unknown[],
   spawnEnv: {} as Record<string, string | undefined>,
+  spawnCmd: '',
   socketLine: '/tmp/dolqd.sock',
   tlsCert: { fingerprint256: 'AA:BB', authorized: false },
   dialled: [] as unknown[],
@@ -37,7 +38,8 @@ function fakeSocket() {
 vi.mock('node:child_process', () => ({
   // `go build` of the development binary: succeeds at once
   execFile: (...args: unknown[]) => (args.at(-1) as (e: null, out: string, err: string) => void)(null, '', ''),
-  spawn: (_cmd: string, _args: string[], opts: { env: Record<string, string | undefined> }) => {
+  spawn: (cmd: string, _args: string[], opts: { env: Record<string, string | undefined> }) => {
+    h.spawnCmd = cmd;
     h.spawnEnv = opts.env;
     const child = new EventEmitter() as EventEmitter & { stdout: Readable; stderr: Readable };
     child.stdout = h.socketLine ? Readable.from([`${h.socketLine}\n`]) : new Readable({ read() {} });
@@ -136,6 +138,24 @@ describe('local backend: process details', () => {
     expect(h.spawnEnv.DOLQ_TOKEN).toBeDefined();
     await client.stop();
     expect(h.stopChild).toHaveBeenCalled();
+  });
+
+  it.each([
+    ['win32', /dolqd-dev-\d+\.exe$/],
+    ['linux', /dolqd-dev-\d+$/],
+  ])('names the development binary so %s can run it', async (platform, name) => {
+    const { app } = await import('electron');
+    (app as { isPackaged: boolean }).isPackaged = false;
+    const original = process.platform;
+    Object.defineProperty(process, 'platform', { value: platform, configurable: true });
+    try {
+      const client = new BackendClient(0);
+      await client.getStatus('s1');
+      expect(h.spawnCmd).toMatch(name);
+      await client.stop();
+    } finally {
+      Object.defineProperty(process, 'platform', { value: original, configurable: true });
+    }
   });
 
   it('has nothing to stop before the backend has started', async () => {
