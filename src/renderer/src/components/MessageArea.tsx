@@ -1,7 +1,9 @@
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useLayoutEffect, useRef } from 'react';
 import type { Message } from '../types';
+import { dayLabel } from '../utils/dayLabel';
 import { continuesGroup } from '../utils/groupMessages';
+import { mentionsNick } from '../utils/mentions';
 import { nickColor, nickInitial } from '../utils/nickColor';
 import { IrcText } from './IrcText';
 
@@ -13,6 +15,8 @@ type Props = {
   timestampFormat: '12h' | '24h';
   density: 'cozy' | 'compact';
   onGetPack?: (nick: string, packNumber: number) => void;
+  // Lines from others that name this nick get an accent background.
+  selfNick?: string;
 };
 
 function formatTime(d: Date, timestampFormat: '12h' | '24h'): string {
@@ -24,7 +28,16 @@ const LOAD_OLDER_THRESHOLD = 100;
 // Pages a view may ask for in a row without a scroll, so lines hidden at draw time cannot make it crawl all history.
 const MAX_AUTO_LOADS = 20;
 
-export function MessageArea({ messages, isLog, channelId, onLoadOlder, timestampFormat, density, onGetPack }: Props) {
+export function MessageArea({
+  messages,
+  isLog,
+  channelId,
+  onLoadOlder,
+  timestampFormat,
+  density,
+  onGetPack,
+  selfNick,
+}: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const prevChannelId = useRef(channelId);
   const scrollTop = useRef<Map<string, number>>(new Map());
@@ -112,11 +125,14 @@ export function MessageArea({ messages, isLog, channelId, onLoadOlder, timestamp
             const requestPack = () => {
               if (onGetPack && m.xdccPackNumber != null) onGetPack(m.nick, m.xdccPackNumber);
             };
+            const day = isLog ? null : dayLabel(messages[virtualRow.index - 1], m);
+            const mention = !!selfNick && !isLog && !m.system && m.nick !== selfNick && mentionsNick(m.text, selfNick);
             return (
               <div
                 key={virtualRow.key}
                 ref={rowVirtualizer.measureElement}
                 data-index={virtualRow.index}
+                className={mention ? 'bg-(--dolq-accent-soft)' : undefined}
                 style={{
                   position: 'absolute',
                   top: 0,
@@ -125,14 +141,21 @@ export function MessageArea({ messages, isLog, channelId, onLoadOlder, timestamp
                   transform: `translateY(${virtualRow.start}px)`,
                 }}
               >
+                {day && (
+                  <div className="flex items-center gap-3 mx-7 mt-4 mb-2 text-[12px] font-medium text-(--dolq-text-dim)">
+                    <span className="h-px flex-1 bg-(--dolq-border)" />
+                    {day}
+                    <span className="h-px flex-1 bg-(--dolq-border)" />
+                  </div>
+                )}
                 {isLog ? (
                   <div className="font-mono text-[12px] leading-5 text-(--dolq-text) whitespace-pre-wrap break-all px-7">
                     <span className="text-(--dolq-text-faint) mr-3">{formatTime(m.timestamp, timestampFormat)}</span>
                     <IrcText text={m.text} />
                   </div>
                 ) : m.system ? (
-                  <div className={`flex items-baseline gap-3 px-7 ${compact ? 'py-0' : 'py-1'}`}>
-                    <span className="text-[11px] text-(--dolq-text-faint) shrink-0 w-9 text-right">
+                  <div className={`group flex items-baseline gap-3 px-7 ${compact ? 'py-0' : 'py-1'}`}>
+                    <span className="text-[11px] text-(--dolq-text-faint) shrink-0 w-9 flex justify-end whitespace-nowrap opacity-0 group-hover:opacity-100">
                       {formatTime(m.timestamp, timestampFormat)}
                     </span>
                     <span className="text-(--dolq-text-faint) text-[13px] italic">
@@ -141,7 +164,7 @@ export function MessageArea({ messages, isLog, channelId, onLoadOlder, timestamp
                   </div>
                 ) : m.notice ? (
                   <div className={`flex items-baseline gap-3 px-7 ${compact ? 'py-0' : 'py-0.5'}`}>
-                    <span className="text-[11px] text-(--dolq-text-faint) shrink-0 w-9 text-right">
+                    <span className="text-[11px] text-(--dolq-text-faint) shrink-0 w-9 flex justify-end whitespace-nowrap">
                       {formatTime(m.timestamp, timestampFormat)}
                     </span>
                     <span className="text-[13px] italic text-(--dolq-text-dim)">
@@ -160,7 +183,7 @@ export function MessageArea({ messages, isLog, channelId, onLoadOlder, timestamp
                     onKeyDown={(e) => e.key === 'Enter' && requestPack()}
                     title={onGetPack ? 'Click to request this pack' : undefined}
                   >
-                    <span className="text-[11px] text-(--dolq-text-faint) shrink-0 w-9 text-right">
+                    <span className="text-[11px] text-(--dolq-text-faint) shrink-0 w-9 flex justify-end whitespace-nowrap">
                       {formatTime(m.timestamp, timestampFormat)}
                     </span>
                     <span className="text-[13px] font-mono text-(--dolq-text-muted)">
@@ -171,7 +194,7 @@ export function MessageArea({ messages, isLog, channelId, onLoadOlder, timestamp
                   <div
                     className={`flex items-baseline gap-3 group hover:bg-(--dolq-bg-row-hover) px-7 ${compact ? 'py-0' : 'py-0.5'}`}
                   >
-                    <span className="text-[11px] text-(--dolq-text-faint) shrink-0 w-9 text-right opacity-0 group-hover:opacity-100">
+                    <span className="text-[11px] text-(--dolq-text-faint) shrink-0 w-9 flex justify-end whitespace-nowrap opacity-0 group-hover:opacity-100">
                       {formatTime(m.timestamp, timestampFormat)}
                     </span>
                     <span className="text-[15px] leading-relaxed italic">
@@ -183,7 +206,7 @@ export function MessageArea({ messages, isLog, channelId, onLoadOlder, timestamp
                   </div>
                 ) : continuesGroup(messages[virtualRow.index - 1], m) ? (
                   <div className="flex gap-3 group hover:bg-(--dolq-bg-row-hover) px-7 py-px">
-                    <span className="text-[11px] leading-6 text-(--dolq-text-faint) shrink-0 w-9 text-right opacity-0 group-hover:opacity-100 tabular-nums">
+                    <span className="text-[11px] leading-6 text-(--dolq-text-faint) shrink-0 w-9 flex justify-end whitespace-nowrap opacity-0 group-hover:opacity-100 tabular-nums">
                       {formatTime(m.timestamp, timestampFormat)}
                     </span>
                     <span className="min-w-0 flex-1 text-(--dolq-text) text-[15px] leading-6">

@@ -3,6 +3,7 @@ import type { ConnectionStatus } from '../../../shared/ipc';
 import { useContextMenu } from '../hooks/useContextMenu';
 import type { Server } from '../types';
 import { ContextMenu, ContextMenuHeader, ContextMenuItem } from './ContextMenu';
+import { Icon } from './Icon';
 
 type Props = {
   servers: Server[];
@@ -14,6 +15,7 @@ type Props = {
   onEditServer: (id: string) => void;
   statusMap: Record<string, ConnectionStatus>;
   onToggleConnection: (id: string) => void;
+  onOpenPreferences: () => void;
 };
 
 export const STATUS_LABEL: Record<ConnectionStatus, string> = {
@@ -40,6 +42,7 @@ export function ServerList({
   onEditServer,
   statusMap,
   onToggleConnection,
+  onOpenPreferences,
 }: Props) {
   const { menu, open, close, dismissIfUnhandled } = useContextMenu<string>();
   const menuServer = servers.find((s) => s.id === menu?.target);
@@ -107,6 +110,16 @@ export function ServerList({
           </svg>
         </button>
       </div>
+
+      <button
+        type="button"
+        aria-label="Preferences"
+        data-tip="Preferences"
+        onClick={onOpenPreferences}
+        className="has-tip tip-right mx-auto mb-3.5 w-8.5 h-8.5 shrink-0 flex items-center justify-center rounded-lg border-0 bg-transparent text-(--dolq-text-dim) cursor-pointer hover:text-(--dolq-text) hover:bg-(--dolq-bg-row-hover)"
+      >
+        <Icon name="sliders" />
+      </button>
 
       <input
         ref={colorInputRef}

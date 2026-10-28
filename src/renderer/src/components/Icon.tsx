@@ -13,6 +13,8 @@ const PATHS = {
   send: 'M12 19V5m0 0-6 6m6-6 6 6',
   smile: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM8 14s1.5 2 4 2 4-2 4-2M9 9h.01M15 9h.01',
   zap: 'M13 2 4 14h7l-1 8 9-12h-7z',
+  moon: 'M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z',
+  sliders: 'M4 7h9M17 7h3M4 17h3M11 17h9M15 5a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM9 15a2 2 0 1 0 0 4 2 2 0 0 0 0-4z',
 } as const;
 
 export type IconName = keyof typeof PATHS;

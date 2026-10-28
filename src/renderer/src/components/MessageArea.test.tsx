@@ -228,3 +228,61 @@ describe('MessageArea: pack lines', () => {
     expect(getByText(/#7/)).toBeTruthy();
   });
 });
+
+describe('MessageArea: day dividers and mentions', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  function withLayout() {
+    vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(600);
+    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({
+      width: 800,
+      height: 600,
+      top: 0,
+      left: 0,
+      right: 800,
+      bottom: 600,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+  }
+
+  const now = new Date();
+  const yesterday = new Date(now.getTime() - 24 * 3600_000);
+  const msg = (id: number, nick: string, text: string, timestamp: Date): Message => ({ id, nick, text, timestamp });
+
+  function renderChat(messages: Message[], selfNick?: string) {
+    return render(
+      <MessageArea
+        isLog={false}
+        timestampFormat="24h"
+        density="cozy"
+        channelId="s:#c"
+        messages={messages}
+        selfNick={selfNick}
+      />,
+    );
+  }
+
+  it('labels each new day once', () => {
+    withLayout();
+    const { getAllByText, getByText } = renderChat([
+      msg(1, 'mira', 'one', yesterday),
+      msg(2, 'mira', 'two', now),
+      msg(3, 'tomas', 'three', now),
+    ]);
+    expect(getByText('Yesterday')).toBeTruthy();
+    expect(getAllByText('Today')).toHaveLength(1);
+  });
+
+  it('highlights a line from someone else that names me, but not my own', () => {
+    withLayout();
+    const { getByText } = renderChat(
+      [msg(1, 'tomas', 'me: can you cut the release?', now), msg(2, 'me', 'me: talking to myself', now)],
+      'me',
+    );
+    const rowOf = (text: string) => getByText(text).closest('[data-index]') as HTMLElement;
+    expect(rowOf('me: can you cut the release?').className).toContain('accent-soft');
+    expect(rowOf('me: talking to myself').className).not.toContain('accent-soft');
+  });
+});
