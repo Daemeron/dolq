@@ -1,5 +1,5 @@
 import fs from 'node:fs';
-import { join, resolve } from 'node:path';
+import { isAbsolute, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, safeStorage, shell, Tray } from 'electron';
 import { installExtension, REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';
@@ -322,6 +322,12 @@ function registerShellHandlers(): void {
     return shell.openExternal(url);
   });
 
+  // Reveals a downloaded file in the system file manager; it never opens or runs it.
+  ipcMain.handle(IrcMessages.showInFolder, (_event, filePath: string) => {
+    if (typeof filePath !== 'string' || !isAbsolute(filePath)) throw new Error('refusing to reveal a relative path');
+    shell.showItemInFolder(filePath);
+  });
+
   ipcMain.handle(IrcMessages.saveTextFile, async (_event, defaultName: string, content: string) => {
     const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, { defaultPath: defaultName });
     if (canceled || !filePath) return false;
@@ -334,6 +340,11 @@ function registerShellHandlers(): void {
       defaultPath,
       properties: ['openDirectory', 'createDirectory'],
     });
+    return canceled || !filePaths[0] ? null : filePaths[0];
+  });
+
+  ipcMain.handle(IrcMessages.chooseFile, async () => {
+    const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, { properties: ['openFile'] });
     return canceled || !filePaths[0] ? null : filePaths[0];
   });
 
@@ -429,6 +440,14 @@ function registerIrcHandlers(backend: BackendClient, settingsBox: { current: Set
   ipcMain.handle(IrcMessages.dccOffer, (_event, serverId: string, nick: string) => {
     const { dccPortMin, dccPortMax } = settingsBox.current;
     return backend.dccOffer(serverId, nick, dccPortMin ?? 0, dccPortMax ?? 0);
+  });
+
+  ipcMain.handle(IrcMessages.dccSendFile, (_event, serverId: string, nick: string, path: string) => {
+    if (backend.isRemote) {
+      throw new Error('Sending a file needs the backend to run on this computer; a remote backend cannot read it.');
+    }
+    const { dccPortMin, dccPortMax } = settingsBox.current;
+    return backend.dccSendFile(serverId, nick, path, dccPortMin ?? 0, dccPortMax ?? 0);
   });
 
   ipcMain.handle(IrcMessages.dccAccept, (_event, ip: string, port: number) => backend.dccAccept(ip, port));

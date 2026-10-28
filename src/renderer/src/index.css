@@ -108,9 +108,12 @@ code {
   color: var(--dolq-accent);
 }
 
-:focus-visible {
-  outline: 2px solid var(--dolq-accent);
-  outline-offset: 2px;
+/* In a layer so utilities such as `outline-none` still win over it. */
+@layer base {
+  :focus-visible {
+    outline: 2px solid var(--dolq-accent);
+    outline-offset: 2px;
+  }
 }
 
 /* Scrollbars (Claude app behaviour): invisible until the scroller is hovered, then a thin thumb.

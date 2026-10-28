@@ -43,19 +43,32 @@ describe('SearchModal', () => {
     const message = entry(1, { event: { type: 'PRIVMSG', nick: 'mira', text: 'hello release' } as never });
     const { search, run, onJump } = setup([message]);
     run(' release ');
-    await screen.findByText('hello release');
+    const result = await screen.findByRole('button', { name: /hello release/ });
     expect(search).toHaveBeenCalledWith('s1', '#dolq', 'release', 100);
     expect(screen.getByText(/Libera \/ #dolq/)).toBeTruthy();
-    fireEvent.click(screen.getByText('hello release'));
+    expect(screen.getByText('#dolq · 1 result')).toBeTruthy();
+    // the searched word is marked inside the line
+    expect(screen.getByText('release', { selector: 'mark' })).toBeTruthy();
+    fireEvent.click(result);
     expect(onJump).toHaveBeenCalledWith('s1', '#dolq');
   });
 
   it('searches everywhere when asked', async () => {
     const { search, run } = setup([]);
-    fireEvent.click(screen.getByLabelText(/Search everywhere/));
+    fireEvent.click(screen.getByRole('radio', { name: 'Everywhere' }));
     run('x');
     await screen.findByText('No matches.');
     expect(search).toHaveBeenCalledWith('', '', 'x', 100);
+  });
+
+  it('searches one whole server, and searches again when the scope changes under a result', async () => {
+    const { search, run } = setup([entry(1, { event: { type: 'PRIVMSG', nick: 'mira', text: 'hello' } as never })]);
+    fireEvent.click(screen.getByRole('radio', { name: 'This server' }));
+    run('hello');
+    await screen.findByText('Libera · 1 result');
+    expect(search).toHaveBeenLastCalledWith('s1', '', 'hello', 100);
+    fireEvent.click(screen.getByRole('radio', { name: 'This channel' }));
+    await waitFor(() => expect(search).toHaveBeenLastCalledWith('s1', '#dolq', 'hello', 100));
   });
 
   it('keeps only pack lines for a packs-only search and requests a pack on click', async () => {
@@ -77,7 +90,7 @@ describe('SearchModal', () => {
     const raw = entry(4, { isRaw: true, line: ':srv 001 hi', serverId: 'gone', channel: '__log__' });
     const { run } = setup([raw]);
     run('hi');
-    await screen.findByText(/:srv 001 hi/);
+    await screen.findByRole('button', { name: /:srv 001 hi/ });
     expect(screen.getByText(/gone \/ Log/)).toBeTruthy();
   });
 

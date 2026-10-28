@@ -3,7 +3,7 @@ import { useLayoutEffect, useRef } from 'react';
 import type { Message } from '../types';
 import { dayLabel } from '../utils/dayLabel';
 import { continuesGroup } from '../utils/groupMessages';
-import { mentionsNick } from '../utils/mentions';
+import { mentionsAny } from '../utils/mentions';
 import { nickColor, nickInitial } from '../utils/nickColor';
 import { IrcText } from './IrcText';
 
@@ -17,6 +17,7 @@ type Props = {
   onGetPack?: (nick: string, packNumber: number) => void;
   // Lines from others that name this nick get an accent background.
   selfNick?: string;
+  highlightWords?: string[];
 };
 
 function formatTime(d: Date, timestampFormat: '12h' | '24h'): string {
@@ -37,6 +38,7 @@ export function MessageArea({
   density,
   onGetPack,
   selfNick,
+  highlightWords,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const prevChannelId = useRef(channelId);
@@ -126,7 +128,12 @@ export function MessageArea({
               if (onGetPack && m.xdccPackNumber != null) onGetPack(m.nick, m.xdccPackNumber);
             };
             const day = isLog ? null : dayLabel(messages[virtualRow.index - 1], m);
-            const mention = !!selfNick && !isLog && !m.system && m.nick !== selfNick && mentionsNick(m.text, selfNick);
+            const mention =
+              !!selfNick &&
+              !isLog &&
+              !m.system &&
+              m.nick !== selfNick &&
+              mentionsAny(m.text, selfNick, highlightWords ?? []);
             return (
               <div
                 key={virtualRow.key}

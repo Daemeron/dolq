@@ -2,6 +2,7 @@ import { useRef } from 'react';
 import type { ConnectionStatus } from '../../../shared/ipc';
 import { useContextMenu } from '../hooks/useContextMenu';
 import type { Server } from '../types';
+import { serverInitials } from '../utils/server';
 import { ContextMenu, ContextMenuHeader, ContextMenuItem } from './ContextMenu';
 import { Icon } from './Icon';
 
@@ -78,7 +79,7 @@ export function ServerList({
                 s.id === selectedId ? 'ring-2 ring-offset-2 ring-(--dolq-text) ring-offset-(--dolq-bg-panel-alt)' : ''
               }`}
             >
-              {s.initial}
+              {serverInitials(s.name)}
               <span
                 role="img"
                 aria-label={STATUS_LABEL[status]}

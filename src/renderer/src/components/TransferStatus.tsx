@@ -1,3 +1,7 @@
+import { IconButton } from './Icon';
+import { Button, Card } from './ui';
+import { ViewPanel } from './ViewPanel';
+
 export type Transfer = {
   nick: string;
   filename: string;
@@ -7,6 +11,9 @@ export type Transfer = {
   error?: string;
   paused?: boolean;
   speedBps?: number;
+  path?: string;
+  /** A file going out to `nick`, not one coming in. */
+  sending?: boolean;
 };
 
 type Props = {
@@ -15,6 +22,8 @@ type Props = {
   onResume: (id: string) => void;
   onCancel: (id: string) => void;
   onDismiss: (id: string) => void;
+  onShowInFolder?: (path: string) => void;
+  onClose: () => void;
 };
 
 function formatBytes(n: number): string {
@@ -29,64 +38,80 @@ function formatBytes(n: number): string {
   return `${v.toFixed(1)} ${units[i]}`;
 }
 
-export function TransferStatus({ transfers, onPause, onResume, onCancel, onDismiss }: Props) {
+export function TransferStatus({ transfers, onPause, onResume, onCancel, onDismiss, onShowInFolder, onClose }: Props) {
   const entries = Object.entries(transfers);
-  if (entries.length === 0) return null;
 
   return (
-    <div className="fixed bottom-4 right-4 z-40 flex flex-col gap-2 w-80 max-h-[70vh] overflow-y-auto scroll-thin">
-      {entries.map(([id, t]) => {
-        const pct = t.total > 0 ? Math.min(100, Math.round((t.received / t.total) * 100)) : 0;
-        const finished = t.done || !!t.error;
-        return (
-          <div key={id} className="bg-(--dolq-bg-panel) rounded-lg p-3 shadow-[0_4px_16px_rgba(0,0,0,0.4)]">
-            <div className="flex items-center justify-between gap-2 mb-1.5">
-              <span className="text-[13px] text-(--dolq-text) truncate" title={t.filename}>
-                {t.filename}
-              </span>
-              <div className="flex items-center gap-2 shrink-0">
-                {!finished && (
-                  <button
-                    type="button"
-                    onClick={() => (t.paused ? onResume(id) : onPause(id))}
-                    className="text-(--dolq-text-faint) hover:text-(--dolq-text) bg-transparent border-0 cursor-pointer text-[13px]"
-                    title={t.paused ? 'Resume' : 'Pause'}
-                    aria-label={t.paused ? 'Resume' : 'Pause'}
-                  >
-                    {t.paused ? '▶' : '⏸'}
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={() => (finished ? onDismiss(id) : onCancel(id))}
-                  className="text-(--dolq-text-faint) hover:text-(--dolq-text) bg-transparent border-0 cursor-pointer text-[13px]"
-                  title={finished ? 'Dismiss' : 'Cancel'}
-                  aria-label={finished ? 'Dismiss' : 'Cancel'}
-                >
-                  ✕
-                </button>
+    <ViewPanel
+      title="Transfers"
+      description="Incoming offers need your approval before anything is downloaded."
+      onClose={onClose}
+    >
+      {entries.length === 0 ? (
+        <p className="m-0 py-6 text-center text-[14px] text-(--dolq-text-faint)">
+          No transfers yet. Downloads and file offers show up here.
+        </p>
+      ) : (
+        <Card>
+          {entries.map(([id, t]) => {
+            const pct = t.total > 0 ? Math.min(100, Math.round((t.received / t.total) * 100)) : 0;
+            const finished = t.done || !!t.error;
+            return (
+              <div key={id} className="flex items-center gap-4 px-4 py-3.5">
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-[14px] font-medium text-(--dolq-text)" title={t.filename}>
+                    {t.filename}
+                  </div>
+                  <div className="text-[13px] text-(--dolq-text-dim)">
+                    {t.error ? (
+                      <span className="text-(--dolq-danger)">Failed: {t.error}</span>
+                    ) : t.done ? (
+                      `${t.sending ? 'Sent' : 'Completed'} · ${formatBytes(t.total)}`
+                    ) : t.sending ? (
+                      t.total > 0 ? (
+                        `Sending to ${t.nick} · ${pct}% of ${formatBytes(t.total)}`
+                      ) : (
+                        `Waiting for ${t.nick} to connect`
+                      )
+                    ) : t.paused ? (
+                      `${t.nick} · ${pct}% of ${formatBytes(t.total)} · paused`
+                    ) : (
+                      `${t.nick} · ${pct}% of ${formatBytes(t.total)}${t.speedBps ? ` · ${formatBytes(t.speedBps)}/s` : ''}`
+                    )}
+                  </div>
+                  {!finished && (
+                    <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-(--dolq-bg-row-selected)">
+                      <div
+                        className={`h-full rounded-full transition-[width] ${t.paused ? 'bg-(--dolq-text-faint)' : 'bg-(--dolq-accent)'}`}
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                  )}
+                </div>
+                <div className="flex shrink-0 items-center gap-0.5">
+                  {!finished && !t.sending && (
+                    <IconButton
+                      icon={t.paused ? 'play' : 'pause'}
+                      label={t.paused ? 'Resume' : 'Pause'}
+                      onClick={() => (t.paused ? onResume(id) : onPause(id))}
+                    />
+                  )}
+                  {t.done && t.path && onShowInFolder && (
+                    <Button small variant="ghost" onClick={() => onShowInFolder(t.path as string)}>
+                      Show in folder
+                    </Button>
+                  )}
+                  <IconButton
+                    icon="close"
+                    label={finished ? 'Dismiss' : 'Cancel'}
+                    onClick={() => (finished ? onDismiss(id) : onCancel(id))}
+                  />
+                </div>
               </div>
-            </div>
-            <div className="h-1.5 rounded-full bg-(--dolq-bg-input) overflow-hidden">
-              <div
-                className={`h-full transition-[width] ${t.error ? 'bg-(--dolq-danger)' : 'bg-(--dolq-accent)'}`}
-                style={{ width: `${pct}%` }}
-              />
-            </div>
-            <div className="text-[11px] text-(--dolq-text-faint) mt-1">
-              {t.error ? (
-                <span className="text-(--dolq-danger)">Failed: {t.error}</span>
-              ) : t.done ? (
-                'Done'
-              ) : t.paused ? (
-                `${t.nick} · ${pct}% · paused`
-              ) : (
-                `${t.nick} · ${pct}%${t.speedBps ? ` · ${formatBytes(t.speedBps)}/s` : ''}`
-              )}
-            </div>
-          </div>
-        );
-      })}
-    </div>
+            );
+          })}
+        </Card>
+      )}
+    </ViewPanel>
   );
 }

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Setting, Switch } from './ui';
 
 type Props = {
   checked: boolean;
@@ -22,26 +23,15 @@ export function RememberCredentials({ checked, onChange }: Props) {
   }, []);
 
   return (
-    <div className="flex flex-col gap-1">
-      <label
-        className={`flex items-center gap-2 text-[13px] text-(--dolq-text) select-none ${
-          available ? 'cursor-pointer' : 'opacity-60'
-        }`}
-      >
-        <input
-          type="checkbox"
-          checked={checked && available}
-          disabled={!available}
-          onChange={(e) => onChange(e.target.checked)}
-          className="accent-(--dolq-accent)"
-        />
-        Remember passwords on this device
-      </label>
-      <p className="text-(--dolq-text-faint) text-[12px]">
-        {available
+    <Setting
+      title="Remember passwords on this device"
+      description={
+        available
           ? "Stored encrypted with your operating system's keychain, so the server can connect with them after a restart."
-          : 'Unavailable: no secure OS keychain was found, so passwords are only kept until you quit.'}
-      </p>
-    </div>
+          : 'Unavailable: no secure OS keychain was found, so passwords are only kept until you quit.'
+      }
+    >
+      <Switch checked={checked && available} disabled={!available} onChange={(e) => onChange(e.target.checked)} />
+    </Setting>
   );
 }

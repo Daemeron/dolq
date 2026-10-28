@@ -33,3 +33,44 @@ describe('ViewPanel', () => {
     expect(onClose).toHaveBeenCalledTimes(2);
   });
 });
+
+describe('ViewPanel: layout options', () => {
+  it('shows a description, a footer and a leading element', () => {
+    render(
+      <ViewPanel
+        title="T"
+        description="About it"
+        leading={<i data-testid="lead" />}
+        footer={<button type="button">Go</button>}
+        onClose={() => {}}
+      >
+        body
+      </ViewPanel>,
+    );
+    expect(screen.getByText('About it')).toBeTruthy();
+    expect(screen.getByTestId('lead')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Go' })).toBeTruthy();
+  });
+
+  it('wraps the body and footer in one form when given a submit handler', () => {
+    const onSubmit = vi.fn((e: React.FormEvent) => e.preventDefault());
+    render(
+      <ViewPanel title="T" onSubmit={onSubmit} footer={<button type="submit">Save</button>} onClose={() => {}}>
+        body
+      </ViewPanel>,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    expect(onSubmit).toHaveBeenCalled();
+  });
+
+  it('can keep the title for screen readers only and open from the top', () => {
+    render(
+      <ViewPanel title="Search" hideTitle top toolbar={<div>palette</div>} onClose={() => {}}>
+        body
+      </ViewPanel>,
+    );
+    expect(screen.getByRole('dialog', { name: 'Search' })).toBeTruthy();
+    expect(screen.getByText('palette')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Close' })).toBeNull();
+  });
+});

@@ -1,7 +1,10 @@
 import { useEffect } from 'react';
 import type { IrcEvent } from '../../../shared/ipc';
-import { useModalA11y } from '../hooks/useModalA11y';
+import { dayName } from '../utils/dayLabel';
+import { nickColor, nickInitial } from '../utils/nickColor';
 import { IrcText } from './IrcText';
+import { Button, Card } from './ui';
+import { ViewPanel } from './ViewPanel';
 
 type WhoisInfo = Extract<IrcEvent, { type: 'whois' }>;
 
@@ -9,21 +12,38 @@ type Props = {
   nick: string;
   result: WhoisInfo | null;
   onClose: () => void;
+  onMessage?: () => void;
+  onSendFile?: () => void;
+  onIgnore?: () => void;
 };
 
-function formatIdle(seconds: number): string {
+const plural = (n: number, unit: string) => `${n} ${unit}${n === 1 ? '' : 's'}`;
+
+export function formatIdle(seconds: number): string {
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);
-  const s = seconds % 60;
-  return [h, m, s].map((n) => String(n).padStart(2, '0')).join(':');
+  if (h > 0) return m > 0 ? `${plural(h, 'hour')} ${plural(m, 'minute')}` : plural(h, 'hour');
+  if (m > 0) return plural(m, 'minute');
+  return plural(seconds, 'second');
 }
 
-const rowClass = 'flex gap-3 text-[14px]';
-const labelClass = 'w-24 shrink-0 text-[var(--dolq-text-faint)]';
+function formatSignon(unixSeconds: number): string {
+  const d = new Date(unixSeconds * 1000);
+  return `${dayName(d)}, ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}`;
+}
 
-export function WhoisModal({ nick, result, onClose }: Props) {
-  const dialogRef = useModalA11y<HTMLDivElement>();
+function Row({ label, children, title }: { label: string; children: React.ReactNode; title?: string }) {
+  return (
+    <div className="flex items-baseline justify-between gap-6 px-4 py-3.5">
+      <span className="shrink-0 text-[13px] text-(--dolq-text-dim)">{label}</span>
+      <span className="min-w-0 truncate text-[14px] text-(--dolq-text)" title={title}>
+        {children}
+      </span>
+    </div>
+  );
+}
 
+export function WhoisModal({ nick, result, onClose, onMessage, onSendFile, onIgnore }: Props) {
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') onClose();
@@ -32,94 +52,75 @@ export function WhoisModal({ nick, result, onClose }: Props) {
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
-  return (
-    // biome-ignore lint/a11y/noStaticElementInteractions: backdrop click-to-dismiss, Escape is handled separately
-    <div
-      role="presentation"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
-      onClick={(e) => e.target === e.currentTarget && onClose()}
-    >
-      <div
-        ref={dialogRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="whois-modal-title"
-        tabIndex={-1}
-        className="bg-(--dolq-bg-panel) rounded-lg p-6 w-90 shadow-[0_8px_32px_rgba(0,0,0,0.5)]"
-      >
-        <h2 id="whois-modal-title" className="text-(--dolq-text) text-[18px] font-bold mb-4">
-          {nick}
-        </h2>
+  const color = nickColor(nick);
+  const known = result && !result.noSuchNick;
 
-        {!result ? (
-          <p className="text-(--dolq-text-dim) text-[14px]">Looking up...</p>
-        ) : result.noSuchNick ? (
-          <p className="text-(--dolq-text-dim) text-[14px]">No such nick - they may have quit or changed nick.</p>
-        ) : (
-          <div className="flex flex-col gap-2">
-            {result.user && result.host && (
-              <div className={rowClass}>
-                <span className={labelClass}>User</span>
-                <span className="text-(--dolq-text) truncate">
-                  {result.user}@{result.host}
-                </span>
-              </div>
-            )}
-            {result.realname && (
-              <div className={rowClass}>
-                <span className={labelClass}>Real Name</span>
-                <span className="text-(--dolq-text) truncate">
-                  <IrcText text={result.realname} />
-                </span>
-              </div>
-            )}
-            {result.account && (
-              <div className={rowClass}>
-                <span className={labelClass}>Account</span>
-                <span className="text-(--dolq-text) truncate">{result.account}</span>
-              </div>
-            )}
-            {result.server && (
-              <div className={rowClass}>
-                <span className={labelClass}>Server</span>
-                <span className="text-(--dolq-text) truncate" title={result.serverInfo}>
-                  {result.server}
-                </span>
-              </div>
-            )}
-            {result.channels && result.channels.length > 0 && (
-              <div className={rowClass}>
-                <span className={labelClass}>Channels</span>
-                <span className="text-(--dolq-text) truncate">{result.channels.join(', ')}</span>
-              </div>
-            )}
-            {result.idleSeconds !== undefined && (
-              <div className={rowClass}>
-                <span className={labelClass}>Idle</span>
-                <span className="text-(--dolq-text)">{formatIdle(result.idleSeconds)}</span>
-              </div>
-            )}
-            {result.away && (
-              <div className={rowClass}>
-                <span className={labelClass}>Away</span>
-                <span className="text-(--dolq-text) truncate">
-                  <IrcText text={result.away} />
-                </span>
-              </div>
+  return (
+    <ViewPanel
+      title={nick}
+      description={known && result.user && result.host ? `${result.user}@${result.host}` : undefined}
+      width="sm"
+      onClose={onClose}
+      leading={
+        <span
+          aria-hidden="true"
+          className="flex size-13 shrink-0 items-center justify-center rounded-full text-[20px] font-semibold text-white"
+          style={{ background: color }}
+        >
+          {nickInitial(nick)}
+        </span>
+      }
+      footer={
+        <div className="flex w-full items-center justify-between">
+          {onIgnore ? (
+            <Button variant="danger" onClick={onIgnore}>
+              Ignore
+            </Button>
+          ) : (
+            <span />
+          )}
+          <div className="flex gap-2">
+            {onSendFile && known && <Button onClick={onSendFile}>Send file</Button>}
+            {onMessage && (
+              <Button variant="primary" onClick={onMessage}>
+                Message
+              </Button>
             )}
           </div>
-        )}
-
-        <div className="flex justify-end mt-5">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 rounded text-(--dolq-text-muted) text-[14px] font-medium bg-transparent border-0 cursor-pointer hover:text-(--dolq-text)"
-          >
-            Close
-          </button>
         </div>
-      </div>
-    </div>
+      }
+    >
+      {!result ? (
+        <p className="m-0 text-[14px] text-(--dolq-text-dim)">Looking up...</p>
+      ) : result.noSuchNick ? (
+        <p className="m-0 text-[14px] text-(--dolq-text-dim)">No such nick - they may have quit or changed nick.</p>
+      ) : (
+        <Card>
+          {result.realname && (
+            <Row label="Real name">
+              <IrcText text={result.realname} />
+            </Row>
+          )}
+          {result.account && <Row label="Account">{result.account}</Row>}
+          {result.server && (
+            <Row label="Server" title={result.serverInfo}>
+              {result.server}
+            </Row>
+          )}
+          {result.idleSeconds !== undefined && <Row label="Idle">{formatIdle(result.idleSeconds)}</Row>}
+          {result.signonTime !== undefined && <Row label="Signed on">{formatSignon(result.signonTime)}</Row>}
+          {result.channels && result.channels.length > 0 && (
+            <Row label="Channels">
+              <span className="font-(family-name:--dolq-font-mono) text-[13px]">{result.channels.join('  ')}</span>
+            </Row>
+          )}
+          {result.away && (
+            <Row label="Away">
+              <IrcText text={result.away} />
+            </Row>
+          )}
+        </Card>
+      )}
+    </ViewPanel>
   );
 }

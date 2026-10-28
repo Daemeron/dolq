@@ -9,9 +9,11 @@ type Props = {
   isLog: boolean;
   isQuery?: boolean;
   onSend: (text: string) => void | Promise<void>;
+  /** Offers to send a file to the person in this conversation. */
+  onSendFile?: () => void;
 };
 
-export function MessageInput({ channelName, isLog, isQuery, onSend }: Props) {
+export function MessageInput({ channelName, isLog, isQuery, onSend, onSendFile }: Props) {
   const [value, setValue] = useState('');
   const [showEmoji, setShowEmoji] = useState(false);
   const [error, setError] = useState('');
@@ -72,18 +74,31 @@ export function MessageInput({ channelName, isLog, isQuery, onSend }: Props) {
           }
         />
         <div className="mt-1 flex items-center justify-between">
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              setShowEmoji((v) => !v);
-            }}
-            data-tip="Emoji"
-            aria-label="Emoji"
-            className="has-tip shrink-0 w-8.5 h-8.5 flex items-center justify-center rounded-lg border-0 bg-transparent text-(--dolq-text-dim) cursor-pointer hover:text-(--dolq-text) hover:bg-(--dolq-bg-row-hover)"
-          >
-            <Icon name="smile" />
-          </button>
+          <div className="flex items-center gap-0.5">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowEmoji((v) => !v);
+              }}
+              data-tip="Emoji"
+              aria-label="Emoji"
+              className="has-tip shrink-0 w-8.5 h-8.5 flex items-center justify-center rounded-lg border-0 bg-transparent text-(--dolq-text-dim) cursor-pointer hover:text-(--dolq-text) hover:bg-(--dolq-bg-row-hover)"
+            >
+              <Icon name="smile" />
+            </button>
+            {onSendFile && (
+              <button
+                type="button"
+                onClick={onSendFile}
+                data-tip="Send file"
+                aria-label="Send file"
+                className="has-tip shrink-0 w-8.5 h-8.5 flex items-center justify-center rounded-lg border-0 bg-transparent text-(--dolq-text-dim) cursor-pointer hover:text-(--dolq-text) hover:bg-(--dolq-bg-row-hover)"
+              >
+                <Icon name="paperclip" />
+              </button>
+            )}
+          </div>
           <button
             type="submit"
             aria-label="Send"

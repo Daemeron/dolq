@@ -7,13 +7,14 @@ import { type EditServerForm, EditServerModal } from './components/EditServerMod
 import { MessageArea } from './components/MessageArea';
 import { MessageInput } from './components/MessageInput';
 import { NickServIdentifyModal } from './components/NickServIdentifyModal';
-import { PreferencesModal } from './components/PreferencesModal';
+import { PreferencesModal, type Tab as PreferencesTab } from './components/PreferencesModal';
 import { SearchModal } from './components/SearchModal';
 import { ServerList } from './components/ServerList';
 import { TopicBar } from './components/TopicBar';
 import { type Transfer, TransferStatus } from './components/TransferStatus';
 import { UserList } from './components/UserList';
 import { UserPanel } from './components/UserPanel';
+import { Welcome } from './components/Welcome';
 import { WhoisModal } from './components/WhoisModal';
 import { XDCCOfferModal } from './components/XDCCOfferModal';
 import { scopeKey, useStore } from './store';
@@ -27,10 +28,10 @@ import { formatEntry } from './utils/exportFormat';
 import { canLoadOlder, dropServerPages, type HistoryPage, linesToStore, pagesToReload } from './utils/historyPages';
 import { comboFromEvent } from './utils/keybind';
 import { isChannelScopedLine } from './utils/logFilter';
-import { mentionsNick } from './utils/mentions';
+import { mentionsAny } from './utils/mentions';
 import { isNickServIdentifyPrompt } from './utils/nickserv';
 import { reconcileServers, reconcileStep } from './utils/reconcile';
-import { buildServerId, normalizeHost, resolveHostPort } from './utils/server';
+import { buildServerId, normalizeHost, resolveHostPort, serverInitials } from './utils/server';
 import { computeAwayStats } from './utils/unread';
 import { takeAutoAccept, xdccRequestKey, xdccRequestTarget, xdccSenderKey } from './utils/xdcc';
 
@@ -94,7 +95,7 @@ function toMessages(entries: HistoryEntry[], forLog: boolean, selfNick: string):
 type MainView =
   | { kind: 'chat' }
   | { kind: 'connect' }
-  | { kind: 'preferences' }
+  | { kind: 'preferences'; tab?: PreferencesTab }
   | { kind: 'editServer'; serverId: string };
 
 function notify(title: string, body: string, onClick: () => void): void {
@@ -138,6 +139,7 @@ export default function App() {
     fontSize,
     fontFamily,
     theme,
+    highlightWords,
     ignoredNicks,
     xdccTrusted,
     trustXdccSender,
@@ -180,6 +182,7 @@ export default function App() {
     setFontSize,
     setFontFamily,
     setTheme,
+    setHighlightWords,
     addIgnore,
     removeIgnore,
     applyAwayEverywhere,
@@ -192,6 +195,7 @@ export default function App() {
   } = useStore();
 
   const [view, setView] = useState<MainView>({ kind: 'chat' });
+  const [connectPresetId, setConnectPresetId] = useState<string | undefined>();
   const [connectPrefill, setConnectPrefill] = useState<{
     host: string;
     port: number;
@@ -238,8 +242,16 @@ export default function App() {
   }, [fontFamily]);
 
   useEffect(() => {
-    if (theme === 'light') document.documentElement.setAttribute('data-theme', 'light');
-    else document.documentElement.removeAttribute('data-theme');
+    const query = window.matchMedia('(prefers-color-scheme: light)');
+    const apply = () => {
+      const light = theme === 'light' || (theme === 'system' && query.matches);
+      if (light) document.documentElement.setAttribute('data-theme', 'light');
+      else document.documentElement.removeAttribute('data-theme');
+    };
+    apply();
+    if (theme !== 'system') return;
+    query.addEventListener('change', apply);
+    return () => query.removeEventListener('change', apply);
   }, [theme]);
 
   const handleSelectServer = useCallback(
@@ -268,6 +280,11 @@ export default function App() {
       if (!combo) return;
       const action = (Object.keys(keybindings) as (keyof typeof keybindings)[]).find((a) => keybindings[a] === combo);
       if (!action) return;
+      if (action === 'openSearch') {
+        e.preventDefault();
+        setShowSearch(true);
+        return;
+      }
       const list = channelMap[selectedServerId] ?? [];
       if (list.length === 0) return;
       e.preventDefault();
@@ -488,7 +505,7 @@ export default function App() {
         selectedChannelId: onScreenServer === serverId ? selectedChannelId : '',
         muted: !!mutedChannels[channelId],
         windowFocused: document.hasFocus(),
-        mentioned: mentionsNick(text, nickMap[serverId]),
+        mentioned: mentionsAny(text, nickMap[serverId], useStore.getState().highlightWords),
       });
       if (!alert) return;
       // A channel already on screen needs no unread dot, only the alert.
@@ -696,9 +713,13 @@ export default function App() {
             setTransfers((prev) => {
               const t = prev[id];
               if (!t) return prev;
-              const text = event.error
-                ? `Download of ${t.filename} failed: ${event.error}`
-                : `Downloaded ${t.filename} to ${event.path}`;
+              const text = t.sending
+                ? event.error
+                  ? `Sending ${t.filename} failed: ${event.error}`
+                  : `Sent ${t.filename}`
+                : event.error
+                  ? `Download of ${t.filename} failed: ${event.error}`
+                  : `Downloaded ${t.filename} to ${event.path}`;
               ensureQuery(t.serverId, t.nick);
               appendMessage(scopeKey(t.serverId, t.nick), {
                 id: nextMsgId.current++,
@@ -869,7 +890,7 @@ export default function App() {
       {
         id,
         name,
-        initial: name[0]?.toUpperCase() ?? '?',
+        initial: serverInitials(name),
         secure: form.secure,
         host,
         port,
@@ -904,6 +925,7 @@ export default function App() {
     if (failure) logConnectFailure(id, failure);
     handleSelectServer(id);
     setConnectPrefill(null);
+    setConnectPresetId(undefined);
   }
 
   async function handleEditServer(id: string, form: EditServerForm) {
@@ -923,7 +945,7 @@ export default function App() {
     updateServer(id, {
       rememberCredentials: remembered || undefined,
       name,
-      initial: name[0]?.toUpperCase() ?? '?',
+      initial: serverInitials(name),
       host,
       port,
       secure: form.secure,
@@ -1003,6 +1025,30 @@ export default function App() {
       removeIgnore(selectedServerId, nick);
     } else {
       addIgnore(selectedServerId, nick);
+    }
+  }
+
+  async function handleSendFile(nick: string) {
+    const path = await window.irc.chooseFile();
+    if (!path) return;
+    const serverId = selectedServerId;
+    const filename = path.split(/[\\/]/).pop() ?? path;
+    try {
+      const id = await window.irc.dccSendFile(serverId, nick, path);
+      setTransfers((prev) => ({
+        ...prev,
+        [id]: { serverId, nick, filename, received: 0, total: 0, path, sending: true },
+      }));
+      setShowTransfers(true);
+    } catch (err) {
+      ensureQuery(serverId, nick);
+      appendMessage(scopeKey(serverId, nick), {
+        id: nextMsgId.current++,
+        nick: '',
+        text: `Could not send ${filename}: ${err instanceof Error ? err.message : String(err)}`,
+        timestamp: new Date(),
+        system: true,
+      });
     }
   }
 
@@ -1171,12 +1217,14 @@ export default function App() {
     .filter((c) => mentionedChannels[c.id])
     .map((c) => ({ id: c.id, label: c.isQuery ? `@${c.name}` : `#${c.name}` }));
   const transferCount = Object.keys(transfers).length;
-  // A new transfer brings the cards back even if they were hidden.
-  const prevTransferCount = useRef(transferCount);
   useEffect(() => {
-    if (transferCount > prevTransferCount.current) setShowTransfers(true);
-    prevTransferCount.current = transferCount;
-  }, [transferCount]);
+    if (!showTransfers) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setShowTransfers(false);
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [showTransfers]);
 
   async function handleSend(text: string, aliasDepth = 0): Promise<void> {
     const joinMatch = text.match(/^\/join\s+(#\S+)(?:\s+(\S+))?$/);
@@ -1275,6 +1323,21 @@ export default function App() {
             setWhoisNick(null);
             setWhoisResult(null);
           }}
+          onMessage={() => {
+            handleOpenQuery(whoisNick);
+            setWhoisNick(null);
+            setWhoisResult(null);
+          }}
+          onSendFile={() => {
+            handleSendFile(whoisNick);
+            setWhoisNick(null);
+            setWhoisResult(null);
+          }}
+          onIgnore={() => {
+            addIgnore(selectedServerId, whoisNick);
+            setWhoisNick(null);
+            setWhoisResult(null);
+          }}
         />
       )}
       {pendingDCCOffer && (
@@ -1299,6 +1362,8 @@ export default function App() {
           onResume={handleResumeTransfer}
           onCancel={handleCancelTransfer}
           onDismiss={handleDismissTransfer}
+          onShowInFolder={(path) => window.irc.showInFolder(path)}
+          onClose={() => setShowTransfers(false)}
         />
       )}
       {showSearch && (
@@ -1330,27 +1395,29 @@ export default function App() {
           onToggleConnection={handleToggleConnection}
           onOpenPreferences={() => setView({ kind: 'preferences' })}
         />
-        <div className="flex flex-col">
-          <ChannelList
-            serverName={selectedServer?.name ?? ''}
-            channels={channels}
-            selectedId={selectedChannelId}
-            onSelect={handleSelectChannel}
-            mentionedChannels={mentionedChannels}
-            awayStats={awayStats}
-            mutedChannels={mutedChannels}
-            onToggleMuteChannel={toggleMuteChannel}
-            onJoinChannel={handleJoinChannel}
-            onLeaveChannel={handleLeaveChannel}
-            onRemoveChannel={handleRemoveChannel}
-            onCloseQuery={handleRemoveChannel}
-          />
-          <UserPanel
-            currentNick={currentNick}
-            away={selfAwayMap[selectedServerId] ?? false}
-            onToggleAway={() => handleSend(selfAwayMap[selectedServerId] ? '/away' : '/away Away')}
-          />
-        </div>
+        {servers.length > 0 && (
+          <div className="flex flex-col">
+            <ChannelList
+              serverName={selectedServer?.name ?? ''}
+              channels={channels}
+              selectedId={selectedChannelId}
+              onSelect={handleSelectChannel}
+              mentionedChannels={mentionedChannels}
+              awayStats={awayStats}
+              mutedChannels={mutedChannels}
+              onToggleMuteChannel={toggleMuteChannel}
+              onJoinChannel={handleJoinChannel}
+              onLeaveChannel={handleLeaveChannel}
+              onRemoveChannel={handleRemoveChannel}
+              onCloseQuery={handleRemoveChannel}
+            />
+            <UserPanel
+              currentNick={currentNick}
+              away={selfAwayMap[selectedServerId] ?? false}
+              onToggleAway={() => handleSend(selfAwayMap[selectedServerId] ? '/away' : '/away Away')}
+            />
+          </div>
+        )}
       </div>
       <main className="flex flex-col flex-1 bg-(--dolq-bg) overflow-hidden">
         {view.kind === 'connect' && (
@@ -1362,8 +1429,10 @@ export default function App() {
             onCancel={() => {
               setView({ kind: 'chat' });
               setConnectPrefill(null);
+              setConnectPresetId(undefined);
             }}
             initial={connectPrefill ?? undefined}
+            initialPresetId={connectPresetId}
           />
         )}
         {view.kind === 'editServer' &&
@@ -1385,6 +1454,7 @@ export default function App() {
           })()}
         {view.kind === 'preferences' && (
           <PreferencesModal
+            initialTab={view.tab}
             settings={settings}
             onSave={handleSavePreferences}
             onCancel={() => setView({ kind: 'chat' })}
@@ -1404,6 +1474,8 @@ export default function App() {
             onFontFamilyChange={setFontFamily}
             theme={theme}
             onThemeChange={setTheme}
+            highlightWords={highlightWords}
+            onHighlightWordsChange={setHighlightWords}
             servers={servers}
             ignoredNicks={ignoredNicks}
             onRemoveIgnore={removeIgnore}
@@ -1415,67 +1487,84 @@ export default function App() {
             onKeybindingChange={setKeybinding}
           />
         )}
-        <div className="flex flex-1 overflow-hidden">
-          <div className="flex flex-col flex-1 overflow-hidden">
-            <TopicBar
-              channelName={selectedChannel?.name ?? ''}
-              topic={selectedChannel?.topic}
-              topicSetBy={selectedChannel?.topicSetBy}
-              topicSetAt={selectedChannel?.topicSetAt}
-              isLog={isLog}
-              isQuery={isQuery}
-              isDCC={selectedChannel?.isDCC}
-              dccStatus={selectedChannel?.isDCC ? statusMap[selectedChannelId] : undefined}
-              onExport={selectedChannel?.isDCC ? undefined : handleExportChannel}
-              onOpenSearch={() => setShowSearch(true)}
-              connectionStatus={connectionStatus}
-              onToggleConnection={() => handleToggleConnection(selectedServerId)}
-              muted={!!mutedChannels[selectedChannelId]}
-              onToggleMute={isLog || isQuery ? undefined : () => toggleMuteChannel(selectedChannelId)}
-              serverColor={selectedServer?.color}
-              mentions={mentionedHere}
-              onSelectMention={handleSelectChannel}
-              transferCount={transferCount}
-              showTransfers={showTransfers}
-              onToggleTransfers={() => setShowTransfers((v) => !v)}
-              showMembers={showMembers}
-              onToggleMembers={isLog || isQuery ? undefined : () => setShowMembers((v) => !v)}
-            />
-            <MessageArea
-              messages={messages}
-              isLog={isLog}
-              channelId={scopeKey(selectedServerId, selectedChannelId)}
-              onLoadOlder={loadOlderHistory}
-              timestampFormat={timestampFormat}
-              density={messageDensity}
-              onGetPack={handleGetPack}
-              selfNick={currentNick}
-            />
-            <MessageInput
-              channelName={selectedChannel?.name ?? ''}
-              isLog={isLog}
-              isQuery={isQuery}
-              onSend={handleSend}
-            />
-          </div>
-          {!isLog && !isQuery && showMembers && (
-            <aside className="w-58 bg-(--dolq-bg-panel) border-l border-(--dolq-border) shrink-0 flex flex-col overflow-hidden">
-              <div className="h-14 px-4 flex items-center justify-between shrink-0">
-                <span className="font-semibold text-[15px] text-(--dolq-text)">Members</span>
-                <span className="text-[12px] text-(--dolq-text-dim)">{users.length} online</span>
-              </div>
-              <UserList
-                users={users}
-                currentNick={currentNick}
-                onOpenQuery={handleOpenQuery}
-                onWhois={handleWhois}
-                ignoredNicks={ignoredNicks[selectedServerId] ?? []}
-                onToggleIgnore={handleToggleIgnore}
-                onDCCOffer={handleDCCOffer}
+        {servers.length === 0 ? (
+          <Welcome
+            presets={presets}
+            onPickPreset={(id) => {
+              setConnectPresetId(id);
+              setView({ kind: 'connect' });
+            }}
+            onAddCustom={() => setView({ kind: 'connect' })}
+            onPair={() => setView({ kind: 'preferences', tab: 'backend' })}
+          />
+        ) : (
+          <div className="flex flex-1 overflow-hidden">
+            <div className="flex flex-col flex-1 overflow-hidden">
+              <TopicBar
+                channelName={selectedChannel?.name ?? ''}
+                topic={selectedChannel?.topic}
+                topicSetBy={selectedChannel?.topicSetBy}
+                topicSetAt={selectedChannel?.topicSetAt}
+                isLog={isLog}
+                isQuery={isQuery}
+                isDCC={selectedChannel?.isDCC}
+                dccStatus={selectedChannel?.isDCC ? statusMap[selectedChannelId] : undefined}
+                onExport={selectedChannel?.isDCC ? undefined : handleExportChannel}
+                onOpenSearch={() => setShowSearch(true)}
+                connectionStatus={connectionStatus}
+                onToggleConnection={() => handleToggleConnection(selectedServerId)}
+                muted={!!mutedChannels[selectedChannelId]}
+                onToggleMute={isLog || isQuery ? undefined : () => toggleMuteChannel(selectedChannelId)}
+                serverColor={selectedServer?.color}
+                mentions={mentionedHere}
+                onSelectMention={handleSelectChannel}
+                transferCount={transferCount}
+                showTransfers={showTransfers}
+                onToggleTransfers={() => setShowTransfers((v) => !v)}
+                showMembers={showMembers}
+                onToggleMembers={isLog || isQuery ? undefined : () => setShowMembers((v) => !v)}
               />
-            </aside>
-          )}
-        </div>
+              <MessageArea
+                messages={messages}
+                isLog={isLog}
+                channelId={scopeKey(selectedServerId, selectedChannelId)}
+                onLoadOlder={loadOlderHistory}
+                timestampFormat={timestampFormat}
+                density={messageDensity}
+                onGetPack={handleGetPack}
+                selfNick={currentNick}
+                highlightWords={highlightWords}
+              />
+              <MessageInput
+                channelName={selectedChannel?.name ?? ''}
+                isLog={isLog}
+                isQuery={isQuery}
+                onSend={handleSend}
+                onSendFile={
+                  isQuery && !selectedChannel?.isDCC ? () => handleSendFile(selectedChannel?.name ?? '') : undefined
+                }
+              />
+            </div>
+            {!isLog && !isQuery && showMembers && (
+              <aside className="w-58 bg-(--dolq-bg-panel) border-l border-(--dolq-border) shrink-0 flex flex-col overflow-hidden">
+                <div className="h-14 px-4 flex items-center justify-between shrink-0">
+                  <span className="font-semibold text-[15px] text-(--dolq-text)">Members</span>
+                  <span className="text-[12px] text-(--dolq-text-dim)">{users.length} online</span>
+                </div>
+                <UserList
+                  users={users}
+                  currentNick={currentNick}
+                  onOpenQuery={handleOpenQuery}
+                  onWhois={handleWhois}
+                  ignoredNicks={ignoredNicks[selectedServerId] ?? []}
+                  onToggleIgnore={handleToggleIgnore}
+                  onDCCOffer={handleDCCOffer}
+                  onSendFile={handleSendFile}
+                />
+              </aside>
+            )}
+          </div>
+        )}
       </main>
     </div>
   );

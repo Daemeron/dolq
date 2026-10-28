@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { IrcEvent } from '../../../shared/ipc';
-import { WhoisModal } from './WhoisModal';
+import { formatIdle, WhoisModal } from './WhoisModal';
 
 type Whois = Extract<IrcEvent, { type: 'whois' }>;
 const whois = (extra: Partial<Whois>): Whois => ({ type: 'whois', nick: 'mira', ...extra }) as Whois;
@@ -38,8 +38,8 @@ describe('WhoisModal', () => {
     expect(screen.getByText('Mira O')).toBeTruthy();
     expect(screen.getByText('miraacct')).toBeTruthy();
     expect(screen.getByText('irc.libera.chat')).toBeTruthy();
-    expect(screen.getByText('#a, #b')).toBeTruthy();
-    expect(screen.getByText('01:02:05')).toBeTruthy();
+    expect(screen.getByText('#a #b')).toBeTruthy();
+    expect(screen.getByText('1 hour 2 minutes')).toBeTruthy();
     expect(screen.getByText('lunch')).toBeTruthy();
   });
 
@@ -57,5 +57,52 @@ describe('WhoisModal', () => {
     fireEvent.keyDown(window, { key: 'Escape' });
     fireEvent.click(screen.getByRole('presentation'));
     expect(onClose).toHaveBeenCalledTimes(3);
+  });
+});
+
+describe('WhoisModal: actions and formats', () => {
+  it('offers to message or ignore a known user', () => {
+    const onMessage = vi.fn();
+    const onIgnore = vi.fn();
+    render(
+      <WhoisModal
+        nick="mira"
+        result={whois({ user: 'mira', host: 'h' })}
+        onClose={() => {}}
+        onMessage={onMessage}
+        onIgnore={onIgnore}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Message' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Ignore' }));
+    expect(onMessage).toHaveBeenCalled();
+    expect(onIgnore).toHaveBeenCalled();
+  });
+
+  it('offers to send a file to a known user, but not to one that does not exist', () => {
+    const onSendFile = vi.fn();
+    const { rerender } = render(
+      <WhoisModal nick="mira" result={whois({ user: 'm', host: 'h' })} onClose={() => {}} onSendFile={onSendFile} />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Send file' }));
+    expect(onSendFile).toHaveBeenCalled();
+    rerender(
+      <WhoisModal nick="mira" result={whois({ noSuchNick: true })} onClose={() => {}} onSendFile={onSendFile} />,
+    );
+    expect(screen.queryByRole('button', { name: 'Send file' })).toBeNull();
+  });
+
+  it('says how long a user has been idle in plain units', () => {
+    expect(formatIdle(1)).toBe('1 second');
+    expect(formatIdle(45)).toBe('45 seconds');
+    expect(formatIdle(180)).toBe('3 minutes');
+    expect(formatIdle(3600)).toBe('1 hour');
+    expect(formatIdle(7260)).toBe('2 hours 1 minute');
+  });
+
+  it('shows when the user signed on', () => {
+    const signonTime = Math.floor(Date.now() / 1000) - 60;
+    render(<WhoisModal nick="mira" result={whois({ user: 'm', host: 'h', signonTime })} onClose={() => {}} />);
+    expect(screen.getByText(/^Today, \d\d:\d\d$/)).toBeTruthy();
   });
 });

@@ -93,6 +93,7 @@ describe('local backend', () => {
   it('starts the packaged backend, hands it a random token and authenticates with it', async () => {
     const client = new BackendClient(7);
     expect(await client.getStatus('s1')).toBe('disconnected');
+    expect(client.isRemote).toBe(false);
     expect(h.spawnEnv.DOLQ_TOKEN).toMatch(/^[0-9a-f]{64}$/);
     await client.stop();
     expect(h.stopChild).toHaveBeenCalled();
@@ -187,6 +188,7 @@ describe('remote backend over TLS', () => {
     const hk = hooks();
     const client = new BackendClient(0, remote, hk);
     expect(await client.getStatus('s1')).toBe('disconnected');
+    expect(client.isRemote).toBe(true);
     expect(hk.confirmTrust).not.toHaveBeenCalled();
     await client.stop();
   });

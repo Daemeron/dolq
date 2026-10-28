@@ -132,7 +132,7 @@ vi.mock('electron', () => {
       encryptString: (s: string) => Buffer.from(s),
       decryptString: (b: Buffer) => b.toString(),
     },
-    shell: { openExternal: vi.fn(), beep: vi.fn() },
+    shell: { openExternal: vi.fn(), showItemInFolder: vi.fn(), beep: vi.fn() },
   };
 });
 
@@ -152,9 +152,11 @@ vi.mock('./irc/BackendClient', async () => {
     args: unknown[];
     calls: [string, unknown[]][] = [];
     stop = vi.fn(() => Promise.resolve());
+    isRemote: boolean;
     constructor(...args: unknown[]) {
       super();
       this.args = args;
+      this.isRemote = args[1] !== undefined;
       h.backends.push(this);
       for (const m of [
         'connect',
@@ -165,6 +167,7 @@ vi.mock('./irc/BackendClient', async () => {
         'getHistory',
         'search',
         'dccOffer',
+        'dccSendFile',
         'dccAccept',
         'dccSend',
         'dccClose',
@@ -197,7 +200,12 @@ type FakeWin = {
   hide: ReturnType<typeof vi.fn>;
   show: ReturnType<typeof vi.fn>;
 };
-type FakeBackendT = EventEmitter & { args: unknown[]; calls: [string, unknown[]][]; stop: ReturnType<typeof vi.fn> };
+type FakeBackendT = EventEmitter & {
+  args: unknown[];
+  calls: [string, unknown[]][];
+  stop: ReturnType<typeof vi.fn>;
+  isRemote: boolean;
+};
 type FakeTrayT = { destroyed: boolean; tooltip: string; handlers: Map<string, () => void>; menu: unknown };
 
 const win = () => h.windows.at(-1) as FakeWin;
@@ -500,6 +508,24 @@ describe('IPC handlers', () => {
     expect(backend().calls[0]).toEqual(['dccOffer', ['s1', 'mira', 5000, 5010]]);
   });
 
+  it('sends a file through the backend with the DCC port range, but not through a remote one', async () => {
+    await boot({ retentionDays: 0, dccPortMin: 5000, dccPortMax: 5010 });
+    await invoke(IrcMessages.dccSendFile, 's1', 'mira', '/tmp/a.iso');
+    expect(backend().calls[0]).toEqual(['dccSendFile', ['s1', 'mira', '/tmp/a.iso', 5000, 5010]]);
+    backend().isRemote = true;
+    expect(() => invoke(IrcMessages.dccSendFile, 's1', 'mira', '/tmp/a.iso')).toThrow(
+      /backend to run on this computer/,
+    );
+  });
+
+  it('picks a file to send, or nothing when the picker is cancelled', async () => {
+    const { electron } = await boot();
+    vi.mocked(electron.dialog.showOpenDialog).mockResolvedValueOnce({ canceled: false, filePaths: ['/pick.iso'] });
+    expect(await invoke(IrcMessages.chooseFile)).toBe('/pick.iso');
+    vi.mocked(electron.dialog.showOpenDialog).mockResolvedValueOnce({ canceled: true, filePaths: [] });
+    expect(await invoke(IrcMessages.chooseFile)).toBeNull();
+  });
+
   it('downloads into the chosen folder, else the OS downloads folder', async () => {
     await boot({ retentionDays: 0, downloadDir: '/chosen' });
     await invoke(IrcMessages.xdccAccept, 's1', 'bot', '1.2.3.4', 5, 'f.iso', 99, 'tok');
@@ -539,6 +565,14 @@ describe('IPC handlers', () => {
     await invoke(IrcMessages.openExternal, 'https://example.org');
     expect(electron.shell.openExternal).toHaveBeenCalledWith('https://example.org');
     expect(() => invoke(IrcMessages.openExternal, 'javascript:alert(1)')).toThrow(/refusing/);
+  });
+
+  it('reveals an absolute path in the file manager and refuses anything else', async () => {
+    const { electron } = await boot();
+    await invoke(IrcMessages.showInFolder, '/tmp/a.iso');
+    expect(electron.shell.showItemInFolder).toHaveBeenCalledWith('/tmp/a.iso');
+    expect(() => invoke(IrcMessages.showInFolder, 'relative/a.iso')).toThrow(/refusing/);
+    expect(() => invoke(IrcMessages.showInFolder, 42)).toThrow(/refusing/);
   });
 
   it('updates the dock badge, zoom and alert sound', async () => {

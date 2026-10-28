@@ -38,13 +38,18 @@ function setup(settings: Partial<Settings> = {}, extra: Partial<Parameters<typeo
       prevChannel: 'Alt+ArrowUp',
       closeChannel: 'Ctrl+W',
       toggleMute: 'Ctrl+M',
+      openSearch: 'Ctrl+K',
     },
+    highlightWords: [] as string[],
+    onHighlightWordsChange: vi.fn(),
     onKeybindingChange: vi.fn(),
     ...extra,
   };
   render(<PreferencesModal {...props} />);
   return props;
 }
+
+const tab = (name: string) => fireEvent.click(screen.getByRole('tab', { name }));
 
 // Submit the form directly: jsdom's constraint validation would otherwise block out-of-range values the app clamps itself.
 const save = () => fireEvent.submit(screen.getByRole('button', { name: 'Save' }).closest('form') as HTMLFormElement);
@@ -53,22 +58,55 @@ const saved = (p: { onSave: unknown }): Settings => (p.onSave as Mock).mock.call
 describe('PreferencesModal: display settings', () => {
   it('reports each display preference change', () => {
     const p = setup();
+    fireEvent.click(screen.getByLabelText(/Show joins/));
+    expect(p.onShowMembershipEventsChange).toHaveBeenCalledWith(false);
+
+    tab('Notifications');
     fireEvent.click(screen.getByLabelText(/Desktop notifications/));
     expect(p.onNotificationsEnabledChange).toHaveBeenCalledWith(false);
     fireEvent.click(screen.getByLabelText(/Play a sound/));
     expect(p.onSoundAlertsEnabledChange).toHaveBeenCalledWith(true);
-    fireEvent.click(screen.getByLabelText(/Show joins/));
-    expect(p.onShowMembershipEventsChange).toHaveBeenCalledWith(false);
-    fireEvent.change(screen.getByLabelText('Timestamp Format'), { target: { value: '12h' } });
+
+    tab('Appearance');
+    fireEvent.change(screen.getByLabelText('Timestamp format'), { target: { value: '12h' } });
     expect(p.onTimestampFormatChange).toHaveBeenCalledWith('12h');
-    fireEvent.change(screen.getByLabelText('Message Density'), { target: { value: 'compact' } });
+    fireEvent.click(screen.getByLabelText('Compact messages'));
     expect(p.onMessageDensityChange).toHaveBeenCalledWith('compact');
-    fireEvent.change(screen.getByLabelText('Font Size'), { target: { value: 'large' } });
+    fireEvent.change(screen.getByLabelText('Font size'), { target: { value: 'large' } });
     expect(p.onFontSizeChange).toHaveBeenCalledWith('large');
-    fireEvent.change(screen.getByLabelText('Font Family'), { target: { value: 'serif' } });
+    fireEvent.change(screen.getByLabelText('Font family'), { target: { value: 'serif' } });
     expect(p.onFontFamilyChange).toHaveBeenCalledWith('serif');
-    fireEvent.change(screen.getByLabelText('Theme'), { target: { value: 'light' } });
+  });
+
+  it('offers light, dark and system themes and marks the current one', () => {
+    const p = setup();
+    tab('Appearance');
+    expect(screen.getByRole('radio', { name: 'Dark' }).getAttribute('aria-checked')).toBe('true');
+    fireEvent.click(screen.getByRole('radio', { name: 'System' }));
+    expect(p.onThemeChange).toHaveBeenCalledWith('system');
+    fireEvent.click(screen.getByRole('radio', { name: 'Light' }));
     expect(p.onThemeChange).toHaveBeenCalledWith('light');
+  });
+
+  it('turns comma separated highlight words into a list as they are typed', () => {
+    const p = setup({}, { highlightWords: ['deploy'] });
+    tab('Notifications');
+    const input = screen.getByLabelText('Highlight words') as HTMLInputElement;
+    expect(input.value).toBe('deploy');
+    fireEvent.change(input, { target: { value: 'release, deploy,  ,ship it' } });
+    expect(p.onHighlightWordsChange).toHaveBeenLastCalledWith(['release', 'deploy', 'ship it']);
+  });
+
+  it('moves between tabs and keeps what was typed on the others', () => {
+    const p = setup();
+    expect(screen.getByRole('tab', { name: 'General' }).getAttribute('aria-selected')).toBe('true');
+    tab('Backend');
+    fireEvent.change(screen.getByLabelText('History retention (days)'), { target: { value: '9' } });
+    tab('General');
+    tab('Backend');
+    expect((screen.getByLabelText('History retention (days)') as HTMLInputElement).value).toBe('9');
+    save();
+    expect(saved(p).retentionDays).toBe(9);
   });
 });
 
@@ -86,23 +124,26 @@ describe('PreferencesModal: saving', () => {
 
   it('turns a bad retention into 0 (keep forever)', () => {
     const p = setup();
-    fireEvent.change(screen.getByLabelText('History Retention (days)'), { target: { value: '-5' } });
+    tab('Backend');
+    fireEvent.change(screen.getByLabelText('History retention (days)'), { target: { value: '-5' } });
     save();
     expect(saved(p).retentionDays).toBe(0);
   });
 
   it('keeps a valid DCC port range', () => {
     const p = setup();
-    fireEvent.change(screen.getByLabelText('DCC Port Range (min)'), { target: { value: '5000' } });
-    fireEvent.change(screen.getByLabelText('DCC Port Range (max)'), { target: { value: '5010' } });
+    tab('Backend');
+    fireEvent.change(screen.getByLabelText('DCC port range (min)'), { target: { value: '5000' } });
+    fireEvent.change(screen.getByLabelText('DCC port range (max)'), { target: { value: '5010' } });
     save();
     expect(saved(p)).toMatchObject({ dccPortMin: 5000, dccPortMax: 5010 });
   });
 
   it('drops an inverted or half-filled DCC port range', () => {
     const p = setup();
-    fireEvent.change(screen.getByLabelText('DCC Port Range (min)'), { target: { value: '6000' } });
-    fireEvent.change(screen.getByLabelText('DCC Port Range (max)'), { target: { value: '5000' } });
+    tab('Backend');
+    fireEvent.change(screen.getByLabelText('DCC port range (min)'), { target: { value: '6000' } });
+    fireEvent.change(screen.getByLabelText('DCC port range (max)'), { target: { value: '5000' } });
     save();
     expect(saved(p).dccPortMin).toBeUndefined();
     expect(saved(p).dccPortMax).toBeUndefined();
@@ -145,7 +186,10 @@ describe('PreferencesModal: download directory', () => {
 });
 
 describe('PreferencesModal: remote backend', () => {
-  const enable = () => fireEvent.click(screen.getByLabelText(/Connect to a remote backend/));
+  const enable = () => {
+    tab('Backend');
+    fireEvent.click(screen.getByLabelText(/Connect to a remote backend/));
+  };
 
   it('fills the form from a valid pairing link', () => {
     const p = setup();
@@ -182,6 +226,7 @@ describe('PreferencesModal: remote backend', () => {
 
   it('is silent about protection once TLS and a token are set', () => {
     setup({ remoteEnabled: true, remoteUrl: 'h:1', remoteTokenSet: true });
+    tab('Backend');
     expect(screen.queryByText(/Without/)).toBeNull();
     expect((screen.getByPlaceholderText('Saved - type to replace') as HTMLInputElement).value).toBe('');
   });
@@ -194,6 +239,7 @@ describe('PreferencesModal: remote backend', () => {
       remoteTokenSet: true,
       remoteFingerprint: FP,
     });
+    tab('Backend');
     expect(screen.getByText(FP)).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Forget' }));
     expect(screen.queryByText(FP)).toBeNull();
@@ -203,6 +249,7 @@ describe('PreferencesModal: remote backend', () => {
 
   it('treats a saved URL with no TLS setting and no credentials as plain', () => {
     setup({ remoteEnabled: true, remoteUrl: 'h:1' });
+    tab('Backend');
     expect((screen.getByLabelText('Encrypt the connection (TLS)') as HTMLInputElement).checked).toBe(false);
   });
 });
@@ -210,9 +257,11 @@ describe('PreferencesModal: remote backend', () => {
 describe('PreferencesModal: typed remote fields', () => {
   it('saves a URL, token and download folder typed by hand', () => {
     const p = setup();
+    tab('Backend');
     fireEvent.click(screen.getByLabelText(/Connect to a remote backend/));
     fireEvent.change(screen.getByLabelText('Remote Backend URL'), { target: { value: 'box.example:6789' } });
     fireEvent.change(screen.getByLabelText(/Access Token/), { target: { value: 'sekret' } });
+    tab('General');
     fireEvent.change(screen.getByPlaceholderText('Downloads (default)'), { target: { value: '/srv/dl' } });
     save();
     expect(saved(p)).toMatchObject({
@@ -250,8 +299,8 @@ describe('PreferencesModal: lists', () => {
 
   it('hides the lists when they are empty', () => {
     setup();
-    expect(screen.queryByText('Ignored Users')).toBeNull();
-    expect(screen.queryByText('Trusted XDCC Senders')).toBeNull();
+    expect(screen.queryByText('Ignored users')).toBeNull();
+    expect(screen.queryByText('Trusted XDCC senders')).toBeNull();
     expect(screen.queryByText('Aliases')).toBeNull();
   });
 });
@@ -259,6 +308,8 @@ describe('PreferencesModal: lists', () => {
 describe('PreferencesModal: keybindings', () => {
   it('records a new combo, ignoring bare keys and modifiers alone', () => {
     const p = setup();
+    tab('Keybindings');
+    expect(screen.getByText('Search')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Ctrl+W' }));
     expect(screen.getByText(/Press keys/)).toBeTruthy();
     act(() => {
@@ -275,6 +326,7 @@ describe('PreferencesModal: keybindings', () => {
 
   it('cancels recording on Escape without closing the preferences', () => {
     const p = setup();
+    tab('Keybindings');
     fireEvent.click(screen.getByRole('button', { name: 'Ctrl+W' }));
     act(() => {
       fireEvent.keyDown(window, { key: 'Escape' });

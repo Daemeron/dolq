@@ -29,3 +29,10 @@ export const PUBLIC_SERVERS: ServerPreset[] = [
   { id: 'irc.geekshed.net:6667', name: 'GeekShed', host: 'irc.geekshed.net', port: 6667, secure: false },
   { id: 'irc.spotchat.org:6667', name: 'SpotChat', host: 'irc.spotchat.org', port: 6667, secure: false },
 ];
+
+// One line shown under a network on the welcome screen.
+export const PRESET_BLURBS: Record<string, string> = {
+  'irc.libera.chat:6697': 'Open source projects',
+  'irc.oftc.net:6697': 'Debian and friends',
+  'irc.rizon.net:6697': 'Community and XDCC',
+};

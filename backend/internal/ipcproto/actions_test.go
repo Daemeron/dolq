@@ -142,6 +142,7 @@ func TestDCCAndXDCCActionsFailCleanlyForUnknownTargets(t *testing.T) {
 		{"dcc accept to a bad address", ClientFrame{Action: ActionDCCAccept, Host: "not an ip", Port: 1}, false},
 		{"dcc send on an unknown chat", ClientFrame{Action: ActionDCCSend, DCCID: "nope", Line: "hi"}, false},
 		{"dcc close on an unknown chat", ClientFrame{Action: ActionDCCClose, DCCID: "nope"}, true},
+		{"dcc send file without a session", ClientFrame{Action: ActionDCCSendFile, ServerID: "nope", Nick: "n", Path: "/tmp/x"}, false},
 		{"xdcc accept without a session", ClientFrame{Action: ActionXDCCAccept, ServerID: "nope", Nick: "bot", Filename: "f", Host: "127.0.0.1", Port: 1}, false},
 		{"xdcc close on an unknown transfer", ClientFrame{Action: ActionXDCCClose, DCCID: "nope"}, true},
 		{"xdcc pause on an unknown transfer", ClientFrame{Action: ActionXDCCPause, DCCID: "nope"}, false},

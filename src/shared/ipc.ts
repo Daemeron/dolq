@@ -64,7 +64,16 @@ export type IrcEvent =
       host?: string;
       account?: string;
     }
-  | { type: 'XDCCTRANSFER'; received: number; total: number; path: string; done?: boolean; error?: string };
+  | {
+      type: 'XDCCTRANSFER';
+      received: number;
+      total: number;
+      path: string;
+      done?: boolean;
+      error?: string;
+      // A file going out to someone, not one coming in.
+      sending?: boolean;
+    };
 
 export type HistoryEntry = {
   id: number;
@@ -123,6 +132,8 @@ export type IrcApi = {
   getSettings: () => Promise<Settings>;
   setSettings: (settings: Settings) => Promise<void>;
   dccOffer: (serverId: string, nick: string) => Promise<string>;
+  dccSendFile: (serverId: string, nick: string, path: string) => Promise<string>;
+  chooseFile: () => Promise<string | null>;
   dccAccept: (ip: string, port: number) => Promise<string>;
   dccSend: (dccId: string, line: string) => Promise<void>;
   dccClose: (dccId: string) => Promise<void>;
@@ -139,6 +150,7 @@ export type IrcApi = {
   xdccPause: (xdccId: string) => Promise<void>;
   xdccResume: (xdccId: string) => Promise<void>;
   openExternal: (url: string) => Promise<void>;
+  showInFolder: (path: string) => Promise<void>;
   saveTextFile: (defaultName: string, content: string) => Promise<boolean>;
   chooseDirectory: (defaultPath?: string) => Promise<string | null>;
   setBadgeCount: (count: number) => Promise<void>;
@@ -169,6 +181,8 @@ export enum IrcMessages {
   getSettings = 'irc:getSettings',
   setSettings = 'irc:setSettings',
   dccOffer = 'irc:dccOffer',
+  dccSendFile = 'irc:dccSendFile',
+  chooseFile = 'irc:chooseFile',
   dccAccept = 'irc:dccAccept',
   dccSend = 'irc:dccSend',
   dccClose = 'irc:dccClose',
@@ -177,6 +191,7 @@ export enum IrcMessages {
   xdccPause = 'irc:xdccPause',
   xdccResume = 'irc:xdccResume',
   openExternal = 'irc:openExternal',
+  showInFolder = 'irc:showInFolder',
   saveTextFile = 'irc:saveTextFile',
   chooseDirectory = 'irc:chooseDirectory',
   setBadgeCount = 'irc:setBadgeCount',
