@@ -15,7 +15,7 @@ type Props = {
 };
 
 const inputClass =
-  'w-full bg-[var(--dolq-bg-input)] border-0 rounded text-[var(--dolq-text)] text-[14px] px-3 py-2.5 outline-none focus:ring-2 focus:ring-[#c792ea] placeholder:text-[var(--dolq-text-faint)]';
+  'w-full bg-[var(--dolq-bg-input)] border-0 rounded text-[var(--dolq-text)] text-[14px] px-3 py-2.5 outline-none focus:ring-2 focus:ring-(--dolq-accent) placeholder:text-[var(--dolq-text-faint)]';
 
 const PACKS_ONLY_LIMIT = 300;
 const DEFAULT_LIMIT = 100;
@@ -109,7 +109,7 @@ export function SearchModal({
                   type="checkbox"
                   checked={global}
                   onChange={(e) => setGlobal(e.target.checked)}
-                  className="accent-[#c792ea]"
+                  className="accent-(--dolq-accent)"
                 />
                 Search everywhere, not just {defaultChannelLabel}
               </label>
@@ -118,7 +118,7 @@ export function SearchModal({
                   type="checkbox"
                   checked={packsOnly}
                   onChange={(e) => setPacksOnly(e.target.checked)}
-                  className="accent-[#c792ea]"
+                  className="accent-(--dolq-accent)"
                 />
                 📦 Packs only
               </label>
@@ -126,7 +126,7 @@ export function SearchModal({
             <button
               type="submit"
               disabled={loading}
-              className="px-4 py-2 rounded bg-[#c792ea] text-white text-shadow-sm text-[14px] font-semibold border-0 cursor-pointer hover:bg-[#a579c2] transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-4 py-2 rounded bg-(--dolq-accent) text-white text-shadow-sm text-[14px] font-semibold border-0 cursor-pointer hover:bg-(--dolq-accent-hover) transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? 'Searching…' : 'Search'}
             </button>

@@ -141,3 +141,24 @@ func TestLogPairingUsesACMEDomain(t *testing.T) {
 		t.Fatalf("got %q, want only a link to the ACME domain", out)
 	}
 }
+
+func TestLogPairingHonoursThePublicHostAndPort(t *testing.T) {
+	t.Setenv("DOLQ_PUBLIC_HOST", "dolq.example.com")
+	t.Setenv("DOLQ_PUBLIC_PORT", "30789")
+	out := captureLog(t, func() { logPairing("0.0.0.0:6789", "", "tok", "", false, true) })
+	if !strings.Contains(out, "dolq://dolq.example.com:30789?") || !strings.Contains(out, "tls=0") {
+		t.Errorf("link should use the public host and port, and mark plain TCP: %s", out)
+	}
+}
+
+func TestLogPairingIgnoresAnInvalidPublicPortAndAListenerWithoutOne(t *testing.T) {
+	t.Setenv("DOLQ_PUBLIC_HOST", "h.example")
+	t.Setenv("DOLQ_PUBLIC_PORT", "not-a-number")
+	out := captureLog(t, func() { logPairing("0.0.0.0:6789", "", "tok", "", true, true) })
+	if !strings.Contains(out, "dolq://h.example:6789?") {
+		t.Errorf("an unusable public port should fall back to the listen port: %s", out)
+	}
+	if out := captureLog(t, func() { logPairing("no-port", "", "tok", "", true, true) }); out != "" {
+		t.Errorf("nothing to pair with, yet logged: %s", out)
+	}
+}

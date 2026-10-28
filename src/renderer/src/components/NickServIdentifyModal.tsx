@@ -7,7 +7,7 @@ type Props = {
 };
 
 const inputClass =
-  'w-full bg-[var(--dolq-bg-input)] border-0 rounded text-[var(--dolq-text)] text-[14px] px-3 py-2.5 outline-none focus:ring-2 focus:ring-[#c792ea] placeholder:text-[var(--dolq-text-faint)]';
+  'w-full bg-[var(--dolq-bg-input)] border-0 rounded text-[var(--dolq-text)] text-[14px] px-3 py-2.5 outline-none focus:ring-2 focus:ring-(--dolq-accent) placeholder:text-[var(--dolq-text-faint)]';
 
 export function NickServIdentifyModal({ onIdentify, onDismiss }: Props) {
   const [password, setPassword] = useState('');
@@ -69,7 +69,7 @@ export function NickServIdentifyModal({ onIdentify, onDismiss }: Props) {
             </button>
             <button
               type="submit"
-              className="px-5 py-2 rounded bg-[#c792ea] text-white text-shadow-sm text-[14px] font-semibold border-0 cursor-pointer hover:bg-[#a579c2] transition-colors duration-150"
+              className="px-5 py-2 rounded bg-(--dolq-accent) text-white text-shadow-sm text-[14px] font-semibold border-0 cursor-pointer hover:bg-(--dolq-accent-hover) transition-colors duration-150"
             >
               Identify
             </button>

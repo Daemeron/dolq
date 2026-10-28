@@ -1,6 +1,38 @@
 import { useContextMenu } from '../hooks/useContextMenu';
 import type { Channel } from '../types';
+import { nickColor, nickInitial } from '../utils/nickColor';
 import { ContextMenu, ContextMenuHeader, ContextMenuItem } from './ContextMenu';
+import { Icon } from './Icon';
+
+function GroupLabel({ children }: { children: React.ReactNode }) {
+  return <div className="pt-3.5 pb-1.5 px-4 text-[12px] font-medium text-(--dolq-text-dim)">{children}</div>;
+}
+
+export function RowButton({
+  selected,
+  strong,
+  dimmed,
+  children,
+  ...rest
+}: {
+  selected: boolean;
+  strong?: boolean;
+  dimmed?: boolean;
+} & React.ButtonHTMLAttributes<HTMLButtonElement>) {
+  return (
+    <button
+      type="button"
+      {...rest}
+      className={`flex items-center gap-2.5 h-8 mx-2 w-[calc(100%-16px)] px-2 rounded-lg border-0 text-[14px] cursor-pointer text-left transition-colors ${
+        selected
+          ? 'bg-(--dolq-bg-row-selected) text-(--dolq-text) font-medium'
+          : `bg-transparent hover:bg-(--dolq-bg-row-hover) ${strong ? 'text-(--dolq-text) font-semibold' : 'text-(--dolq-text-muted)'}`
+      } ${dimmed ? 'opacity-45 italic' : ''}`}
+    >
+      {children}
+    </button>
+  );
+}
 
 type Props = {
   serverName: string;
@@ -15,7 +47,6 @@ type Props = {
   onLeaveChannel: (id: string) => void;
   onRemoveChannel: (id: string) => void;
   onCloseQuery: (id: string) => void;
-  onOpenSearch: () => void;
 };
 
 export function ChannelList({
@@ -31,7 +62,6 @@ export function ChannelList({
   onLeaveChannel,
   onRemoveChannel,
   onCloseQuery,
-  onOpenSearch,
 }: Props) {
   const logChannel = channels.find((c) => c.isLog);
   const regularChannels = channels.filter((c) => !c.isLog && !c.isQuery);
@@ -45,123 +75,95 @@ export function ChannelList({
 
   return (
     <aside
-      className="relative flex flex-col w-60 bg-(--dolq-bg-panel) shrink-0 overflow-hidden"
+      className="relative flex flex-col flex-1 min-h-0 w-62 bg-(--dolq-bg-panel) border-r border-(--dolq-border) shrink-0 overflow-hidden"
       onContextMenu={dismissIfUnhandled}
     >
-      <div className="px-4 h-12 flex items-center justify-between font-bold text-[15px] text-(--dolq-text) border-b border-(--dolq-border) shrink-0 shadow-[0_1px_0_rgba(0,0,0,0.2)]">
-        <span className="truncate">{serverName}</span>
-        <button
-          type="button"
-          onClick={onOpenSearch}
-          title="Search history"
-          aria-label="Search history"
-          className="shrink-0 w-7 h-7 flex items-center justify-center rounded border-0 bg-transparent text-(--dolq-text-dim) cursor-pointer hover:text-(--dolq-text) hover:bg-(--dolq-bg-row-hover)"
-        >
-          🔍
-        </button>
+      <div className="px-4 h-14 flex items-center justify-between shrink-0">
+        <span className="font-semibold text-[15px] text-(--dolq-text) truncate">{serverName}</span>
       </div>
 
-      {logChannel && (
-        <div className="pt-3 pb-1 px-2">
-          <button
-            type="button"
-            onClick={() => onSelect(logChannel.id)}
-            className={`flex items-center gap-2 w-full py-1.5 px-2 rounded border-0 text-[14px] cursor-pointer text-left font-medium transition-[background,color] duration-100 ${
-              selectedId === logChannel.id
-                ? 'bg-(--dolq-bg-row-selected) text-(--dolq-text)'
-                : 'bg-transparent text-(--dolq-text-dim) hover:bg-(--dolq-bg-row-hover) hover:text-(--dolq-text)'
-            }`}
-          >
-            <span className="font-mono text-[11px] opacity-60">▤</span>
-            Log
-          </button>
-        </div>
-      )}
+      <div className="flex-1 min-h-0 overflow-y-auto pb-3">
+        {logChannel && (
+          <RowButton selected={selectedId === logChannel.id} onClick={() => onSelect(logChannel.id)}>
+            <span className="w-4 flex justify-center text-(--dolq-text-faint)">
+              <Icon name="terminal" size={15} />
+            </span>
+            <span className="flex-1 truncate">Server log</span>
+          </RowButton>
+        )}
 
-      <div className="pt-3 pb-1 px-4 text-[11px] font-bold uppercase tracking-[0.5px] text-(--dolq-text-faint)">
-        Text Channels
-      </div>
-
-      <div className="flex-1 min-h-0 overflow-y-auto px-2 pb-3 scroll-thin mb-30">
+        <GroupLabel>Channels</GroupLabel>
         {regularChannels.map((ch) => {
           const joined = ch.joined === true;
           const mentioned = !!mentionedChannels[ch.id];
           const muted = !!mutedChannels[ch.id];
           const away = awayStats[ch.id];
           return (
-            <button
-              type="button"
+            <RowButton
               key={ch.id}
+              selected={ch.id === selectedId}
+              strong={mentioned || !!away}
+              dimmed={!joined}
               onClick={() => onSelect(ch.id)}
               onContextMenu={(e) => open(ch.id, e)}
               title={joined ? undefined : 'Not currently in this channel'}
-              className={`flex items-center w-full py-1.5 px-2 my-px rounded border-0 text-[15px] cursor-pointer text-left transition-[background,color] duration-100 ${
-                ch.id === selectedId
-                  ? 'bg-(--dolq-bg-row-selected) text-(--dolq-text)'
-                  : mentioned
-                    ? 'bg-transparent text-(--dolq-mention) font-semibold hover:bg-(--dolq-bg-row-hover)'
-                    : 'bg-transparent text-(--dolq-text-dim) hover:bg-(--dolq-bg-row-hover) hover:text-(--dolq-text)'
-              } ${joined ? '' : 'opacity-40 italic'}`}
             >
-              <span className="text-[16px] mr-1.5 opacity-50">#</span>
+              <span className="w-4 text-center font-medium text-(--dolq-text-faint)">#</span>
               <span className="flex-1 truncate">{ch.name}</span>
-              {!joined && <span className="text-[10px] uppercase shrink-0 mr-1">not joined</span>}
-              {muted && <span className="text-[12px] opacity-50 shrink-0">🔕</span>}
+              {!joined && <span className="text-[10px] uppercase shrink-0">not joined</span>}
+              {muted && (
+                <span className="shrink-0 opacity-60" title="Muted">
+                  <Icon name="bellOff" size={13} />
+                </span>
+              )}
               {away && (
                 <span
                   title={`${away.count} message${away.count === 1 ? '' : 's'} from ${away.people} ${away.people === 1 ? 'person' : 'people'} since you last looked`}
-                  className="text-[10px] font-mono px-1.5 rounded-full bg-(--dolq-bg-row-hover) text-(--dolq-text-faint) shrink-0"
+                  className={`min-w-5 h-5 px-1.5 rounded-full text-[11px] font-semibold inline-flex items-center justify-center shrink-0 ${
+                    mentioned
+                      ? 'bg-(--dolq-accent) text-(--dolq-on-accent)'
+                      : 'bg-(--dolq-bg-row-selected) text-(--dolq-text-muted)'
+                  }`}
                 >
                   {away.count > 99 ? '99+' : away.count}
                 </span>
               )}
-              {mentioned && <span className="w-2 h-2 rounded-full bg-(--dolq-mention) shrink-0" />}
-            </button>
+              {mentioned && !away && <span className="w-2 h-2 rounded-full bg-(--dolq-accent) shrink-0" />}
+            </RowButton>
           );
         })}
 
-        {plainQueries.length > 0 && (
-          <div className="pt-3 pb-1 px-2 text-[11px] font-bold uppercase tracking-[0.5px] text-(--dolq-text-faint)">
-            Direct Messages
-          </div>
-        )}
+        {plainQueries.length > 0 && <GroupLabel>Direct messages</GroupLabel>}
         {plainQueries.map((ch) => (
-          <button
-            type="button"
+          <RowButton
             key={ch.id}
+            selected={ch.id === selectedId}
             onClick={() => onSelect(ch.id)}
             onContextMenu={(e) => open(ch.id, e)}
-            className={`flex items-center w-full py-1.5 px-2 my-px rounded border-0 text-[15px] cursor-pointer text-left transition-[background,color] duration-100 ${
-              ch.id === selectedId
-                ? 'bg-(--dolq-bg-row-selected) text-(--dolq-text)'
-                : 'bg-transparent text-(--dolq-text-dim) hover:bg-(--dolq-bg-row-hover) hover:text-(--dolq-text)'
-            }`}
           >
-            <span className="text-[16px] mr-1.5 opacity-50">@</span>
-            {ch.name}
-          </button>
+            <span
+              className="w-5 h-5 rounded-full text-white text-[10px] font-semibold flex items-center justify-center shrink-0"
+              style={{ background: nickColor(ch.name) }}
+            >
+              {nickInitial(ch.name)}
+            </span>
+            <span className="flex-1 truncate">{ch.name}</span>
+          </RowButton>
         ))}
 
-        {dccChats.length > 0 && (
-          <div className="pt-3 pb-1 px-2 text-[11px] font-bold uppercase tracking-[0.5px] text-(--dolq-text-faint)">
-            DCC Chats
-          </div>
-        )}
+        {dccChats.length > 0 && <GroupLabel>DCC chats</GroupLabel>}
         {dccChats.map((ch) => (
-          <button
-            type="button"
+          <RowButton
             key={ch.id}
+            selected={ch.id === selectedId}
             onClick={() => onSelect(ch.id)}
             onContextMenu={(e) => open(ch.id, e)}
-            className={`flex items-center w-full py-1.5 px-2 my-px rounded border-0 text-[15px] cursor-pointer text-left transition-[background,color] duration-100 ${
-              ch.id === selectedId
-                ? 'bg-(--dolq-bg-row-selected) text-(--dolq-text)'
-                : 'bg-transparent text-(--dolq-text-dim) hover:bg-(--dolq-bg-row-hover) hover:text-(--dolq-text)'
-            }`}
           >
-            <span className="text-[16px] mr-1.5 opacity-50">⚡</span>
-            {ch.name}
-          </button>
+            <span className="w-4 flex justify-center text-(--dolq-text-faint)">
+              <Icon name="zap" size={15} />
+            </span>
+            <span className="flex-1 truncate">{ch.name}</span>
+          </RowButton>
         ))}
       </div>
 

@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { HistoryEntry, IrcEvent, Settings } from '../../shared/ipc';
 import { ChannelList } from './components/ChannelList';
-import { ConnectionStatus } from './components/ConnectionStatus';
 import { type ConnectForm, ConnectModal, parseList } from './components/ConnectModal';
 import { DCCOfferModal } from './components/DCCOfferModal';
 import { type EditServerForm, EditServerModal } from './components/EditServerModal';
@@ -46,7 +45,7 @@ const FONT_SIZE_ZOOM: Record<'small' | 'medium' | 'large', number> = {
 };
 
 const FONT_FAMILY_STACKS: Record<'system' | 'serif' | 'monospace', string> = {
-  system: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+  system: "'Inter Variable', Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
   serif: "Georgia, 'Times New Roman', Times, serif",
   monospace: "'JetBrains Mono', 'Fira Code', 'Courier New', monospace",
 };
@@ -939,15 +938,22 @@ export default function App() {
     setView({ kind: 'chat' });
   }
 
-  async function connectToServer() {
-    const server = servers.find((s) => s.id === selectedServerId);
+  async function connectToServer(id = selectedServerId) {
+    const server = servers.find((s) => s.id === id);
     if (!server) return;
     await connectServer(server);
   }
 
-  async function handleDisconnect() {
-    await window.irc.disconnect(selectedServerId);
-    setConnectionStatus(selectedServerId, 'disconnected');
+  async function handleDisconnect(id = selectedServerId) {
+    await window.irc.disconnect(id);
+    setConnectionStatus(id, 'disconnected');
+  }
+
+  // Connecting is already under way for 'connecting', so only the other two states act.
+  function handleToggleConnection(id: string) {
+    const status = statusMap[id] ?? 'disconnected';
+    if (status === 'connected') return handleDisconnect(id);
+    if (status === 'disconnected') return connectToServer(id);
   }
 
   async function handleRemoveServer(id: string) {
@@ -1159,6 +1165,18 @@ export default function App() {
   const isQuery = selectedChannel?.isQuery ?? false;
   const currentNick = nickMap[selectedServerId] ?? 'dolq_user';
   const connectionStatus = statusMap[selectedServerId] ?? 'disconnected';
+  const [showMembers, setShowMembers] = useState(true);
+  const [showTransfers, setShowTransfers] = useState(true);
+  const mentionedHere = channels
+    .filter((c) => mentionedChannels[c.id])
+    .map((c) => ({ id: c.id, label: c.isQuery ? `@${c.name}` : `#${c.name}` }));
+  const transferCount = Object.keys(transfers).length;
+  // A new transfer brings the cards back even if they were hidden.
+  const prevTransferCount = useRef(transferCount);
+  useEffect(() => {
+    if (transferCount > prevTransferCount.current) setShowTransfers(true);
+    prevTransferCount.current = transferCount;
+  }, [transferCount]);
 
   async function handleSend(text: string, aliasDepth = 0): Promise<void> {
     const joinMatch = text.match(/^\/join\s+(#\S+)(?:\s+(\S+))?$/);
@@ -1274,13 +1292,15 @@ export default function App() {
           onDecline={handleDeclineXDCCOffer}
         />
       )}
-      <TransferStatus
-        transfers={transfers}
-        onPause={handlePauseTransfer}
-        onResume={handleResumeTransfer}
-        onCancel={handleCancelTransfer}
-        onDismiss={handleDismissTransfer}
-      />
+      {showTransfers && (
+        <TransferStatus
+          transfers={transfers}
+          onPause={handlePauseTransfer}
+          onResume={handleResumeTransfer}
+          onCancel={handleCancelTransfer}
+          onDismiss={handleDismissTransfer}
+        />
+      )}
       {showSearch && (
         <SearchModal
           servers={servers}
@@ -1297,17 +1317,19 @@ export default function App() {
       {pendingIdentifyServerId && (
         <NickServIdentifyModal onIdentify={handleIdentify} onDismiss={() => setPendingIdentifyServerId(null)} />
       )}
-      <div className="relative flex flex-col shrink-0">
-        <div className="flex flex-1 overflow-hidden">
-          <ServerList
-            servers={servers}
-            selectedId={selectedServerId}
-            onSelect={handleSelectServer}
-            onAddServer={() => setView({ kind: 'connect' })}
-            onRemove={handleRemoveServer}
-            onChangeColor={setServerColor}
-            onEditServer={(id) => setView({ kind: 'editServer', serverId: id })}
-          />
+      <div className="flex shrink-0">
+        <ServerList
+          servers={servers}
+          selectedId={selectedServerId}
+          onSelect={handleSelectServer}
+          onAddServer={() => setView({ kind: 'connect' })}
+          onRemove={handleRemoveServer}
+          onChangeColor={setServerColor}
+          onEditServer={(id) => setView({ kind: 'editServer', serverId: id })}
+          statusMap={statusMap}
+          onToggleConnection={handleToggleConnection}
+        />
+        <div className="flex flex-col">
           <ChannelList
             serverName={selectedServer?.name ?? ''}
             channels={channels}
@@ -1321,10 +1343,7 @@ export default function App() {
             onLeaveChannel={handleLeaveChannel}
             onRemoveChannel={handleRemoveChannel}
             onCloseQuery={handleRemoveChannel}
-            onOpenSearch={() => setShowSearch(true)}
           />
-        </div>
-        <div className="absolute bottom-0 left-0 w-full px-3 pt-2 pb-2">
           <UserPanel
             currentNick={currentNick}
             away={selfAwayMap[selectedServerId] ?? false}
@@ -1333,7 +1352,7 @@ export default function App() {
         </div>
       </div>
       <main className="flex flex-col flex-1 bg-(--dolq-bg) overflow-hidden">
-        {view.kind === 'connect' ? (
+        {view.kind === 'connect' && (
           <ConnectModal
             key={connectPrefill ? `${connectPrefill.host}:${connectPrefill.port}` : 'blank'}
             presets={presets}
@@ -1345,7 +1364,8 @@ export default function App() {
             }}
             initial={connectPrefill ?? undefined}
           />
-        ) : view.kind === 'editServer' ? (
+        )}
+        {view.kind === 'editServer' &&
           (() => {
             const server = servers.find((s) => s.id === view.serverId);
             if (!server) return null;
@@ -1361,8 +1381,8 @@ export default function App() {
                 onCancel={() => setView({ kind: 'chat' })}
               />
             );
-          })()
-        ) : view.kind === 'preferences' ? (
+          })()}
+        {view.kind === 'preferences' && (
           <PreferencesModal
             settings={settings}
             onSave={handleSavePreferences}
@@ -1393,59 +1413,67 @@ export default function App() {
             keybindings={keybindings}
             onKeybindingChange={setKeybinding}
           />
-        ) : (
-          <div className="flex flex-1 overflow-hidden">
-            <div className="flex flex-col flex-1 overflow-hidden">
-              <TopicBar
-                channelName={selectedChannel?.name ?? ''}
-                topic={selectedChannel?.topic}
-                topicSetBy={selectedChannel?.topicSetBy}
-                topicSetAt={selectedChannel?.topicSetAt}
-                isLog={isLog}
-                isQuery={isQuery}
-                isDCC={selectedChannel?.isDCC}
-                dccStatus={selectedChannel?.isDCC ? statusMap[selectedChannelId] : undefined}
-                onExport={selectedChannel?.isDCC ? undefined : handleExportChannel}
-                serverColor={selectedServer?.color}
-              />
-              <MessageArea
-                messages={messages}
-                isLog={isLog}
-                channelId={scopeKey(selectedServerId, selectedChannelId)}
-                onLoadOlder={loadOlderHistory}
-                timestampFormat={timestampFormat}
-                density={messageDensity}
-                onGetPack={handleGetPack}
-              />
-              <MessageInput
-                channelName={selectedChannel?.name ?? ''}
-                isLog={isLog}
-                isQuery={isQuery}
-                onSend={handleSend}
-              />
-            </div>
-            <aside className="w-52 py-3 bg-(--dolq-bg-panel) border-l border-(--dolq-border) shrink-0 flex flex-col overflow-hidden relative">
-              {!isLog && !isQuery && (
-                <UserList
-                  users={users}
-                  currentNick={currentNick}
-                  onOpenQuery={handleOpenQuery}
-                  onWhois={handleWhois}
-                  ignoredNicks={ignoredNicks[selectedServerId] ?? []}
-                  onToggleIgnore={handleToggleIgnore}
-                  onDCCOffer={handleDCCOffer}
-                />
-              )}
-              <div className="absolute bottom-0 left-0 w-full px-3 pt-2 pb-2">
-                <ConnectionStatus
-                  connectionStatus={connectionStatus}
-                  onConnect={connectToServer}
-                  onDisconnect={handleDisconnect}
-                />
-              </div>
-            </aside>
-          </div>
         )}
+        <div className="flex flex-1 overflow-hidden">
+          <div className="flex flex-col flex-1 overflow-hidden">
+            <TopicBar
+              channelName={selectedChannel?.name ?? ''}
+              topic={selectedChannel?.topic}
+              topicSetBy={selectedChannel?.topicSetBy}
+              topicSetAt={selectedChannel?.topicSetAt}
+              isLog={isLog}
+              isQuery={isQuery}
+              isDCC={selectedChannel?.isDCC}
+              dccStatus={selectedChannel?.isDCC ? statusMap[selectedChannelId] : undefined}
+              onExport={selectedChannel?.isDCC ? undefined : handleExportChannel}
+              onOpenSearch={() => setShowSearch(true)}
+              connectionStatus={connectionStatus}
+              onToggleConnection={() => handleToggleConnection(selectedServerId)}
+              muted={!!mutedChannels[selectedChannelId]}
+              onToggleMute={isLog || isQuery ? undefined : () => toggleMuteChannel(selectedChannelId)}
+              serverColor={selectedServer?.color}
+              mentions={mentionedHere}
+              onSelectMention={handleSelectChannel}
+              transferCount={transferCount}
+              showTransfers={showTransfers}
+              onToggleTransfers={() => setShowTransfers((v) => !v)}
+              showMembers={showMembers}
+              onToggleMembers={isLog || isQuery ? undefined : () => setShowMembers((v) => !v)}
+            />
+            <MessageArea
+              messages={messages}
+              isLog={isLog}
+              channelId={scopeKey(selectedServerId, selectedChannelId)}
+              onLoadOlder={loadOlderHistory}
+              timestampFormat={timestampFormat}
+              density={messageDensity}
+              onGetPack={handleGetPack}
+            />
+            <MessageInput
+              channelName={selectedChannel?.name ?? ''}
+              isLog={isLog}
+              isQuery={isQuery}
+              onSend={handleSend}
+            />
+          </div>
+          {!isLog && !isQuery && showMembers && (
+            <aside className="w-58 bg-(--dolq-bg-panel) border-l border-(--dolq-border) shrink-0 flex flex-col overflow-hidden">
+              <div className="h-14 px-4 flex items-center justify-between shrink-0">
+                <span className="font-semibold text-[15px] text-(--dolq-text)">Members</span>
+                <span className="text-[12px] text-(--dolq-text-dim)">{users.length} online</span>
+              </div>
+              <UserList
+                users={users}
+                currentNick={currentNick}
+                onOpenQuery={handleOpenQuery}
+                onWhois={handleWhois}
+                ignoredNicks={ignoredNicks[selectedServerId] ?? []}
+                onToggleIgnore={handleToggleIgnore}
+                onDCCOffer={handleDCCOffer}
+              />
+            </aside>
+          )}
+        </div>
       </main>
     </div>
   );

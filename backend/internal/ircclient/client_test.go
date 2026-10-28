@@ -7,6 +7,7 @@ import (
 	"net"
 	"reflect"
 	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -1401,5 +1402,203 @@ func TestDialGivesUpOnAStalledHandshake(t *testing.T) {
 		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("Dial still waiting on the handshake after the dial timeout")
+	}
+}
+
+func TestNickFollowsWhatTheServerConfirms(t *testing.T) {
+	c, conn, r := pipeClient(t, "mira")
+	if c.Nick() != "mira" {
+		t.Fatalf("Nick before welcome = %q", c.Nick())
+	}
+	c.Start()
+	drainHandshake(t, r)
+	writeLine(t, conn, ":irc.example 001 mira_ :Welcome")
+	deadline := time.Now().Add(2 * time.Second)
+	for c.Nick() != "mira_" {
+		if time.Now().After(deadline) {
+			t.Fatalf("Nick = %q, want the welcomed nick mira_", c.Nick())
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
+
+func TestLineListenersSeeEveryRawLine(t *testing.T) {
+	c, conn, r := pipeClient(t, "mira")
+	lines := make(chan string, 4)
+	c.AddLineListener(func(line string) { lines <- line })
+	c.Start()
+	drainHandshake(t, r)
+	writeLine(t, conn, ":irc.example NOTICE * :hello there")
+	select {
+	case got := <-lines:
+		if got != ":irc.example NOTICE * :hello there" {
+			t.Errorf("listener got %q", got)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("line listener never called")
+	}
+}
+
+func TestCTCPVersionRequestIsAnsweredWithANotice(t *testing.T) {
+	c, conn, r := pipeClient(t, "mira")
+	c.Start()
+	drainHandshake(t, r)
+	writeLine(t, conn, ":bob!b@h PRIVMSG mira :\x01VERSION\x01")
+	got := expectLine(t, r)
+	if want := "NOTICE bob :\x01VERSION"; len(got) < len(want) || got[:len(want)] != want {
+		t.Errorf("reply = %q, want it to start with %q", got, want)
+	}
+}
+
+func TestCapLineParsing(t *testing.T) {
+	cases := []struct {
+		line      string
+		command   string
+		sub       string
+		continues bool
+		caps      []string
+	}{
+		{"CAP * LS :sasl multi-prefix", "CAP", "LS", false, []string{"sasl", "multi-prefix"}},
+		{":irc.example CAP me LS * :sasl", "CAP", "LS", true, []string{"sasl"}},
+		{"CAP * ACK :sasl", "CAP", "ACK", false, []string{"sasl"}},
+		{":srv 903 me :ok", "903", "", false, nil},
+		{"", "", "", false, nil},
+	}
+	for _, c := range cases {
+		if got := capCommand(c.line); got != c.command {
+			t.Errorf("capCommand(%q) = %q, want %q", c.line, got, c.command)
+		}
+		if got := capSubcommand(c.line); got != c.sub {
+			t.Errorf("capSubcommand(%q) = %q, want %q", c.line, got, c.sub)
+		}
+		if got := capLSContinues(c.line); got != c.continues {
+			t.Errorf("capLSContinues(%q) = %v, want %v", c.line, got, c.continues)
+		}
+		if c.caps != nil {
+			if got := parseCapList(c.line); !slices.Equal(got, c.caps) {
+				t.Errorf("parseCapList(%q) = %v, want %v", c.line, got, c.caps)
+			}
+		}
+	}
+}
+
+func TestRequestsOnlyTheCapabilitiesTheServerOffers(t *testing.T) {
+	c, server, r := pipeClient(t, "mynick")
+	c.Start()
+	drainHandshake(t, r)
+	writeLine(t, server, "CAP * LS :multi-prefix away-notify unknown-thing")
+	got := expectLine(t, r)
+	if !strings.HasPrefix(got, "CAP REQ :") || strings.Contains(got, "unknown-thing") || !strings.Contains(got, "multi-prefix") {
+		t.Errorf("got %q, want a request for the wanted subset only", got)
+	}
+	writeLine(t, server, "CAP * ACK :multi-prefix away-notify")
+	if got := expectLine(t, r); got != "CAP END\r\n" {
+		t.Errorf("got %q, want CAP END after the ack", got)
+	}
+}
+
+func TestDCCRequestsBecomeEvents(t *testing.T) {
+	c, server, r := pipeClient(t, "mynick")
+	events := make(chan any, 8)
+	c.AddEventListener(func(e any) { events <- e })
+	c.Start()
+	drainHandshake(t, r)
+
+	next := func() any {
+		select {
+		case e := <-events:
+			return e
+		case <-time.After(2 * time.Second):
+			t.Fatal("no event")
+			return nil
+		}
+	}
+	// 3232235777 is 192.168.1.1
+	writeLine(t, server, ":kestrel!k@host PRIVMSG mynick :\x01DCC CHAT chat 3232235777 5000\x01")
+	if e, ok := next().(ircparse.DCCChatOfferEvent); !ok || e.Nick != "kestrel" || e.IP != "192.168.1.1" || e.Port != 5000 {
+		t.Errorf("chat offer = %#v", e)
+	}
+	writeLine(t, server, ":bot!b@bot.example PRIVMSG mynick :\x01DCC SEND file.iso 3232235777 5001 2048\x01")
+	if e, ok := next().(ircparse.XDCCSendOfferEvent); !ok || e.Nick != "bot" || e.Filename != "file.iso" || e.Port != 5001 || e.Size != 2048 || e.Host != "b@bot.example" {
+		t.Errorf("send offer = %#v", e)
+	}
+	writeLine(t, server, ":bot!b@bot.example PRIVMSG mynick :\x01DCC ACCEPT file.iso 5001 1024\x01")
+	if e, ok := next().(ircparse.XDCCResumeAcceptEvent); !ok || e.Filename != "file.iso" || e.Position != 1024 {
+		t.Errorf("resume accept = %#v", e)
+	}
+}
+
+func TestMalformedDCCRequestsAreIgnored(t *testing.T) {
+	c, server, r := pipeClient(t, "mynick")
+	events := make(chan any, 8)
+	c.AddEventListener(func(e any) { events <- e })
+	c.Start()
+	drainHandshake(t, r)
+	for _, bad := range []string{
+		"\x01DCC\x01",
+		"\x01DCC CHAT chat\x01",
+		"\x01DCC CHAT chat notanumber 5000\x01",
+		"\x01DCC CHAT chat 3232235777 notaport\x01",
+		"\x01DCC SEND\x01",
+		"\x01DCC ACCEPT nothing\x01",
+		"\x01DCC FROBNICATE x\x01",
+	} {
+		writeLine(t, server, ":x!x@h PRIVMSG mynick :"+bad)
+	}
+	// a normal message afterwards proves the bad ones were consumed without effect
+	writeLine(t, server, ":x!x@h PRIVMSG mynick :hello")
+	select {
+	case e := <-events:
+		if _, ok := e.(ircparse.PrivmsgEvent); !ok {
+			t.Errorf("a malformed DCC request produced %#v", e)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("no event")
+	}
+}
+
+func TestDialConnectsAndRefusesCleanly(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	port := ln.Addr().(*net.TCPAddr).Port
+	accepted := make(chan net.Conn, 1)
+	go func() {
+		if c, err := ln.Accept(); err == nil {
+			accepted <- c
+		}
+	}()
+	c, err := Dial("127.0.0.1", port, "mira", false)
+	if err != nil {
+		t.Fatalf("Dial: %v", err)
+	}
+	if c.Nick() != "mira" {
+		t.Errorf("Nick = %q", c.Nick())
+	}
+	(<-accepted).Close()
+	ln.Close()
+
+	if _, err := Dial("127.0.0.1", port, "mira", false); err == nil {
+		t.Error("Dial to a closed port succeeded")
+	}
+}
+
+func TestDialSecureFailsAgainstAServerThatDoesNotSpeakTLS(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+	go func() {
+		c, err := ln.Accept()
+		if err != nil {
+			return
+		}
+		c.Write([]byte("this is not tls\r\n"))
+		c.Close()
+	}()
+	if _, err := Dial("127.0.0.1", ln.Addr().(*net.TCPAddr).Port, "mira", true); err == nil {
+		t.Error("a TLS dial to a plain server succeeded")
 	}
 }

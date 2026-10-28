@@ -1,55 +1,88 @@
 @import "tailwindcss";
 
+/* Dolq design system tokens. Reference and rules: docs/design-system/README.md.
+   Warm neutrals plus one clay accent; colour is reserved for server icons and
+   nicknames (--dolq-nick-*). Dark is the :root default, light is [data-theme="light"]
+   (App.tsx toggles it off store.ts's `theme`). */
 :root {
-  /* Preferences' Font Family overrides this via App.tsx's effect (see
-     store.ts's fontFamily) - the fallback here is what always applied
-     before that setting existed, so leaving it untouched looks identical. */
-  --dolq-font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  /* Preferences' Font Family overrides this via App.tsx's effect (see store.ts's fontFamily). */
+  --dolq-font-family: "Inter Variable", Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --dolq-font-serif: "Newsreader Variable", Newsreader, "Iowan Old Style", Georgia, serif;
+  --dolq-font-mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
 
-  /* Preferences' Light theme (App.tsx's effect toggling [data-theme] off
-     store.ts's `theme`) - dark is the app's original palette and stays the
-     :root default, so an unset/pre-this-setting persisted store still looks
-     identical. Only the structural chrome (backgrounds/text/borders) is
-     themed here; accent purple, success/danger/mention-dot colors, nick
-     colors, privilege-role colors and the mIRC palette (IrcText.tsx) are
-     left as plain hex - they're saturated enough to already read fine on
-     both backgrounds, and giving all of those a matching light-mode
-     variant too is real palette-design work this pass doesn't need. */
-  --dolq-bg: #212121;
-  --dolq-bg-panel: #1c1c1c;
-  --dolq-bg-panel-alt: #18191a;
-  --dolq-bg-input: #333333;
-  --dolq-bg-hover: #3d3d3d;
-  --dolq-bg-raised: #262626;
-  --dolq-bg-row-hover: rgba(90, 90, 90, 0.35);
-  --dolq-bg-row-selected: rgba(90, 90, 90, 0.55);
-  --dolq-border: #2a2a2a;
-  --dolq-text: #e6e6e6;
-  --dolq-text-muted: #b0b0b0;
-  --dolq-text-dim: #909090;
-  --dolq-text-faint: #6b6b6b;
-  /* Only the mention *text* color needs its own light variant (ChannelList) -
-     it's the one place one of the saturated colors above doubles as body
-     text rather than a background/dot/badge, so the pale-yellow dark-mode
-     value would fail contrast on a light sidebar. */
-  --dolq-mention: #ffcb6b;
+  --dolq-bg: #262624;
+  --dolq-bg-panel: #1f1e1d;
+  --dolq-bg-panel-alt: #191918;
+  --dolq-bg-input: #30302e;
+  --dolq-bg-hover: #3a3a37;
+  --dolq-bg-raised: #2b2b29;
+  --dolq-bg-row-hover: rgba(250, 249, 245, 0.06);
+  --dolq-bg-row-selected: rgba(250, 249, 245, 0.11);
+  --dolq-border: rgba(250, 249, 245, 0.11);
+  --dolq-border-strong: rgba(250, 249, 245, 0.22);
+  --dolq-text: #faf9f5;
+  --dolq-text-muted: #d3d1c7;
+  --dolq-text-dim: #a09e95;
+  --dolq-text-faint: #7e7c75;
+  --dolq-mention: #e0a64a;
+
+  --dolq-accent: #d97757;
+  --dolq-accent-hover: #e48767;
+  --dolq-on-accent: #1f1e1d;
+  --dolq-accent-soft: rgba(217, 119, 87, 0.14);
+  --dolq-ok: #5cbf8a;
+  --dolq-warn: #e0a64a;
+  --dolq-danger: #e5736a;
+  --dolq-tip-bg: #faf9f5;
+  --dolq-tip-text: #141413;
+  --dolq-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(250, 249, 245, 0.08);
+
+  --dolq-nick-1: #e88b6b;
+  --dolq-nick-2: #5aa9e0;
+  --dolq-nick-3: #5cbf8a;
+  --dolq-nick-4: #b48ce8;
+  --dolq-nick-5: #e0a64a;
+  --dolq-nick-6: #e57ba8;
+  --dolq-nick-7: #4fbdbd;
+  --dolq-nick-8: #a3b54a;
 }
 
 :root[data-theme="light"] {
-  --dolq-bg: #ffffff;
-  --dolq-bg-panel: #f2f2f4;
-  --dolq-bg-panel-alt: #e7e7ea;
-  --dolq-bg-input: #e9e9ec;
-  --dolq-bg-hover: #dedee2;
-  --dolq-bg-raised: #eeeeef;
-  --dolq-bg-row-hover: rgba(0, 0, 0, 0.06);
-  --dolq-bg-row-selected: rgba(0, 0, 0, 0.1);
-  --dolq-border: #dcdce0;
-  --dolq-text: #1a1a1a;
-  --dolq-text-muted: #4a4a4e;
-  --dolq-text-dim: #6a6a6e;
-  --dolq-text-faint: #8a8a8e;
-  --dolq-mention: #a3690a;
+  --dolq-bg: #faf9f5;
+  --dolq-bg-panel: #f3f1ea;
+  --dolq-bg-panel-alt: #ece9e0;
+  --dolq-bg-input: #ffffff;
+  --dolq-bg-hover: #e9e6dc;
+  --dolq-bg-raised: #ffffff;
+  --dolq-bg-row-hover: rgba(20, 20, 19, 0.05);
+  --dolq-bg-row-selected: rgba(20, 20, 19, 0.09);
+  --dolq-border: rgba(31, 30, 29, 0.12);
+  --dolq-border-strong: rgba(31, 30, 29, 0.22);
+  --dolq-text: #141413;
+  --dolq-text-muted: #3d3d3a;
+  --dolq-text-dim: #6b6963;
+  --dolq-text-faint: #7c7a72;
+  --dolq-mention: #b3532f;
+
+  --dolq-accent: #c6613f;
+  --dolq-accent-hover: #b3532f;
+  --dolq-on-accent: #ffffff;
+  --dolq-accent-soft: rgba(198, 97, 63, 0.1);
+  --dolq-ok: #3e9b6a;
+  --dolq-warn: #b7791f;
+  --dolq-danger: #b5372b;
+  --dolq-tip-bg: #141413;
+  --dolq-tip-text: #faf9f5;
+  --dolq-shadow: 0 8px 32px rgba(20, 20, 19, 0.14), 0 0 0 1px rgba(31, 30, 29, 0.08);
+
+  --dolq-nick-1: #c6613f;
+  --dolq-nick-2: #2f7eb8;
+  --dolq-nick-3: #2e8b63;
+  --dolq-nick-4: #8a5bc4;
+  --dolq-nick-5: #b8791a;
+  --dolq-nick-6: #c24b7e;
+  --dolq-nick-7: #1f8a8a;
+  --dolq-nick-8: #6c7a2a;
 }
 
 body {
@@ -67,24 +100,27 @@ body {
 }
 
 code {
-  font-family: "JetBrains Mono", "Fira Code", "Courier New", monospace;
+  font-family: var(--dolq-font-mono);
   font-size: 0.85em;
   background: var(--dolq-bg-panel);
   padding: 2px 5px;
-  border-radius: 3px;
-  color: #ff6e6e;
+  border-radius: 4px;
+  color: var(--dolq-accent);
 }
 
-/* Thin scrollbar for scrollable sidebars/panes */
-.scroll-thin::-webkit-scrollbar {
-  width: 8px;
+:focus-visible {
+  outline: 2px solid var(--dolq-accent);
+  outline-offset: 2px;
 }
-.scroll-thin::-webkit-scrollbar-track {
-  background: transparent;
+
+/* Scrollbars (Claude app behaviour): invisible until the scroller is hovered, then a thin thumb.
+   Applies to every scroller, so no per-element class is needed. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
 }
-.scroll-thin::-webkit-scrollbar-thumb {
-  background: var(--dolq-bg-panel-alt);
-  border-radius: 4px;
+*:hover {
+  scrollbar-color: var(--dolq-border-strong) transparent;
 }
 
 /* Scrollable but no visible scrollbar (server list is too narrow for one) */
@@ -94,4 +130,40 @@ code {
 .scroll-invisible::-webkit-scrollbar {
   width: 0;
   height: 0;
+}
+
+/* CSS-only tooltip for any element with data-tip. Add `tip-right` to open sideways. */
+.has-tip {
+  position: relative;
+}
+.has-tip::after {
+  content: attr(data-tip);
+  position: absolute;
+  z-index: 50;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  background: var(--dolq-tip-bg);
+  color: var(--dolq-tip-text);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1;
+  padding: 7px 9px;
+  border-radius: 6px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s 0.25s;
+}
+.has-tip.tip-right::after {
+  top: 50%;
+  left: calc(100% + 10px);
+  transform: translateY(-50%);
+}
+.has-tip:hover::after {
+  opacity: 1;
+}
+/* A tipped child (the server connection badge) takes over from its tipped parent. */
+.has-tip:has(> .has-tip:hover)::after {
+  opacity: 0;
 }

@@ -69,13 +69,13 @@ export function TransferStatus({ transfers, onPause, onResume, onCancel, onDismi
             </div>
             <div className="h-1.5 rounded-full bg-(--dolq-bg-input) overflow-hidden">
               <div
-                className={`h-full transition-[width] ${t.error ? 'bg-[#ff5555]' : 'bg-[#c792ea]'}`}
+                className={`h-full transition-[width] ${t.error ? 'bg-(--dolq-danger)' : 'bg-(--dolq-accent)'}`}
                 style={{ width: `${pct}%` }}
               />
             </div>
             <div className="text-[11px] text-(--dolq-text-faint) mt-1">
               {t.error ? (
-                <span className="text-[#ff5555]">Failed: {t.error}</span>
+                <span className="text-(--dolq-danger)">Failed: {t.error}</span>
               ) : t.done ? (
                 'Done'
               ) : t.paused ? (

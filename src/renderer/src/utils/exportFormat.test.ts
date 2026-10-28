@@ -2,62 +2,47 @@ import { describe, expect, it } from 'vitest';
 import type { HistoryEntry } from '../../../shared/ipc';
 import { formatEntry } from './exportFormat';
 
-const ts = '2026-01-01T00:00:00.000Z';
-
-function entry(partial: Partial<HistoryEntry>): HistoryEntry {
-  return { id: 1, serverId: 'srv', channel: '#general', timestamp: ts, ...partial };
-}
+const TS = '1970-01-01T00:00:00.000Z';
+const entry = (extra: Record<string, unknown>): HistoryEntry =>
+  ({ id: 1, serverId: 's', channel: '#c', timestamp: 0, ...extra }) as unknown as HistoryEntry;
+const fmt = (event: Record<string, unknown>) => formatEntry(entry({ event }));
 
 describe('formatEntry', () => {
-  it('formats a raw line verbatim', () => {
-    expect(formatEntry(entry({ isRaw: true, line: ':server NOTICE * :hi' }))).toBe(`[${ts}] :server NOTICE * :hi`);
+  it('formats raw lines', () => {
+    expect(formatEntry(entry({ isRaw: true, line: ':srv 001' }))).toBe(`[${TS}] :srv 001`);
+    expect(formatEntry(entry({ isRaw: true }))).toBe(`[${TS}] `);
   });
 
-  it('formats a PRIVMSG as <nick> text', () => {
-    expect(formatEntry(entry({ event: { type: 'PRIVMSG', nick: 'alice', target: '#general', text: 'hello' } }))).toBe(
-      `[${ts}] <alice> hello`,
+  it('formats chat, notices and actions', () => {
+    expect(fmt({ type: 'PRIVMSG', nick: 'a', text: 'hi' })).toBe(`[${TS}] <a> hi`);
+    expect(fmt({ type: 'NOTICE', nick: 'a', text: 'hi' })).toBe(`[${TS}] <a> hi`);
+    expect(fmt({ type: 'ACTION', nick: 'a', text: 'waves' })).toBe(`[${TS}] * a waves`);
+  });
+
+  it('formats membership events, with and without a reason', () => {
+    expect(fmt({ type: 'JOIN', nick: 'a', channel: '#c' })).toBe(`[${TS}] a joined #c`);
+    expect(fmt({ type: 'PART', nick: 'a', channel: '#c' })).toBe(`[${TS}] a left #c`);
+    expect(fmt({ type: 'PART', nick: 'a', channel: '#c', reason: 'bye' })).toBe(`[${TS}] a left #c (bye)`);
+    expect(fmt({ type: 'QUIT', nick: 'a' })).toBe(`[${TS}] a quit`);
+    expect(fmt({ type: 'QUIT', nick: 'a', reason: 'gone' })).toBe(`[${TS}] a quit (gone)`);
+    expect(fmt({ type: 'NICK', oldNick: 'a', newNick: 'b' })).toBe(`[${TS}] a is now known as b`);
+    expect(fmt({ type: 'KICK', nick: 'a', by: 'op' })).toBe(`[${TS}] a was kicked by op`);
+    expect(fmt({ type: 'KICK', nick: 'a', by: 'op', reason: 'spam' })).toBe(`[${TS}] a was kicked by op (spam)`);
+  });
+
+  it('formats topics whether or not we know who set them', () => {
+    expect(fmt({ type: 'TOPIC', nick: 'a', topic: 'x' })).toBe(`[${TS}] a set the topic: x`);
+    expect(fmt({ type: 'TOPIC', topic: 'x' })).toBe(`[${TS}] Topic is the topic: x`);
+  });
+
+  it('formats pack lines', () => {
+    expect(fmt({ type: 'XDCCPACK', nick: 'bot', number: 4, gets: 9, size: '1G', filename: 'f.iso' })).toBe(
+      `[${TS}] <bot> #4 · 9x sent · 1G · f.iso`,
     );
   });
 
-  it('formats an ACTION as * nick text', () => {
-    expect(formatEntry(entry({ event: { type: 'ACTION', nick: 'alice', target: '#general', text: 'waves' } }))).toBe(
-      `[${ts}] * alice waves`,
-    );
-  });
-
-  it('formats a PART with a reason', () => {
-    expect(formatEntry(entry({ event: { type: 'PART', nick: 'alice', channel: '#general', reason: 'bye' } }))).toBe(
-      `[${ts}] alice left #general (bye)`,
-    );
-  });
-
-  it('formats a PART without a reason', () => {
-    expect(formatEntry(entry({ event: { type: 'PART', nick: 'alice', channel: '#general' } }))).toBe(
-      `[${ts}] alice left #general`,
-    );
-  });
-
-  it('formats an XDCCPACK as <nick> #n details', () => {
-    expect(
-      formatEntry(
-        entry({
-          event: {
-            type: 'XDCCPACK',
-            nick: 'bot',
-            target: 'me',
-            number: 1,
-            gets: 5,
-            size: '340M',
-            filename: 'file.mkv',
-          },
-        }),
-      ),
-    ).toBe(`[${ts}] <bot> #1 · 5x sent · 340M · file.mkv`);
-  });
-
-  it('falls back to raw JSON for an event type without a dedicated format', () => {
-    expect(formatEntry(entry({ event: { type: 'names', channel: '#general', users: [] } }))).toBe(
-      `[${ts}] ${JSON.stringify({ type: 'names', channel: '#general', users: [] })}`,
-    );
+  it('falls back to JSON for events it has no wording for, and to blank for none', () => {
+    expect(fmt({ type: 'MODE', x: 1 })).toBe(`[${TS}] {"type":"MODE","x":1}`);
+    expect(formatEntry(entry({}))).toBe(`[${TS}] `);
   });
 });

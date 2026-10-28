@@ -21,12 +21,16 @@
     "backend:build": "go build -C backend -o bin/ ./cmd/dolqd",
     "backend:dev": "go -C backend run github.com/air-verse/air@v1.67.4",
     "backend:test": "go -C backend test ./...",
+    "backend:test:coverage": "cd backend && ./scripts/check-coverage.sh",
     "backend:test:dev": "go -C backend run github.com/air-verse/air@v1.67.4 -c .air.test.toml",
     "run": "electron-vite preview",
     "package": "npm run backend:build && npm run frontend:build && electron-builder"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.14",
+    "@fontsource-variable/inter": "^5.3.0",
+    "@fontsource-variable/newsreader": "^5.3.0",
+    "@fontsource/jetbrains-mono": "^5.3.0",
     "@playwright/test": "^1.62.0",
     "@tailwindcss/vite": "^4.3.1",
     "@tanstack/react-virtual": "^3.14.9",

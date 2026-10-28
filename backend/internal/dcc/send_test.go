@@ -220,3 +220,87 @@ func TestReceiveFilePause(t *testing.T) {
 		t.Fatalf("got %d bytes, want %d", out.Len(), len(payload))
 	}
 }
+
+func TestParseResumeAcceptRejectsMalformedReplies(t *testing.T) {
+	for _, param := range []string{
+		"SEND file 1 2",                // not an ACCEPT
+		`ACCEPT "unterminated 5000 10`, // quote never closes
+		"ACCEPT file",                  // no fields at all
+		"ACCEPT file 5000",             // position missing
+		"ACCEPT file port 10",          // port not a number
+		"ACCEPT file 5000 pos",         // position not a number
+		"ACCEPT",                       // nothing
+	} {
+		if got, ok := ParseResumeAccept(param); ok {
+			t.Errorf("ParseResumeAccept(%q) = %+v, want it rejected", param, got)
+		}
+	}
+}
+
+func TestParseResumeAcceptReadsAQuotedNameAndAToken(t *testing.T) {
+	got, ok := ParseResumeAccept(`ACCEPT "my file.iso" 5000 1024 tok`)
+	if !ok || got.Filename != "my file.iso" || got.Port != 5000 || got.Position != 1024 || got.Token != "tok" {
+		t.Errorf("got %+v, ok %v", got, ok)
+	}
+}
+
+func TestDialFailsForAnAddressNobodyListensOn(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	port := ln.Addr().(*net.TCPAddr).Port
+	ln.Close()
+	if _, err := Dial("127.0.0.1", port); err == nil {
+		t.Error("Dial to a closed port succeeded")
+	}
+}
+
+type failingWriter struct{}
+
+func (failingWriter) Write([]byte) (int, error) { return 0, io.ErrShortWrite }
+
+func TestReceiveFileStopsWhenTheDiskWriteFails(t *testing.T) {
+	client, server := net.Pipe()
+	defer client.Close()
+	defer server.Close()
+	go server.Write([]byte("data"))
+	if err := ReceiveFile(client, failingWriter{}, 0, 4, nil, nil); err != io.ErrShortWrite {
+		t.Errorf("err = %v, want the write error", err)
+	}
+}
+
+func TestReceiveFileReportsAPeerThatHangsUpEarly(t *testing.T) {
+	client, server := net.Pipe()
+	defer client.Close()
+	go func() {
+		server.Write([]byte("par"))
+		// ack read so the writer doesn't block on the pipe
+		buf := make([]byte, 4)
+		server.Read(buf)
+		server.Close()
+	}()
+	var out bytes.Buffer
+	if err := ReceiveFile(client, &out, 0, 10, nil, nil); err == nil {
+		t.Error("a short transfer was reported as complete")
+	}
+	if out.String() != "par" {
+		t.Errorf("wrote %q before the hang-up", out.String())
+	}
+}
+
+func TestParseSendOfferRejectsMalformedOffers(t *testing.T) {
+	for _, param := range []string{
+		"CHAT chat 1 2",               // not a SEND
+		`SEND "unterminated 1 2 3`,    // quote never closes
+		"SEND file",                   // no fields
+		"SEND file 3232235777 5000",   // size missing
+		"SEND file notanip 5000 10",   // ip not a number
+		"SEND file 3232235777 x 10",   // port not a number
+		"SEND file 3232235777 5000 x", // size not a number
+	} {
+		if got, ok := ParseSendOffer(param); ok {
+			t.Errorf("ParseSendOffer(%q) = %+v, want it rejected", param, got)
+		}
+	}
+}

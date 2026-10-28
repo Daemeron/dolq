@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dolq design system</title>
+<link rel="stylesheet" href="reference.css">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Newsreader:wght@400;500&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+<style>body{margin:0}.sw{height:56px;border-radius:8px;border:1px solid var(--border)}h3{font-size:12px;font-weight:500;color:var(--muted);margin:0 0 12px;text-transform:uppercase;letter-spacing:.06em}</style>
+</head>
+<body>
+<button onclick="var d=document.querySelector('.dq');d.dataset.theme=d.dataset.theme==='dark'?'light':'dark'" style="position:fixed;top:16px;right:16px;z-index:9;font:inherit;padding:6px 12px">Toggle theme</button>
+<div class="dq" data-theme="light" style="width:1200px;min-height:100vh;padding:48px;display:flex;flex-direction:column;gap:40px">
+  <div><h1 style="font-family:var(--serif);font-weight:400;font-size:40px;margin:0">Dolq design system</h1><p style="color:var(--muted);margin:6px 0 0">Warm neutrals, one clay accent. Colour is reserved for server icons and nicknames. All styles live in styles/dolq.css as tokens and .dq classes.</p></div>
+
+  <section><h3>Surfaces and text</h3>
+    <div style="display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:12px">
+      <div><div class="sw" style="background:var(--bg)"></div><div class="hint">bg #FAF9F5</div></div>
+      <div><div class="sw" style="background:var(--bg-side)"></div><div class="hint">bg-side #F3F1EA</div></div>
+      <div><div class="sw" style="background:var(--bg-rail)"></div><div class="hint">bg-rail #ECE9E0</div></div>
+      <div><div class="sw" style="background:var(--surface)"></div><div class="hint">surface #FFF</div></div>
+      <div><div class="sw" style="background:var(--text)"></div><div class="hint">text #141413</div></div>
+      <div><div class="sw" style="background:var(--muted)"></div><div class="hint">muted #6B6963</div></div>
+      <div><div class="sw" style="background:var(--accent)"></div><div class="hint">accent #C6613F</div></div>
+      <div><div class="sw" style="background:var(--ok)"></div><div class="hint">ok #3E9B6A</div></div>
+    </div></section>
+
+  <section><h3>Identity colours (server icons, nicks)</h3>
+    <div style="display:flex;gap:12px"><span class="avatar" style="background:var(--n1)">A</span><span class="avatar" style="background:var(--n2)">B</span><span class="avatar" style="background:var(--n3)">C</span><span class="avatar" style="background:var(--n4)">D</span><span class="avatar" style="background:var(--n5)">E</span><span class="avatar" style="background:var(--n6)">F</span><span class="avatar" style="background:var(--n7)">G</span><span class="avatar" style="background:var(--n8)">H</span></div></section>
+
+  <section><h3>Type</h3>
+    <div style="display:flex;gap:48px;align-items:baseline">
+      <div style="font-family:var(--serif);font-size:32px">Newsreader — titles</div>
+      <div style="font-size:14px">Inter 14 — interface and messages</div>
+      <div class="hint">Inter 12 — meta</div>
+      <code>JetBrains Mono — code</code>
+    </div></section>
+
+  <section><h3>Controls</h3>
+    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+      <button class="btn primary">Primary</button><button class="btn">Secondary</button><button class="btn ghost">Ghost</button><button class="btn danger">Danger</button>
+      <input class="input" style="width:200px" placeholder="Input">
+      <span class="switch on"></span><span class="switch"></span><span class="check on"><svg class="i sm" viewBox="0 0 24 24" style="width:12px;height:12px;stroke-width:3"><path d="m5 12 5 5 9-10"/></svg></span>
+      <span class="count">3</span><span class="count quiet">12</span><span class="tag">bot</span><span class="kbd">⌘ K</span>
+    </div></section>
+
+  <section><h3>Server icon and connection badge (hover the badges)</h3>
+    <div style="display:flex;gap:28px;background:var(--bg-rail);padding:24px;border-radius:12px;width:fit-content">
+      <button class="srv" style="background:#C6613F" aria-label="Connected">LC<span class="badge has-tip" data-tip="Connected"></span></button>
+      <button class="srv" style="background:#8A5BC4" aria-label="Connecting">Rz<span class="badge busy has-tip" data-tip="Connecting…"></span></button>
+      <button class="srv" style="background:#6C7A2A" aria-label="Disconnected">EF<span class="badge off has-tip" data-tip="Disconnected"></span></button>
+      <button class="srv sel" style="background:#2F7EB8" aria-label="Selected">OF<span class="badge has-tip" data-tip="Connected"></span></button>
+    </div></section>
+
+  <section><h3>Toolbar, rows, grouped messages</h3>
+    <div style="display:flex;gap:32px">
+      <div class="toolbar" style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:4px;height:fit-content">
+        <button class="icon-btn" aria-label="Search"><svg class="i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></button>
+        <button class="icon-btn on" aria-label="Mentions"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-4 8"/></svg></button>
+        <button class="icon-btn" aria-label="Transfers"><svg class="i" viewBox="0 0 24 24"><path d="M12 3v12m0 0-4-4m4 4 4-4M4 21h16"/></svg></button>
+      </div>
+      <div style="width:240px;background:var(--bg-side);padding:6px 0;border-radius:10px"><button class="row"><span class="hash">#</span><span class="name">linux</span></button><button class="row sel"><span class="hash">#</span><span class="name">dolq</span></button><button class="row unread"><span class="hash">#</span><span class="name">electron</span><span class="count">3</span></button></div>
+      <div style="width:420px;border:1px solid var(--border);border-radius:10px;padding:6px 0"><div class="msg first"><span class="avatar" style="background:var(--n3)">M</span><div class="body"><div class="meta"><span class="nick" style="color:var(--n3)">mira</span><span class="time">21:02</span></div><div class="text">First message shows name and avatar.</div></div></div><div class="msg"><span class="gutter">21:03</span><div class="body"><div class="text">Follow-ups within 5 minutes group together; time shows on hover.</div></div></div></div>
+    </div></section>
+</div>
+</body>
+</html>

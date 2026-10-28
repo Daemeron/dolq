@@ -40,3 +40,9 @@ describe('isChannelScopedLine', () => {
     expect(isChannelScopedLine(line)).toBe(false);
   });
 });
+
+describe('isChannelScopedLine: degenerate input', () => {
+  it('does not treat an empty line as channel traffic', () => {
+    expect(isChannelScopedLine('')).toBe(false);
+  });
+});

@@ -69,3 +69,9 @@ describe('eventChannels', () => {
     expect(eventChannels({ type: 'WELCOME', nick: 'a' })).toEqual([]);
   });
 });
+
+describe('describeEvent: modes', () => {
+  it('says nothing for a mode change that moves no privileges', () => {
+    expect(describeEvent({ type: 'MODE', channel: '#c', changes: [] }, 'me')).toBeNull();
+  });
+});

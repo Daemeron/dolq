@@ -127,3 +127,104 @@ describe('MessageArea', () => {
     expect(onLoadOlder).toHaveBeenCalledTimes(21);
   });
 });
+
+describe('MessageArea grouping', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  // jsdom has no layout, so give every element a size for the virtualizer to place rows.
+  function withLayout() {
+    vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(600);
+    vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(800);
+    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({
+      width: 800,
+      height: 600,
+      top: 0,
+      left: 0,
+      right: 800,
+      bottom: 600,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+  }
+
+  const chat = (id: number, nick: string, minute: number): Message => ({
+    id,
+    nick,
+    text: `text ${id}`,
+    timestamp: new Date(minute * 60_000),
+  });
+
+  it('shows the name once for a run of messages from one person, and again after a gap or another speaker', () => {
+    withLayout();
+    const messages = [chat(1, 'mira', 0), chat(2, 'mira', 1), chat(3, 'tomas', 2), chat(4, 'mira', 30)];
+    const { container } = render(
+      <MessageArea
+        isLog={false}
+        timestampFormat="24h"
+        density="cozy"
+        channelId="s:#c"
+        messages={messages}
+        onLoadOlder={() => {}}
+      />,
+    );
+    const names = [...container.querySelectorAll('span[style*="color"].font-semibold')].map((n) => n.textContent);
+    expect(names).toEqual(['mira', 'tomas', 'mira']);
+    expect(container.textContent).toContain('text 2');
+  });
+});
+
+describe('MessageArea: pack lines', () => {
+  function withLayout() {
+    vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(600);
+    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({
+      width: 800,
+      height: 600,
+      top: 0,
+      left: 0,
+      right: 800,
+      bottom: 600,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+  }
+  const pack: Message = {
+    id: 1,
+    nick: 'bot',
+    text: '#7 · 3x sent',
+    timestamp: new Date(0),
+    xdccPack: true,
+    xdccPackNumber: 7,
+  };
+
+  it('requests a pack from the keyboard as well as the mouse', () => {
+    withLayout();
+    const onGetPack = vi.fn();
+    const { getByTitle } = render(
+      <MessageArea
+        isLog={false}
+        timestampFormat="24h"
+        density="cozy"
+        channelId="s:#c"
+        messages={[pack]}
+        onGetPack={onGetPack}
+      />,
+    );
+    const row = getByTitle('Click to request this pack');
+    fireEvent.keyDown(row, { key: 'Enter' });
+    fireEvent.keyDown(row, { key: 'a' });
+    fireEvent.click(row);
+    expect(onGetPack).toHaveBeenCalledTimes(2);
+    expect(onGetPack).toHaveBeenCalledWith('bot', 7);
+  });
+
+  it('shows a pack line as plain text when nothing can request it', () => {
+    withLayout();
+    const { queryByTitle, getByText } = render(
+      <MessageArea isLog={false} timestampFormat="24h" density="cozy" channelId="s:#c" messages={[pack]} />,
+    );
+    expect(queryByTitle('Click to request this pack')).toBeNull();
+    expect(getByText(/#7/)).toBeTruthy();
+  });
+});

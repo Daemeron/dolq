@@ -32,3 +32,12 @@ describe('comboFromEvent', () => {
     expect(comboFromEvent(key({ key: 'ArrowDown', altKey: true }))).toBe('Alt+ArrowDown');
   });
 });
+
+describe('comboFromEvent: meta', () => {
+  it('names the meta key and orders modifiers consistently', () => {
+    expect(comboFromEvent(key({ key: 'k', metaKey: true }))).toBe('Meta+K');
+    expect(comboFromEvent(key({ key: 'k', ctrlKey: true, metaKey: true, altKey: true, shiftKey: true }))).toBe(
+      'Ctrl+Meta+Alt+Shift+K',
+    );
+  });
+});

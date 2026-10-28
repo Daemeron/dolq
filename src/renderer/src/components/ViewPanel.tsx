@@ -1,5 +1,4 @@
-import { useEffect, useRef } from 'react';
-import { FOCUSABLE } from '../hooks/useModalA11y';
+import { useModalA11y } from '../hooks/useModalA11y';
 
 type Props = {
   title: string;
@@ -7,32 +6,41 @@ type Props = {
   children: React.ReactNode;
 };
 
+/** A floating dialog over the chat; callers handle Escape themselves. */
 export function ViewPanel({ title, onClose, children }: Props) {
-  const contentRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const content = contentRef.current;
-    const focusable = content?.querySelector<HTMLElement>(FOCUSABLE);
-    (focusable ?? content)?.focus();
-  }, []);
+  const dialogRef = useModalA11y<HTMLDivElement>();
 
   return (
-    <>
-      <div className="h-12 flex items-center justify-between px-4 border-b border-(--dolq-border) bg-(--dolq-bg) shrink-0 shadow-[0_1px_0_rgba(0,0,0,0.2)]">
-        <span className="font-semibold text-(--dolq-text) text-[15px]">{title}</span>
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Close"
-          title="Close"
-          className="w-7 h-7 flex items-center justify-center rounded border-0 bg-transparent text-(--dolq-text-dim) cursor-pointer hover:text-(--dolq-text) hover:bg-(--dolq-bg-row-hover)"
-        >
-          ✕
-        </button>
+    // biome-ignore lint/a11y/noStaticElementInteractions: backdrop click-to-dismiss, Escape is handled by the caller
+    <div
+      role="presentation"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-6"
+      onClick={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        tabIndex={-1}
+        className="flex flex-col w-full max-w-170 max-h-full rounded-2xl bg-(--dolq-bg) shadow-(--dolq-shadow) overflow-hidden outline-none"
+      >
+        <div className="h-14 flex items-center justify-between pl-6 pr-3 shrink-0">
+          <h1 className="m-0 font-(family-name:--dolq-font-serif) font-medium text-(--dolq-text) text-[22px]">
+            {title}
+          </h1>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            data-tip="Close"
+            className="has-tip w-8.5 h-8.5 flex items-center justify-center rounded-lg border-0 bg-transparent text-(--dolq-text-dim) cursor-pointer hover:text-(--dolq-text) hover:bg-(--dolq-bg-row-hover)"
+          >
+            ✕
+          </button>
+        </div>
+        <div className="flex-1 min-h-0 overflow-y-auto px-6 pb-6 pt-2">{children}</div>
       </div>
-      <div ref={contentRef} tabIndex={-1} className="flex-1 overflow-y-auto scroll-thin p-8 outline-none">
-        {children}
-      </div>
-    </>
+    </div>
   );
 }
