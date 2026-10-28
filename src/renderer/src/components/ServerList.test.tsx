@@ -18,6 +18,7 @@ function renderList(statusMap: Record<string, ConnectionStatus>) {
     onEditServer: vi.fn(),
     statusMap,
     onToggleConnection: vi.fn(),
+    onOpenPreferences: vi.fn(),
   };
   render(<ServerList {...props} />);
   return props;
@@ -32,6 +33,12 @@ describe('ServerList connection badge', () => {
     // A server missing from the map is shown disconnected.
     renderList({});
     expect(screen.getAllByLabelText('Disconnected').length).toBe(2);
+  });
+
+  it('opens preferences from the bottom of the rail', () => {
+    const { onOpenPreferences } = renderList({});
+    fireEvent.click(screen.getByRole('button', { name: 'Preferences' }));
+    expect(onOpenPreferences).toHaveBeenCalled();
   });
 
   it('selects a server on click', () => {

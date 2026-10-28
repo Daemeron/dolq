@@ -3,17 +3,18 @@ import { describe, expect, it, vi } from 'vitest';
 import { UserPanel } from './UserPanel';
 
 describe('UserPanel', () => {
-  it('shows the nick and presence, and opens preferences', () => {
-    const onOpenPreferences = vi.fn();
-    render(<UserPanel currentNick="daemeron" away={false} onOpenPreferences={onOpenPreferences} />);
+  it('shows the nick and presence, and sets away', () => {
+    const onToggleAway = vi.fn();
+    render(<UserPanel currentNick="daemeron" away={false} onToggleAway={onToggleAway} />);
     expect(screen.getByText('daemeron')).toBeTruthy();
     expect(screen.getByText('Online')).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Preferences' }));
-    expect(onOpenPreferences).toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Set away' }));
+    expect(onToggleAway).toHaveBeenCalled();
   });
 
-  it('shows Away when away', () => {
-    render(<UserPanel currentNick="daemeron" away onOpenPreferences={() => {}} />);
+  it('shows Away when away, and offers to come back', () => {
+    render(<UserPanel currentNick="daemeron" away onToggleAway={() => {}} />);
     expect(screen.getByText('Away')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Back from away' }).getAttribute('aria-pressed')).toBe('true');
   });
 });

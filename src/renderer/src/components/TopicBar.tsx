@@ -151,7 +151,6 @@ export function TopicBar({
           icon="power"
           label={connected ? 'Disconnect' : connectionStatus === 'connecting' ? 'Connecting…' : 'Connect'}
           onClick={onToggleConnection}
-          on={connected}
         />
         {onToggleMembers && (
           <>

@@ -1166,7 +1166,7 @@ export default function App() {
   const currentNick = nickMap[selectedServerId] ?? 'dolq_user';
   const connectionStatus = statusMap[selectedServerId] ?? 'disconnected';
   const [showMembers, setShowMembers] = useState(true);
-  const [showTransfers, setShowTransfers] = useState(true);
+  const [showTransfers, setShowTransfers] = useState(false);
   const mentionedHere = channels
     .filter((c) => mentionedChannels[c.id])
     .map((c) => ({ id: c.id, label: c.isQuery ? `@${c.name}` : `#${c.name}` }));
@@ -1328,6 +1328,7 @@ export default function App() {
           onEditServer={(id) => setView({ kind: 'editServer', serverId: id })}
           statusMap={statusMap}
           onToggleConnection={handleToggleConnection}
+          onOpenPreferences={() => setView({ kind: 'preferences' })}
         />
         <div className="flex flex-col">
           <ChannelList
@@ -1347,7 +1348,7 @@ export default function App() {
           <UserPanel
             currentNick={currentNick}
             away={selfAwayMap[selectedServerId] ?? false}
-            onOpenPreferences={() => setView({ kind: 'preferences' })}
+            onToggleAway={() => handleSend(selfAwayMap[selectedServerId] ? '/away' : '/away Away')}
           />
         </div>
       </div>
@@ -1448,6 +1449,7 @@ export default function App() {
               timestampFormat={timestampFormat}
               density={messageDensity}
               onGetPack={handleGetPack}
+              selfNick={currentNick}
             />
             <MessageInput
               channelName={selectedChannel?.name ?? ''}

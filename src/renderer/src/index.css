@@ -132,38 +132,41 @@ code {
   height: 0;
 }
 
-/* CSS-only tooltip for any element with data-tip. Add `tip-right` to open sideways. */
-.has-tip {
-  position: relative;
-}
-.has-tip::after {
-  content: attr(data-tip);
-  position: absolute;
-  z-index: 50;
-  top: calc(100% + 6px);
-  left: 50%;
-  transform: translateX(-50%);
-  white-space: nowrap;
-  background: var(--dolq-tip-bg);
-  color: var(--dolq-tip-text);
-  font-size: 12px;
-  font-weight: 500;
-  line-height: 1;
-  padding: 7px 9px;
-  border-radius: 6px;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.12s 0.25s;
-}
-.has-tip.tip-right::after {
-  top: 50%;
-  left: calc(100% + 10px);
-  transform: translateY(-50%);
-}
-.has-tip:hover::after {
-  opacity: 1;
-}
-/* A tipped child (the server connection badge) takes over from its tipped parent. */
-.has-tip:has(> .has-tip:hover)::after {
-  opacity: 0;
+/* In a layer so utilities such as `absolute` still win over .has-tip's `position: relative`. */
+@layer components {
+  /* CSS-only tooltip for any element with data-tip. Add `tip-right` to open sideways. */
+  .has-tip {
+    position: relative;
+  }
+  .has-tip::after {
+    content: attr(data-tip);
+    position: absolute;
+    z-index: 50;
+    top: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%);
+    white-space: nowrap;
+    background: var(--dolq-tip-bg);
+    color: var(--dolq-tip-text);
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1;
+    padding: 7px 9px;
+    border-radius: 6px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.12s 0.25s;
+  }
+  .has-tip.tip-right::after {
+    top: 50%;
+    left: calc(100% + 10px);
+    transform: translateY(-50%);
+  }
+  .has-tip:hover::after {
+    opacity: 1;
+  }
+  /* A tipped child (the server connection badge) takes over from its tipped parent. */
+  .has-tip:has(> .has-tip:hover)::after {
+    opacity: 0;
+  }
 }

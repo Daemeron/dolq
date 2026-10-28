@@ -53,23 +53,11 @@ export function MessageInput({ channelName, isLog, isQuery, onSend }: Props) {
       )}
       <form
         onSubmit={handleSubmit}
-        className="flex items-center gap-1 rounded-2xl border border-(--dolq-border-strong) bg-(--dolq-bg-input) pl-2 pr-2 py-1.5 focus-within:border-(--dolq-accent) focus-within:shadow-[0_0_0_3px_var(--dolq-accent-soft)]"
+        className="rounded-2xl border border-(--dolq-border-strong) bg-(--dolq-bg-input) pt-2.5 pr-2.5 pb-2 pl-4 focus-within:border-(--dolq-accent) focus-within:shadow-[0_0_0_3px_var(--dolq-accent-soft)]"
       >
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            setShowEmoji((v) => !v);
-          }}
-          data-tip="Emoji"
-          aria-label="Emoji"
-          className="has-tip shrink-0 w-8.5 h-8.5 flex items-center justify-center rounded-lg border-0 bg-transparent text-(--dolq-text-dim) cursor-pointer hover:text-(--dolq-text) hover:bg-(--dolq-bg-row-hover)"
-        >
-          <Icon name="smile" />
-        </button>
         <input
           ref={inputRef}
-          className="flex-1 min-w-0 bg-transparent border-0 text-(--dolq-text) text-[15px] px-2 py-2 outline-none caret-(--dolq-text) placeholder:text-(--dolq-text-faint) disabled:opacity-40 disabled:cursor-not-allowed"
+          className="block w-full bg-transparent border-0 text-(--dolq-text) text-[15px] h-6.5 p-0 outline-none caret-(--dolq-text) placeholder:text-(--dolq-text-faint) disabled:opacity-40 disabled:cursor-not-allowed"
           value={value}
           onChange={(e) => {
             setValue(e.target.value);
@@ -83,14 +71,28 @@ export function MessageInput({ channelName, isLog, isQuery, onSend }: Props) {
                 : `Message #${channelName}`
           }
         />
-        <button
-          type="submit"
-          aria-label="Send"
-          disabled={!value.trim()}
-          className="shrink-0 w-8 h-8 flex items-center justify-center rounded-lg border-0 bg-(--dolq-accent) text-(--dolq-on-accent) cursor-pointer hover:bg-(--dolq-accent-hover) disabled:bg-(--dolq-bg-row-selected) disabled:text-(--dolq-text-faint) disabled:cursor-default"
-        >
-          <Icon name="send" />
-        </button>
+        <div className="mt-1 flex items-center justify-between">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowEmoji((v) => !v);
+            }}
+            data-tip="Emoji"
+            aria-label="Emoji"
+            className="has-tip shrink-0 w-8.5 h-8.5 flex items-center justify-center rounded-lg border-0 bg-transparent text-(--dolq-text-dim) cursor-pointer hover:text-(--dolq-text) hover:bg-(--dolq-bg-row-hover)"
+          >
+            <Icon name="smile" />
+          </button>
+          <button
+            type="submit"
+            aria-label="Send"
+            disabled={!value.trim()}
+            className="shrink-0 w-8 h-8 flex items-center justify-center rounded-lg border-0 bg-(--dolq-accent) text-(--dolq-on-accent) cursor-pointer hover:bg-(--dolq-accent-hover) disabled:bg-(--dolq-bg-row-selected) disabled:text-(--dolq-text-faint) disabled:cursor-default"
+          >
+            <Icon name="send" />
+          </button>
+        </div>
       </form>
     </div>
   );

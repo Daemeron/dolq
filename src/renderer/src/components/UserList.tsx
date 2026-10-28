@@ -12,7 +12,7 @@ const GROUP_LABEL: Record<PrivilegeLevel, string> = {
   op: 'Operators',
   halfop: 'Half-Ops',
   voice: 'Voiced',
-  none: 'Online',
+  none: 'Members',
 };
 
 const SYMBOL: Record<PrivilegeLevel, string> = {
