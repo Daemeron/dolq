@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -432,12 +433,30 @@ func TestAppendAfterCloseIsDropped(t *testing.T) {
 	s.AppendEvent("srv", "#chan", testEvent{Type: "JOIN", Nick: "a"}, time.Now())
 }
 
+// syncBuf collects log output that a store's background goroutines write while the test reads it.
+type syncBuf struct {
+	mu sync.Mutex
+	b  bytes.Buffer
+}
+
+func (s *syncBuf) Write(p []byte) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.b.Write(p)
+}
+
+func (s *syncBuf) String() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.b.String()
+}
+
 func TestDatabaseFailuresAreLoggedNotFatal(t *testing.T) {
 	s, err := Open(filepath.Join(t.TempDir(), "h.db"), 1)
 	if err != nil {
 		t.Fatal(err)
 	}
-	var buf bytes.Buffer
+	var buf syncBuf
 	log.SetOutput(&buf)
 	defer log.SetOutput(os.Stderr)
 
@@ -467,7 +486,7 @@ func TestAnEventThatCannotBeEncodedIsDroppedNotStored(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer s.Close()
-	var buf bytes.Buffer
+	var buf syncBuf
 	log.SetOutput(&buf)
 	defer log.SetOutput(os.Stderr)
 
@@ -504,7 +523,7 @@ func TestAWriteToAMissingTableIsLoggedNotFatal(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer s.Close()
-	var buf bytes.Buffer
+	var buf syncBuf
 	log.SetOutput(&buf)
 	defer log.SetOutput(os.Stderr)
 	if _, err := s.db.Exec(`DROP TABLE messages`); err != nil {
@@ -519,7 +538,7 @@ func TestAWriteToAMissingTableIsLoggedNotFatal(t *testing.T) {
 func TestEntriesAreDroppedRatherThanBlockingWhenTheBufferIsFull(t *testing.T) {
 	// No writer is draining this store, so its one-slot buffer fills at once.
 	s := &Store{entries: make(chan Entry, 1)}
-	var buf bytes.Buffer
+	var buf syncBuf
 	log.SetOutput(&buf)
 	defer log.SetOutput(os.Stderr)
 	s.AppendLine("s", "#c", "first", time.Now())
