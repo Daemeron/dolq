@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.6.0](https://github.com/Daemeron/dolq/compare/dolq-v0.5.0...dolq-v0.6.0) (2026-10-28)
+
+
+### Features
+
+* **renderer:** bring every panel to the design ([#48](https://github.com/Daemeron/dolq/issues/48)) ([27eb107](https://github.com/Daemeron/dolq/commit/27eb1079917a4f41ee0633b7cf40cdacb2ac0dc5))
+
+
+### Bug Fixes
+
+* backend:dev on Windows, and wait for a backend that is not running yet ([#45](https://github.com/Daemeron/dolq/issues/45)) ([aeef443](https://github.com/Daemeron/dolq/commit/aeef443b339a2b86591cca99aa1b7cef02365d5a))
+* **main:** give the development backend binary an .exe name on Windows ([#46](https://github.com/Daemeron/dolq/issues/46)) ([39515eb](https://github.com/Daemeron/dolq/commit/39515eb0f71bdec4c196cfb4a4bb924ee36f4b08))
+* **renderer:** bring the UI closer to the design (server badge, day dividers, mention highlight, composer, rail and user panel actions) ([#47](https://github.com/Daemeron/dolq/issues/47)) ([f7a7e65](https://github.com/Daemeron/dolq/commit/f7a7e65780934130de4b80d882ec0e6c43550765))
+
 ## [0.5.0](https://github.com/Daemeron/dolq/compare/dolq-v0.4.0...dolq-v0.5.0) (2026-10-22)
 
 
