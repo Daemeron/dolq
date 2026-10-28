@@ -5,6 +5,8 @@
    nicknames (--dolq-nick-*). Dark is the :root default, light is [data-theme="light"]
    (App.tsx toggles it off store.ts's `theme`). */
 :root {
+  /* Native controls (select popups, scrollbars, checkboxes) follow the theme, not the OS. */
+  color-scheme: dark;
   /* Preferences' Font Family overrides this via App.tsx's effect (see store.ts's fontFamily). */
   --dolq-font-family: "Inter Variable", Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --dolq-font-serif: "Newsreader Variable", Newsreader, "Iowan Old Style", Georgia, serif;
@@ -48,6 +50,7 @@
 }
 
 :root[data-theme="light"] {
+  color-scheme: light;
   --dolq-bg: #faf9f5;
   --dolq-bg-panel: #f3f1ea;
   --dolq-bg-panel-alt: #ece9e0;
