@@ -20,6 +20,9 @@ jobs:
         working-directory: backend
       - run: go vet ./...
         working-directory: backend
+      # the release builds on Windows too, so catch unix-only calls here
+      - run: GOOS=windows go vet ./...
+        working-directory: backend
       - run: test -z "$(gofmt -l .)"
         working-directory: backend
       # race detector plus a minimum total coverage (backend/scripts/check-coverage.sh)
