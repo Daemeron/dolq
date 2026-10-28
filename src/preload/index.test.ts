@@ -52,6 +52,7 @@ describe('preload bridge: requests', () => {
     ['xdccPause', ['x'], IrcMessages.xdccPause],
     ['xdccResume', ['x'], IrcMessages.xdccResume],
     ['openExternal', ['https://example.org'], IrcMessages.openExternal],
+    ['showInFolder', ['/tmp/a.iso'], IrcMessages.showInFolder],
     ['saveTextFile', ['a.txt', 'body'], IrcMessages.saveTextFile],
     ['chooseDirectory', ['/tmp'], IrcMessages.chooseDirectory],
     ['setBadgeCount', [3], IrcMessages.setBadgeCount],

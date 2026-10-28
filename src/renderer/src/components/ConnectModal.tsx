@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import { IRC_PORT, IRC_TLS_PORT } from '../../../shared/ipc';
+import { IRC_TLS_PORT } from '../../../shared/ipc';
 import type { ServerPreset } from '../data/servers';
-import { RememberCredentials } from './RememberCredentials';
+import { ServerFormFields } from './ServerFormFields';
+import { Button, Field, inputClass } from './ui';
 import { ViewPanel } from './ViewPanel';
 
 type ConnectForm = {
@@ -34,6 +35,8 @@ type Props = {
   onConnect: (form: ConnectForm) => void;
   onCancel: () => void;
   initial?: { host: string; port: number; secure: boolean; channel?: string };
+  /** A network to start on, by preset id. */
+  initialPresetId?: string;
 };
 
 const DEFAULTS: ConnectForm = {
@@ -53,24 +56,30 @@ const DEFAULTS: ConnectForm = {
   connectOnStartup: false,
 };
 
-const inputClass =
-  'w-full bg-[var(--dolq-bg-input)] border-0 rounded text-[var(--dolq-text)] text-[14px] px-3 py-2.5 outline-none focus:ring-2 focus:ring-(--dolq-accent) placeholder:text-[var(--dolq-text-faint)]';
-const labelClass =
-  'flex flex-col gap-1.5 text-[11px] font-bold uppercase tracking-[0.5px] text-[var(--dolq-text-muted)]';
-
-export function ConnectModal({ presets, nickMap, onConnect, onCancel, initial }: Props) {
+export function ConnectModal({ presets, nickMap, onConnect, onCancel, initial, initialPresetId }: Props) {
+  const startPreset = presets.find((p) => p.id === initialPresetId);
   const [form, setForm] = useState<ConnectForm>(() =>
-    initial
+    startPreset
       ? {
           ...DEFAULTS,
-          name: initial.host,
-          host: initial.host,
-          port: String(initial.port),
-          secure: initial.secure,
-          autojoinChannels: initial.channel ?? '',
+          name: startPreset.name,
+          host: startPreset.host,
+          port: String(startPreset.port),
+          nick: nickMap[startPreset.id] ?? DEFAULTS.nick,
+          secure: startPreset.secure,
         }
-      : DEFAULTS,
+      : initial
+        ? {
+            ...DEFAULTS,
+            name: initial.host,
+            host: initial.host,
+            port: String(initial.port),
+            secure: initial.secure,
+            autojoinChannels: initial.channel ?? '',
+          }
+        : DEFAULTS,
   );
+  const [presetId, setPresetId] = useState(startPreset?.id ?? '');
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -80,11 +89,10 @@ export function ConnectModal({ presets, nickMap, onConnect, onCancel, initial }:
     return () => window.removeEventListener('keydown', onKey);
   }, [onCancel]);
 
-  function set(field: keyof ConnectForm) {
-    return (e: React.ChangeEvent<HTMLInputElement>) => setForm((prev) => ({ ...prev, [field]: e.target.value }));
-  }
-
-  function pickPreset(preset: ServerPreset) {
+  function pickPreset(id: string) {
+    setPresetId(id);
+    const preset = presets.find((p) => p.id === id);
+    if (!preset) return;
     setForm((prev) => ({
       ...prev,
       name: preset.name,
@@ -95,15 +103,6 @@ export function ConnectModal({ presets, nickMap, onConnect, onCancel, initial }:
     }));
   }
 
-  function toggleSecure(e: React.ChangeEvent<HTMLInputElement>) {
-    const secure = e.target.checked;
-    setForm((prev) => {
-      const wasOnPreviousDefault = prev.port === String(secure ? IRC_PORT : IRC_TLS_PORT);
-      const port = wasOnPreviousDefault ? String(secure ? IRC_TLS_PORT : IRC_PORT) : prev.port;
-      return { ...prev, secure, port };
-    });
-  }
-
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!form.host.trim() || !form.nick.trim()) return;
@@ -111,178 +110,35 @@ export function ConnectModal({ presets, nickMap, onConnect, onCancel, initial }:
   }
 
   return (
-    <ViewPanel title="Add a Server" onClose={onCancel}>
-      <div className="max-w-110 flex flex-col gap-4">
-        <p className="text-(--dolq-text-muted) text-[14px] -mt-1">Pick a server, or fill in a custom one below.</p>
-
-        <div className="flex flex-col gap-1 max-h-40 overflow-y-auto scroll-thin pr-1">
-          {presets.map((preset) => (
-            <button
-              key={preset.id}
-              type="button"
-              onClick={() => pickPreset(preset)}
-              className="flex items-baseline justify-between gap-3 px-3 py-2 rounded bg-(--dolq-bg-input) border-0 text-left cursor-pointer hover:bg-(--dolq-bg-hover)"
-            >
-              <span className="text-(--dolq-text) text-[14px] font-medium">{preset.name}</span>
-              <span className="text-(--dolq-text-faint) text-[12px] shrink-0">
-                {preset.host}:{preset.port}
-              </span>
-            </button>
-          ))}
-        </div>
-
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          <label className={labelClass}>
-            Server Name
-            <input className={inputClass} value={form.name} onChange={set('name')} placeholder="My Server" />
-          </label>
-
-          <div className="flex gap-3">
-            <label className={`${labelClass} flex-1`}>
-              Host
-              <input className={inputClass} value={form.host} onChange={set('host')} placeholder="irc.libera.chat" />
-            </label>
-            <label className={labelClass} style={{ width: '90px' }}>
-              Port
-              <input
-                className={inputClass}
-                type="number"
-                value={form.port}
-                onChange={set('port')}
-                placeholder={String(IRC_PORT)}
-                min={1}
-                max={65535}
-              />
-            </label>
-          </div>
-
-          <label className="flex items-center gap-2 text-[13px] text-(--dolq-text) cursor-pointer select-none">
-            <input type="checkbox" checked={form.secure} onChange={toggleSecure} className="accent-(--dolq-accent)" />
-            Use SSL/TLS
-          </label>
-
-          <label className={labelClass}>
-            Nickname
-            <input className={inputClass} value={form.nick} onChange={set('nick')} placeholder="yournick" />
-          </label>
-
-          <label className={labelClass}>
-            Server Password
-            <input
-              className={inputClass}
-              type="password"
-              value={form.password}
-              onChange={set('password')}
-              placeholder="Optional"
-            />
-          </label>
-
-          <details className="flex flex-col gap-4">
-            <summary className="text-[11px] font-bold uppercase tracking-[0.5px] text-(--dolq-text-muted) cursor-pointer select-none">
-              Advanced
-            </summary>
-
-            <label className={`${labelClass} mt-4`}>
-              Alt Nicknames
-              <input
-                className={inputClass}
-                value={form.altNicks}
-                onChange={set('altNicks')}
-                placeholder="nick2, nick3 (tried in order if Nickname is taken)"
-              />
-            </label>
-
-            <div className="flex gap-3">
-              <label className={`${labelClass} flex-1`}>
-                Username
-                <input
-                  className={inputClass}
-                  value={form.username}
-                  onChange={set('username')}
-                  placeholder={form.nick || 'defaults to Nickname'}
-                />
-              </label>
-              <label className={`${labelClass} flex-1`}>
-                Real Name
-                <input
-                  className={inputClass}
-                  value={form.realname}
-                  onChange={set('realname')}
-                  placeholder="Dolq IRC Client"
-                />
-              </label>
-            </div>
-
-            <label className={labelClass}>
-              Autojoin Channels
-              <input
-                className={inputClass}
-                value={form.autojoinChannels}
-                onChange={set('autojoinChannels')}
-                placeholder="#general, #offtopic"
-              />
-            </label>
-          </details>
-
-          <div className="flex flex-col gap-1.5">
-            <span className="text-[11px] font-bold uppercase tracking-[0.5px] text-(--dolq-text-muted)">
-              SASL Login
-            </span>
-            <p className="text-(--dolq-text-faint) text-[12px] -mt-0.5">
-              Optional - authenticates your registered account before joining, instead of relying on NickServ IDENTIFY
-              after connecting. Leave both blank to skip it.
-            </p>
-            <div className="flex gap-3 mt-1">
-              <input
-                className={`${inputClass} flex-1`}
-                value={form.saslUser}
-                onChange={set('saslUser')}
-                placeholder="Account name"
-                autoComplete="username"
-              />
-              <input
-                className={`${inputClass} flex-1`}
-                type="password"
-                value={form.saslPass}
-                onChange={set('saslPass')}
-                placeholder="Account password"
-                autoComplete="current-password"
-              />
-            </div>
-          </div>
-
-          <RememberCredentials
-            checked={form.remember}
-            onChange={(remember) => setForm((prev) => ({ ...prev, remember }))}
-          />
-
-          <label className="flex items-center gap-2 text-[13px] text-(--dolq-text) cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={form.connectOnStartup}
-              onChange={(e) => setForm((prev) => ({ ...prev, connectOnStartup: e.target.checked }))}
-              className="accent-(--dolq-accent)"
-            />
-            Connect when the app opens
-          </label>
-
-          <div className="flex gap-3 justify-end mt-2">
-            <button
-              type="button"
-              onClick={onCancel}
-              className="px-4 py-2 rounded text-(--dolq-text-muted) text-[14px] font-medium bg-transparent border-0 cursor-pointer hover:text-(--dolq-text)"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="px-5 py-2 rounded bg-(--dolq-accent) text-white text-shadow-sm text-[14px] font-semibold border-0 cursor-pointer hover:bg-(--dolq-accent-hover) transition-colors duration-150"
-            >
-              Connect
-            </button>
-          </div>
-        </form>
-      </div>
+    <ViewPanel
+      title="Add a server"
+      description="Connect to an IRC network. Credentials are stored encrypted on this device."
+      width="md"
+      onClose={onCancel}
+      onSubmit={handleSubmit}
+      footer={
+        <>
+          <Button variant="ghost" onClick={onCancel}>
+            Cancel
+          </Button>
+          <Button variant="primary" type="submit">
+            Connect
+          </Button>
+        </>
+      }
+    >
+      <ServerFormFields form={form} onChange={(patch) => setForm((prev) => ({ ...prev, ...patch }))} withPassword>
+        <Field label="Network">
+          <select className={inputClass} value={presetId} onChange={(e) => pickPreset(e.target.value)}>
+            <option value="">Custom…</option>
+            {presets.map((preset) => (
+              <option key={preset.id} value={preset.id}>
+                {preset.name}
+              </option>
+            ))}
+          </select>
+        </Field>
+      </ServerFormFields>
     </ViewPanel>
   );
 }

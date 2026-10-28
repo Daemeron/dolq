@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
-import { useModalA11y } from '../hooks/useModalA11y';
+import { Button, Card, Setting } from './ui';
+import { ViewPanel } from './ViewPanel';
 
 type Props = {
   nick: string;
@@ -35,8 +36,6 @@ export function XDCCOfferModal({
   onAcceptAlways,
   onDecline,
 }: Props) {
-  const dialogRef = useModalA11y<HTMLDivElement>();
-
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') onDecline();
@@ -46,65 +45,48 @@ export function XDCCOfferModal({
   }, [onDecline]);
 
   return (
-    // biome-ignore lint/a11y/noStaticElementInteractions: backdrop click-to-dismiss, Escape is handled separately
-    <div
-      role="presentation"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
-      onClick={(e) => e.target === e.currentTarget && onDecline()}
+    <ViewPanel
+      title="File offer"
+      description="Incoming offers need your approval before anything is downloaded. Only accept from someone, or a bot, you trust."
+      width="sm"
+      onClose={onDecline}
+      footer={
+        <>
+          <Button onClick={onDecline}>Decline</Button>
+          <Button variant="primary" onClick={onAccept}>
+            Accept
+          </Button>
+        </>
+      }
     >
-      <div
-        ref={dialogRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="xdcc-offer-modal-title"
-        tabIndex={-1}
-        className="bg-(--dolq-bg-panel) rounded-lg p-6 w-90 shadow-[0_8px_32px_rgba(0,0,0,0.5)]"
-      >
-        <h2 id="xdcc-offer-modal-title" className="text-(--dolq-text) text-[18px] font-bold mb-2">
-          File Offer
-        </h2>
-        <p className="text-(--dolq-text-muted) text-[14px] mb-1">
-          <span className="text-(--dolq-text) font-semibold">{nick}</span> wants to send you a file, direct to your
-          address. Only accept this from someone (or a bot) you trust.
-        </p>
-        <p className="text-(--dolq-text) text-[14px] font-mono mb-5 break-all">
-          {filename} <span className="text-(--dolq-text-faint)">({formatBytes(size)})</span>
-        </p>
-        {trustable && (
-          <div className="flex flex-col gap-1 mb-4 items-start">
-            <button
-              type="button"
-              onClick={onAcceptSession}
-              className="text-(--dolq-text-muted) text-[12px] bg-transparent border-0 p-0 cursor-pointer hover:text-(--dolq-text) hover:underline"
-            >
-              Accept and trust {nick} until this server disconnects
-            </button>
-            <button
-              type="button"
-              onClick={onAcceptAlways}
-              className="text-(--dolq-text-muted) text-[12px] bg-transparent border-0 p-0 cursor-pointer hover:text-(--dolq-text) hover:underline"
-            >
-              Accept and always trust {nick}
-            </button>
-          </div>
-        )}
-        <div className="flex gap-3 justify-end">
+      <Card className="border-(--dolq-accent) bg-(--dolq-accent-soft)">
+        <Setting
+          title={`${nick} offers a file`}
+          description={
+            <span className="font-(family-name:--dolq-font-mono) break-all">
+              {filename} · {formatBytes(size)} · DCC SEND
+            </span>
+          }
+        />
+      </Card>
+      {trustable && (
+        <div className="flex flex-col items-start gap-1">
           <button
             type="button"
-            onClick={onDecline}
-            className="px-4 py-2 rounded text-(--dolq-text-muted) text-[14px] font-medium bg-transparent border-0 cursor-pointer hover:text-(--dolq-text)"
+            onClick={onAcceptSession}
+            className="cursor-pointer border-0 bg-transparent p-0 text-[12px] text-(--dolq-text-dim) hover:text-(--dolq-text) hover:underline"
           >
-            Decline
+            Accept and trust {nick} until this server disconnects
           </button>
           <button
             type="button"
-            onClick={onAccept}
-            className="px-5 py-2 rounded bg-(--dolq-accent) text-white text-shadow-sm text-[14px] font-semibold border-0 cursor-pointer hover:bg-(--dolq-accent-hover) transition-colors duration-150"
+            onClick={onAcceptAlways}
+            className="cursor-pointer border-0 bg-transparent p-0 text-[12px] text-(--dolq-text-dim) hover:text-(--dolq-text) hover:underline"
           >
-            Accept
+            Accept and always trust {nick}
           </button>
         </div>
-      </div>
-    </div>
+      )}
+    </ViewPanel>
   );
 }

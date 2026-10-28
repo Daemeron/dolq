@@ -132,7 +132,7 @@ vi.mock('electron', () => {
       encryptString: (s: string) => Buffer.from(s),
       decryptString: (b: Buffer) => b.toString(),
     },
-    shell: { openExternal: vi.fn(), beep: vi.fn() },
+    shell: { openExternal: vi.fn(), showItemInFolder: vi.fn(), beep: vi.fn() },
   };
 });
 
@@ -539,6 +539,14 @@ describe('IPC handlers', () => {
     await invoke(IrcMessages.openExternal, 'https://example.org');
     expect(electron.shell.openExternal).toHaveBeenCalledWith('https://example.org');
     expect(() => invoke(IrcMessages.openExternal, 'javascript:alert(1)')).toThrow(/refusing/);
+  });
+
+  it('reveals an absolute path in the file manager and refuses anything else', async () => {
+    const { electron } = await boot();
+    await invoke(IrcMessages.showInFolder, '/tmp/a.iso');
+    expect(electron.shell.showItemInFolder).toHaveBeenCalledWith('/tmp/a.iso');
+    expect(() => invoke(IrcMessages.showInFolder, 'relative/a.iso')).toThrow(/refusing/);
+    expect(() => invoke(IrcMessages.showInFolder, 42)).toThrow(/refusing/);
   });
 
   it('updates the dock badge, zoom and alert sound', async () => {

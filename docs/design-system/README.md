@@ -11,6 +11,7 @@ The look of the app: Claude-style warm neutrals, one clay accent, and colour onl
 | --- | --- |
 | Tokens (both themes) | `src/renderer/src/index.css` (`:root` is dark, `[data-theme="light"]` is light) |
 | Shared pieces | `components/Icon.tsx` (icons, `IconButton`), `components/ChannelList.tsx` (`RowButton`), `components/ContextMenu.tsx` |
+| Dialog pieces | `components/ViewPanel.tsx` (the dialog), `components/ui.tsx` (`Button`, `Field`, `Switch`, `Card`, `Setting`, `Tabs`, `Segmented`, `inputClass`) |
 | Nick colours | `utils/nickColor.ts` |
 | Message grouping | `utils/groupMessages.ts` |
 
@@ -47,6 +48,8 @@ Shape: 8px controls, 12px cards, 16px composer, 13px server icons.
 6. **Messages group** when the same person sends plain chat lines within five minutes of the previous line. Only the first shows avatar, name and time; the rest show their time on hover. Events, notices, actions and pack lists never group.
 7. **Focus** uses a 2px accent outline (`:focus-visible`), so keep real buttons and inputs.
 8. **Every UI component change ships with a test** next to it.
+9. **Dialogs are one shape.** Build them with `ViewPanel`: a serif title, an optional description, the body, and a footer on the panel colour with the actions on the right (`Cancel` as ghost, the main action as primary). Settings are rows of a `Card`: a `Setting` has a title and a description on the left and its control on the right. Switches are `Switch`, never a bare checkbox. Titles are sentence case.
+10. **Overrides need a layer.** Rules in `index.css` that Tailwind utilities must be able to override (the tooltip, the focus outline) live in `@layer`; an unlayered rule beats every utility.
 
 ## Adding to the system
 

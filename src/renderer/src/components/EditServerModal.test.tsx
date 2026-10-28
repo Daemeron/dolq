@@ -16,7 +16,7 @@ function renderEdit(s: Server) {
   return onSave;
 }
 
-const toggle = () => screen.getByRole('checkbox', { name: 'Connect when the app opens' });
+const toggle = () => screen.getByRole('checkbox', { name: 'Connect on startup' });
 
 describe('EditServerModal connect on startup', () => {
   it('starts off for a server saved without the option', () => {

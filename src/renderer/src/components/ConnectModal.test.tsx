@@ -36,12 +36,12 @@ const submit = () => fireEvent.click(screen.getByRole('button', { name: 'Connect
 describe('ConnectModal presets', () => {
   it('fills name, host, port and TLS from a preset, and the nick remembered for it', () => {
     setup();
-    fireEvent.click(screen.getByText('Libera.Chat'));
+    fireEvent.change(screen.getByLabelText('Network'), { target: { value: 'libera' } });
     expect(host().value).toBe('irc.libera.chat');
     expect(port().value).toBe('6697');
     expect(nick().value).toBe('mira');
     expect(tls().checked).toBe(true);
-    fireEvent.click(screen.getByText('Plain'));
+    fireEvent.change(screen.getByLabelText('Network'), { target: { value: 'plain' } });
     expect(port().value).toBe('6667');
     expect(nick().value).toBe('mira'); // no remembered nick for this preset: keeps what was typed
     expect(tls().checked).toBe(false);

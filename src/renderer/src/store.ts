@@ -30,7 +30,8 @@ type State = {
   messageDensity: 'cozy' | 'compact';
   fontSize: 'small' | 'medium' | 'large';
   fontFamily: 'system' | 'serif' | 'monospace';
-  theme: 'dark' | 'light';
+  theme: 'dark' | 'light' | 'system';
+  highlightWords: string[];
   ignoredNicks: Record<string, string[]>;
   // Senders whose XDCC offers start without a prompt, per server
   xdccTrusted: Record<string, XdccSender[]>;
@@ -56,13 +57,14 @@ function mapServerUsers(
   );
 }
 
-export type KeybindAction = 'nextChannel' | 'prevChannel' | 'closeChannel' | 'toggleMute';
+export type KeybindAction = 'nextChannel' | 'prevChannel' | 'closeChannel' | 'toggleMute' | 'openSearch';
 
 export const DEFAULT_KEYBINDINGS: Record<KeybindAction, string> = {
   nextChannel: 'Alt+ArrowDown',
   prevChannel: 'Alt+ArrowUp',
   closeChannel: 'Alt+W',
   toggleMute: 'Alt+M',
+  openSearch: 'Ctrl+K',
 };
 
 type Actions = {
@@ -104,7 +106,8 @@ type Actions = {
   setMessageDensity: (density: 'cozy' | 'compact') => void;
   setFontSize: (size: 'small' | 'medium' | 'large') => void;
   setFontFamily: (family: 'system' | 'serif' | 'monospace') => void;
-  setTheme: (theme: 'dark' | 'light') => void;
+  setTheme: (theme: 'dark' | 'light' | 'system') => void;
+  setHighlightWords: (words: string[]) => void;
   addIgnore: (serverId: string, nick: string) => void;
   removeIgnore: (serverId: string, nick: string) => void;
   trustXdccSender: (serverId: string, sender: XdccSender) => void;
@@ -149,6 +152,7 @@ export const useStore = create<State & Actions>()(
       selfAwayMap: {},
       aliases: {},
       keybindings: DEFAULT_KEYBINDINGS,
+      highlightWords: [],
 
       addServer: (server, logChannel) =>
         set((s) => ({
@@ -434,6 +438,7 @@ export const useStore = create<State & Actions>()(
       setFontFamily: (family) => set({ fontFamily: family }),
 
       setTheme: (theme) => set({ theme }),
+      setHighlightWords: (words) => set({ highlightWords: words }),
 
       addIgnore: (serverId, nick) =>
         set((s) => {
@@ -509,7 +514,13 @@ export const useStore = create<State & Actions>()(
         xdccTrusted: s.xdccTrusted,
         aliases: s.aliases,
         keybindings: s.keybindings,
+        highlightWords: s.highlightWords,
       }),
+      // An action added after the keybindings were saved keeps its default.
+      merge: (persisted, current) => {
+        const saved = (persisted ?? {}) as Partial<State & Actions>;
+        return { ...current, ...saved, keybindings: { ...current.keybindings, ...saved.keybindings } };
+      },
     },
   ),
 );

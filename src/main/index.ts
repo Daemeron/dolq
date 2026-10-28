@@ -1,5 +1,5 @@
 import fs from 'node:fs';
-import { join, resolve } from 'node:path';
+import { isAbsolute, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, safeStorage, shell, Tray } from 'electron';
 import { installExtension, REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';
@@ -320,6 +320,12 @@ function registerShellHandlers(): void {
   ipcMain.handle(IrcMessages.openExternal, (_event, url: string) => {
     if (!isWebLink(url)) throw new Error(`refusing to open non-http(s) link: ${url}`);
     return shell.openExternal(url);
+  });
+
+  // Reveals a downloaded file in the system file manager; it never opens or runs it.
+  ipcMain.handle(IrcMessages.showInFolder, (_event, filePath: string) => {
+    if (typeof filePath !== 'string' || !isAbsolute(filePath)) throw new Error('refusing to reveal a relative path');
+    shell.showItemInFolder(filePath);
   });
 
   ipcMain.handle(IrcMessages.saveTextFile, async (_event, defaultName: string, content: string) => {

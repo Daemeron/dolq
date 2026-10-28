@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { mentionsNick } from './mentions';
+import { mentionsAny, mentionsNick } from './mentions';
 
 describe('mentionsNick', () => {
   it('matches a whole-word, case-insensitive mention', () => {
@@ -22,5 +22,17 @@ describe('mentionsNick', () => {
 
   it('treats regex special characters in the nick literally, matching even at punctuation boundaries', () => {
     expect(mentionsNick('hey [bot], status?', '[bot]')).toBe(true);
+  });
+});
+
+describe('mentionsAny', () => {
+  it('matches the nick or any highlight word', () => {
+    expect(mentionsAny('bob: hi', 'bob', [])).toBe(true);
+    expect(mentionsAny('time to release', 'bob', ['release'])).toBe(true);
+    expect(mentionsAny('nothing here', 'bob', ['release'])).toBe(false);
+  });
+
+  it('ignores empty words', () => {
+    expect(mentionsAny('anything', 'bob', [''])).toBe(false);
   });
 });

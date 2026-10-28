@@ -5,6 +5,7 @@ import type { KeybindAction } from '../store';
 import type { Server } from '../types';
 import { comboFromEvent } from '../utils/keybind';
 import { type XdccSender, xdccSenderKey } from '../utils/xdcc';
+import { Button, Card, Field, inputClass, Segmented, Setting, Switch, Tabs } from './ui';
 import { ViewPanel } from './ViewPanel';
 
 const KEYBIND_LABELS: Record<KeybindAction, string> = {
@@ -12,9 +13,27 @@ const KEYBIND_LABELS: Record<KeybindAction, string> = {
   prevChannel: 'Previous Channel',
   closeChannel: 'Close Current Channel',
   toggleMute: 'Toggle Mute on Current Channel',
+  openSearch: 'Search',
 };
 
+export type Tab = 'general' | 'appearance' | 'notifications' | 'keybindings' | 'backend';
+
+const TABS: { id: Tab; label: string }[] = [
+  { id: 'general', label: 'General' },
+  { id: 'appearance', label: 'Appearance' },
+  { id: 'notifications', label: 'Notifications' },
+  { id: 'keybindings', label: 'Keybindings' },
+  { id: 'backend', label: 'Backend' },
+];
+
+const parseWords = (text: string) =>
+  text
+    .split(',')
+    .map((w) => w.trim())
+    .filter(Boolean);
+
 type Props = {
+  initialTab?: Tab;
   settings: Settings;
   onSave: (settings: Settings) => void;
   onCancel: () => void;
@@ -32,8 +51,10 @@ type Props = {
   onFontSizeChange: (size: 'small' | 'medium' | 'large') => void;
   fontFamily: 'system' | 'serif' | 'monospace';
   onFontFamilyChange: (family: 'system' | 'serif' | 'monospace') => void;
-  theme: 'dark' | 'light';
-  onThemeChange: (theme: 'dark' | 'light') => void;
+  theme: 'dark' | 'light' | 'system';
+  onThemeChange: (theme: 'dark' | 'light' | 'system') => void;
+  highlightWords: string[];
+  onHighlightWordsChange: (words: string[]) => void;
   servers: Server[];
   ignoredNicks: Record<string, string[]>;
   onRemoveIgnore: (serverId: string, nick: string) => void;
@@ -45,12 +66,8 @@ type Props = {
   onKeybindingChange: (action: KeybindAction, combo: string) => void;
 };
 
-const inputClass =
-  'w-full bg-[var(--dolq-bg-input)] border-0 rounded text-[var(--dolq-text)] text-[14px] px-3 py-2.5 outline-none focus:ring-2 focus:ring-(--dolq-accent) placeholder:text-[var(--dolq-text-faint)]';
-const labelClass =
-  'flex flex-col gap-1.5 text-[11px] font-bold uppercase tracking-[0.5px] text-[var(--dolq-text-muted)]';
-
 export function PreferencesModal({
+  initialTab = 'general',
   settings,
   onSave,
   onCancel,
@@ -70,6 +87,8 @@ export function PreferencesModal({
   onFontFamilyChange,
   theme,
   onThemeChange,
+  highlightWords,
+  onHighlightWordsChange,
   servers,
   ignoredNicks,
   onRemoveIgnore,
@@ -118,6 +137,8 @@ export function PreferencesModal({
   );
   const aliasEntries = Object.entries(aliases);
   const [recording, setRecording] = useState<KeybindAction | null>(null);
+  const [tab, setTab] = useState<Tab>(initialTab);
+  const [wordsText, setWordsText] = useState(highlightWords.join(', '));
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -177,72 +198,148 @@ export function PreferencesModal({
   }
 
   return (
-    <ViewPanel title="Preferences" onClose={onCancel}>
-      <div className="max-w-110">
-        <p className="text-(--dolq-text-muted) text-[14px] mb-5">
-          Applies to every server. Some settings need a restart to take effect.
-        </p>
+    <ViewPanel
+      title="Preferences"
+      description="Applies to every server. Some settings need a restart to take effect."
+      onClose={onCancel}
+      onSubmit={handleSubmit}
+      toolbar={<Tabs tabs={TABS} value={tab} onChange={setTab} />}
+      footer={
+        <>
+          <Button variant="ghost" onClick={onCancel}>
+            Cancel
+          </Button>
+          <Button variant="primary" type="submit">
+            Save
+          </Button>
+        </>
+      }
+    >
+      {tab === 'general' && (
+        <>
+          <Card>
+            <Setting title="Show joins, parts, quits and nick changes" description="In channel history.">
+              <Switch checked={showMembershipEvents} onChange={(e) => onShowMembershipEventsChange(e.target.checked)} />
+            </Setting>
+            <Setting title="Show a tray/menu bar icon">
+              <Switch checked={trayEnabled} onChange={(e) => setTrayEnabled(e.target.checked)} />
+            </Setting>
+            <Setting
+              title="Auto-accept XDCC downloads"
+              description="Start a download without asking when the bot answers a pack you requested from Dolq. Offers you did not ask for still prompt."
+            >
+              <Switch checked={xdccAutoAccept} onChange={(e) => setXdccAutoAccept(e.target.checked)} />
+            </Setting>
+            <Setting
+              title="Download directory"
+              description="Where XDCC downloads are saved. Empty uses the OS Downloads folder."
+            >
+              <input
+                className={`${inputClass} w-56`}
+                type="text"
+                value={downloadDir}
+                onChange={(e) => setDownloadDir(e.target.value)}
+                placeholder="Downloads (default)"
+              />
+              <Button onClick={handleBrowseDownloadDir}>Browse…</Button>
+            </Setting>
+          </Card>
+          {ignoredEntries.length > 0 && (
+            <section className="flex flex-col gap-2">
+              <h2 className="m-0 text-[12px] font-medium tracking-[0.06em] text-(--dolq-text-dim) uppercase">
+                Ignored users
+              </h2>
+              <Card>
+                {ignoredEntries.map(({ serverId, nick }) => (
+                  <Setting
+                    key={`${serverId}:${nick}`}
+                    title={nick}
+                    description={`on ${servers.find((s) => s.id === serverId)?.name ?? serverId}`}
+                  >
+                    <Button small variant="danger" onClick={() => onRemoveIgnore(serverId, nick)}>
+                      Unignore
+                    </Button>
+                  </Setting>
+                ))}
+              </Card>
+            </section>
+          )}
+          {trustedEntries.length > 0 && (
+            <section className="flex flex-col gap-2">
+              <h2 className="m-0 text-[12px] font-medium tracking-[0.06em] text-(--dolq-text-dim) uppercase">
+                Trusted XDCC senders
+              </h2>
+              <Card>
+                {trustedEntries.map(({ serverId, sender }) => (
+                  <Setting
+                    key={`${serverId}:${xdccSenderKey(sender)}`}
+                    title={sender.nick}
+                    description={`${sender.account ? `account ${sender.account}` : sender.host} on ${servers.find((s) => s.id === serverId)?.name ?? serverId}`}
+                  >
+                    <Button small variant="danger" onClick={() => onUntrustXdcc(serverId, sender)}>
+                      Remove
+                    </Button>
+                  </Setting>
+                ))}
+              </Card>
+            </section>
+          )}
+          {aliasEntries.length > 0 && (
+            <section className="flex flex-col gap-2">
+              <h2 className="m-0 text-[12px] font-medium tracking-[0.06em] text-(--dolq-text-dim) uppercase">
+                Aliases
+              </h2>
+              <p className="m-0 text-[12px] text-(--dolq-text-dim)">
+                Defined with <code>/alias name command</code> (<code>$1</code>, <code>$2</code>... for args,{' '}
+                <code>$*</code> for all of them) - typing <code>/name</code> sends the expansion.
+              </p>
+              <Card>
+                {aliasEntries.map(([name, template]) => (
+                  <Setting key={name} title={`/${name}`} description={template}>
+                    <Button small variant="danger" onClick={() => onRemoveAlias(name)}>
+                      Remove
+                    </Button>
+                  </Setting>
+                ))}
+              </Card>
+            </section>
+          )}
+        </>
+      )}
 
-        <label className="flex items-center gap-2 text-[13px] text-(--dolq-text) cursor-pointer select-none mb-3">
-          <input
-            type="checkbox"
-            checked={notificationsEnabled}
-            onChange={(e) => onNotificationsEnabledChange(e.target.checked)}
-            className="accent-(--dolq-accent)"
-          />
-          Desktop notifications when mentioned in a channel you're not viewing
-        </label>
-
-        <label className="flex items-center gap-2 text-[13px] text-(--dolq-text) cursor-pointer select-none mb-4">
-          <input
-            type="checkbox"
-            checked={soundAlertsEnabled}
-            onChange={(e) => onSoundAlertsEnabledChange(e.target.checked)}
-            className="accent-(--dolq-accent)"
-          />
-          Play a sound on the same mentions - independent of the notification above
-        </label>
-
-        <label className="flex items-center gap-2 text-[13px] text-(--dolq-text) cursor-pointer select-none mb-4">
-          <input
-            type="checkbox"
-            checked={showMembershipEvents}
-            onChange={(e) => onShowMembershipEventsChange(e.target.checked)}
-            className="accent-(--dolq-accent)"
-          />
-          Show joins, parts, quits and nick changes in channels
-        </label>
-
-        <div className="flex gap-3 mb-5">
-          <label className={`${labelClass} flex-1`}>
-            Timestamp Format
+      {tab === 'appearance' && (
+        <Card>
+          <Setting title="Theme" description="Light follows Claude's warm ivory; dark uses charcoal.">
+            <Segmented
+              label="Theme"
+              value={theme}
+              onChange={onThemeChange}
+              options={[
+                { id: 'light', label: 'Light' },
+                { id: 'dark', label: 'Dark' },
+                { id: 'system', label: 'System' },
+              ]}
+            />
+          </Setting>
+          <Setting title="Timestamp format">
             <select
-              className={inputClass}
+              className={`${inputClass} w-52`}
               value={timestampFormat}
               onChange={(e) => onTimestampFormatChange(e.target.value as '12h' | '24h')}
             >
               <option value="12h">12-hour (2:30 PM)</option>
               <option value="24h">24-hour (14:30)</option>
             </select>
-          </label>
-          <label className={`${labelClass} flex-1`}>
-            Message Density
+          </Setting>
+          <Setting title="Compact messages" description="Tighter spacing between messages.">
+            <Switch
+              checked={messageDensity === 'compact'}
+              onChange={(e) => onMessageDensityChange(e.target.checked ? 'compact' : 'cozy')}
+            />
+          </Setting>
+          <Setting title="Font size">
             <select
-              className={inputClass}
-              value={messageDensity}
-              onChange={(e) => onMessageDensityChange(e.target.value as 'cozy' | 'compact')}
-            >
-              <option value="cozy">Cozy</option>
-              <option value="compact">Compact</option>
-            </select>
-          </label>
-        </div>
-
-        <div className="flex gap-3 mb-5">
-          <label className={`${labelClass} flex-1`}>
-            Font Size
-            <select
-              className={inputClass}
+              className={`${inputClass} w-52`}
               value={fontSize}
               onChange={(e) => onFontSizeChange(e.target.value as 'small' | 'medium' | 'large')}
             >
@@ -250,11 +347,10 @@ export function PreferencesModal({
               <option value="medium">Medium</option>
               <option value="large">Large</option>
             </select>
-          </label>
-          <label className={`${labelClass} flex-1`}>
-            Font Family
+          </Setting>
+          <Setting title="Font family" description="Used for messages and interface.">
             <select
-              className={inputClass}
+              className={`${inputClass} w-52`}
               value={fontFamily}
               onChange={(e) => onFontFamilyChange(e.target.value as 'system' | 'serif' | 'monospace')}
             >
@@ -262,301 +358,154 @@ export function PreferencesModal({
               <option value="serif">Serif</option>
               <option value="monospace">Monospace</option>
             </select>
-          </label>
-        </div>
+          </Setting>
+        </Card>
+      )}
 
-        <div className="flex gap-3 mb-5">
-          <label className={`${labelClass} flex-1`}>
-            Theme
-            <select
-              className={inputClass}
-              value={theme}
-              onChange={(e) => onThemeChange(e.target.value as 'dark' | 'light')}
+      {tab === 'notifications' && (
+        <Card>
+          <Setting title="Desktop notifications" description="When mentioned in a channel you're not viewing.">
+            <Switch checked={notificationsEnabled} onChange={(e) => onNotificationsEnabledChange(e.target.checked)} />
+          </Setting>
+          <Setting title="Play a sound on mentions" description="Independent of the desktop notification.">
+            <Switch checked={soundAlertsEnabled} onChange={(e) => onSoundAlertsEnabledChange(e.target.checked)} />
+          </Setting>
+          <Setting title="Highlight words" description="Also count these as mentions. Comma separated.">
+            <input
+              className={`${inputClass} w-60`}
+              type="text"
+              value={wordsText}
+              onChange={(e) => {
+                setWordsText(e.target.value);
+                onHighlightWordsChange(parseWords(e.target.value));
+              }}
+              placeholder="release, deploy"
+              autoComplete="off"
+              spellCheck={false}
+            />
+          </Setting>
+        </Card>
+      )}
+
+      {tab === 'keybindings' && (
+        <Card>
+          {(Object.keys(KEYBIND_LABELS) as KeybindAction[]).map((action) => (
+            <Setting key={action} title={KEYBIND_LABELS[action]}>
+              <Button
+                small
+                variant={recording === action ? 'primary' : 'secondary'}
+                className="font-(family-name:--dolq-font-mono) text-[12px]"
+                onClick={() => setRecording(action)}
+              >
+                {recording === action ? 'Press keys… (Esc to cancel)' : keybindings[action]}
+              </Button>
+            </Setting>
+          ))}
+        </Card>
+      )}
+
+      {tab === 'backend' && (
+        <>
+          <Card>
+            <Setting
+              title="Connect to a remote backend instead of running one locally"
+              description="Points at a dolqd already running elsewhere (see docker-compose.yml). Sessions and history live on the remote box. Takes effect the next time Dolq starts."
             >
-              <option value="dark">Dark</option>
-              <option value="light">Light</option>
-            </select>
-          </label>
-          <div className="flex-1" />
-        </div>
-
-        <div className="flex flex-col gap-1.5 mb-5">
-          <span className="text-[11px] font-bold uppercase tracking-[0.5px] text-(--dolq-text-muted)">Keybindings</span>
-          <div className="flex flex-col gap-1">
-            {(Object.keys(KEYBIND_LABELS) as KeybindAction[]).map((action) => (
-              <div
-                key={action}
-                className="flex items-center justify-between gap-3 px-3 py-1.5 rounded bg-(--dolq-bg-input)"
-              >
-                <span className="text-(--dolq-text) text-[13px]">{KEYBIND_LABELS[action]}</span>
-                <button
-                  type="button"
-                  onClick={() => setRecording(action)}
-                  className={`shrink-0 px-2.5 py-1 rounded text-[12px] font-medium border-0 cursor-pointer ${
-                    recording === action
-                      ? 'bg-(--dolq-accent) text-white'
-                      : 'bg-(--dolq-bg-input) text-(--dolq-text) hover:bg-(--dolq-bg-hover)'
-                  }`}
-                >
-                  {recording === action ? 'Press keys… (Esc to cancel)' : keybindings[action]}
-                </button>
+              <Switch checked={remoteEnabled} onChange={(e) => setRemoteEnabled(e.target.checked)} />
+            </Setting>
+            {remoteEnabled && (
+              <div className="flex flex-col gap-3 px-4 py-3.5">
+                <Field label="Pairing Link">
+                  <input
+                    className={inputClass}
+                    type="text"
+                    value={pairingText}
+                    onChange={(e) => applyPairing(e.target.value)}
+                    placeholder="dolq://192.168.1.5:6789?token=…  (printed by dolqd at startup)"
+                    autoComplete="off"
+                    spellCheck={false}
+                  />
+                </Field>
+                {pairing && (
+                  <p className="m-0 text-[12px] text-(--dolq-text-dim)">
+                    Paired with {formatHostPort(pairing.host, pairing.port)}. Save to apply.
+                  </p>
+                )}
+                {pairingInvalid && (
+                  <p className="m-0 text-[12px] text-(--dolq-danger)">That is not a valid Dolq pairing link.</p>
+                )}
+                <Field label="Remote Backend URL">
+                  <input
+                    className={inputClass}
+                    type="text"
+                    value={remoteUrl}
+                    onChange={(e) => setRemoteUrl(e.target.value)}
+                    placeholder="host:6789"
+                  />
+                </Field>
+                <Field label="Access Token (optional)">
+                  <input
+                    className={inputClass}
+                    type="password"
+                    value={remoteToken}
+                    onChange={(e) => setRemoteToken(e.target.value)}
+                    placeholder={
+                      settings.remoteTokenSet
+                        ? 'Saved - type to replace'
+                        : 'From the pairing link; empty if the backend runs with -token=false'
+                    }
+                    autoComplete="off"
+                  />
+                </Field>
+                {/* biome-ignore lint/a11y/noLabelWithoutControl: the label wraps a Switch, which is a checkbox input */}
+                <label className="flex cursor-pointer items-center gap-2.5 text-[14px] select-none">
+                  <Switch checked={remoteTls} onChange={(e) => setRemoteTls(e.target.checked)} />
+                  Encrypt the connection (TLS)
+                </label>
+                {unprotected && (
+                  <p className="m-0 text-[12px] text-(--dolq-warn)">
+                    {!remoteTls && 'Without TLS, passwords and messages cross the network in the clear. '}
+                    {noToken && 'Without a token, anyone who can reach the backend can use it. '}
+                    Only run like this for a tunnel, a trusted proxy, or a network you fully trust (a backend started
+                    with -tls=false and/or -token=false). You will be asked to confirm each time Dolq connects.
+                  </p>
+                )}
+                {remoteTls && remoteFingerprint && (
+                  <div className="text-[12px] break-all text-(--dolq-text-dim)">
+                    Trusted certificate:{' '}
+                    <span className="font-(family-name:--dolq-font-mono)">{remoteFingerprint}</span>{' '}
+                    <button
+                      type="button"
+                      onClick={() => setRemoteFingerprint('')}
+                      className="cursor-pointer border-0 bg-transparent p-0 text-(--dolq-accent) underline"
+                    >
+                      Forget
+                    </button>
+                  </div>
+                )}
               </div>
-            ))}
-          </div>
-        </div>
-
-        {ignoredEntries.length > 0 && (
-          <div className="flex flex-col gap-1.5 mb-5">
-            <span className="text-[11px] font-bold uppercase tracking-[0.5px] text-(--dolq-text-muted)">
-              Ignored Users
-            </span>
-            <div className="flex flex-col gap-1 max-h-32 overflow-y-auto scroll-thin pr-1">
-              {ignoredEntries.map(({ serverId, nick }) => (
-                <div
-                  key={`${serverId}:${nick}`}
-                  className="flex items-center justify-between gap-3 px-3 py-1.5 rounded bg-(--dolq-bg-input)"
-                >
-                  <span className="text-(--dolq-text) text-[13px] truncate">
-                    {nick}{' '}
-                    <span className="text-(--dolq-text-faint)">
-                      on {servers.find((s) => s.id === serverId)?.name ?? serverId}
-                    </span>
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => onRemoveIgnore(serverId, nick)}
-                    className="shrink-0 text-(--dolq-danger) text-[12px] font-medium bg-transparent border-0 cursor-pointer hover:underline"
-                  >
-                    Unignore
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {trustedEntries.length > 0 && (
-          <div className="flex flex-col gap-1.5 mb-5">
-            <span className="text-[11px] font-bold uppercase tracking-[0.5px] text-(--dolq-text-muted)">
-              Trusted XDCC Senders
-            </span>
-            <div className="flex flex-col gap-1 max-h-32 overflow-y-auto scroll-thin pr-1">
-              {trustedEntries.map(({ serverId, sender }) => (
-                <div
-                  key={`${serverId}:${xdccSenderKey(sender)}`}
-                  className="flex items-center justify-between gap-3 px-3 py-1.5 rounded bg-(--dolq-bg-input)"
-                >
-                  <span className="text-(--dolq-text) text-[13px] truncate">
-                    {sender.nick}{' '}
-                    <span className="text-(--dolq-text-faint)">
-                      {sender.account ? `account ${sender.account}` : sender.host} on{' '}
-                      {servers.find((s) => s.id === serverId)?.name ?? serverId}
-                    </span>
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => onUntrustXdcc(serverId, sender)}
-                    className="shrink-0 text-(--dolq-danger) text-[12px] font-medium bg-transparent border-0 cursor-pointer hover:underline"
-                  >
-                    Remove
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {aliasEntries.length > 0 && (
-          <div className="flex flex-col gap-1.5 mb-5">
-            <span className="text-[11px] font-bold uppercase tracking-[0.5px] text-(--dolq-text-muted)">Aliases</span>
-            <p className="text-(--dolq-text-faint) text-[12px] -mt-0.5">
-              Defined with <code>/alias name command</code> (<code>$1</code>, <code>$2</code>... for args,{' '}
-              <code>$*</code> for all of them) - typing <code>/name</code> sends the expansion.
-            </p>
-            <div className="flex flex-col gap-1 max-h-32 overflow-y-auto scroll-thin pr-1 mt-1">
-              {aliasEntries.map(([name, template]) => (
-                <div
-                  key={name}
-                  className="flex items-center justify-between gap-3 px-3 py-1.5 rounded bg-(--dolq-bg-input)"
-                >
-                  <span className="text-(--dolq-text) text-[13px] truncate">
-                    <span className="font-semibold">/{name}</span>{' '}
-                    <span className="text-(--dolq-text-faint)">{template}</span>
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => onRemoveAlias(name)}
-                    className="shrink-0 text-(--dolq-danger) text-[12px] font-medium bg-transparent border-0 cursor-pointer hover:underline"
-                  >
-                    Remove
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          <label className="flex items-center gap-2 text-[13px] text-(--dolq-text) cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={trayEnabled}
-              onChange={(e) => setTrayEnabled(e.target.checked)}
-              className="accent-(--dolq-accent)"
-            />
-            Show a tray/menu bar icon
-          </label>
-
-          <label className="flex items-center gap-2 text-[13px] text-(--dolq-text) cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={remoteEnabled}
-              onChange={(e) => setRemoteEnabled(e.target.checked)}
-              className="accent-(--dolq-accent)"
-            />
-            Connect to a remote backend instead of running one locally
-          </label>
-          {remoteEnabled && (
-            <div className="flex flex-col gap-3">
-              <label className={labelClass}>
-                Pairing Link
-                <input
-                  className={inputClass}
-                  type="text"
-                  value={pairingText}
-                  onChange={(e) => applyPairing(e.target.value)}
-                  placeholder="dolq://192.168.1.5:6789?token=…  (printed by dolqd at startup)"
-                  autoComplete="off"
-                  spellCheck={false}
-                />
-              </label>
-              {pairing && (
-                <p className="text-(--dolq-text-muted) text-[12px] -mt-1.5">
-                  Paired with {formatHostPort(pairing.host, pairing.port)}. Save to apply.
-                </p>
-              )}
-              {pairingInvalid && (
-                <p className="text-(--dolq-danger) text-[12px] -mt-1.5">That is not a valid Dolq pairing link.</p>
-              )}
-              <label className={labelClass}>
-                Remote Backend URL
-                <input
-                  className={inputClass}
-                  type="text"
-                  value={remoteUrl}
-                  onChange={(e) => setRemoteUrl(e.target.value)}
-                  placeholder="host:6789"
-                />
-              </label>
-              <label className={labelClass}>
-                Access Token (optional)
-                <input
-                  className={inputClass}
-                  type="password"
-                  value={remoteToken}
-                  onChange={(e) => setRemoteToken(e.target.value)}
-                  placeholder={
-                    settings.remoteTokenSet
-                      ? 'Saved - type to replace'
-                      : 'From the pairing link; empty if the backend runs with -token=false'
-                  }
-                  autoComplete="off"
-                />
-              </label>
-              <label className="flex items-center gap-2 text-[13px] text-(--dolq-text) cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={remoteTls}
-                  onChange={(e) => setRemoteTls(e.target.checked)}
-                  className="accent-(--dolq-accent)"
-                />
-                Encrypt the connection (TLS)
-              </label>
-              {unprotected && (
-                <p className="text-(--dolq-warn) text-[12px] -mt-1.5">
-                  {!remoteTls && 'Without TLS, passwords and messages cross the network in the clear. '}
-                  {noToken && 'Without a token, anyone who can reach the backend can use it. '}
-                  Only run like this for a tunnel, a trusted proxy, or a network you fully trust (a backend started with
-                  -tls=false and/or -token=false). You will be asked to confirm each time Dolq connects.
-                </p>
-              )}
-              {remoteTls && remoteFingerprint && (
-                <div className="text-(--dolq-text-faint) text-[12px] break-all">
-                  Trusted certificate: <span className="font-mono">{remoteFingerprint}</span>{' '}
-                  <button
-                    type="button"
-                    onClick={() => setRemoteFingerprint('')}
-                    className="bg-transparent border-0 p-0 text-(--dolq-accent) cursor-pointer underline"
-                  >
-                    Forget
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-          <p className="text-(--dolq-text-faint) text-[12px] -mt-2.5">
-            Points at a dolqd already running elsewhere (see docker-compose.yml) instead of spawning one on this machine
-            - sessions/history live on the remote box, not here. The easiest way to set it up is to paste the pairing
-            link dolqd prints when it starts. Takes effect the next time Dolq starts.
-          </p>
-
-          <label className={labelClass}>
-            History Retention (days)
-            <input
-              className={inputClass}
-              type="number"
-              value={retentionDays}
-              onChange={(e) => setRetentionDays(e.target.value)}
-              placeholder="0"
-              min={0}
-            />
-          </label>
-          <p className="text-(--dolq-text-faint) text-[12px] -mt-2.5">
-            How long to keep chat history. 0 keeps it forever. Takes effect the next time Dolq starts.
-          </p>
-
-          <label className={labelClass}>
-            Download Directory
-            <div className="flex gap-2">
+            )}
+          </Card>
+          <Card>
+            <Setting
+              title="History retention (days)"
+              description="How long to keep chat history. 0 keeps it forever. Takes effect the next time Dolq starts."
+            >
               <input
-                className={`${inputClass} flex-1`}
-                type="text"
-                value={downloadDir}
-                onChange={(e) => setDownloadDir(e.target.value)}
-                placeholder="Downloads (default)"
+                className={`${inputClass} w-24`}
+                type="number"
+                value={retentionDays}
+                onChange={(e) => setRetentionDays(e.target.value)}
+                placeholder="0"
+                min={0}
               />
-              <button
-                type="button"
-                onClick={handleBrowseDownloadDir}
-                className="shrink-0 px-3 rounded text-(--dolq-text) text-[13px] font-medium bg-(--dolq-bg-input) border-0 cursor-pointer hover:bg-(--dolq-bg-hover)"
-              >
-                Browse…
-              </button>
-            </div>
-          </label>
-          <p className="text-(--dolq-text-faint) text-[12px] -mt-2.5">
-            Where XDCC downloads are saved. Empty uses the OS Downloads folder.
-          </p>
-
-          <label className="flex items-center gap-2 text-[13px] text-(--dolq-text) cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={xdccAutoAccept}
-              onChange={(e) => setXdccAutoAccept(e.target.checked)}
-              className="accent-(--dolq-accent)"
-            />
-            Auto-accept XDCC downloads
-          </label>
-          <p className="text-(--dolq-text-faint) text-[12px] -mt-2.5">
-            Start a download without asking when the bot answers a pack you requested from Dolq. Offers you didn't ask
-            for still prompt.
-          </p>
-
-          <div className="flex gap-3">
-            <label className={`${labelClass} flex-1`}>
-              DCC Port Range (min)
+            </Setting>
+            <Setting
+              title="DCC port range (min)"
+              description="Ports DCC CHAT offers and passive XDCC downloads listen on. Leave both empty to let the OS pick; set a range to forward through a router or firewall."
+            >
               <input
-                className={inputClass}
+                className={`${inputClass} w-24`}
                 type="number"
                 value={dccPortMin}
                 onChange={(e) => setDccPortMin(e.target.value)}
@@ -564,11 +513,10 @@ export function PreferencesModal({
                 min={1}
                 max={65535}
               />
-            </label>
-            <label className={`${labelClass} flex-1`}>
-              DCC Port Range (max)
+            </Setting>
+            <Setting title="DCC port range (max)">
               <input
-                className={inputClass}
+                className={`${inputClass} w-24`}
                 type="number"
                 value={dccPortMax}
                 onChange={(e) => setDccPortMax(e.target.value)}
@@ -576,30 +524,10 @@ export function PreferencesModal({
                 min={1}
                 max={65535}
               />
-            </label>
-          </div>
-          <p className="text-(--dolq-text-faint) text-[12px] -mt-2.5">
-            Ports DCC CHAT offers and passive XDCC downloads listen on. Leave both empty to let the OS pick any free
-            port - set this if you're behind a router/firewall and want to forward a fixed range to receive them.
-          </p>
-
-          <div className="flex gap-3 justify-end mt-2">
-            <button
-              type="button"
-              onClick={onCancel}
-              className="px-4 py-2 rounded text-(--dolq-text-muted) text-[14px] font-medium bg-transparent border-0 cursor-pointer hover:text-(--dolq-text)"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="px-5 py-2 rounded bg-(--dolq-accent) text-white text-shadow-sm text-[14px] font-semibold border-0 cursor-pointer hover:bg-(--dolq-accent-hover) transition-colors duration-150"
-            >
-              Save
-            </button>
-          </div>
-        </form>
-      </div>
+            </Setting>
+          </Card>
+        </>
+      )}
     </ViewPanel>
   );
 }

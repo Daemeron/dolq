@@ -82,6 +82,7 @@ contextBridge.exposeInMainWorld('irc', {
   xdccResume: (xdccId: string) => ipcRenderer.invoke(IrcMessages.xdccResume, xdccId),
 
   openExternal: (url: string) => ipcRenderer.invoke(IrcMessages.openExternal, url),
+  showInFolder: (path: string) => ipcRenderer.invoke(IrcMessages.showInFolder, path),
 
   saveTextFile: (defaultName: string, content: string) =>
     ipcRenderer.invoke(IrcMessages.saveTextFile, defaultName, content),

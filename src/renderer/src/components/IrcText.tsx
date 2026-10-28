@@ -1,3 +1,5 @@
+import { splitMatches } from '../utils/highlight';
+
 const URL_RE = /\bhttps?:\/\/[^\s<>"')\]]+/g;
 
 const TRAILING_PUNCT_RE = /[.,!?;:]+$/;
@@ -293,7 +295,7 @@ export function resolveIrcColors(chunk: FormatChunk): { color?: string; backgrou
   return { color: bg ?? 'var(--dolq-bg)', backgroundColor: fg ?? 'var(--dolq-text)' };
 }
 
-export function IrcText({ text }: { text: string }) {
+export function IrcText({ text, mark }: { text: string; mark?: string }) {
   try {
     const chunks = parseIrcFormatting(text);
     return (
@@ -317,7 +319,15 @@ export function IrcText({ text }: { text: string }) {
             >
               {splitLinks(chunk.text).map((part, j) =>
                 typeof part === 'string' ? (
-                  part
+                  splitMatches(part, mark ?? '').map((piece, k) =>
+                    typeof piece === 'string' ? (
+                      piece
+                    ) : (
+                      <mark key={k} className="rounded-[3px] bg-(--dolq-accent-soft) text-inherit">
+                        {piece.match}
+                      </mark>
+                    ),
+                  )
                 ) : (
                   <a
                     key={j}
@@ -326,7 +336,7 @@ export function IrcText({ text }: { text: string }) {
                       window.irc.openExternal(part.url);
                     }}
                     href={part.url}
-                    className="text-[#82aaff] underline cursor-pointer hover:text-[#a0c0ff]"
+                    className="cursor-pointer text-(--dolq-accent) underline underline-offset-2 hover:text-(--dolq-accent-hover)"
                   >
                     {part.url}
                   </a>

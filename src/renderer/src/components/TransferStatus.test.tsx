@@ -5,22 +5,39 @@ import { type Transfer, TransferStatus } from './TransferStatus';
 const base: Transfer = { nick: 'bot', filename: 'a.iso', received: 50, total: 100 };
 
 function setup(t: Partial<Transfer>) {
-  const h = { onPause: vi.fn(), onResume: vi.fn(), onCancel: vi.fn(), onDismiss: vi.fn() };
+  const h = {
+    onPause: vi.fn(),
+    onResume: vi.fn(),
+    onCancel: vi.fn(),
+    onDismiss: vi.fn(),
+    onShowInFolder: vi.fn(),
+    onClose: vi.fn(),
+  };
   render(<TransferStatus transfers={{ x: { ...base, ...t } }} {...h} />);
   return h;
 }
 
 describe('TransferStatus', () => {
-  it('renders nothing without transfers', () => {
-    const { container } = render(
-      <TransferStatus transfers={{}} onPause={vi.fn()} onResume={vi.fn()} onCancel={vi.fn()} onDismiss={vi.fn()} />,
+  it('says so when there are no transfers, and closes', () => {
+    const onClose = vi.fn();
+    render(
+      <TransferStatus
+        transfers={{}}
+        onPause={vi.fn()}
+        onResume={vi.fn()}
+        onCancel={vi.fn()}
+        onDismiss={vi.fn()}
+        onClose={onClose}
+      />,
     );
-    expect(container.firstChild).toBeNull();
+    expect(screen.getByText(/No transfers yet/)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+    expect(onClose).toHaveBeenCalled();
   });
 
   it('shows progress and speed, and pauses or cancels a running transfer', () => {
     const { onPause, onCancel } = setup({ speedBps: 2048 });
-    expect(screen.getByText('bot · 50% · 2.0 KB/s')).toBeTruthy();
+    expect(screen.getByText('bot · 50% of 100 B · 2.0 KB/s')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Pause' }));
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
     expect(onPause).toHaveBeenCalledWith('x');
@@ -29,17 +46,28 @@ describe('TransferStatus', () => {
 
   it('resumes a paused transfer', () => {
     const { onResume } = setup({ paused: true });
-    expect(screen.getByText('bot · 50% · paused')).toBeTruthy();
+    expect(screen.getByText('bot · 50% of 100 B · paused')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Resume' }));
     expect(onResume).toHaveBeenCalledWith('x');
   });
 
   it('shows a finished transfer as done and dismisses it, with no pause control', () => {
     const { onDismiss } = setup({ done: true, received: 100 });
-    expect(screen.getByText('Done')).toBeTruthy();
+    expect(screen.getByText('Completed · 100 B')).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Pause' })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }));
     expect(onDismiss).toHaveBeenCalledWith('x');
+  });
+
+  it('offers to show a finished download in its folder, only when its path is known', () => {
+    const { onShowInFolder } = setup({ done: true, received: 100, path: '/dl/a.iso' });
+    fireEvent.click(screen.getByRole('button', { name: 'Show in folder' }));
+    expect(onShowInFolder).toHaveBeenCalledWith('/dl/a.iso');
+  });
+
+  it('has no show-in-folder button without a path or while running', () => {
+    setup({ done: true, received: 100 });
+    expect(screen.queryByRole('button', { name: 'Show in folder' })).toBeNull();
   });
 
   it('shows the failure reason', () => {

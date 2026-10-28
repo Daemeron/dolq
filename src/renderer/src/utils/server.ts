@@ -16,3 +16,12 @@ export function resolveHostPort(server: { id: string; host?: string; port?: numb
   if (server.host && server.port) return { host: server.host, port: server.port };
   return parseServerId(server.id);
 }
+
+// The two letters on a server's icon: the first letters of its first two words ("Libera.Chat" is LC), or the
+// first two characters of a single word ("Rizon" is Ri).
+export function serverInitials(name: string): string {
+  const words = name.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+  if (words.length === 0) return '?';
+  const letters = words.length > 1 ? words[0][0] + words[1][0] : words[0].slice(0, 2);
+  return letters.charAt(0).toUpperCase() + letters.slice(1);
+}

@@ -1,8 +1,12 @@
 import { useEffect, useState } from 'react';
 import type { HistoryEntry } from '../../../shared/ipc';
-import { useModalA11y } from '../hooks/useModalA11y';
 import type { Server } from '../types';
+import { dayName } from '../utils/dayLabel';
+import { nickColor, nickInitial } from '../utils/nickColor';
+import { Icon } from './Icon';
 import { IrcText } from './IrcText';
+import { Segmented, Switch } from './ui';
+import { ViewPanel } from './ViewPanel';
 
 type Props = {
   servers: Server[];
@@ -13,9 +17,6 @@ type Props = {
   onGetPack: (serverId: string, nick: string, packNumber: number) => void;
   onClose: () => void;
 };
-
-const inputClass =
-  'w-full bg-[var(--dolq-bg-input)] border-0 rounded text-[var(--dolq-text)] text-[14px] px-3 py-2.5 outline-none focus:ring-2 focus:ring-(--dolq-accent) placeholder:text-[var(--dolq-text-faint)]';
 
 const PACKS_ONLY_LIMIT = 300;
 const DEFAULT_LIMIT = 100;
@@ -36,6 +37,13 @@ function preview(entry: HistoryEntry): { nick: string; text: string } {
   return { nick: '', text: e ? JSON.stringify(e) : '' };
 }
 
+type Scope = 'channel' | 'server' | 'everywhere';
+
+const whenLabel = (timestamp: string | number) => {
+  const d = new Date(timestamp);
+  return `${dayName(d)}, ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}`;
+};
+
 export function SearchModal({
   servers,
   defaultServerId,
@@ -46,11 +54,11 @@ export function SearchModal({
   onClose,
 }: Props) {
   const [query, setQuery] = useState('');
-  const [global, setGlobal] = useState(false);
+  const [scope, setScope] = useState<Scope>('channel');
   const [packsOnly, setPacksOnly] = useState(false);
   const [results, setResults] = useState<HistoryEntry[] | null>(null);
+  const [searched, setSearched] = useState('');
   const [loading, setLoading] = useState(false);
-  const dialogRef = useModalA11y<HTMLDivElement>();
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -60,133 +68,159 @@ export function SearchModal({
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!query.trim()) return;
+  async function runSearch(nextScope: Scope, nextPacksOnly: boolean) {
+    const text = query.trim();
+    if (!text) return;
     setLoading(true);
-    const [serverId, channel] = global ? ['', ''] : [defaultServerId, defaultChannel];
-    const limit = packsOnly ? PACKS_ONLY_LIMIT : DEFAULT_LIMIT;
+    const [serverId, channel] =
+      nextScope === 'everywhere'
+        ? ['', '']
+        : nextScope === 'server'
+          ? [defaultServerId, '']
+          : [defaultServerId, defaultChannel];
+    const limit = nextPacksOnly ? PACKS_ONLY_LIMIT : DEFAULT_LIMIT;
     try {
-      const found = await window.irc.search(serverId, channel, query.trim(), limit);
-      setResults(packsOnly ? found.filter(isPack) : found);
+      const found = await window.irc.search(serverId, channel, text, limit);
+      setResults(nextPacksOnly ? found.filter(isPack) : found);
+      setSearched(text);
     } catch {
       setResults([]);
+      setSearched(text);
     } finally {
       setLoading(false);
     }
   }
 
-  return (
-    // biome-ignore lint/a11y/noStaticElementInteractions: backdrop click-to-dismiss, Escape is handled separately
-    <div
-      role="presentation"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
-      onClick={(e) => e.target === e.currentTarget && onClose()}
-    >
-      <div
-        ref={dialogRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="search-modal-title"
-        tabIndex={-1}
-        className="bg-(--dolq-bg-panel) rounded-lg p-6 w-140 max-h-[80vh] flex flex-col shadow-[0_8px_32px_rgba(0,0,0,0.5)]"
-      >
-        <h2 id="search-modal-title" className="text-(--dolq-text) text-[18px] font-bold mb-4 shrink-0">
-          Search History
-        </h2>
+  // Changing where to look re-runs a search that is already on screen.
+  function changeScope(next: Scope) {
+    setScope(next);
+    if (results !== null) runSearch(next, packsOnly);
+  }
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-3 shrink-0">
-          <input
-            className={inputClass}
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search for..."
-          />
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <label className="flex items-center gap-2 text-[13px] text-(--dolq-text) cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={global}
-                  onChange={(e) => setGlobal(e.target.checked)}
-                  className="accent-(--dolq-accent)"
-                />
-                Search everywhere, not just {defaultChannelLabel}
-              </label>
-              <label className="flex items-center gap-2 text-[13px] text-(--dolq-text) cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={packsOnly}
-                  onChange={(e) => setPacksOnly(e.target.checked)}
-                  className="accent-(--dolq-accent)"
-                />
-                📦 Packs only
-              </label>
-            </div>
+  function changePacksOnly(next: boolean) {
+    setPacksOnly(next);
+    if (results !== null) runSearch(scope, next);
+  }
+
+  const scopeLabel =
+    scope === 'everywhere'
+      ? 'Everywhere'
+      : scope === 'server'
+        ? (servers.find((s) => s.id === defaultServerId)?.name ?? 'This server')
+        : defaultChannelLabel;
+
+  return (
+    <ViewPanel
+      title="Search History"
+      hideTitle
+      top
+      width="md"
+      onClose={onClose}
+      toolbar={
+        <>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              runSearch(scope, packsOnly);
+            }}
+            className="flex shrink-0 items-center gap-2.5 border-b border-(--dolq-border) px-4.5 py-3.5"
+          >
+            <span className="text-(--dolq-text-dim)">
+              <Icon name="search" />
+            </span>
+            <input
+              // biome-ignore lint/a11y/noAutofocus: a search palette opens ready to type
+              autoFocus
+              aria-label="Search messages"
+              className="h-7.5 w-full border-0 bg-transparent p-0 text-[15px] text-(--dolq-text) outline-none placeholder:text-(--dolq-text-faint)"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search for..."
+            />
             <button
-              type="submit"
-              disabled={loading}
-              className="px-4 py-2 rounded bg-(--dolq-accent) text-white text-shadow-sm text-[14px] font-semibold border-0 cursor-pointer hover:bg-(--dolq-accent-hover) transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
+              type="button"
+              aria-label="Close"
+              onClick={onClose}
+              className="cursor-pointer rounded-[5px] border border-b-2 border-(--dolq-border-strong) bg-transparent px-1.5 py-px font-(family-name:--dolq-font-mono) text-[11.5px] text-(--dolq-text-muted) hover:text-(--dolq-text)"
             >
+              esc
+            </button>
+            <button type="submit" disabled={loading} className="sr-only">
               {loading ? 'Searching…' : 'Search'}
             </button>
+          </form>
+          <div className="flex shrink-0 items-center justify-between gap-3 px-4.5 py-2.5">
+            <Segmented
+              label="Where to search"
+              value={scope}
+              onChange={changeScope}
+              options={[
+                { id: 'channel', label: 'This channel' },
+                { id: 'server', label: 'This server' },
+                { id: 'everywhere', label: 'Everywhere' },
+              ]}
+            />
+            {/* biome-ignore lint/a11y/noLabelWithoutControl: the label wraps a Switch, which is a checkbox input */}
+            <label className="flex cursor-pointer items-center gap-2 text-[13px] text-(--dolq-text-muted) select-none">
+              <Switch checked={packsOnly} onChange={(e) => changePacksOnly(e.target.checked)} />📦 Packs only
+            </label>
           </div>
-        </form>
-
-        <div className="flex-1 min-h-0 overflow-y-auto scroll-thin mt-4 -mx-1 px-1">
-          {results === null ? null : results.length === 0 ? (
-            <p className="text-(--dolq-text-faint) text-[14px] text-center mt-4">No matches.</p>
-          ) : (
-            <div className="flex flex-col gap-1">
-              {results.map((entry) => {
-                const { nick, text } = preview(entry);
-                const serverName = servers.find((s) => s.id === entry.serverId)?.name ?? entry.serverId;
-                const channelLabel = entry.channel === '__log__' ? 'Log' : entry.channel;
-                const pack = isPack(entry) && entry.event?.type === 'XDCCPACK' ? entry.event : null;
-                return (
-                  <button
-                    type="button"
-                    key={entry.id}
-                    onClick={() =>
-                      pack ? onGetPack(entry.serverId, pack.nick, pack.number) : onJump(entry.serverId, entry.channel)
-                    }
-                    title={pack ? 'Click to request this pack' : undefined}
-                    className="flex flex-col items-start gap-0.5 w-full px-3 py-2 rounded border-0 bg-(--dolq-bg-raised) text-left cursor-pointer hover:bg-(--dolq-bg-hover)"
+        </>
+      }
+    >
+      <div className="-mx-6 -mt-2 -mb-5 max-h-110 overflow-y-auto pb-3">
+        {results === null ? null : results.length === 0 ? (
+          <p className="m-0 mt-6 text-center text-[14px] text-(--dolq-text-faint)">No matches.</p>
+        ) : (
+          <>
+            <div className="px-4 pt-3.5 pb-1.5 text-[12px] font-medium text-(--dolq-text-dim)">
+              {scopeLabel} · {results.length} {results.length === 1 ? 'result' : 'results'}
+            </div>
+            {results.map((entry) => {
+              const { nick, text } = preview(entry);
+              const serverName = servers.find((s) => s.id === entry.serverId)?.name ?? entry.serverId;
+              const channelLabel = entry.channel === '__log__' ? 'Log' : entry.channel;
+              const pack = isPack(entry) && entry.event?.type === 'XDCCPACK' ? entry.event : null;
+              return (
+                <button
+                  type="button"
+                  key={entry.id}
+                  onClick={() =>
+                    pack ? onGetPack(entry.serverId, pack.nick, pack.number) : onJump(entry.serverId, entry.channel)
+                  }
+                  title={pack ? 'Click to request this pack' : undefined}
+                  className="flex w-full cursor-pointer gap-3 border-0 bg-transparent px-4.5 py-2 text-left hover:bg-(--dolq-bg-row-hover)"
+                >
+                  <span
+                    aria-hidden="true"
+                    className="flex size-7 shrink-0 items-center justify-center rounded-full text-[12px] font-semibold text-white"
+                    style={{ background: nick ? nickColor(nick) : 'var(--dolq-text-faint)' }}
                   >
-                    <span className="text-[11px] text-(--dolq-text-faint)">
-                      {serverName} / {channelLabel} · {new Date(entry.timestamp).toLocaleString()}
+                    {pack ? '📦' : nick ? nickInitial(nick) : '·'}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-baseline gap-2">
+                      {nick && (
+                        <span className="text-[14px] font-semibold" style={{ color: nickColor(nick) }}>
+                          {nick}
+                        </span>
+                      )}
+                      <span className="text-[12px] text-(--dolq-text-dim)">
+                        {serverName} / {channelLabel} · {whenLabel(entry.timestamp)}
+                      </span>
                     </span>
                     <span
-                      className={`text-[14px] truncate w-full ${pack ? 'font-mono text-(--dolq-text-muted)' : 'text-(--dolq-text)'}`}
+                      className={`block text-[14px] break-words ${pack ? 'font-(family-name:--dolq-font-mono) text-(--dolq-text-muted)' : 'text-(--dolq-text)'}`}
                     >
-                      {pack ? (
-                        <>
-                          📦 <IrcText text={text} />
-                        </>
-                      ) : (
-                        <>
-                          {nick && <span className="font-semibold mr-1.5">{nick}</span>}
-                          <IrcText text={text} />
-                        </>
-                      )}
+                      <IrcText text={text} mark={pack ? undefined : searched} />
                     </span>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        <div className="flex justify-end mt-4 shrink-0">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 rounded text-(--dolq-text-muted) text-[14px] font-medium bg-transparent border-0 cursor-pointer hover:text-(--dolq-text)"
-          >
-            Close
-          </button>
-        </div>
+                  </span>
+                </button>
+              );
+            })}
+          </>
+        )}
       </div>
-    </div>
+    </ViewPanel>
   );
 }
