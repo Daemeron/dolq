@@ -1,11 +1,14 @@
 package history
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 )
@@ -427,4 +430,27 @@ func TestAppendAfterCloseIsDropped(t *testing.T) {
 	// A late IRC read loop must not panic with "send on closed channel".
 	s.AppendLine("srv", "#chan", "late", time.Now())
 	s.AppendEvent("srv", "#chan", testEvent{Type: "JOIN", Nick: "a"}, time.Now())
+}
+
+func TestDatabaseFailuresAreLoggedNotFatal(t *testing.T) {
+	s, err := Open(filepath.Join(t.TempDir(), "h.db"), 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var buf bytes.Buffer
+	log.SetOutput(&buf)
+	defer log.SetOutput(os.Stderr)
+
+	s.db.Close() // the database goes away under a running store
+	s.writeBatch([]Entry{{ServerID: "s", Channel: "#c", Timestamp: time.Now(), IsRaw: true, Line: "x"}})
+	s.prune()
+
+	out := buf.String()
+	if !strings.Contains(out, "history: begin tx") {
+		t.Errorf("write failure not logged: %q", out)
+	}
+	if !strings.Contains(out, "history: prune error") {
+		t.Errorf("prune failure not logged: %q", out)
+	}
+	s.Close()
 }

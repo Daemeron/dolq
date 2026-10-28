@@ -255,3 +255,13 @@ func TestSessionOnCloseRacingDisconnect(t *testing.T) {
 		}
 	}
 }
+
+func TestLocalIPIsAUsableAddress(t *testing.T) {
+	ip, err := LocalIP()
+	if err != nil {
+		t.Skipf("no route to the internet here: %v", err)
+	}
+	if ip == nil || ip.IsUnspecified() {
+		t.Errorf("LocalIP = %v", ip)
+	}
+}

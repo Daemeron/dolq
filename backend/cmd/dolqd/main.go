@@ -7,6 +7,7 @@ import (
 	"crypto/tls"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"os"
@@ -23,35 +24,47 @@ import (
 )
 
 func main() {
-	socketPath := flag.String("socket", "", "Unix domain socket path to listen on (default: a path under the OS temp dir); ignored if -addr is set")
-	addr := flag.String("addr", "", "TCP address to listen on instead of a Unix socket, e.g. 0.0.0.0:6789 - for a remote backend (see docker/) a frontend dials over the network; a locally-spawned dolqd should leave this unset")
-	dbPath := flag.String("db", "", "SQLite database path for message history (default: a path under the OS config dir)")
-	tlsCert := flag.String("tls-cert", "", "TLS certificate (PEM) for -addr; with -tls-key. If neither file exists a self-signed pair is generated there (default: next to the database)")
-	tlsKey := flag.String("tls-key", "", "TLS private key (PEM) for -addr")
-	acmeDomain := flag.String("acme-domain", "", "get and renew a Let's Encrypt certificate for this domain (needs port 443 reachable from the internet and the name pointing here); replaces the self-signed certificate")
-	acmeEmail := flag.String("acme-email", "", "contact address for Let's Encrypt expiry notices (optional)")
-	acmeStaging := flag.Bool("acme-staging", false, "use Let's Encrypt's staging CA (untrusted certificates) to test the setup")
-	allowLegacyPlain := flag.Bool("allow-legacy-plain", false, "with TLS on -addr, also accept plain connections without the access token on the same port, for clients and setups from before access tokens; anyone who can reach the port can then use it (also DOLQ_ALLOW_LEGACY_PLAIN=1)")
-	// Refusing plain connections is the default now; still accepted so existing command lines keep starting.
-	flag.Bool("secure", false, "deprecated, has no effect: plain unauthenticated connections are refused unless -allow-legacy-plain")
-	useTLSFlag := flag.Bool("tls", true, "serve -addr over TLS; -tls=false for plain TCP, e.g. behind a TLS-terminating proxy or an SSH tunnel")
-	useTokenFlag := flag.Bool("token", true, "require an access token on -addr (DOLQ_TOKEN, or generated once and kept next to the database); -token=false means anyone who can reach the port can use it, so only on a network you fully trust. Independent of -tls")
-	downloadDir := flag.String("download-dir", "", "with -addr, where XDCC downloads are saved; clients cannot choose another directory (also DOLQ_DOWNLOAD_DIR; default: a downloads dir next to the database). A locally spawned dolqd saves where the app asks")
-	printPairing := flag.Bool("print-pairing", false, "with -addr, log the pairing link (it contains the access token); it is otherwise logged only when the token is first generated")
-	retentionDays := flag.Int("retention-days", 0, "prune history older than this many days (0 = keep forever)")
-	flag.Parse()
-
 	// Installed before the socket path is printed, so a parent signalling
 	// right after reading it gets a clean shutdown rather than a default kill.
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	if err := run(ctx, os.Args[1:], os.Stdout); err != nil {
+		stop()
+		log.Fatal(err)
+	}
+}
+
+// run is main without the process: it serves until ctx is cancelled (or the
+// listener fails) and reports startup problems as errors. The socket path
+// goes to stdout.
+func run(ctx context.Context, args []string, stdout io.Writer) error {
+	flags := flag.NewFlagSet("dolqd", flag.ContinueOnError)
+	socketPath := flags.String("socket", "", "Unix domain socket path to listen on (default: a path under the OS temp dir); ignored if -addr is set")
+	addr := flags.String("addr", "", "TCP address to listen on instead of a Unix socket, e.g. 0.0.0.0:6789 - for a remote backend (see docker/) a frontend dials over the network; a locally-spawned dolqd should leave this unset")
+	dbPath := flags.String("db", "", "SQLite database path for message history (default: a path under the OS config dir)")
+	tlsCert := flags.String("tls-cert", "", "TLS certificate (PEM) for -addr; with -tls-key. If neither file exists a self-signed pair is generated there (default: next to the database)")
+	tlsKey := flags.String("tls-key", "", "TLS private key (PEM) for -addr")
+	acmeDomain := flags.String("acme-domain", "", "get and renew a Let's Encrypt certificate for this domain (needs port 443 reachable from the internet and the name pointing here); replaces the self-signed certificate")
+	acmeEmail := flags.String("acme-email", "", "contact address for Let's Encrypt expiry notices (optional)")
+	acmeStaging := flags.Bool("acme-staging", false, "use Let's Encrypt's staging CA (untrusted certificates) to test the setup")
+	allowLegacyPlain := flags.Bool("allow-legacy-plain", false, "with TLS on -addr, also accept plain connections without the access token on the same port, for clients and setups from before access tokens; anyone who can reach the port can then use it (also DOLQ_ALLOW_LEGACY_PLAIN=1)")
+	// Refusing plain connections is the default now; still accepted so existing command lines keep starting.
+	flags.Bool("secure", false, "deprecated, has no effect: plain unauthenticated connections are refused unless -allow-legacy-plain")
+	useTLSFlag := flags.Bool("tls", true, "serve -addr over TLS; -tls=false for plain TCP, e.g. behind a TLS-terminating proxy or an SSH tunnel")
+	useTokenFlag := flags.Bool("token", true, "require an access token on -addr (DOLQ_TOKEN, or generated once and kept next to the database); -token=false means anyone who can reach the port can use it, so only on a network you fully trust. Independent of -tls")
+	downloadDir := flags.String("download-dir", "", "with -addr, where XDCC downloads are saved; clients cannot choose another directory (also DOLQ_DOWNLOAD_DIR; default: a downloads dir next to the database). A locally spawned dolqd saves where the app asks")
+	printPairing := flags.Bool("print-pairing", false, "with -addr, log the pairing link (it contains the access token); it is otherwise logged only when the token is first generated")
+	retentionDays := flags.Int("retention-days", 0, "prune history older than this many days (0 = keep forever)")
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
 
 	p, err := plan(options{
 		socket: *socketPath, addr: *addr, tlsCert: *tlsCert, tlsKey: *tlsKey, acmeDomain: *acmeDomain,
 		allowLegacyPlain: *allowLegacyPlain, tls: *useTLSFlag, token: *useTokenFlag,
 	}, os.Getenv, runtime.GOOS, os.Getpid())
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	network, path, token := p.network, p.path, p.token
 	if p.noTokenWarning {
@@ -61,7 +74,7 @@ func main() {
 	if p.loadToken {
 		var created bool
 		if token, created, err = ipcproto.LoadOrCreateToken(filepath.Join(filepath.Dir(resolveDBPath(*dbPath)), "token")); err != nil {
-			log.Fatalf("access token: %v", err)
+			return fmt.Errorf("access token: %v", err)
 		}
 		showPairing = showPairing || created
 	}
@@ -81,7 +94,7 @@ func main() {
 		hostname, _ := os.Hostname()
 		cert, err := ipcproto.LoadOrCreateCert(certFile, keyFile, []string{"localhost", "127.0.0.1", "::1", hostname})
 		if err != nil {
-			log.Fatalf("tls certificate: %v", err)
+			return fmt.Errorf("tls certificate: %v", err)
 		}
 		tlsCfg = ipcproto.ServerTLSConfig(cert)
 		fingerprint = ipcproto.Fingerprint(cert)
@@ -94,14 +107,14 @@ func main() {
 		// A private directory of our own: the socket is never reachable via a shared, world-listable /tmp.
 		dir, err := os.MkdirTemp("", "dolq-")
 		if err != nil {
-			log.Fatalf("create socket dir: %v", err)
+			return fmt.Errorf("create socket dir: %v", err)
 		}
 		path = filepath.Join(dir, "dolq.sock")
 	}
 
 	ln, err := ipcproto.Listen(network, path)
 	if err != nil {
-		log.Fatalf("listen on %s %s: %v", network, path, err)
+		return fmt.Errorf("listen on %s %s: %v", network, path, err)
 	}
 	if p.pairing {
 		host := ""
@@ -120,11 +133,11 @@ func main() {
 	// process (e.g. Electron, spawning this as a local child) reads to find
 	// the socket it should connect to. Meaningless over tcp (nothing spawns
 	// a remote dolqd to read its stdout), but harmless - left unconditional.
-	fmt.Println(path)
+	fmt.Fprintln(stdout, path)
 
 	store, err := history.Open(resolveDBPath(*dbPath), *retentionDays)
 	if err != nil {
-		log.Fatalf("open history db: %v", err)
+		return fmt.Errorf("open history db: %v", err)
 	}
 	defer store.Close()
 
@@ -133,7 +146,7 @@ func main() {
 	if network == "tcp" {
 		dir := serverDownloadDir(*downloadDir, os.Getenv("DOLQ_DOWNLOAD_DIR"), *dbPath)
 		if err := os.MkdirAll(dir, 0o700); err != nil {
-			log.Fatalf("create download dir %s: %v", dir, err)
+			return fmt.Errorf("create download dir %s: %v", dir, err)
 		}
 		log.Printf("saving downloads to %s", dir)
 		srv.DownloadDir(dir)
@@ -158,6 +171,7 @@ func main() {
 	case err := <-serveErr:
 		log.Printf("serve error: %v", err)
 	}
+	return nil
 }
 
 // resolveDBPath honors an explicit -db flag, otherwise places the database

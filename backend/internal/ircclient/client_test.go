@@ -1403,3 +1403,48 @@ func TestDialGivesUpOnAStalledHandshake(t *testing.T) {
 		t.Fatal("Dial still waiting on the handshake after the dial timeout")
 	}
 }
+
+func TestNickFollowsWhatTheServerConfirms(t *testing.T) {
+	c, conn, r := pipeClient(t, "mira")
+	if c.Nick() != "mira" {
+		t.Fatalf("Nick before welcome = %q", c.Nick())
+	}
+	c.Start()
+	drainHandshake(t, r)
+	writeLine(t, conn, ":irc.example 001 mira_ :Welcome")
+	deadline := time.Now().Add(2 * time.Second)
+	for c.Nick() != "mira_" {
+		if time.Now().After(deadline) {
+			t.Fatalf("Nick = %q, want the welcomed nick mira_", c.Nick())
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
+
+func TestLineListenersSeeEveryRawLine(t *testing.T) {
+	c, conn, r := pipeClient(t, "mira")
+	lines := make(chan string, 4)
+	c.AddLineListener(func(line string) { lines <- line })
+	c.Start()
+	drainHandshake(t, r)
+	writeLine(t, conn, ":irc.example NOTICE * :hello there")
+	select {
+	case got := <-lines:
+		if got != ":irc.example NOTICE * :hello there" {
+			t.Errorf("listener got %q", got)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("line listener never called")
+	}
+}
+
+func TestCTCPVersionRequestIsAnsweredWithANotice(t *testing.T) {
+	c, conn, r := pipeClient(t, "mira")
+	c.Start()
+	drainHandshake(t, r)
+	writeLine(t, conn, ":bob!b@h PRIVMSG mira :\x01VERSION\x01")
+	got := expectLine(t, r)
+	if want := "NOTICE bob :\x01VERSION"; len(got) < len(want) || got[:len(want)] != want {
+		t.Errorf("reply = %q, want it to start with %q", got, want)
+	}
+}
