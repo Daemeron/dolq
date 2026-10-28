@@ -713,9 +713,13 @@ export default function App() {
             setTransfers((prev) => {
               const t = prev[id];
               if (!t) return prev;
-              const text = event.error
-                ? `Download of ${t.filename} failed: ${event.error}`
-                : `Downloaded ${t.filename} to ${event.path}`;
+              const text = t.sending
+                ? event.error
+                  ? `Sending ${t.filename} failed: ${event.error}`
+                  : `Sent ${t.filename}`
+                : event.error
+                  ? `Download of ${t.filename} failed: ${event.error}`
+                  : `Downloaded ${t.filename} to ${event.path}`;
               ensureQuery(t.serverId, t.nick);
               appendMessage(scopeKey(t.serverId, t.nick), {
                 id: nextMsgId.current++,
@@ -1024,6 +1028,30 @@ export default function App() {
     }
   }
 
+  async function handleSendFile(nick: string) {
+    const path = await window.irc.chooseFile();
+    if (!path) return;
+    const serverId = selectedServerId;
+    const filename = path.split(/[\\/]/).pop() ?? path;
+    try {
+      const id = await window.irc.dccSendFile(serverId, nick, path);
+      setTransfers((prev) => ({
+        ...prev,
+        [id]: { serverId, nick, filename, received: 0, total: 0, path, sending: true },
+      }));
+      setShowTransfers(true);
+    } catch (err) {
+      ensureQuery(serverId, nick);
+      appendMessage(scopeKey(serverId, nick), {
+        id: nextMsgId.current++,
+        nick: '',
+        text: `Could not send ${filename}: ${err instanceof Error ? err.message : String(err)}`,
+        timestamp: new Date(),
+        system: true,
+      });
+    }
+  }
+
   async function handleDCCOffer(nick: string) {
     const id = await window.irc.dccOffer(selectedServerId, nick);
     addChannel(selectedServerId, { id, name: nick, isLog: false, isQuery: true, isDCC: true });
@@ -1300,6 +1328,11 @@ export default function App() {
             setWhoisNick(null);
             setWhoisResult(null);
           }}
+          onSendFile={() => {
+            handleSendFile(whoisNick);
+            setWhoisNick(null);
+            setWhoisResult(null);
+          }}
           onIgnore={() => {
             addIgnore(selectedServerId, whoisNick);
             setWhoisNick(null);
@@ -1507,6 +1540,9 @@ export default function App() {
                 isLog={isLog}
                 isQuery={isQuery}
                 onSend={handleSend}
+                onSendFile={
+                  isQuery && !selectedChannel?.isDCC ? () => handleSendFile(selectedChannel?.name ?? '') : undefined
+                }
               />
             </div>
             {!isLog && !isQuery && showMembers && (
@@ -1523,6 +1559,7 @@ export default function App() {
                   ignoredNicks={ignoredNicks[selectedServerId] ?? []}
                   onToggleIgnore={handleToggleIgnore}
                   onDCCOffer={handleDCCOffer}
+                  onSendFile={handleSendFile}
                 />
               </aside>
             )}

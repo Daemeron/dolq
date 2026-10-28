@@ -2,11 +2,15 @@ package dcc
 
 import (
 	"encoding/binary"
+	"fmt"
 	"io"
+	"math"
 	"net"
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
+	"time"
 )
 
 type SendOffer struct {
@@ -166,4 +170,74 @@ func ReceiveFile(conn net.Conn, w io.Writer, base, size int64, pause *PauseGate,
 		}
 	}
 	return nil
+}
+
+// sendStallTimeout is how long a write may block before the peer is considered gone.
+const sendStallTimeout = 2 * time.Minute
+
+// SendFile streams size bytes of r to the peer and waits for it to confirm them. DCC SEND acknowledgements are the
+// 32-bit running total the peer has received, so a file of 4 GiB or more cannot be confirmed and is refused. Some
+// clients close the connection without a last acknowledgement; that counts as done once every byte was written.
+func SendFile(conn net.Conn, r io.Reader, size int64, confirmTimeout time.Duration, onProgress func(sent int64)) error {
+	if size <= 0 || size > math.MaxUint32 {
+		return fmt.Errorf("dcc: cannot send a file of %d bytes", size)
+	}
+	var acked atomic.Uint32
+	var gotAck atomic.Bool
+	ackSignal := make(chan struct{}, 1)
+	peerGone := make(chan struct{})
+	go func() {
+		defer close(peerGone)
+		var b [4]byte
+		for {
+			if _, err := io.ReadFull(conn, b[:]); err != nil {
+				return
+			}
+			acked.Store(binary.BigEndian.Uint32(b[:]))
+			gotAck.Store(true)
+			select {
+			case ackSignal <- struct{}{}:
+			default:
+			}
+		}
+	}()
+
+	buf := make([]byte, 64*1024)
+	var sent int64
+	for sent < size {
+		n, err := r.Read(buf)
+		if n > 0 {
+			conn.SetWriteDeadline(time.Now().Add(sendStallTimeout))
+			if _, werr := conn.Write(buf[:n]); werr != nil {
+				return werr
+			}
+			sent += int64(n)
+			if onProgress != nil {
+				onProgress(sent)
+			}
+		}
+		if err != nil {
+			if err == io.EOF && sent < size {
+				return fmt.Errorf("dcc: the file ended after %d of %d bytes", sent, size)
+			}
+			if err != io.EOF {
+				return err
+			}
+		}
+	}
+
+	timeout := time.NewTimer(confirmTimeout)
+	defer timeout.Stop()
+	for {
+		if gotAck.Load() && acked.Load() == uint32(size) {
+			return nil
+		}
+		select {
+		case <-ackSignal:
+		case <-peerGone:
+			return nil
+		case <-timeout.C:
+			return fmt.Errorf("dcc: the peer did not confirm the file within %s", confirmTimeout)
+		}
+	}
 }

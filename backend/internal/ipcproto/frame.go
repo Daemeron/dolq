@@ -15,6 +15,7 @@ const (
 	ActionDCCAccept         = "dccAccept"
 	ActionDCCSend           = "dccSend"
 	ActionDCCClose          = "dccClose"
+	ActionDCCSendFile       = "dccSendFile"
 	ActionXDCCAccept        = "xdccAccept"
 	ActionXDCCClose         = "xdccClose"
 	ActionXDCCPause         = "xdccPause"
@@ -53,6 +54,7 @@ type ClientFrame struct {
 	Size      int64    `json:"size,omitempty"`
 	Token     string   `json:"token,omitempty"`
 	DestDir   string   `json:"destDir,omitempty"`
+	Path      string   `json:"path,omitempty"`
 	PortMin   int      `json:"portMin,omitempty"`
 	PortMax   int      `json:"portMax,omitempty"`
 }

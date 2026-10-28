@@ -72,7 +72,13 @@ describe('UserList menu', () => {
 
   function setup(ignored: string[] = []) {
     withLayout();
-    const h = { onWhois: vi.fn(), onToggleIgnore: vi.fn(), onDCCOffer: vi.fn(), onOpenQuery: vi.fn() };
+    const h = {
+      onWhois: vi.fn(),
+      onToggleIgnore: vi.fn(),
+      onDCCOffer: vi.fn(),
+      onSendFile: vi.fn(),
+      onOpenQuery: vi.fn(),
+    };
     render(<UserList users={[user('mira'), user('me')]} currentNick="me" ignoredNicks={ignored} {...h} />);
     return h;
   }
@@ -85,6 +91,9 @@ describe('UserList menu', () => {
     fireEvent.contextMenu(screen.getByText('mira'));
     fireEvent.click(screen.getByText('DCC Chat'));
     expect(h.onDCCOffer).toHaveBeenCalledWith('mira');
+    fireEvent.contextMenu(screen.getByText('mira'));
+    fireEvent.click(screen.getByText('Send File…'));
+    expect(h.onSendFile).toHaveBeenCalledWith('mira');
     fireEvent.contextMenu(screen.getByText('mira'));
     fireEvent.click(screen.getByText('Ignore'));
     expect(h.onToggleIgnore).toHaveBeenCalledWith('mira');

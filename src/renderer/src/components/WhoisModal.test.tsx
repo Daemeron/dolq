@@ -79,6 +79,19 @@ describe('WhoisModal: actions and formats', () => {
     expect(onIgnore).toHaveBeenCalled();
   });
 
+  it('offers to send a file to a known user, but not to one that does not exist', () => {
+    const onSendFile = vi.fn();
+    const { rerender } = render(
+      <WhoisModal nick="mira" result={whois({ user: 'm', host: 'h' })} onClose={() => {}} onSendFile={onSendFile} />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Send file' }));
+    expect(onSendFile).toHaveBeenCalled();
+    rerender(
+      <WhoisModal nick="mira" result={whois({ noSuchNick: true })} onClose={() => {}} onSendFile={onSendFile} />,
+    );
+    expect(screen.queryByRole('button', { name: 'Send file' })).toBeNull();
+  });
+
   it('says how long a user has been idle in plain units', () => {
     expect(formatIdle(1)).toBe('1 second');
     expect(formatIdle(45)).toBe('45 seconds');

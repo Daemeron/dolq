@@ -86,6 +86,7 @@ type ListProps = {
   ignoredNicks: string[];
   onToggleIgnore: (nick: string) => void;
   onDCCOffer: (nick: string) => void;
+  onSendFile: (nick: string) => void;
 };
 
 export function UserList({
@@ -96,6 +97,7 @@ export function UserList({
   ignoredNicks,
   onToggleIgnore,
   onDCCOffer,
+  onSendFile,
 }: ListProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const rows = toRows(users);
@@ -169,6 +171,14 @@ export function UserList({
             }}
           >
             DCC Chat
+          </ContextMenuItem>
+          <ContextMenuItem
+            onClick={() => {
+              onSendFile(menu.target);
+              close();
+            }}
+          >
+            Send File…
           </ContextMenuItem>
           <ContextMenuItem
             danger={!ignoredNicks.includes(menu.target)}

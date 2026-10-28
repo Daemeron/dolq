@@ -24,6 +24,8 @@ type XDCCTransferEvent struct {
 	Path     string `json:"path"`
 	Done     bool   `json:"done,omitempty"`
 	Error    string `json:"error,omitempty"`
+	// Sending marks a file going out to Nick rather than one coming in.
+	Sending bool `json:"sending,omitempty"`
 }
 
 const progressInterval = 250 * time.Millisecond

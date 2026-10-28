@@ -58,6 +58,9 @@ contextBridge.exposeInMainWorld('irc', {
   setSettings: (settings: Settings) => ipcRenderer.invoke(IrcMessages.setSettings, settings),
 
   dccOffer: (serverId: string, nick: string) => ipcRenderer.invoke(IrcMessages.dccOffer, serverId, nick),
+  dccSendFile: (serverId: string, nick: string, path: string) =>
+    ipcRenderer.invoke(IrcMessages.dccSendFile, serverId, nick, path),
+  chooseFile: () => ipcRenderer.invoke(IrcMessages.chooseFile),
 
   dccAccept: (ip: string, port: number) => ipcRenderer.invoke(IrcMessages.dccAccept, ip, port),
 

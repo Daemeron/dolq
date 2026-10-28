@@ -80,7 +80,7 @@ export function Setting({
   const id = useId();
   // The control is named by the title alone, so the description is not part of its accessible name.
   const control = Children.map(children, (child) =>
-    (isValidElement(child) && typeof child.type === 'string') || (isValidElement(child) && child.type === Switch)
+    isValidElement(child) && (CONTROLS.has(child.type as string) || child.type === Switch)
       ? cloneElement(child as ReactElement<{ 'aria-labelledby'?: string }>, { 'aria-labelledby': id })
       : child,
   );
@@ -147,7 +147,6 @@ export function Segmented<T extends string>({
           key={o.id}
           small
           variant={o.id === value ? 'secondary' : 'ghost'}
-          // biome-ignore lint/a11y/useSemanticElements: a toggle button standing in for a radio, per the design
           role="radio"
           aria-checked={o.id === value}
           className={o.id === value ? 'bg-(--dolq-bg-row-selected)' : ''}

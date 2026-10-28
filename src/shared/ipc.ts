@@ -64,7 +64,16 @@ export type IrcEvent =
       host?: string;
       account?: string;
     }
-  | { type: 'XDCCTRANSFER'; received: number; total: number; path: string; done?: boolean; error?: string };
+  | {
+      type: 'XDCCTRANSFER';
+      received: number;
+      total: number;
+      path: string;
+      done?: boolean;
+      error?: string;
+      // A file going out to someone, not one coming in.
+      sending?: boolean;
+    };
 
 export type HistoryEntry = {
   id: number;
@@ -123,6 +132,8 @@ export type IrcApi = {
   getSettings: () => Promise<Settings>;
   setSettings: (settings: Settings) => Promise<void>;
   dccOffer: (serverId: string, nick: string) => Promise<string>;
+  dccSendFile: (serverId: string, nick: string, path: string) => Promise<string>;
+  chooseFile: () => Promise<string | null>;
   dccAccept: (ip: string, port: number) => Promise<string>;
   dccSend: (dccId: string, line: string) => Promise<void>;
   dccClose: (dccId: string) => Promise<void>;
@@ -170,6 +181,8 @@ export enum IrcMessages {
   getSettings = 'irc:getSettings',
   setSettings = 'irc:setSettings',
   dccOffer = 'irc:dccOffer',
+  dccSendFile = 'irc:dccSendFile',
+  chooseFile = 'irc:chooseFile',
   dccAccept = 'irc:dccAccept',
   dccSend = 'irc:dccSend',
   dccClose = 'irc:dccClose',

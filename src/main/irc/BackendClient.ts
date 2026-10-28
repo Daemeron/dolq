@@ -282,6 +282,17 @@ export class BackendClient extends EventEmitter {
     return f.dccId ?? '';
   }
 
+  // The file is read by the backend, so it must be on this machine.
+  async dccSendFile(serverId: string, nick: string, path: string, portMin: number, portMax: number): Promise<string> {
+    const f = await this.request('dccSendFile', { serverId, nick, path, portMin, portMax });
+    if (!f.ok) throw new Error(f.error);
+    return f.dccId ?? '';
+  }
+
+  get isRemote(): boolean {
+    return this.remote !== undefined;
+  }
+
   async dccAccept(ip: string, port: number): Promise<string> {
     const f = await this.request('dccAccept', { host: ip, port });
     if (!f.ok) throw new Error(f.error);

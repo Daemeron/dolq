@@ -184,6 +184,8 @@ type Bouncer struct {
 	DCCAcceptTimeout time.Duration
 
 	ResumeAcceptTimeout time.Duration
+	// SendConfirmTimeout is how long a finished upload waits for the peer's last acknowledgement.
+	SendConfirmTimeout time.Duration
 
 	// redialPause, when a test sets it, runs before the named step of a redial
 	// so a Disconnect can be made to land right there.
@@ -200,6 +202,7 @@ func New(store *history.Store) *Bouncer {
 		ReconnectBackoffMax:  60 * time.Second,
 		DCCAcceptTimeout:     DefaultDCCAcceptTimeout,
 		ResumeAcceptTimeout:  DefaultResumeAcceptTimeout,
+		SendConfirmTimeout:   DefaultSendConfirmTimeout,
 	}
 }
 

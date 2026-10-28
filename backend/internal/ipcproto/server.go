@@ -271,6 +271,13 @@ func (s *Server) handleFrame(c *conn, f ClientFrame) {
 		c.writeFrame(ServerFrame{ID: f.ID, Type: FrameResult, OK: true, DCCID: id})
 	case ActionDCCSend:
 		c.writeResult(f.ID, s.b.DCCSend(f.DCCID, f.Line))
+	case ActionDCCSendFile:
+		id, err := s.b.DCCSendFile(f.ServerID, f.Nick, f.Path, f.PortMin, f.PortMax, c)
+		if err != nil {
+			c.writeFrame(ServerFrame{ID: f.ID, Type: FrameResult, OK: false, Error: err.Error()})
+			return
+		}
+		c.writeFrame(ServerFrame{ID: f.ID, Type: FrameResult, OK: true, DCCID: id})
 	case ActionDCCClose:
 		c.writeResult(f.ID, s.b.DCCClose(f.DCCID))
 	case ActionXDCCAccept:

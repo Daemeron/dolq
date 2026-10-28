@@ -95,4 +95,22 @@ describe('TransferStatus: speed units', () => {
     setup({ speedBps });
     expect(screen.getByText(new RegExp(shown.replace('/', '\\/')))).toBeTruthy();
   });
+
+  it('shows an outgoing file as waiting for the peer, then sending, with no pause control', () => {
+    const { onCancel } = setup({ sending: true, received: 0, total: 0 });
+    expect(screen.getByText('Waiting for bot to connect')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Pause' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(onCancel).toHaveBeenCalledWith('x');
+  });
+
+  it('shows how far an outgoing file has got, and when it was sent', () => {
+    setup({ sending: true, received: 50, total: 100 });
+    expect(screen.getByText('Sending to bot · 50% of 100 B')).toBeTruthy();
+  });
+
+  it('says Sent for a finished outgoing file', () => {
+    setup({ sending: true, done: true, received: 100, total: 100 });
+    expect(screen.getByText('Sent · 100 B')).toBeTruthy();
+  });
 });

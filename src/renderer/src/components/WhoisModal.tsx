@@ -13,6 +13,7 @@ type Props = {
   result: WhoisInfo | null;
   onClose: () => void;
   onMessage?: () => void;
+  onSendFile?: () => void;
   onIgnore?: () => void;
 };
 
@@ -42,7 +43,7 @@ function Row({ label, children, title }: { label: string; children: React.ReactN
   );
 }
 
-export function WhoisModal({ nick, result, onClose, onMessage, onIgnore }: Props) {
+export function WhoisModal({ nick, result, onClose, onMessage, onSendFile, onIgnore }: Props) {
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') onClose();
@@ -79,6 +80,7 @@ export function WhoisModal({ nick, result, onClose, onMessage, onIgnore }: Props
             <span />
           )}
           <div className="flex gap-2">
+            {onSendFile && known && <Button onClick={onSendFile}>Send file</Button>}
             {onMessage && (
               <Button variant="primary" onClick={onMessage}>
                 Message

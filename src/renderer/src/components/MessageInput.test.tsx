@@ -100,3 +100,15 @@ describe('MessageInput emoji picker', () => {
     expect(input.value).toBe('draft');
   });
 });
+
+describe('MessageInput: send file', () => {
+  it('shows a send-file button only when sending a file is possible, and reports clicks', () => {
+    const { unmount } = render(<MessageInput channelName="linux" isLog={false} onSend={vi.fn()} />);
+    expect(screen.queryByRole('button', { name: 'Send file' })).toBeNull();
+    unmount();
+    const onSendFile = vi.fn();
+    render(<MessageInput channelName="mira" isLog={false} isQuery onSend={vi.fn()} onSendFile={onSendFile} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Send file' }));
+    expect(onSendFile).toHaveBeenCalled();
+  });
+});

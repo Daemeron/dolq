@@ -896,6 +896,80 @@ describe('App: packs and search results', () => {
   });
 });
 
+describe('App: sending a file', () => {
+  const query = { id: 'mira', name: 'mira', isLog: false, isQuery: true, joined: true };
+  const openQuery = () =>
+    seed({
+      channelMap: { s1: [log, dolq, other, query] },
+      messageMap: { 's1:__log__': [], 's1:#dolq': [], 's1:#other': [], 's1:mira': [] },
+      selectedChannelId: 'mira',
+    });
+
+  it('offers the chosen file to the person in a direct message and shows it in the transfers', async () => {
+    openQuery();
+    const irc = await mount({ chooseFile: '/tmp/some dir/a.iso', dccSendFile: 'xdcc:1' });
+    fireEvent.click(screen.getByRole('button', { name: 'Send file' }));
+    await waitFor(() => expect(irc.spies.dccSendFile).toHaveBeenCalledWith('s1', 'mira', '/tmp/some dir/a.iso'));
+    expect(await screen.findByText('a.iso')).toBeTruthy();
+    expect(screen.getByText('Waiting for mira to connect')).toBeTruthy();
+
+    await irc.event('xdcc:1', {
+      type: 'XDCCTRANSFER',
+      received: 512,
+      total: 1024,
+      path: '/tmp/some dir/a.iso',
+      sending: true,
+    });
+    expect(await screen.findByText('Sending to mira · 50% of 1.0 KB')).toBeTruthy();
+    await irc.event('xdcc:1', {
+      type: 'XDCCTRANSFER',
+      received: 1024,
+      total: 1024,
+      path: '/tmp/some dir/a.iso',
+      done: true,
+      sending: true,
+    });
+    expect(await screen.findByText('Sent · 1.0 KB')).toBeTruthy();
+    expect(useStore.getState().messageMap['s1:mira'].some((m) => m.text === 'Sent a.iso')).toBe(true);
+  });
+
+  it('does nothing when the file picker is cancelled', async () => {
+    openQuery();
+    const irc = await mount({ chooseFile: null });
+    fireEvent.click(screen.getByRole('button', { name: 'Send file' }));
+    await waitFor(() => expect(irc.spies.chooseFile).toHaveBeenCalled());
+    expect(irc.spies.dccSendFile).not.toHaveBeenCalled();
+  });
+
+  it('says in the conversation why a file could not be sent, and why a send failed later', async () => {
+    openQuery();
+    const irc = await mount({ chooseFile: 'C:\\Users\\me\\a.iso' });
+    irc.spies.dccSendFile.mockRejectedValueOnce(new Error('not a file'));
+    fireEvent.click(screen.getByRole('button', { name: 'Send file' }));
+    expect(await screen.findByText('Could not send a.iso: not a file')).toBeTruthy();
+
+    irc.spies.dccSendFile.mockResolvedValueOnce('xdcc:2');
+    fireEvent.click(screen.getByRole('button', { name: 'Send file' }));
+    await screen.findByText('Waiting for mira to connect');
+    await irc.event('xdcc:2', {
+      type: 'XDCCTRANSFER',
+      received: 0,
+      total: 0,
+      path: '',
+      error: 'peer went away',
+      sending: true,
+    });
+    expect(await screen.findByText('Sending a.iso failed: peer went away')).toBeTruthy();
+  });
+
+  it('is reachable from the member menu', async () => {
+    const irc = await mount({ chooseFile: '/tmp/b.iso', dccSendFile: 'xdcc:3' });
+    fireEvent.contextMenu(screen.getByText('mira'));
+    fireEvent.click(screen.getByText('Send File…'));
+    await waitFor(() => expect(irc.spies.dccSendFile).toHaveBeenCalledWith('s1', 'mira', '/tmp/b.iso'));
+  });
+});
+
 describe('App: transfers', () => {
   const offer: IrcEvent = {
     type: 'XDCCSENDOFFER',

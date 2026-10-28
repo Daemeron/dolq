@@ -110,6 +110,12 @@ describe('BackendClient requests', () => {
     expect(await client.dccOffer('s1', 'mira', 1000, 2000)).toBe('d1');
     expect(lastRequest()).toMatchObject({ action: 'dccOffer', nick: 'mira', portMin: 1000, portMax: 2000 });
 
+    fake.reply.dccSendFile = { ok: true, dccId: 'x1' };
+    expect(await client.dccSendFile('s1', 'mira', '/tmp/a.iso', 1000, 2000)).toBe('x1');
+    expect(lastRequest()).toMatchObject({ action: 'dccSendFile', nick: 'mira', path: '/tmp/a.iso', portMin: 1000 });
+    fake.reply.dccSendFile = { ok: false, error: 'not a file' };
+    await expect(client.dccSendFile('s1', 'mira', '/tmp', 0, 0)).rejects.toThrow('not a file');
+
     fake.reply.dccAccept = { ok: true, dccId: 'd2' };
     expect(await client.dccAccept('1.2.3.4', 5000)).toBe('d2');
     expect(lastRequest()).toMatchObject({ action: 'dccAccept', host: '1.2.3.4', port: 5000 });

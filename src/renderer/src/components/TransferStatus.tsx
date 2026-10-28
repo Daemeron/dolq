@@ -12,6 +12,8 @@ export type Transfer = {
   paused?: boolean;
   speedBps?: number;
   path?: string;
+  /** A file going out to `nick`, not one coming in. */
+  sending?: boolean;
 };
 
 type Props = {
@@ -64,7 +66,13 @@ export function TransferStatus({ transfers, onPause, onResume, onCancel, onDismi
                     {t.error ? (
                       <span className="text-(--dolq-danger)">Failed: {t.error}</span>
                     ) : t.done ? (
-                      `Completed · ${formatBytes(t.total)}`
+                      `${t.sending ? 'Sent' : 'Completed'} · ${formatBytes(t.total)}`
+                    ) : t.sending ? (
+                      t.total > 0 ? (
+                        `Sending to ${t.nick} · ${pct}% of ${formatBytes(t.total)}`
+                      ) : (
+                        `Waiting for ${t.nick} to connect`
+                      )
                     ) : t.paused ? (
                       `${t.nick} · ${pct}% of ${formatBytes(t.total)} · paused`
                     ) : (
@@ -81,7 +89,7 @@ export function TransferStatus({ transfers, onPause, onResume, onCancel, onDismi
                   )}
                 </div>
                 <div className="flex shrink-0 items-center gap-0.5">
-                  {!finished && (
+                  {!finished && !t.sending && (
                     <IconButton
                       icon={t.paused ? 'play' : 'pause'}
                       label={t.paused ? 'Resume' : 'Pause'}

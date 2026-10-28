@@ -44,6 +44,8 @@ describe('preload bridge: requests', () => {
     ['getSettings', [], IrcMessages.getSettings],
     ['setSettings', [{ retentionDays: 1 }], IrcMessages.setSettings],
     ['dccOffer', ['s', 'n'], IrcMessages.dccOffer],
+    ['dccSendFile', ['s', 'n', '/tmp/a.iso'], IrcMessages.dccSendFile],
+    ['chooseFile', [], IrcMessages.chooseFile],
     ['dccAccept', ['1.2.3.4', 5], IrcMessages.dccAccept],
     ['dccSend', ['d', 'l'], IrcMessages.dccSend],
     ['dccClose', ['d'], IrcMessages.dccClose],

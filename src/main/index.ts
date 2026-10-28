@@ -343,6 +343,11 @@ function registerShellHandlers(): void {
     return canceled || !filePaths[0] ? null : filePaths[0];
   });
 
+  ipcMain.handle(IrcMessages.chooseFile, async () => {
+    const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, { properties: ['openFile'] });
+    return canceled || !filePaths[0] ? null : filePaths[0];
+  });
+
   ipcMain.handle(IrcMessages.setZoomFactor, (_event, factor: number) => {
     mainWindow.webContents.setZoomFactor(factor);
   });
@@ -435,6 +440,14 @@ function registerIrcHandlers(backend: BackendClient, settingsBox: { current: Set
   ipcMain.handle(IrcMessages.dccOffer, (_event, serverId: string, nick: string) => {
     const { dccPortMin, dccPortMax } = settingsBox.current;
     return backend.dccOffer(serverId, nick, dccPortMin ?? 0, dccPortMax ?? 0);
+  });
+
+  ipcMain.handle(IrcMessages.dccSendFile, (_event, serverId: string, nick: string, path: string) => {
+    if (backend.isRemote) {
+      throw new Error('Sending a file needs the backend to run on this computer; a remote backend cannot read it.');
+    }
+    const { dccPortMin, dccPortMax } = settingsBox.current;
+    return backend.dccSendFile(serverId, nick, path, dccPortMin ?? 0, dccPortMax ?? 0);
   });
 
   ipcMain.handle(IrcMessages.dccAccept, (_event, ip: string, port: number) => backend.dccAccept(ip, port));
