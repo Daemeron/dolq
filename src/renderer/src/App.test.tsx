@@ -570,3 +570,314 @@ describe('App: themes and preferences', () => {
     expect(document.documentElement.getAttribute('data-theme')).toBeNull();
   });
 });
+
+const entry = (id: number, extra: Record<string, unknown>) => ({
+  id,
+  serverId: 's1',
+  channel: '#dolq',
+  timestamp: 1_700_000_000_000 + id,
+  ...extra,
+});
+
+describe('App: history', () => {
+  it('shows stored history when a channel opens, in its own wording for each kind', async () => {
+    await mount({
+      getHistory: [
+        entry(1, { event: { type: 'PRIVMSG', nick: 'mira', target: '#dolq', text: 'from the past' } }),
+        entry(2, { event: { type: 'ACTION', nick: 'mira', target: '#dolq', text: 'waved back then' } }),
+        entry(3, { event: { type: 'NOTICE', nick: 'ChanServ', target: '#dolq', text: 'old notice' } }),
+        entry(4, { event: { type: 'JOIN', nick: 'tomas', channel: '#dolq' } }),
+        entry(5, {
+          event: {
+            type: 'XDCCPACK',
+            nick: 'bot',
+            target: '#dolq',
+            number: 3,
+            gets: 1,
+            size: '1G',
+            filename: 'old.iso',
+          },
+        }),
+      ],
+    });
+    expect(await screen.findByText('from the past')).toBeTruthy();
+    expect(screen.getByText('waved back then')).toBeTruthy();
+    expect(screen.getByText('old notice')).toBeTruthy();
+    expect(screen.getByText(/#3 · 1x sent/)).toBeTruthy();
+    expect(screen.getAllByText(/tomas/).length).toBeGreaterThan(0);
+  });
+
+  it('shows only server-level lines in the log view', async () => {
+    await mount({
+      getHistory: [
+        entry(1, { channel: '__log__', isRaw: true, line: ':srv 001 me :Welcome' }),
+        entry(2, { channel: '__log__', isRaw: true, line: ':bob!b@h PRIVMSG #dolq :already shown elsewhere' }),
+      ],
+    });
+    fireEvent.click(screen.getByText('Server log'));
+    expect(await screen.findByText(/Welcome/)).toBeTruthy();
+    expect(screen.queryByText(/already shown elsewhere/)).toBeNull();
+  });
+
+  it('fetches history again after the backend connection comes back', async () => {
+    const irc = await mount();
+    await waitFor(() => expect(irc.spies.getHistory).toHaveBeenCalled());
+    const before = irc.spies.getHistory.mock.calls.length;
+    irc.emit('onBackendReconnected');
+    await waitFor(() => expect(irc.spies.getHistory.mock.calls.length).toBeGreaterThan(before));
+  });
+});
+
+describe('App: exporting', () => {
+  const exported = [entry(1, { event: { type: 'PRIVMSG', nick: 'mira', target: '#dolq', text: 'hi' } })];
+
+  it('saves the channel history as text', async () => {
+    const irc = await mount({ getHistory: exported });
+    fireEvent.click(screen.getByRole('button', { name: 'Export log' }));
+    fireEvent.click(screen.getByText('Export as Text'));
+    await waitFor(() => expect(irc.spies.saveTextFile).toHaveBeenCalled());
+    const [name, content] = irc.spies.saveTextFile.mock.calls[0];
+    expect(name).toBe('dolq.txt');
+    expect(content).toContain('<mira> hi');
+  });
+
+  it('saves the channel history as JSON', async () => {
+    const irc = await mount({ getHistory: exported });
+    fireEvent.click(screen.getByRole('button', { name: 'Export log' }));
+    fireEvent.click(screen.getByText('Export as JSON'));
+    await waitFor(() => expect(irc.spies.saveTextFile).toHaveBeenCalled());
+    const [name, content] = irc.spies.saveTextFile.mock.calls[0];
+    expect(name).toBe('dolq.json');
+    expect(JSON.parse(content)).toHaveLength(1);
+  });
+
+  it('saves nothing rather than a truncated export when history cannot be read', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const irc = await mount();
+    irc.spies.getHistory.mockRejectedValue(new Error('backend down'));
+    fireEvent.click(screen.getByRole('button', { name: 'Export log' }));
+    fireEvent.click(screen.getByText('Export as Text'));
+    await waitFor(() => expect(console.error).toHaveBeenCalled());
+    expect(irc.spies.saveTextFile).not.toHaveBeenCalled();
+  });
+});
+
+describe('App: member actions', () => {
+  const memberMenu = async (item: string) => {
+    fireEvent.contextMenu(await screen.findByText('mira', { selector: 'span.flex-1' }));
+    fireEvent.click(screen.getByText(item));
+  };
+
+  it('looks a member up with whois from the member list', async () => {
+    const irc = await mount();
+    await memberMenu('WHOIS');
+    await waitFor(() => expect(irc.spies.sendLine).toHaveBeenCalledWith('s1', 'WHOIS mira'));
+  });
+
+  it('ignores and unignores a member', async () => {
+    await mount();
+    await memberMenu('Ignore');
+    expect(useStore.getState().ignoredNicks.s1).toEqual(['mira']);
+    await memberMenu('Unignore');
+    expect(useStore.getState().ignoredNicks.s1).toEqual([]);
+  });
+
+  it('offers a DCC chat and opens it', async () => {
+    const irc = await mount();
+    await memberMenu('DCC Chat');
+    await waitFor(() => expect(irc.spies.dccOffer).toHaveBeenCalledWith('s1', 'mira'));
+    expect(await screen.findByRole('heading', { name: /mira/ })).toBeTruthy();
+    // a DCC chat sends over the DCC link, not the IRC server
+    fireEvent.change(screen.getByPlaceholderText('Message mira'), { target: { value: 'private hello' } });
+    fireEvent.submit(screen.getByPlaceholderText('Message mira').closest('form') as HTMLFormElement);
+    await waitFor(() => expect(irc.spies.dccSend).toHaveBeenCalledWith('dcc-2', 'private hello'));
+  });
+
+  it('starts a conversation by clicking a member', async () => {
+    await mount();
+    fireEvent.click(await screen.findByText('mira', { selector: 'span.flex-1' }));
+    expect(await screen.findByRole('heading', { name: '@mira' })).toBeTruthy();
+  });
+
+  it('shows who is away', async () => {
+    const irc = await mount();
+    await screen.findByText('mira', { selector: 'span.flex-1' });
+    await irc.event('s1', { type: 'AWAY', nick: 'mira', away: true });
+    expect(await screen.findByText(/\(away\)/)).toBeTruthy();
+    await irc.event('s1', { type: 'SELFAWAY', away: true });
+    expect(useStore.getState().selfAwayMap.s1).toBe(true);
+    expect(screen.getByText('Away')).toBeTruthy();
+  });
+});
+
+describe('App: channels', () => {
+  it('leaves, rejoins and removes a channel from its menu', async () => {
+    const irc = await mount();
+    fireEvent.contextMenu(screen.getByText('other'));
+    fireEvent.click(screen.getByText('Leave Channel'));
+    await waitFor(() => expect(irc.spies.sendLine).toHaveBeenCalledWith('s1', 'PART #other'));
+    await irc.event('s1', { type: 'PART', nick: 'me', channel: '#other' });
+    fireEvent.contextMenu(screen.getByText('other'));
+    fireEvent.click(screen.getByText('Join Channel'));
+    await waitFor(() => expect(irc.spies.sendLine).toHaveBeenCalledWith('s1', 'JOIN #other'));
+    fireEvent.contextMenu(screen.getByText('other'));
+    fireEvent.click(screen.getByText('Remove Channel'));
+    await waitFor(() => expect(screen.queryByText('other')).toBeNull());
+  });
+
+  it('closes a direct message without leaving anything on the server', async () => {
+    const irc = await mount();
+    await irc.event('s1', { type: 'PRIVMSG', nick: 'kestrel', target: 'me', text: 'psst' });
+    fireEvent.contextMenu(await screen.findByText('kestrel'));
+    fireEvent.click(screen.getByText('Close'));
+    await waitFor(() => expect(screen.queryByText('Direct messages')).toBeNull());
+    expect(irc.spies.sendLine).not.toHaveBeenCalledWith('s1', expect.stringContaining('PART kestrel'));
+  });
+
+  it('mutes from the toolbar', async () => {
+    await mount();
+    fireEvent.click(screen.getByRole('button', { name: 'Mute channel' }));
+    expect(useStore.getState().mutedChannels['#dolq']).toBe(true);
+    expect(screen.getByRole('button', { name: 'Unmute channel' })).toBeTruthy();
+  });
+});
+
+describe('App: packs and search results', () => {
+  const pack: IrcEvent = {
+    type: 'XDCCPACK',
+    nick: 'bot',
+    target: '#dolq',
+    number: 7,
+    gets: 3,
+    size: '1G',
+    filename: 'f.iso',
+  };
+
+  it('requests a pack when its announcement is clicked', async () => {
+    const irc = await mount();
+    await irc.event('s1', pack);
+    fireEvent.click(await screen.findByTitle('Click to request this pack'));
+    await waitFor(() => expect(irc.spies.sendLine).toHaveBeenCalledWith('s1', 'PRIVMSG bot :XDCC SEND #7'));
+    // the request reads in the bot's conversation like the same line typed by hand
+    expect(await screen.findByText('Direct messages')).toBeTruthy();
+    expect(useStore.getState().messageMap['s1:bot'].map((m) => m.text)).toEqual(['XDCC SEND #7']);
+  });
+
+  it('auto-accepts the offer that answers a pack we requested', async () => {
+    const irc = await mount({ getSettings: { retentionDays: 0, xdccAutoAccept: true } });
+    await irc.event('s1', pack);
+    fireEvent.click(await screen.findByTitle('Click to request this pack'));
+    await waitFor(() => expect(irc.spies.sendLine).toHaveBeenCalledWith('s1', 'PRIVMSG bot :XDCC SEND #7'));
+    await irc.event('s1', {
+      type: 'XDCCSENDOFFER',
+      nick: 'bot',
+      filename: 'f.iso',
+      ip: '1.2.3.4',
+      port: 5000,
+      size: 10,
+    });
+    await waitFor(() => expect(irc.spies.xdccAccept).toHaveBeenCalled());
+    expect(screen.queryByText('File Offer')).toBeNull();
+  });
+
+  it('jumps to the channel of a search result', async () => {
+    const irc = await mount({
+      search: [
+        entry(9, {
+          channel: '#other',
+          event: { type: 'PRIVMSG', nick: 'mira', target: '#other', text: 'needle in a haystack' },
+        }),
+      ],
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Search history' }));
+    fireEvent.change(screen.getByPlaceholderText('Search for...'), { target: { value: 'needle' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Search' }));
+    fireEvent.click(await screen.findByText('needle in a haystack'));
+    expect(screen.getByRole('heading', { name: '#other' })).toBeTruthy();
+    expect(screen.queryByText('Search History')).toBeNull();
+    expect(irc.spies.search).toHaveBeenCalled();
+  });
+
+  it('jumps to the log from a log search result', async () => {
+    await mount({ search: [entry(9, { channel: '__log__', isRaw: true, line: ':srv NOTICE * :needle' })] });
+    fireEvent.click(screen.getByRole('button', { name: 'Search history' }));
+    fireEvent.change(screen.getByPlaceholderText('Search for...'), { target: { value: 'needle' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Search' }));
+    fireEvent.click(await screen.findByText(/needle/));
+    expect(screen.getByRole('heading', { name: 'Server log' })).toBeTruthy();
+  });
+});
+
+describe('App: transfers', () => {
+  const offer: IrcEvent = {
+    type: 'XDCCSENDOFFER',
+    nick: 'bot',
+    filename: 'f.iso',
+    ip: '1.2.3.4',
+    port: 5000,
+    size: 2048,
+    host: 'bot.example',
+  };
+  const startTransfer = async (irc: Awaited<ReturnType<typeof mount>>) => {
+    await irc.event('s1', offer);
+    fireEvent.click(await screen.findByRole('button', { name: 'Accept' }));
+    await screen.findByText('f.iso');
+  };
+
+  it('pauses, resumes and cancels a download', async () => {
+    const irc = await mount();
+    await startTransfer(irc);
+    fireEvent.click(screen.getByRole('button', { name: 'Pause' }));
+    expect(irc.spies.xdccPause).toHaveBeenCalledWith('xfer-1');
+    fireEvent.click(screen.getByRole('button', { name: 'Resume' }));
+    expect(irc.spies.xdccResume).toHaveBeenCalledWith('xfer-1');
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(irc.spies.xdccClose).toHaveBeenCalledWith('xfer-1');
+    expect(screen.queryByText('f.iso')).toBeNull();
+  });
+
+  it('dismisses a finished download', async () => {
+    const irc = await mount();
+    await startTransfer(irc);
+    await irc.event('xfer-1', { type: 'XDCCTRANSFER', received: 2048, total: 2048, path: '/dl/f.iso', done: true });
+    fireEvent.click(await screen.findByRole('button', { name: 'Dismiss' }));
+    expect(screen.queryByText('f.iso')).toBeNull();
+  });
+});
+
+describe('App: connecting', () => {
+  it('connects servers set to connect on startup, and leaves the others alone', async () => {
+    const quiet: Server = { ...server, id: 's2', name: 'Quiet', initial: 'Q', host: 'quiet.example' };
+    seed({
+      servers: [{ ...server, connectOnStartup: true }, quiet],
+      channelMap: { s1: [log], s2: [{ ...log }] },
+      messageMap: { 's1:__log__': [], 's2:__log__': [] },
+      nickMap: { s1: 'me', s2: 'me' },
+      statusMap: {},
+      selectedChannelId: '__log__',
+    });
+    const irc = await mount({ getStatus: 'disconnected' });
+    await waitFor(() => expect(irc.spies.connect).toHaveBeenCalled());
+    const hosts = irc.spies.connect.mock.calls.map((c) => c[1]);
+    expect(hosts).toEqual(['irc.libera.chat']);
+  });
+
+  it('writes a failed connection into the server log', async () => {
+    const irc = await mount();
+    irc.spies.connect.mockRejectedValueOnce(new Error('connection refused'));
+    await typeAndSend('/disconnect');
+    await waitFor(() => expect(useStore.getState().statusMap.s1).toBe('disconnected'));
+    await typeAndSend('/connect');
+    fireEvent.click(screen.getByText('Server log'));
+    expect(await screen.findByText(/connection refused/)).toBeTruthy();
+    expect(useStore.getState().statusMap.s1).toBe('disconnected');
+  });
+
+  it('connects and disconnects from the toolbar power button', async () => {
+    const irc = await mount();
+    fireEvent.click(screen.getByRole('button', { name: 'Disconnect' }));
+    await waitFor(() => expect(irc.spies.disconnect).toHaveBeenCalledWith('s1'));
+    fireEvent.click(await screen.findByRole('button', { name: 'Connect' }));
+    await waitFor(() => expect(irc.spies.connect).toHaveBeenCalled());
+  });
+});

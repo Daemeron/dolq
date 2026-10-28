@@ -20,6 +20,8 @@ describe('ErrorBoundary', () => {
 
   it('shows the error message and a reload button when a child throws', () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
+    // jsdom reports an uncaught render error on the window as well; the boundary handles it.
+    window.addEventListener('error', (e) => e.preventDefault(), { once: true });
     render(
       <ErrorBoundary>
         <Boom />
