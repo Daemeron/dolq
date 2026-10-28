@@ -139,7 +139,7 @@ func TestDCCAndXDCCActionsFailCleanlyForUnknownTargets(t *testing.T) {
 		wantOK bool
 	}{
 		{"dcc offer without a session", ClientFrame{Action: ActionDCCOffer, ServerID: "nope", Nick: "n"}, false},
-		{"dcc accept to a bad address", ClientFrame{Action: ActionDCCAccept, Host: "not an ip", Port: 1}, false},
+		{"dcc accept to a refused address", ClientFrame{Action: ActionDCCAccept, Host: "127.0.0.1", Port: 1}, false},
 		{"dcc send on an unknown chat", ClientFrame{Action: ActionDCCSend, DCCID: "nope", Line: "hi"}, false},
 		{"dcc close on an unknown chat", ClientFrame{Action: ActionDCCClose, DCCID: "nope"}, true},
 		{"dcc send file without a session", ClientFrame{Action: ActionDCCSendFile, ServerID: "nope", Nick: "n", Path: "/tmp/x"}, false},
