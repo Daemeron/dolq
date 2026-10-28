@@ -119,4 +119,11 @@ describe('ChannelList: groups and badges', () => {
     fireEvent.contextMenu(screen.getByText('a'));
     expect(screen.getByText('Mute Channel')).toBeTruthy();
   });
+
+  it('closes a DCC chat from its menu', () => {
+    const p = renderList([{ id: 'dcc:1', name: 'kestrel', isLog: false, isQuery: true, isDCC: true }]);
+    fireEvent.contextMenu(screen.getByText('kestrel'));
+    fireEvent.click(screen.getByText('Close'));
+    expect(p.onCloseQuery).toHaveBeenCalledWith('dcc:1');
+  });
 });

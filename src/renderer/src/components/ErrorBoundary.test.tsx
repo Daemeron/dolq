@@ -21,7 +21,8 @@ describe('ErrorBoundary', () => {
   it('shows the error message and a reload button when a child throws', () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
     // jsdom reports an uncaught render error on the window as well; the boundary handles it.
-    window.addEventListener('error', (e) => e.preventDefault(), { once: true });
+    const swallow = (e: ErrorEvent) => e.preventDefault();
+    window.addEventListener('error', swallow);
     render(
       <ErrorBoundary>
         <Boom />
@@ -30,5 +31,6 @@ describe('ErrorBoundary', () => {
     expect(screen.getByText('Something went wrong')).toBeTruthy();
     expect(screen.getByText('kaput')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Reload' })).toBeTruthy();
+    window.removeEventListener('error', swallow);
   });
 });

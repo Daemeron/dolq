@@ -454,3 +454,31 @@ func TestDatabaseFailuresAreLoggedNotFatal(t *testing.T) {
 	}
 	s.Close()
 }
+
+func TestOpenFailsForAPathItCannotCreate(t *testing.T) {
+	if _, err := Open(filepath.Join(t.TempDir(), "missing", "dir", "h.db"), 0); err == nil {
+		t.Error("Open succeeded in a directory that does not exist")
+	}
+}
+
+func TestAnEventThatCannotBeEncodedIsDroppedNotStored(t *testing.T) {
+	s, err := Open(filepath.Join(t.TempDir(), "h.db"), 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	var buf bytes.Buffer
+	log.SetOutput(&buf)
+	defer log.SetOutput(os.Stderr)
+
+	s.AppendEvent("s", "#c", map[string]any{"bad": make(chan int)}, time.Now())
+	s.AppendEvent("s", "#c", testEvent{Type: "PRIVMSG", Nick: "ok"}, time.Now())
+
+	entries := waitForCount(t, s, "s", "#c", 1)
+	if len(entries) != 1 {
+		t.Fatalf("stored %d entries, want only the encodable one", len(entries))
+	}
+	if !strings.Contains(buf.String(), "history: marshal event") {
+		t.Errorf("encode failure not logged: %q", buf.String())
+	}
+}

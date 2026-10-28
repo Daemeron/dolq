@@ -7,6 +7,7 @@ import (
 	"net"
 	"reflect"
 	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -1446,5 +1447,112 @@ func TestCTCPVersionRequestIsAnsweredWithANotice(t *testing.T) {
 	got := expectLine(t, r)
 	if want := "NOTICE bob :\x01VERSION"; len(got) < len(want) || got[:len(want)] != want {
 		t.Errorf("reply = %q, want it to start with %q", got, want)
+	}
+}
+
+func TestCapLineParsing(t *testing.T) {
+	cases := []struct {
+		line      string
+		command   string
+		sub       string
+		continues bool
+		caps      []string
+	}{
+		{"CAP * LS :sasl multi-prefix", "CAP", "LS", false, []string{"sasl", "multi-prefix"}},
+		{":irc.example CAP me LS * :sasl", "CAP", "LS", true, []string{"sasl"}},
+		{"CAP * ACK :sasl", "CAP", "ACK", false, []string{"sasl"}},
+		{":srv 903 me :ok", "903", "", false, nil},
+		{"", "", "", false, nil},
+	}
+	for _, c := range cases {
+		if got := capCommand(c.line); got != c.command {
+			t.Errorf("capCommand(%q) = %q, want %q", c.line, got, c.command)
+		}
+		if got := capSubcommand(c.line); got != c.sub {
+			t.Errorf("capSubcommand(%q) = %q, want %q", c.line, got, c.sub)
+		}
+		if got := capLSContinues(c.line); got != c.continues {
+			t.Errorf("capLSContinues(%q) = %v, want %v", c.line, got, c.continues)
+		}
+		if c.caps != nil {
+			if got := parseCapList(c.line); !slices.Equal(got, c.caps) {
+				t.Errorf("parseCapList(%q) = %v, want %v", c.line, got, c.caps)
+			}
+		}
+	}
+}
+
+func TestRequestsOnlyTheCapabilitiesTheServerOffers(t *testing.T) {
+	c, server, r := pipeClient(t, "mynick")
+	c.Start()
+	drainHandshake(t, r)
+	writeLine(t, server, "CAP * LS :multi-prefix away-notify unknown-thing")
+	got := expectLine(t, r)
+	if !strings.HasPrefix(got, "CAP REQ :") || strings.Contains(got, "unknown-thing") || !strings.Contains(got, "multi-prefix") {
+		t.Errorf("got %q, want a request for the wanted subset only", got)
+	}
+	writeLine(t, server, "CAP * ACK :multi-prefix away-notify")
+	if got := expectLine(t, r); got != "CAP END\r\n" {
+		t.Errorf("got %q, want CAP END after the ack", got)
+	}
+}
+
+func TestDCCRequestsBecomeEvents(t *testing.T) {
+	c, server, r := pipeClient(t, "mynick")
+	events := make(chan any, 8)
+	c.AddEventListener(func(e any) { events <- e })
+	c.Start()
+	drainHandshake(t, r)
+
+	next := func() any {
+		select {
+		case e := <-events:
+			return e
+		case <-time.After(2 * time.Second):
+			t.Fatal("no event")
+			return nil
+		}
+	}
+	// 3232235777 is 192.168.1.1
+	writeLine(t, server, ":kestrel!k@host PRIVMSG mynick :\x01DCC CHAT chat 3232235777 5000\x01")
+	if e, ok := next().(ircparse.DCCChatOfferEvent); !ok || e.Nick != "kestrel" || e.IP != "192.168.1.1" || e.Port != 5000 {
+		t.Errorf("chat offer = %#v", e)
+	}
+	writeLine(t, server, ":bot!b@bot.example PRIVMSG mynick :\x01DCC SEND file.iso 3232235777 5001 2048\x01")
+	if e, ok := next().(ircparse.XDCCSendOfferEvent); !ok || e.Nick != "bot" || e.Filename != "file.iso" || e.Port != 5001 || e.Size != 2048 || e.Host != "b@bot.example" {
+		t.Errorf("send offer = %#v", e)
+	}
+	writeLine(t, server, ":bot!b@bot.example PRIVMSG mynick :\x01DCC ACCEPT file.iso 5001 1024\x01")
+	if e, ok := next().(ircparse.XDCCResumeAcceptEvent); !ok || e.Filename != "file.iso" || e.Position != 1024 {
+		t.Errorf("resume accept = %#v", e)
+	}
+}
+
+func TestMalformedDCCRequestsAreIgnored(t *testing.T) {
+	c, server, r := pipeClient(t, "mynick")
+	events := make(chan any, 8)
+	c.AddEventListener(func(e any) { events <- e })
+	c.Start()
+	drainHandshake(t, r)
+	for _, bad := range []string{
+		"\x01DCC\x01",
+		"\x01DCC CHAT chat\x01",
+		"\x01DCC CHAT chat notanumber 5000\x01",
+		"\x01DCC CHAT chat 3232235777 notaport\x01",
+		"\x01DCC SEND\x01",
+		"\x01DCC ACCEPT nothing\x01",
+		"\x01DCC FROBNICATE x\x01",
+	} {
+		writeLine(t, server, ":x!x@h PRIVMSG mynick :"+bad)
+	}
+	// a normal message afterwards proves the bad ones were consumed without effect
+	writeLine(t, server, ":x!x@h PRIVMSG mynick :hello")
+	select {
+	case e := <-events:
+		if _, ok := e.(ircparse.PrivmsgEvent); !ok {
+			t.Errorf("a malformed DCC request produced %#v", e)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("no event")
 	}
 }

@@ -73,6 +73,9 @@ describe('MessageInput emoji', () => {
     fireEvent.click(first);
     expect(input.value).toBe(`hi ${first.textContent}`);
     expect(screen.queryByPlaceholderText('Search emoji…')).toBeNull();
+    // the caret goes back after the emoji so typing carries on from there
+    await waitFor(() => expect(document.activeElement).toBe(input));
+    expect(input.selectionStart).toBe(input.value.length);
   });
 
   it('uses the right placeholder for the log and direct messages', () => {

@@ -81,6 +81,12 @@ describe('SearchModal', () => {
     expect(screen.getByText(/gone \/ Log/)).toBeTruthy();
   });
 
+  it('shows other kinds of events as their raw data', async () => {
+    const { run } = setup([entry(5, { event: { type: 'JOIN', nick: 'tomas', channel: '#dolq' } as never })]);
+    run('tomas');
+    expect(await screen.findByText(/"type":"JOIN"/)).toBeTruthy();
+  });
+
   it('shows no matches when the search fails', async () => {
     const { run } = setup(new Error('backend down'));
     run('x');

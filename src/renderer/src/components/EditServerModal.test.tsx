@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Server } from '../types';
 import { ConnectModal } from './ConnectModal';
@@ -79,5 +79,14 @@ describe('EditServerModal form', () => {
     render(<EditServerModal server={server} nick="me" saslUser="" saslPass="" onSave={vi.fn()} onCancel={onCancel} />);
     fireEvent.keyDown(window, { key: 'Escape' });
     expect(onCancel).toHaveBeenCalled();
+  });
+
+  it('saves the remember-credentials choice', async () => {
+    const onSave = renderEdit(server);
+    const remember = await screen.findByRole('checkbox', { name: /Remember/i });
+    await waitFor(() => expect(remember).not.toBeDisabled());
+    fireEvent.click(remember);
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    expect(onSave).toHaveBeenCalledWith('s1', expect.objectContaining({ remember: true }));
   });
 });

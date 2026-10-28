@@ -95,3 +95,12 @@ describe('isLoopbackHost', () => {
     expect(['10.0.0.1', 'example.com', '::2', '0.0.0.0'].some(isLoopbackHost)).toBe(false);
   });
 });
+
+describe('resolveRemoteBackend: unusable addresses', () => {
+  it('refuses a URL that does not parse, or that has no port', () => {
+    expect(resolveRemoteBackend({ retentionDays: 0, remoteEnabled: true, remoteUrl: '[broken' })).toBeUndefined();
+    expect(
+      resolveRemoteBackend({ retentionDays: 0, remoteEnabled: true, remoteUrl: 'host-without-port' }),
+    ).toBeUndefined();
+  });
+});

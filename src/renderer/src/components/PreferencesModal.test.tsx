@@ -207,6 +207,23 @@ describe('PreferencesModal: remote backend', () => {
   });
 });
 
+describe('PreferencesModal: typed remote fields', () => {
+  it('saves a URL, token and download folder typed by hand', () => {
+    const p = setup();
+    fireEvent.click(screen.getByLabelText(/Connect to a remote backend/));
+    fireEvent.change(screen.getByLabelText('Remote Backend URL'), { target: { value: 'box.example:6789' } });
+    fireEvent.change(screen.getByLabelText(/Access Token/), { target: { value: 'sekret' } });
+    fireEvent.change(screen.getByPlaceholderText('Downloads (default)'), { target: { value: '/srv/dl' } });
+    save();
+    expect(saved(p)).toMatchObject({
+      remoteEnabled: true,
+      remoteUrl: 'box.example:6789',
+      remoteToken: 'sekret',
+      downloadDir: '/srv/dl',
+    });
+  });
+});
+
 describe('PreferencesModal: lists', () => {
   it('unignores, untrusts and removes aliases', () => {
     const sender = { nick: 'bot', account: 'botacct' };

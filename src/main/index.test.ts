@@ -363,6 +363,47 @@ describe('window behaviour', () => {
   });
 });
 
+describe('lifecycle edges', () => {
+  it('builds a fresh window when the old one was destroyed', async () => {
+    await boot();
+    win().destroyed = true;
+    appHandler('activate')();
+    expect(h.windows).toHaveLength(2);
+  });
+
+  it('quits from the tray menu and shows the window from it', async () => {
+    const { electron } = await boot({ retentionDays: 0, trayEnabled: true });
+    const items = (h.trays[0] as FakeTrayT).menu as { label?: string; click?: () => void }[];
+    items.find((i) => i.label === 'Show Dolq')?.click?.();
+    expect(win().show).toHaveBeenCalled();
+    items.find((i) => i.label === 'Quit')?.click?.();
+    expect(electron.app.quit).toHaveBeenCalled();
+  });
+
+  it('registers itself for irc and ircs links', async () => {
+    const { electron } = await boot();
+    const schemes = vi.mocked(electron.app.setAsDefaultProtocolClient).mock.calls.map((c) => c[0]);
+    expect(schemes).toEqual(['irc', 'ircs']);
+  });
+
+  it('survives the React devtools failing to install', async () => {
+    const { installExtension } = await import('electron-devtools-installer');
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.mocked(installExtension).mockRejectedValueOnce(new Error('offline'));
+    await boot();
+    await vi.waitFor(() => expect(error).toHaveBeenCalled());
+  });
+
+  it('re-delivers a queued link through a new window when the old one is gone', async () => {
+    await boot();
+    win().destroyed = true;
+    appHandler('open-url')({ preventDefault: vi.fn() }, 'irc://irc.example.org');
+    expect(h.windows).toHaveLength(2);
+    win().webContentsHandlers.get('did-finish-load')?.();
+    expect(win().sent.some((s) => s[0] === IrcMessages.openIrcUrl)).toBe(true);
+  });
+});
+
 describe('irc:// links', () => {
   it('hands a link to the page once it has loaded, and shows the window', async () => {
     await boot();

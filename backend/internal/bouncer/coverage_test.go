@@ -2,6 +2,7 @@ package bouncer
 
 import (
 	"bufio"
+	"context"
 	"net"
 	"path/filepath"
 	"strings"
@@ -175,5 +176,129 @@ func TestConnectReportsAnUnreachableServer(t *testing.T) {
 	b := New(nil)
 	if err := b.Connect("s1", "127.0.0.1", port, "mira", false, "", "", "", "", nil, "", &fakeSubscriber{}); err == nil {
 		t.Fatal("Connect to a closed port succeeded")
+	}
+}
+
+func TestXDCCToAnUnreachableSenderEndsAsDisconnected(t *testing.T) {
+	l, _ := net.Listen("tcp", "127.0.0.1:0")
+	port := l.Addr().(*net.TCPAddr).Port
+	l.Close()
+
+	b := New(nil)
+	sub := &fakeSubscriber{}
+	pipeSession(t, b, "server-a", sub)
+	offer := ircparse.XDCCSendOfferEvent{Nick: "alice", Filename: "f.zip", IP: "127.0.0.1", Port: port, Size: 10}
+	id, err := b.XDCCAccept("server-a", offer, t.TempDir(), 0, 0, sub)
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, func() bool { return sub.lastStatus() == "disconnected" })
+	if b.xdccTransfer(id) != nil {
+		t.Error("a failed transfer stays registered")
+	}
+}
+
+func TestXDCCAcceptNeedsASession(t *testing.T) {
+	if _, err := New(nil).XDCCAccept("nope", ircparse.XDCCSendOfferEvent{}, t.TempDir(), 0, 0, &fakeSubscriber{}); err == nil {
+		t.Error("accepted an offer on a server we are not connected to")
+	}
+}
+
+func TestDCCChatLifecycle(t *testing.T) {
+	// A peer that offers a chat: we dial it, exchange a line, then shutting the bouncer down hangs up.
+	peerLn, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer peerLn.Close()
+	peerGot := make(chan string, 1)
+	peerClosed := make(chan struct{})
+	go func() {
+		c, err := peerLn.Accept()
+		if err != nil {
+			return
+		}
+		defer c.Close()
+		line, _ := bufio.NewReader(c).ReadString('\n')
+		peerGot <- strings.TrimSpace(line)
+		// the next read ends only when we hang up
+		c.Read(make([]byte, 1))
+		close(peerClosed)
+	}()
+
+	b := New(nil)
+	sub := &fakeSubscriber{}
+	id, err := b.DCCAccept("127.0.0.1", peerLn.Addr().(*net.TCPAddr).Port, sub)
+	if err != nil {
+		t.Fatalf("DCCAccept: %v", err)
+	}
+	if err := b.DCCSend(id, "hello over dcc"); err != nil {
+		t.Fatalf("DCCSend: %v", err)
+	}
+	select {
+	case got := <-peerGot:
+		if got != "hello over dcc" {
+			t.Errorf("peer received %q", got)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("peer never got the line")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	b.Shutdown(ctx)
+	select {
+	case <-peerClosed:
+	case <-time.After(5 * time.Second):
+		t.Fatal("shutdown did not hang up the DCC chat")
+	}
+	if err := b.DCCSend(id, "too late"); err == nil {
+		t.Error("sending on a closed chat succeeded")
+	}
+}
+
+func TestDCCOfferAsksThePeerToConnectAndTimesOutWhenNobodyDoes(t *testing.T) {
+	if _, err := dcc.LocalIP(); err != nil {
+		t.Skipf("no route to advertise an address: %v", err)
+	}
+	b := New(nil)
+	b.DCCAcceptTimeout = 100 * time.Millisecond
+	sub := &fakeSubscriber{}
+	_, r := pipeSession(t, b, "server-a", sub)
+
+	idCh := make(chan string, 1)
+	go func() {
+		id, err := b.DCCOffer("server-a", "kestrel", 0, 0, sub)
+		if err != nil {
+			t.Errorf("DCCOffer: %v", err)
+		}
+		idCh <- id
+	}()
+	line, err := r.ReadString('\n')
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(line, "PRIVMSG kestrel :\x01DCC CHAT chat ") {
+		t.Errorf("offer line = %q", line)
+	}
+	id := <-idCh
+	if !strings.HasPrefix(id, "dcc:") {
+		t.Errorf("id = %q", id)
+	}
+	waitFor(t, func() bool { return sub.sawStatus("connecting") })
+	waitFor(t, func() bool { return sub.lastStatus() == "disconnected" })
+}
+
+func TestDCCOfferNeedsASession(t *testing.T) {
+	if _, err := New(nil).DCCOffer("nope", "kestrel", 0, 0, &fakeSubscriber{}); err == nil {
+		t.Error("offered a chat on a server we are not connected to")
+	}
+}
+
+func TestDCCOfferRejectsAnInvalidPortRange(t *testing.T) {
+	b := New(nil)
+	pipeSession(t, b, "server-a", &fakeSubscriber{})
+	if _, err := b.DCCOffer("server-a", "kestrel", 6000, 5000, &fakeSubscriber{}); err == nil {
+		t.Error("accepted a backwards port range")
 	}
 }

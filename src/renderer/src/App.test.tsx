@@ -20,8 +20,8 @@ function installIrc(overrides: Record<string, unknown> = {}) {
     secretsAvailable: true,
     sendLine: undefined,
     xdccAccept: 'xfer-1',
-    dccAccept: 'dcc-1',
-    dccOffer: 'dcc-2',
+    dccAccept: 'dcc:1',
+    dccOffer: 'dcc:2',
     ...overrides,
   };
   const spies = new Proxy({} as Record<string, ReturnType<typeof vi.fn>>, {
@@ -690,7 +690,7 @@ describe('App: member actions', () => {
     // a DCC chat sends over the DCC link, not the IRC server
     fireEvent.change(screen.getByPlaceholderText('Message mira'), { target: { value: 'private hello' } });
     fireEvent.submit(screen.getByPlaceholderText('Message mira').closest('form') as HTMLFormElement);
-    await waitFor(() => expect(irc.spies.dccSend).toHaveBeenCalledWith('dcc-2', 'private hello'));
+    await waitFor(() => expect(irc.spies.dccSend).toHaveBeenCalledWith('dcc:2', 'private hello'));
   });
 
   it('starts a conversation by clicking a member', async () => {
@@ -879,5 +879,186 @@ describe('App: connecting', () => {
     await waitFor(() => expect(irc.spies.disconnect).toHaveBeenCalledWith('s1'));
     fireEvent.click(await screen.findByRole('button', { name: 'Connect' }));
     await waitFor(() => expect(irc.spies.connect).toHaveBeenCalled());
+  });
+});
+
+describe('App: raw lines and DCC chats', () => {
+  it('puts server-level lines in the log and keeps channel traffic out of it', async () => {
+    const irc = await mount();
+    irc.emit('onLine', 's1', ':srv NOTICE * :server says hi');
+    irc.emit('onLine', 's1', ':bob!b@h PRIVMSG #dolq :already a channel event');
+    fireEvent.click(screen.getByText('Server log'));
+    expect(await screen.findByText(/server says hi/)).toBeTruthy();
+    expect(screen.queryByText(/already a channel event/)).toBeNull();
+  });
+
+  it('shows lines from a DCC chat under the peer', async () => {
+    const irc = await mount();
+    await irc.event('s1', { type: 'DCCCHATOFFER', nick: 'kestrel', ip: '1.2.3.4', port: 5000 });
+    fireEvent.click(await screen.findByRole('button', { name: 'Accept' }));
+    await waitFor(() => expect(useStore.getState().selectedChannelId).toBe('dcc:1'));
+    irc.emit('onLine', 'dcc:1', 'hello from the peer');
+    expect(await screen.findByText('hello from the peer')).toBeTruthy();
+    expect(useStore.getState().messageMap['dcc:1'].at(-1)?.nick).toBe('kestrel');
+  });
+
+  it('closes a DCC chat on the DCC link rather than leaving a channel', async () => {
+    const irc = await mount();
+    await irc.event('s1', { type: 'DCCCHATOFFER', nick: 'kestrel', ip: '1.2.3.4', port: 5000 });
+    fireEvent.click(await screen.findByRole('button', { name: 'Accept' }));
+    await waitFor(() => expect(useStore.getState().selectedChannelId).toBe('dcc:1'));
+    fireEvent.contextMenu(screen.getAllByText('kestrel')[0]);
+    fireEvent.click(screen.getByText('Close'));
+    await waitFor(() => expect(irc.spies.dccClose).toHaveBeenCalledWith('dcc:1'));
+  });
+});
+
+describe('App: ignored senders', () => {
+  it('drops actions and pack announcements from ignored nicks', async () => {
+    seed({ ignoredNicks: { s1: ['troll'] } });
+    const irc = await mount();
+    await irc.event('s1', { type: 'ACTION', nick: 'troll', target: '#dolq', text: 'does a thing' });
+    await irc.event('s1', {
+      type: 'XDCCPACK',
+      nick: 'troll',
+      target: '#dolq',
+      number: 1,
+      gets: 1,
+      size: '1M',
+      filename: 'x',
+    });
+    expect(screen.queryByText('does a thing')).toBeNull();
+    expect(screen.queryByText(/#1 · 1x sent/)).toBeNull();
+  });
+});
+
+describe('App: notifications', () => {
+  it('raises a desktop notification for a mention and jumps to the channel when it is clicked', async () => {
+    const instances: { title: string; body: string; onclick?: () => void }[] = [];
+    class FakeNotification {
+      onclick?: () => void;
+      constructor(
+        public title: string,
+        opts: { body: string },
+      ) {
+        this.body = opts.body;
+        instances.push(this);
+      }
+      body: string;
+    }
+    vi.stubGlobal('Notification', FakeNotification);
+    try {
+      const irc = await mount();
+      await irc.event('s1', { type: 'PRIVMSG', nick: 'mira', target: '#other', text: 'me: look at this' });
+      expect(instances).toHaveLength(1);
+      expect(instances[0].title).toBe('Mentioned in #other');
+      expect(instances[0].body).toBe('me: look at this');
+      act(() => instances[0].onclick?.());
+      expect(screen.getByRole('heading', { name: '#other' })).toBeTruthy();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+});
+
+describe('App: sending edge cases', () => {
+  it('sends plain lines typed in the server log straight to the server', async () => {
+    const irc = await mount();
+    fireEvent.click(screen.getByText('Server log'));
+    fireEvent.change(screen.getByPlaceholderText(/Log view/), { target: { value: 'WHO #dolq' } });
+    fireEvent.submit(screen.getByPlaceholderText(/Log view/).closest('form') as HTMLFormElement);
+    await waitFor(() => expect(irc.spies.sendLine).toHaveBeenCalledWith('s1', 'WHO #dolq'));
+  });
+
+  it('sends commands that map onto one IRC line, such as /topic', async () => {
+    const irc = await mount();
+    await typeAndSend('/topic New topic');
+    await waitFor(() => expect(irc.spies.sendLine).toHaveBeenCalledWith('s1', 'TOPIC #dolq :New topic'));
+  });
+
+  it('stops an alias that expands into itself instead of looping', async () => {
+    seed({ aliases: { loop: '/loop again' } });
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    await mount();
+    await typeAndSend('/loop');
+    await waitFor(() => expect(warn).toHaveBeenCalledWith(expect.stringContaining('alias expansion too deep')));
+  });
+
+  it('hides joins and quits when that preference is off', async () => {
+    seed({ showMembershipEvents: false });
+    const irc = await mount();
+    await irc.event('s1', { type: 'JOIN', nick: 'tomas', channel: '#dolq' });
+    await irc.event('s1', { type: 'PRIVMSG', nick: 'mira', target: '#dolq', text: 'visible line' });
+    expect(await screen.findByText('visible line')).toBeTruthy();
+    expect(screen.queryByText(/tomas joined/)).toBeNull();
+  });
+});
+
+describe('App: dialogs close', () => {
+  it('closes search, the identify prompt, add-server and edit-server without acting', async () => {
+    const irc = await mount();
+    fireEvent.click(screen.getByRole('button', { name: 'Search history' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+    expect(screen.queryByText('Search History')).toBeNull();
+
+    await irc.event('s1', {
+      type: 'NOTICE',
+      nick: 'NickServ',
+      target: 'me',
+      text: 'This nickname is registered. Please identify via /msg NickServ IDENTIFY',
+    });
+    fireEvent.click(await screen.findByRole('button', { name: 'Dismiss' }));
+    expect(screen.queryByText('Identify with NickServ')).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add server' }));
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(screen.queryByRole('dialog', { name: 'Add a Server' })).toBeNull();
+
+    fireEvent.contextMenu(screen.getByRole('button', { name: 'Libera' }));
+    fireEvent.click(screen.getByText('Edit Server…'));
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(screen.queryByRole('dialog', { name: 'Edit Server' })).toBeNull();
+  });
+
+  it('requests a pack straight from a search result', async () => {
+    const irc = await mount({
+      search: [
+        entry(9, {
+          event: { type: 'XDCCPACK', nick: 'bot', target: '#dolq', number: 4, gets: 1, size: '1G', filename: 'f.iso' },
+        }),
+      ],
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Search history' }));
+    fireEvent.change(screen.getByPlaceholderText('Search for...'), { target: { value: 'f.iso' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Search' }));
+    fireEvent.click(await screen.findByTitle('Click to request this pack'));
+    await waitFor(() => expect(irc.spies.sendLine).toHaveBeenCalledWith('s1', 'PRIVMSG bot :XDCC SEND #4'));
+    expect(screen.queryByText('Search History')).toBeNull();
+  });
+});
+
+describe('App: trust and recovery', () => {
+  it('starts a download without asking for a sender trusted earlier', async () => {
+    seed({ xdccTrusted: { s1: [{ nick: 'bot', host: 'bot.example' }] } });
+    const irc = await mount();
+    await irc.event('s1', {
+      type: 'XDCCSENDOFFER',
+      nick: 'bot',
+      filename: 'f.iso',
+      ip: '1.2.3.4',
+      port: 5000,
+      size: 10,
+      host: 'bot.example',
+    });
+    await waitFor(() => expect(irc.spies.xdccAccept).toHaveBeenCalled());
+    expect(screen.queryByText('File Offer')).toBeNull();
+  });
+
+  it('marks a server disconnected when its status cannot be read', async () => {
+    seed({ statusMap: {} });
+    const irc = installIrc({});
+    irc.spies.getStatus.mockRejectedValue(new Error('backend down'));
+    render(<App />);
+    await waitFor(() => expect(useStore.getState().statusMap.s1).toBe('disconnected'));
   });
 });

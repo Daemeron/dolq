@@ -26,3 +26,14 @@ func TestParseListLine(t *testing.T) {
 		}
 	}
 }
+
+func TestParseListLineRejectsNumbersTooBigToRead(t *testing.T) {
+	for _, line := range []string{
+		"#99999999999999999999 1x [1M] f.iso",
+		"#1 99999999999999999999x [1M] f.iso",
+	} {
+		if p, ok := ParseListLine(line); ok {
+			t.Errorf("ParseListLine(%q) = %+v, want it rejected", line, p)
+		}
+	}
+}

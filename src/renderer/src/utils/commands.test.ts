@@ -34,3 +34,31 @@ describe('parseSlashCommand', () => {
     expect(parseSlashCommand('/nick', '#c')).toEqual({ kind: 'unknown', name: 'nick' });
   });
 });
+
+describe('parseSlashCommand: edges', () => {
+  it('treats a lone slash as text', () => {
+    expect(parseSlashCommand('/', '#c')).toEqual({ kind: 'not-command' });
+  });
+
+  it('asks for the channel modes with a bare /mode', () => {
+    expect(parseSlashCommand('/mode', '#c')).toEqual(raw('MODE #c'));
+  });
+
+  it('kicks without a reason, and rejects /kick with no nick', () => {
+    expect(parseSlashCommand('/kick bob', '#c')).toEqual(raw('KICK #c bob'));
+    expect(parseSlashCommand('/kick', '#c')).toEqual({ kind: 'unknown', name: 'kick' });
+  });
+
+  it('invites into the current channel unless one is named', () => {
+    expect(parseSlashCommand('/invite bob', '#c')).toEqual(raw('INVITE bob #c'));
+    expect(parseSlashCommand('/invite bob #other', '#c')).toEqual(raw('INVITE bob #other'));
+    expect(parseSlashCommand('/invite', '#c')).toEqual({ kind: 'unknown', name: 'invite' });
+  });
+
+  it('flags commands missing their arguments instead of sending half a line', () => {
+    expect(parseSlashCommand('/nick', '#c')).toEqual({ kind: 'unknown', name: 'nick' });
+    expect(parseSlashCommand('/notice bob', '#c')).toEqual({ kind: 'unknown', name: 'notice' });
+    expect(parseSlashCommand('/raw', '#c')).toEqual({ kind: 'unknown', name: 'raw' });
+    expect(parseSlashCommand('/frobnicate', '#c')).toEqual({ kind: 'unknown', name: 'frobnicate' });
+  });
+});

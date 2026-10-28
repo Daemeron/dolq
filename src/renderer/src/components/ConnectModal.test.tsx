@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ServerPreset } from '../data/servers';
 import { ConnectModal } from './ConnectModal';
@@ -94,5 +94,16 @@ describe('ConnectModal form', () => {
     const { onCancel } = setup();
     fireEvent.keyDown(window, { key: 'Escape' });
     expect(onCancel).toHaveBeenCalled();
+  });
+
+  it('remembers credentials only when asked to', async () => {
+    const { onConnect } = setup();
+    fireEvent.change(host(), { target: { value: 'irc.example.org' } });
+    fireEvent.change(nick(), { target: { value: 'me' } });
+    const remember = await screen.findByRole('checkbox', { name: /Remember/i });
+    await waitFor(() => expect(remember).not.toBeDisabled());
+    fireEvent.click(remember);
+    submit();
+    expect(onConnect).toHaveBeenCalledWith(expect.objectContaining({ remember: true }));
   });
 });

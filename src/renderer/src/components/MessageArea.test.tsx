@@ -173,3 +173,58 @@ describe('MessageArea grouping', () => {
     expect(container.textContent).toContain('text 2');
   });
 });
+
+describe('MessageArea: pack lines', () => {
+  function withLayout() {
+    vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(600);
+    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({
+      width: 800,
+      height: 600,
+      top: 0,
+      left: 0,
+      right: 800,
+      bottom: 600,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+  }
+  const pack: Message = {
+    id: 1,
+    nick: 'bot',
+    text: '#7 · 3x sent',
+    timestamp: new Date(0),
+    xdccPack: true,
+    xdccPackNumber: 7,
+  };
+
+  it('requests a pack from the keyboard as well as the mouse', () => {
+    withLayout();
+    const onGetPack = vi.fn();
+    const { getByTitle } = render(
+      <MessageArea
+        isLog={false}
+        timestampFormat="24h"
+        density="cozy"
+        channelId="s:#c"
+        messages={[pack]}
+        onGetPack={onGetPack}
+      />,
+    );
+    const row = getByTitle('Click to request this pack');
+    fireEvent.keyDown(row, { key: 'Enter' });
+    fireEvent.keyDown(row, { key: 'a' });
+    fireEvent.click(row);
+    expect(onGetPack).toHaveBeenCalledTimes(2);
+    expect(onGetPack).toHaveBeenCalledWith('bot', 7);
+  });
+
+  it('shows a pack line as plain text when nothing can request it', () => {
+    withLayout();
+    const { queryByTitle, getByText } = render(
+      <MessageArea isLog={false} timestampFormat="24h" density="cozy" channelId="s:#c" messages={[pack]} />,
+    );
+    expect(queryByTitle('Click to request this pack')).toBeNull();
+    expect(getByText(/#7/)).toBeTruthy();
+  });
+});

@@ -57,3 +57,14 @@ describe('TransferStatus', () => {
     expect(screen.getByText(/· 0%/)).toBeTruthy();
   });
 });
+
+describe('TransferStatus: speed units', () => {
+  it.each([
+    [500, '500 B/s'],
+    [2 * 1024 * 1024, '2.0 MB/s'],
+    [3 * 1024 ** 3, '3.0 GB/s'],
+  ])('shows %d bytes per second as %s', (speedBps, shown) => {
+    setup({ speedBps });
+    expect(screen.getByText(new RegExp(shown.replace('/', '\\/')))).toBeTruthy();
+  });
+});
