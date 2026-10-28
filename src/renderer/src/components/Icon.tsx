@@ -1,4 +1,5 @@
 const PATHS = {
+  at: 'M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8zM16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-4 8',
   search: 'M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zM20 20l-3.5-3.5',
   bell: 'M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.9 1.9 0 0 0 3.4 0',
   bellOff: 'M6 8a6 6 0 0 1 9.3-5M18 8c0 3 .6 5 1.4 6.5M3 17s3-2 3-9M10.3 21a1.9 1.9 0 0 0 3.4 0M3 3l18 18',
@@ -40,11 +41,14 @@ export function IconButton({
   label,
   onClick,
   on,
+  badge,
 }: {
   icon: IconName;
   label: string;
   onClick: (e: React.MouseEvent<HTMLButtonElement>) => void;
   on?: boolean;
+  /** A small accent dot for something unseen. */
+  badge?: boolean;
 }) {
   return (
     <button
@@ -53,11 +57,17 @@ export function IconButton({
       aria-label={label}
       aria-pressed={on}
       data-tip={label}
-      className={`has-tip w-8.5 h-8.5 flex items-center justify-center rounded-lg border-0 cursor-pointer hover:text-(--dolq-text) hover:bg-(--dolq-bg-row-hover) ${
+      className={`has-tip relative w-8.5 h-8.5 flex items-center justify-center rounded-lg border-0 cursor-pointer hover:text-(--dolq-text) hover:bg-(--dolq-bg-row-hover) ${
         on ? 'bg-(--dolq-bg-row-selected) text-(--dolq-text)' : 'bg-transparent text-(--dolq-text-dim)'
       }`}
     >
       <Icon name={icon} />
+      {badge && (
+        <span
+          data-testid="icon-badge"
+          className="absolute top-1.5 right-1.5 w-1.75 h-1.75 rounded-full bg-(--dolq-accent) border-2 border-(--dolq-bg)"
+        />
+      )}
     </button>
   );
 }

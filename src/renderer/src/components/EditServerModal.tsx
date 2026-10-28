@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { IRC_PORT, IRC_TLS_PORT } from '../../../shared/ipc';
 import type { Server } from '../types';
 import { resolveHostPort } from '../utils/server';
@@ -52,6 +52,14 @@ export function EditServerModal({ server, nick, saslUser, saslPass, onSave, onCa
     remember: server.rememberCredentials ?? false,
     connectOnStartup: server.connectOnStartup ?? false,
   });
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') onCancel();
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onCancel]);
 
   function set(field: keyof EditServerForm) {
     return (e: React.ChangeEvent<HTMLInputElement>) => setForm((prev) => ({ ...prev, [field]: e.target.value }));

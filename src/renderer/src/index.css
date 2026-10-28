@@ -6,8 +6,8 @@
    (App.tsx toggles it off store.ts's `theme`). */
 :root {
   /* Preferences' Font Family overrides this via App.tsx's effect (see store.ts's fontFamily). */
-  --dolq-font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  --dolq-font-serif: Newsreader, "Iowan Old Style", Georgia, serif;
+  --dolq-font-family: "Inter Variable", Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --dolq-font-serif: "Newsreader Variable", Newsreader, "Iowan Old Style", Georgia, serif;
   --dolq-font-mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
 
   --dolq-bg: #262624;
