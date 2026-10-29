@@ -10,6 +10,8 @@ const PATHS = {
   power: 'M12 3v9M6.3 6.3a8 8 0 1 0 11.4 0',
   terminal: 'm4 17 6-6-6-6M12 19h8',
   plus: 'M12 5v14M5 12h14',
+  chevronRight: 'm9 6 6 6-6 6',
+  chevronDown: 'm6 9 6 6 6-6',
   arrowLeft: 'M19 12H5m0 0 6-6m-6 6 6 6',
   arrowRight: 'M5 12h14m0 0-6-6m6 6-6 6',
   send: 'M12 19V5m0 0-6 6m6-6 6 6',

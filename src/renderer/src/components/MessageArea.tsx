@@ -1,12 +1,14 @@
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { useLayoutEffect, useRef } from 'react';
+import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { Message } from '../types';
 import { dayLabel } from '../utils/dayLabel';
 import { continuesGroup } from '../utils/groupMessages';
+import { membershipRuns } from '../utils/membershipGroups';
 import { mentionsAny } from '../utils/mentions';
 import { nickColor, nickInitial } from '../utils/nickColor';
 import { startsNewSession } from '../utils/session';
 import { IrcText } from './IrcText';
+import { MembershipSummary } from './MembershipSummary';
 
 type Props = {
   messages: Message[];
@@ -46,6 +48,17 @@ export function MessageArea({
   const scrollTop = useRef<Map<string, number>>(new Map());
   const isAtBottom = useRef<Map<string, boolean>>(new Map());
   const autoLoads = useRef(0);
+  const { runs, followers } = useMemo(() => membershipRuns(messages), [messages]);
+  // Runs the user has opened, by `channel:first message id`.
+  const [opened, setOpened] = useState<Set<string>>(new Set());
+  const isOpen = (firstId: number) => opened.has(`${channelId}:${firstId}`);
+  const toggle = (firstId: number) =>
+    setOpened((prev) => {
+      const next = new Set(prev);
+      const key = `${channelId}:${firstId}`;
+      if (!next.delete(key)) next.add(key);
+      return next;
+    });
 
   const switchedChannel = prevChannelId.current !== channelId;
   const compact = density === 'compact';
@@ -130,6 +143,10 @@ export function MessageArea({
             };
             const day = isLog ? null : dayLabel(messages[virtualRow.index - 1], m);
             const newSession = isLog && startsNewSession(messages[virtualRow.index - 1]);
+            const run = runs.get(m.id);
+            const leader = followers.get(m.id);
+            // Folded away: the first line of a closed run shows the summary alone, the rest show nothing.
+            const folded = run ? !isOpen(m.id) : leader !== undefined && !isOpen(leader);
             const mention =
               !!selfNick &&
               !isLog &&
@@ -166,7 +183,15 @@ export function MessageArea({
                     <span className="h-px flex-1 bg-(--dolq-border-strong)" />
                   </div>
                 )}
-                {isLog ? (
+                {run && (
+                  <MembershipSummary
+                    run={run}
+                    open={isOpen(m.id)}
+                    onToggle={() => toggle(m.id)}
+                    formatTime={(d) => formatTime(d, timestampFormat)}
+                  />
+                )}
+                {folded ? null : isLog ? (
                   <div className="font-mono text-[12px] leading-5 text-(--dolq-text) whitespace-pre-wrap break-all px-7">
                     <span className="text-(--dolq-text-faint) mr-3">{formatTime(m.timestamp, timestampFormat)}</span>
                     <IrcText text={m.text} />

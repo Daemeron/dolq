@@ -343,3 +343,94 @@ describe('MessageArea: sessions in the server log', () => {
     );
   });
 });
+
+describe('MessageArea: folded membership runs', () => {
+  function withLayout() {
+    vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(900);
+    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({
+      width: 800,
+      height: 900,
+      top: 0,
+      left: 0,
+      right: 800,
+      bottom: 900,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+  }
+  const at = (id: number, text: string, membership?: 'join' | 'part' | 'quit'): Message => ({
+    id,
+    nick: membership ? '' : 'mira',
+    text,
+    timestamp: new Date(2026, 9, 29, 13, id),
+    system: !!membership,
+    membership,
+  });
+  const messages = [
+    at(1, 'hello there'),
+    at(2, 'nolden joined', 'join'),
+    at(3, 'warrior left (bye)', 'part'),
+    at(4, 'seeker24 quit (Ping timeout)', 'quit'),
+    at(5, 'see you'),
+  ];
+  const area = (msgs: Message[], channelId = 's:#c') =>
+    render(
+      <MessageArea
+        isLog={false}
+        timestampFormat="24h"
+        density="cozy"
+        channelId={channelId}
+        messages={msgs}
+        onLoadOlder={() => {}}
+      />,
+    );
+
+  it('folds a run of joins, leaves and quits into one line between the messages around it', () => {
+    withLayout();
+    const { container, getByRole } = area(messages);
+    expect(container.textContent).toContain('hello there');
+    expect(container.textContent).toContain('see you');
+    const summary = getByRole('button', { name: /nolden joined · warrior left · seeker24 quit/ });
+    expect(summary).toHaveAttribute('aria-expanded', 'false');
+    expect(container.textContent).toContain('3 events · until 13:04');
+    expect(container.textContent).not.toContain('seeker24 quit (Ping timeout)');
+    expect(container.textContent).not.toContain('warrior left (bye)');
+  });
+
+  it('shows every line of the run when opened, and folds it again', () => {
+    withLayout();
+    const { container, getByRole } = area(messages);
+    fireEvent.click(getByRole('button', { name: /nolden joined/ }));
+    expect(getByRole('button', { name: /nolden joined/ })).toHaveAttribute('aria-expanded', 'true');
+    expect(container.textContent).toContain('warrior left (bye)');
+    expect(container.textContent).toContain('seeker24 quit (Ping timeout)');
+    fireEvent.click(getByRole('button', { name: /nolden joined/ }));
+    expect(container.textContent).not.toContain('warrior left (bye)');
+  });
+
+  it('keeps an opened run open in its own channel only', () => {
+    withLayout();
+    const first = area(messages, 's:#a');
+    fireEvent.click(first.getByRole('button', { name: /nolden joined/ }));
+    first.rerender(
+      <MessageArea
+        isLog={false}
+        timestampFormat="24h"
+        density="cozy"
+        channelId="s:#b"
+        messages={messages}
+        onLoadOlder={() => {}}
+      />,
+    );
+    expect(first.getByRole('button', { name: /nolden joined/ })).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  it('leaves one or two membership lines as they are', () => {
+    withLayout();
+    const { container, queryByRole } = area([at(1, 'hello'), at(2, 'a joined', 'join'), at(3, 'b left', 'part')]);
+    expect(container.textContent).toContain('a joined');
+    expect(container.textContent).toContain('b left');
+    expect(queryByRole('button', { name: /events/ })).toBeNull();
+  });
+});
