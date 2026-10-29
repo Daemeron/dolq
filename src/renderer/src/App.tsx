@@ -1525,6 +1525,7 @@ export default function App() {
               />
               <UserPanel
                 currentNick={currentNick}
+                status={connectionStatus}
                 away={selfAwayMap[selectedServerId] ?? false}
                 onToggleAway={() => handleSend(selfAwayMap[selectedServerId] ? '/away' : '/away Away')}
               />
