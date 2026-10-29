@@ -11,7 +11,10 @@ export type Server = {
   username?: string;
   realname?: string;
   autojoinChannels?: string[];
+  // Icon colour: a CSS colour (a nick palette token or hex). Missing means derived from the server id.
   color?: string;
+  // Icon letters picked by the user (2-3 characters). Missing means derived from the name.
+  initials?: string;
   rememberCredentials?: boolean;
   // Missing (every server saved before this option existed) means off.
   connectOnStartup?: boolean;

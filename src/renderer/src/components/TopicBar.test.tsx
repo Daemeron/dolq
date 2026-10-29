@@ -2,8 +2,8 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { TopicBar } from './TopicBar';
 
-function renderBar(extra: Partial<Parameters<typeof TopicBar>[0]> = {}) {
-  const props = {
+function barProps(extra: Partial<Parameters<typeof TopicBar>[0]> = {}) {
+  return {
     channelName: 'dolq',
     topic: 'A self-hosted IRC client',
     isLog: false,
@@ -12,6 +12,10 @@ function renderBar(extra: Partial<Parameters<typeof TopicBar>[0]> = {}) {
     onToggleConnection: vi.fn(),
     ...extra,
   };
+}
+
+function renderBar(extra: Partial<Parameters<typeof TopicBar>[0]> = {}) {
+  const props = barProps(extra);
   render(<TopicBar {...props} />);
   return props;
 }

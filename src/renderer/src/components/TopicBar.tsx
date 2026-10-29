@@ -3,7 +3,6 @@ import { useContextMenu } from '../hooks/useContextMenu';
 import { ContextMenu, ContextMenuHeader, ContextMenuItem } from './ContextMenu';
 import { Icon, IconButton } from './Icon';
 import { IrcText } from './IrcText';
-import { DEFAULT_ACCENT } from './ServerList';
 
 type Props = {
   channelName: string;
@@ -58,7 +57,7 @@ export function TopicBar({
   const whoWhen = topicSetBy && `Set by ${topicSetBy}${topicSetAt ? ` at ${topicSetAt.toLocaleString()}` : ''}`;
   const { menu, open, close } = useContextMenu<null>();
   const mentionMenu = useContextMenu<null>();
-  const prefixStyle = { color: serverColor ?? DEFAULT_ACCENT };
+  const prefixStyle = { color: serverColor ?? 'var(--dolq-accent)' };
   const connected = connectionStatus === 'connected';
   return (
     <div className="h-14 flex items-center gap-3 pl-5 pr-3 border-b border-(--dolq-border) bg-(--dolq-bg) shrink-0">

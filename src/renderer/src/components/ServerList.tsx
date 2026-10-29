@@ -1,8 +1,7 @@
-import { useRef } from 'react';
 import type { ConnectionStatus } from '../../../shared/ipc';
 import { useContextMenu } from '../hooks/useContextMenu';
 import type { Server } from '../types';
-import { serverInitials } from '../utils/server';
+import { serverColor, serverIconText } from '../utils/server';
 import { ContextMenu, ContextMenuHeader, ContextMenuItem } from './ContextMenu';
 import { Icon } from './Icon';
 
@@ -12,7 +11,6 @@ type Props = {
   onSelect: (id: string) => void;
   onAddServer: () => void;
   onRemove: (id: string) => void;
-  onChangeColor: (id: string, color: string) => void;
   onEditServer: (id: string) => void;
   statusMap: Record<string, ConnectionStatus>;
   onToggleConnection: (id: string) => void;
@@ -31,15 +29,12 @@ const BADGE_COLOR: Record<ConnectionStatus, string> = {
   disconnected: 'bg-(--dolq-text-faint)',
 };
 
-export const DEFAULT_ACCENT = '#c6613f';
-
 export function ServerList({
   servers,
   selectedId,
   onSelect,
   onAddServer,
   onRemove,
-  onChangeColor,
   onEditServer,
   statusMap,
   onToggleConnection,
@@ -47,17 +42,6 @@ export function ServerList({
 }: Props) {
   const { menu, open, close, dismissIfUnhandled } = useContextMenu<string>();
   const menuServer = servers.find((s) => s.id === menu?.target);
-  const colorInputRef = useRef<HTMLInputElement>(null);
-  const colorTargetRef = useRef<string | null>(null);
-
-  function handleChangeColorClick(id: string, current?: string) {
-    colorTargetRef.current = id;
-    const input = colorInputRef.current;
-    if (!input) return;
-    input.value = current ?? DEFAULT_ACCENT;
-    input.click();
-  }
-
   return (
     <aside
       className="relative flex flex-col w-17 bg-(--dolq-bg-panel-alt) border-r border-(--dolq-border) shrink-0"
@@ -74,12 +58,12 @@ export function ServerList({
               data-tip={s.name}
               onClick={() => onSelect(s.id)}
               onContextMenu={(e) => open(s.id, e)}
-              style={{ background: s.color ?? DEFAULT_ACCENT }}
+              style={{ background: serverColor(s) }}
               className={`has-tip tip-right relative w-10.5 h-10.5 shrink-0 text-[15px] font-semibold text-white cursor-pointer select-none border-0 rounded-[13px] transition-[border-radius] duration-150 hover:rounded-2xl ${
                 s.id === selectedId ? 'ring-2 ring-offset-2 ring-(--dolq-text) ring-offset-(--dolq-bg-panel-alt)' : ''
               }`}
             >
-              {serverInitials(s.name)}
+              {serverIconText(s)}
               <span
                 role="img"
                 aria-label={STATUS_LABEL[status]}
@@ -122,15 +106,6 @@ export function ServerList({
         <Icon name="sliders" />
       </button>
 
-      <input
-        ref={colorInputRef}
-        type="color"
-        className="hidden"
-        onChange={(e) => {
-          if (colorTargetRef.current) onChangeColor(colorTargetRef.current, e.target.value);
-        }}
-      />
-
       {menu && menuServer && (
         <ContextMenu x={menu.x} y={menu.y}>
           <ContextMenuHeader>{menuServer.name}</ContextMenuHeader>
@@ -149,14 +124,6 @@ export function ServerList({
             }}
           >
             Edit Server…
-          </ContextMenuItem>
-          <ContextMenuItem
-            onClick={() => {
-              handleChangeColorClick(menuServer.id, menuServer.color);
-              close();
-            }}
-          >
-            Change Color…
           </ContextMenuItem>
           <ContextMenuItem
             danger

@@ -1,12 +1,15 @@
 import { useEffect, useState } from 'react';
 import type { Server } from '../types';
 import { resolveHostPort } from '../utils/server';
+import { ServerAppearance } from './ServerAppearance';
 import { ServerFormFields } from './ServerFormFields';
 import { Button } from './ui';
 import { ViewPanel } from './ViewPanel';
 
 export type EditServerForm = {
   name: string;
+  initials: string;
+  color: string;
   host: string;
   port: string;
   secure: boolean;
@@ -34,6 +37,8 @@ export function EditServerModal({ server, nick, saslUser, saslPass, onSave, onCa
   const { host, port } = resolveHostPort(server);
   const [form, setForm] = useState<EditServerForm>({
     name: server.name,
+    initials: server.initials ?? '',
+    color: server.color ?? '',
     host,
     port: String(port),
     secure: server.secure,
@@ -80,6 +85,13 @@ export function EditServerModal({ server, nick, saslUser, saslPass, onSave, onCa
         </>
       }
     >
+      <ServerAppearance
+        serverId={server.id}
+        name={form.name}
+        initials={form.initials}
+        color={form.color}
+        onChange={(patch) => setForm((prev) => ({ ...prev, ...patch }))}
+      />
       <ServerFormFields form={form} onChange={(patch) => setForm((prev) => ({ ...prev, ...patch }))} />
     </ViewPanel>
   );

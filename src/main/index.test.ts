@@ -47,6 +47,7 @@ vi.mock('electron', () => {
       this.visible = true;
     });
     focus = vi.fn();
+    setTitleBarOverlay = vi.fn();
     webContents = {
       setWindowOpenHandler: (fn: (d: { url: string }) => { action: string }) => {
         this.windowOpenHandler = fn;
@@ -197,6 +198,7 @@ type FakeWin = {
   windowOpenHandler: (d: { url: string }) => { action: string };
   sent: unknown[][];
   zoom: number;
+  setTitleBarOverlay: ReturnType<typeof vi.fn>;
   hide: ReturnType<typeof vi.fn>;
   show: ReturnType<typeof vi.fn>;
 };
@@ -573,6 +575,16 @@ describe('IPC handlers', () => {
     expect(electron.shell.showItemInFolder).toHaveBeenCalledWith('/tmp/a.iso');
     expect(() => invoke(IrcMessages.showInFolder, 'relative/a.iso')).toThrow(/refusing/);
     expect(() => invoke(IrcMessages.showInFolder, 42)).toThrow(/refusing/);
+  });
+
+  it('colours the window controls from the renderer theme, except on macOS', async () => {
+    await boot();
+    await invoke(IrcMessages.setTitleBar, '#faf9f5', '#141413');
+    expect(win().setTitleBarOverlay).toHaveBeenCalledTimes(process.platform === 'darwin' ? 0 : 1);
+    if (process.platform !== 'darwin') {
+      expect(win().setTitleBarOverlay).toHaveBeenCalledWith({ color: '#faf9f5', symbolColor: '#141413', height: 32 });
+    }
+    expect(() => invoke(IrcMessages.setTitleBar, 1, '#fff')).toThrow(/refusing/);
   });
 
   it('updates the dock badge, zoom and alert sound', async () => {

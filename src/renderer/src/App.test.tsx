@@ -129,6 +129,7 @@ describe('App: layout', () => {
     expect(screen.getByRole('heading', { name: '#dolq' })).toBeTruthy();
     expect(screen.getByText('other')).toBeTruthy();
     expect(await screen.findByText('mira')).toBeTruthy();
+    expect(screen.getByText(/^\d+ online$/)).toBeTruthy();
   });
 
   it('hides the members panel from the toolbar', async () => {
@@ -415,6 +416,19 @@ describe('App: dialogs', () => {
     await waitFor(() => expect(useStore.getState().servers[0].name).toBe('Libera 2'));
   });
 
+  it('keeps the icon letters and colour picked in the server editor', async () => {
+    await mount();
+    fireEvent.contextMenu(screen.getByRole('button', { name: 'Libera' }));
+    fireEvent.click(screen.getByText('Edit Server…'));
+    await screen.findByRole('dialog', { name: 'Edit server' });
+    fireEvent.change(screen.getByLabelText('Icon letters'), { target: { value: ' lib ' } });
+    fireEvent.click(screen.getAllByRole('button', { name: /^Colour / })[2]);
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(useStore.getState().servers[0].initials).toBe('lib'));
+    expect(useStore.getState().servers[0].color).toBe('var(--dolq-nick-3)');
+    expect(screen.getByRole('button', { name: 'Libera' })).toHaveTextContent('lib');
+  });
+
   it('removes a server after confirmation', async () => {
     vi.spyOn(window, 'confirm').mockReturnValue(true);
     const irc = await mount();
@@ -430,6 +444,31 @@ describe('App: dialogs', () => {
     fireEvent.contextMenu(screen.getByRole('button', { name: 'Libera' }));
     fireEvent.click(screen.getByText('Remove Server'));
     expect(useStore.getState().servers).toHaveLength(1);
+  });
+
+  it('hands the toolbar colours to the window controls and marks the platform', async () => {
+    document.documentElement.style.setProperty('--dolq-bg-panel-alt', ' #262624 ');
+    document.documentElement.style.setProperty('--dolq-text', '#faf9f5');
+    const irc = await mount();
+    expect(irc.spies.setTitleBar).toHaveBeenCalledWith('#262624', '#faf9f5');
+    expect(document.documentElement.dataset.platform).toBe('other');
+    document.documentElement.style.removeProperty('--dolq-bg-panel-alt');
+    document.documentElement.style.removeProperty('--dolq-text');
+  });
+
+  it('survives a preload that has no setTitleBar', async () => {
+    document.documentElement.style.setProperty('--dolq-bg-panel-alt', '#262624');
+    document.documentElement.style.setProperty('--dolq-text', '#faf9f5');
+    await mount();
+    const real = window.irc;
+    (window as unknown as { irc: unknown }).irc = new Proxy(real, {
+      get: (target, name: string) => (name === 'setTitleBar' ? undefined : Reflect.get(target, name)),
+    });
+    act(() => useStore.getState().setTheme('light'));
+    expect(screen.queryByText('Something went wrong')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Libera' })).toBeTruthy();
+    document.documentElement.style.removeProperty('--dolq-bg-panel-alt');
+    document.documentElement.style.removeProperty('--dolq-text');
   });
 
   it('opens search from the toolbar', async () => {

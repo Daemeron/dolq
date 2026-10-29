@@ -151,6 +151,7 @@ export type IrcApi = {
   xdccResume: (xdccId: string) => Promise<void>;
   openExternal: (url: string) => Promise<void>;
   showInFolder: (path: string) => Promise<void>;
+  setTitleBar: (color: string, symbolColor: string) => Promise<void>;
   saveTextFile: (defaultName: string, content: string) => Promise<boolean>;
   chooseDirectory: (defaultPath?: string) => Promise<string | null>;
   setBadgeCount: (count: number) => Promise<void>;
@@ -192,6 +193,7 @@ export enum IrcMessages {
   xdccResume = 'irc:xdccResume',
   openExternal = 'irc:openExternal',
   showInFolder = 'irc:showInFolder',
+  setTitleBar = 'irc:setTitleBar',
   saveTextFile = 'irc:saveTextFile',
   chooseDirectory = 'irc:chooseDirectory',
   setBadgeCount = 'irc:setBadgeCount',
