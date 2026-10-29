@@ -17,7 +17,8 @@ function renderList(statusMap: Record<string, ConnectionStatus>) {
     onEditServer: vi.fn(),
     statusMap,
     onToggleConnection: vi.fn(),
-    onOpenPreferences: vi.fn(),
+    dashboardActive: false,
+    onOpenDashboard: vi.fn(),
   };
   render(<ServerList {...props} />);
   return props;
@@ -34,10 +35,30 @@ describe('ServerList connection badge', () => {
     expect(screen.getAllByLabelText('Disconnected').length).toBe(2);
   });
 
-  it('opens preferences from the bottom of the rail', () => {
-    const { onOpenPreferences } = renderList({});
-    fireEvent.click(screen.getByRole('button', { name: 'Preferences' }));
-    expect(onOpenPreferences).toHaveBeenCalled();
+  it('starts the rail with the Dashboard entry, set apart from the servers', () => {
+    const { onOpenDashboard } = renderList({});
+    const dashboard = screen.getByRole('button', { name: 'Dashboard' });
+    expect(screen.getAllByRole('button')[0]).toBe(dashboard);
+    fireEvent.click(dashboard);
+    expect(onOpenDashboard).toHaveBeenCalled();
+  });
+
+  it('marks the Dashboard entry while it is open', () => {
+    render(
+      <ServerList
+        servers={[server('a', 'Alpha')]}
+        selectedId=""
+        onSelect={vi.fn()}
+        onAddServer={vi.fn()}
+        onRemove={vi.fn()}
+        onEditServer={vi.fn()}
+        statusMap={{}}
+        onToggleConnection={vi.fn()}
+        dashboardActive
+        onOpenDashboard={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole('button', { name: 'Dashboard' })).toHaveAttribute('aria-current', 'true');
   });
 
   it('selects a server on click', () => {
@@ -85,7 +106,8 @@ describe('ServerList connection badge', () => {
         onEditServer={vi.fn()}
         statusMap={{}}
         onToggleConnection={vi.fn()}
-        onOpenPreferences={vi.fn()}
+        dashboardActive={false}
+        onOpenDashboard={vi.fn()}
       />,
     );
     const alpha = screen.getByRole('button', { name: 'Alpha' });

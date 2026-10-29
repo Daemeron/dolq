@@ -28,10 +28,19 @@
   --dolq-text-faint: #7e7c75;
   --dolq-mention: #e0a64a;
 
-  --dolq-accent: #d97757;
-  --dolq-accent-hover: #e48767;
+  --dolq-accent: #f5c518;
+  --dolq-accent-hover: #ffd43b;
+  --dolq-accent-text: #f5c518;
+  --dolq-accent-text-hover: #ffd95e;
   --dolq-on-accent: #1f1e1d;
-  --dolq-accent-soft: rgba(217, 119, 87, 0.14);
+  --dolq-accent-soft: rgba(245, 197, 24, 0.18);
+  --dolq-brand: #d97757;
+  --dolq-brand-hover: #e48767;
+  --dolq-brand-text: #d97757;
+  --dolq-brand-text-hover: #e48767;
+  --dolq-on-brand: #1f1e1d;
+  --dolq-brand-soft: rgba(217, 119, 87, 0.14);
+  --dolq-download: #b4a8ff;
   --dolq-ok: #5cbf8a;
   --dolq-warn: #e0a64a;
   --dolq-danger: #e5736a;
@@ -67,10 +76,19 @@
   --dolq-text-faint: #7c7a72;
   --dolq-mention: #b3532f;
 
-  --dolq-accent: #c6613f;
-  --dolq-accent-hover: #b3532f;
-  --dolq-on-accent: #ffffff;
-  --dolq-accent-soft: rgba(198, 97, 63, 0.1);
+  --dolq-accent: #e0ac00;
+  --dolq-accent-hover: #cc9b00;
+  --dolq-accent-text: #6e5200;
+  --dolq-accent-text-hover: #574100;
+  --dolq-on-accent: #141413;
+  --dolq-accent-soft: rgba(224, 172, 0, 0.18);
+  --dolq-brand: #c6613f;
+  --dolq-brand-hover: #b3532f;
+  --dolq-brand-text: #c6613f;
+  --dolq-brand-text-hover: #b3532f;
+  --dolq-on-brand: #ffffff;
+  --dolq-brand-soft: rgba(198, 97, 63, 0.1);
+  --dolq-download: #4c2fc4;
   --dolq-ok: #3e9b6a;
   --dolq-warn: #b7791f;
   --dolq-danger: #b5372b;
@@ -108,13 +126,13 @@ code {
   background: var(--dolq-bg-panel);
   padding: 2px 5px;
   border-radius: 4px;
-  color: var(--dolq-accent);
+  color: var(--dolq-brand-text);
 }
 
 /* In a layer so utilities such as `outline-none` still win over it. */
 @layer base {
   :focus-visible {
-    outline: 2px solid var(--dolq-accent);
+    outline: 2px solid var(--dolq-brand-text);
     outline-offset: 2px;
   }
 }

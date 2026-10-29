@@ -1,3 +1,5 @@
+import { Icon } from './Icon';
+
 type Props = {
   x: number;
   y: number;
@@ -24,21 +26,28 @@ export function ContextMenuHeader({ children }: { children: React.ReactNode }) {
 
 export function ContextMenuItem({
   danger,
+  checked,
   onClick,
   children,
 }: {
   danger?: boolean;
+  /** Set for one of several exclusive choices: true marks the current one. */
+  checked?: boolean;
   onClick: () => void;
   children: React.ReactNode;
 }) {
   return (
     <button
       type="button"
+      {...(checked === undefined ? {} : { role: 'menuitemradio', 'aria-checked': checked })}
       onClick={onClick}
-      className={`w-[calc(100%-8px)] mx-1 text-left px-2.5 py-1.5 text-[13px] rounded-md bg-transparent border-0 cursor-pointer hover:bg-(--dolq-bg-row-hover) ${
+      className={`flex items-center w-[calc(100%-8px)] mx-1 text-left px-2.5 py-1.5 text-[13px] rounded-md bg-transparent border-0 cursor-pointer hover:bg-(--dolq-bg-row-hover) ${
         danger ? 'text-(--dolq-danger)' : 'text-(--dolq-text)'
       }`}
     >
+      {checked !== undefined && (
+        <span className="inline-flex w-5 shrink-0">{checked && <Icon name="check" size={14} />}</span>
+      )}
       {children}
     </button>
   );

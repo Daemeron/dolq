@@ -282,7 +282,155 @@ describe('MessageArea: day dividers and mentions', () => {
       'me',
     );
     const rowOf = (text: string) => getByText(text).closest('[data-index]') as HTMLElement;
-    expect(rowOf('me: can you cut the release?').className).toContain('accent-soft');
-    expect(rowOf('me: talking to myself').className).not.toContain('accent-soft');
+    expect(rowOf('me: can you cut the release?').className).toContain('brand-soft');
+    expect(rowOf('me: talking to myself').className).not.toContain('brand-soft');
+  });
+});
+
+describe('MessageArea: sessions in the server log', () => {
+  function withLayout() {
+    vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(600);
+    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({
+      width: 800,
+      height: 600,
+      top: 0,
+      left: 0,
+      right: 800,
+      bottom: 600,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+  }
+  const raw = (id: number, text: string): Message => ({
+    id,
+    nick: '',
+    text,
+    timestamp: new Date(id * 1000),
+    isRaw: true,
+  });
+  const area = (isLog: boolean, messages: Message[]) =>
+    render(
+      <MessageArea
+        isLog={isLog}
+        timestampFormat="24h"
+        density="cozy"
+        channelId="s:x"
+        messages={messages}
+        onLoadOlder={() => {}}
+      />,
+    );
+
+  it('sets a new connection apart from the one before with a divider', () => {
+    withLayout();
+    const { container } = area(true, [
+      raw(1, ':srv 001 me :Welcome'),
+      raw(2, '*** Disconnected'),
+      raw(3, ':srv 001 me :Welcome'),
+      raw(4, '*** Connection lost - reconnecting...'),
+      raw(5, '*** Reconnected'),
+    ]);
+    expect([...container.querySelectorAll('span')].filter((s) => s.textContent === 'New session')).toHaveLength(2);
+  });
+
+  it('has no divider before the first session, and none in a conversation', () => {
+    withLayout();
+    expect(
+      area(true, [raw(1, ':srv 001 me :Welcome'), raw(2, ':srv 372 me :motd')]).container.textContent,
+    ).not.toContain('New session');
+    expect(area(false, [raw(1, '*** Disconnected'), raw(2, 'hello')]).container.textContent).not.toContain(
+      'New session',
+    );
+  });
+});
+
+describe('MessageArea: folded membership runs', () => {
+  function withLayout() {
+    vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(900);
+    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({
+      width: 800,
+      height: 900,
+      top: 0,
+      left: 0,
+      right: 800,
+      bottom: 900,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+  }
+  const at = (id: number, text: string, membership?: 'join' | 'part' | 'quit'): Message => ({
+    id,
+    nick: membership ? '' : 'mira',
+    text,
+    timestamp: new Date(2026, 9, 29, 13, id),
+    system: !!membership,
+    membership,
+  });
+  const messages = [
+    at(1, 'hello there'),
+    at(2, 'nolden joined', 'join'),
+    at(3, 'warrior left (bye)', 'part'),
+    at(4, 'seeker24 quit (Ping timeout)', 'quit'),
+    at(5, 'see you'),
+  ];
+  const area = (msgs: Message[], channelId = 's:#c') =>
+    render(
+      <MessageArea
+        isLog={false}
+        timestampFormat="24h"
+        density="cozy"
+        channelId={channelId}
+        messages={msgs}
+        onLoadOlder={() => {}}
+      />,
+    );
+
+  it('folds a run of joins, leaves and quits into one line between the messages around it', () => {
+    withLayout();
+    const { container, getByRole } = area(messages);
+    expect(container.textContent).toContain('hello there');
+    expect(container.textContent).toContain('see you');
+    const summary = getByRole('button', { name: /nolden joined · warrior left · seeker24 quit/ });
+    expect(summary).toHaveAttribute('aria-expanded', 'false');
+    expect(container.textContent).toContain('3 events · until 13:04');
+    expect(container.textContent).not.toContain('seeker24 quit (Ping timeout)');
+    expect(container.textContent).not.toContain('warrior left (bye)');
+  });
+
+  it('shows every line of the run when opened, and folds it again', () => {
+    withLayout();
+    const { container, getByRole } = area(messages);
+    fireEvent.click(getByRole('button', { name: /nolden joined/ }));
+    expect(getByRole('button', { name: /nolden joined/ })).toHaveAttribute('aria-expanded', 'true');
+    expect(container.textContent).toContain('warrior left (bye)');
+    expect(container.textContent).toContain('seeker24 quit (Ping timeout)');
+    fireEvent.click(getByRole('button', { name: /nolden joined/ }));
+    expect(container.textContent).not.toContain('warrior left (bye)');
+  });
+
+  it('keeps an opened run open in its own channel only', () => {
+    withLayout();
+    const first = area(messages, 's:#a');
+    fireEvent.click(first.getByRole('button', { name: /nolden joined/ }));
+    first.rerender(
+      <MessageArea
+        isLog={false}
+        timestampFormat="24h"
+        density="cozy"
+        channelId="s:#b"
+        messages={messages}
+        onLoadOlder={() => {}}
+      />,
+    );
+    expect(first.getByRole('button', { name: /nolden joined/ })).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  it('leaves one or two membership lines as they are', () => {
+    withLayout();
+    const { container, queryByRole } = area([at(1, 'hello'), at(2, 'a joined', 'join'), at(3, 'b left', 'part')]);
+    expect(container.textContent).toContain('a joined');
+    expect(container.textContent).toContain('b left');
+    expect(queryByRole('button', { name: /events/ })).toBeNull();
   });
 });

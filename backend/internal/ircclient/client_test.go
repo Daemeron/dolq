@@ -1602,3 +1602,112 @@ func TestDialSecureFailsAgainstAServerThatDoesNotSpeakTLS(t *testing.T) {
 		t.Error("a TLS dial to a plain server succeeded")
 	}
 }
+
+func TestLatencyIsMeasuredWithPingAndPong(t *testing.T) {
+	c, server, r := pipeClient(t, "testnick")
+	c.LatencyInterval = 60 * time.Millisecond
+	got := make(chan LatencyEvent, 4)
+	c.AddEventListener(func(event any) {
+		if e, ok := event.(LatencyEvent); ok {
+			got <- e
+		}
+	})
+	c.Start()
+	drainHandshake(t, r)
+	writeLine(t, server, ":irc.example 001 testnick :Welcome")
+
+	line := expectLine(t, r)
+	if !strings.HasPrefix(line, "PING :dolq-") {
+		t.Fatalf("got %q, want our PING", line)
+	}
+	token := strings.TrimSpace(strings.TrimPrefix(line, "PING :"))
+	writeLine(t, server, ":irc.example PONG irc.example :"+token)
+	select {
+	case e := <-got:
+		if e.Type != "LATENCY" || e.Ms < 0 {
+			t.Errorf("got %#v", e)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("no latency event after the PONG")
+	}
+
+	// A PONG nobody asked for (or one answering an older PING) is not a reading.
+	writeLine(t, server, ":irc.example PONG irc.example :not-ours")
+	writeLine(t, server, ":irc.example PONG irc.example :"+token)
+	select {
+	case e := <-got:
+		t.Errorf("unexpected reading %#v", e)
+	case <-time.After(30 * time.Millisecond):
+	}
+}
+
+func TestLatencyIsNotMeasuredBeforeRegistrationOrWhenOff(t *testing.T) {
+	c, server, r := pipeClient(t, "testnick")
+	c.LatencyInterval = 30 * time.Millisecond
+	c.Start()
+	drainHandshake(t, r)
+	// Never welcomed: no PING goes out.
+	time.Sleep(80 * time.Millisecond)
+	expectNothingSent(t, server, r)
+
+	off, server2, r2 := pipeClient(t, "other")
+	off.LatencyInterval = 0
+	off.Start()
+	drainHandshake(t, r2)
+	writeLine(t, server2, ":irc.example 001 other :Welcome")
+	time.Sleep(80 * time.Millisecond)
+	expectNothingSent(t, server2, r2)
+}
+
+func TestOurOwnPongsAreKeptOutOfTheLog(t *testing.T) {
+	c, server, r := pipeClient(t, "testnick")
+	lines := make(chan string, 8)
+	c.AddLineListener(func(line string) { lines <- line })
+	c.Start()
+	drainHandshake(t, r)
+
+	writeLine(t, server, ":irc.example PONG irc.example :dolq-123")
+	// A PONG to a ping of ours that nobody is waiting for any more is ours too; a PONG to anything else is not.
+	writeLine(t, server, ":irc.example PONG irc.example :somebody-elses")
+	writeLine(t, server, ":nick!u@h PRIVMSG #c :after")
+
+	var got []string
+	for len(got) < 2 {
+		select {
+		case l := <-lines:
+			got = append(got, l)
+		case <-time.After(2 * time.Second):
+			t.Fatalf("timed out; got %q", got)
+		}
+	}
+	if !strings.Contains(got[0], "somebody-elses") || !strings.Contains(got[1], "PRIVMSG") {
+		t.Errorf("got %q, want the other PONG and the message, without our own PONG", got)
+	}
+	select {
+	case l := <-lines:
+		t.Errorf("unexpected extra line %q", l)
+	case <-time.After(50 * time.Millisecond):
+	}
+}
+
+func TestServerPingsAreAnsweredButKeptOutOfTheLog(t *testing.T) {
+	c, server, r := pipeClient(t, "testnick")
+	lines := make(chan string, 8)
+	c.AddLineListener(func(line string) { lines <- line })
+	c.Start()
+	drainHandshake(t, r)
+
+	writeLine(t, server, "PING :irc.uworld.se")
+	if got := expectLine(t, r); got != "PONG :irc.uworld.se\r\n" {
+		t.Fatalf("got %q, want the PONG", got)
+	}
+	writeLine(t, server, ":nick!u@h PRIVMSG #c :after")
+	select {
+	case l := <-lines:
+		if !strings.Contains(l, "PRIVMSG") {
+			t.Errorf("first logged line = %q, want the message, not the PING", l)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("the message never reached the log")
+	}
+}

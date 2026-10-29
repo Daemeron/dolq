@@ -132,19 +132,8 @@ describe('TopicBar toolbar', () => {
     expect(screen.getByText('No new mentions')).toBeTruthy();
   });
 
-  it('toggles the transfers panel and badges the button while transfers exist', () => {
-    const onToggleTransfers = vi.fn();
-    renderBar({ onToggleTransfers, transferCount: 2, showTransfers: true });
-    expect(screen.getByTestId('icon-badge')).toBeTruthy();
-    const button = screen.getByRole('button', { name: 'Transfers' });
-    expect(button.getAttribute('aria-pressed')).toBe('true');
-    fireEvent.click(button);
-    expect(onToggleTransfers).toHaveBeenCalled();
-  });
-
-  it('omits mentions and transfers when the host does not provide them', () => {
+  it('omits mentions when the host does not provide them', () => {
     renderBar();
     expect(screen.queryByRole('button', { name: 'Mentions' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Transfers' })).toBeNull();
   });
 });

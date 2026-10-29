@@ -1,9 +1,11 @@
 import type { IrcEvent } from '../../../shared/ipc';
 
+export type MembershipKind = 'join' | 'part' | 'quit' | 'nick';
+
 export type EventDescription = {
   text: string;
-  // Join/part/quit/nick lines for other users, which can be hidden in Preferences.
-  membership?: boolean;
+  // Join/part/quit/nick lines for other users, which can be hidden in Preferences (and are grouped in a busy channel).
+  membership?: MembershipKind;
 };
 
 function withReason(reason?: string): string {
@@ -27,21 +29,24 @@ export function describeEvent(event: IrcEvent, selfNick: string): EventDescripti
     case 'JOIN':
       return event.nick === selfNick
         ? { text: `You joined ${event.channel}` }
-        : { text: `${event.nick} joined`, membership: true };
+        : { text: `${event.nick} joined`, membership: 'join' };
     case 'PART':
       return event.nick === selfNick
         ? { text: `You left ${event.channel}${withReason(event.reason)}` }
-        : { text: `${event.nick} left${withReason(event.reason)}`, membership: true };
+        : { text: `${event.nick} left${withReason(event.reason)}`, membership: 'part' };
     case 'KICK':
       return event.nick === selfNick
         ? { text: `You were kicked by ${event.by}${event.reason ? `: ${event.reason}` : ''}` }
         : { text: `${event.nick} was kicked by ${event.by}${withReason(event.reason)}` };
     case 'QUIT':
-      return { text: `${event.nick} quit${withReason(event.reason)}`, membership: event.nick !== selfNick };
+      return {
+        text: `${event.nick} quit${withReason(event.reason)}`,
+        membership: event.nick !== selfNick ? 'quit' : undefined,
+      };
     case 'NICK':
       return event.oldNick === selfNick
         ? { text: `You are now known as ${event.newNick}` }
-        : { text: `${event.oldNick} is now known as ${event.newNick}`, membership: true };
+        : { text: `${event.oldNick} is now known as ${event.newNick}`, membership: 'nick' };
     case 'MODE': {
       const modes = describeModes(event.changes);
       if (!modes) return null;

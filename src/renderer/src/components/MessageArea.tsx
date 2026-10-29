@@ -1,11 +1,14 @@
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { useLayoutEffect, useRef } from 'react';
+import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { Message } from '../types';
 import { dayLabel } from '../utils/dayLabel';
 import { continuesGroup } from '../utils/groupMessages';
+import { hiddenByFold, membershipRuns } from '../utils/membershipGroups';
 import { mentionsAny } from '../utils/mentions';
 import { nickColor, nickInitial } from '../utils/nickColor';
+import { startsNewSession } from '../utils/session';
 import { IrcText } from './IrcText';
+import { MembershipSummary } from './MembershipSummary';
 
 type Props = {
   messages: Message[];
@@ -45,6 +48,17 @@ export function MessageArea({
   const scrollTop = useRef<Map<string, number>>(new Map());
   const isAtBottom = useRef<Map<string, boolean>>(new Map());
   const autoLoads = useRef(0);
+  const { runs, followers } = useMemo(() => membershipRuns(messages), [messages]);
+  // Runs the user has opened, by `channel:first message id`.
+  const [opened, setOpened] = useState<Set<string>>(new Set());
+  const isOpen = (firstId: number) => opened.has(`${channelId}:${firstId}`);
+  const toggle = (firstId: number) =>
+    setOpened((prev) => {
+      const next = new Set(prev);
+      const key = `${channelId}:${firstId}`;
+      if (!next.delete(key)) next.add(key);
+      return next;
+    });
 
   const switchedChannel = prevChannelId.current !== channelId;
   const compact = density === 'compact';
@@ -53,9 +67,12 @@ export function MessageArea({
   const rowVirtualizer = useVirtualizer({
     count: messages.length,
     getScrollElement: () => containerRef.current,
-    estimateSize: () => rowEstimate,
+    // A folded-away line measures 0, so estimating it taller would shift the scroll as each one comes into view.
+    estimateSize: (index) => (hiddenByFold(followers, messages[index].id, isOpen) ? 0 : rowEstimate),
     getItemKey: (index) => messages[index].id,
     overscan: 8,
+    // The virtualizer reports changes from layout effects, where React refuses a synchronous flush.
+    useFlushSync: false,
     anchorTo: 'end',
     followOnAppend: switchedChannel ? false : 'smooth',
     scrollEndThreshold: AT_BOTTOM_THRESHOLD,
@@ -128,6 +145,10 @@ export function MessageArea({
               if (onGetPack && m.xdccPackNumber != null) onGetPack(m.nick, m.xdccPackNumber);
             };
             const day = isLog ? null : dayLabel(messages[virtualRow.index - 1], m);
+            const newSession = isLog && startsNewSession(messages[virtualRow.index - 1]);
+            const run = runs.get(m.id);
+            // Folded away: the first line of a closed run shows the summary alone, the rest show nothing.
+            const folded = run ? !isOpen(m.id) : hiddenByFold(followers, m.id, isOpen);
             const mention =
               !!selfNick &&
               !isLog &&
@@ -139,7 +160,7 @@ export function MessageArea({
                 key={virtualRow.key}
                 ref={rowVirtualizer.measureElement}
                 data-index={virtualRow.index}
-                className={mention ? 'bg-(--dolq-accent-soft)' : undefined}
+                className={mention ? 'bg-(--dolq-brand-soft)' : undefined}
                 style={{
                   position: 'absolute',
                   top: 0,
@@ -155,7 +176,24 @@ export function MessageArea({
                     <span className="h-px flex-1 bg-(--dolq-border)" />
                   </div>
                 )}
-                {isLog ? (
+                {newSession && (
+                  <div className="mx-7 mt-8 mb-3 flex items-center gap-3">
+                    <span className="h-px flex-1 bg-(--dolq-border-strong)" />
+                    <span className="rounded-full bg-(--dolq-brand-soft) px-3 py-0.5 text-[11px] font-semibold tracking-wider text-(--dolq-brand-text) uppercase">
+                      New session
+                    </span>
+                    <span className="h-px flex-1 bg-(--dolq-border-strong)" />
+                  </div>
+                )}
+                {run && (
+                  <MembershipSummary
+                    run={run}
+                    open={isOpen(m.id)}
+                    onToggle={() => toggle(m.id)}
+                    formatTime={(d) => formatTime(d, timestampFormat)}
+                  />
+                )}
+                {folded ? null : isLog ? (
                   <div className="font-mono text-[12px] leading-5 text-(--dolq-text) whitespace-pre-wrap break-all px-7">
                     <span className="text-(--dolq-text-faint) mr-3">{formatTime(m.timestamp, timestampFormat)}</span>
                     <IrcText text={m.text} />

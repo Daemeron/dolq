@@ -1,9 +1,22 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { IrcEvent } from '../../shared/ipc';
 import App from './App';
 import { useStore } from './store';
 import type { Channel, Server } from './types';
+
+// Every interaction runs inside an async act, so what it sets off (history loads, sends) lands before the next line.
+type Interaction = (target: Document | Element | Window, init?: object) => Promise<void>;
+const fire = Object.fromEntries(
+  (['click', 'change', 'contextMenu', 'keyDown', 'scroll', 'submit'] as const).map((name) => [
+    name,
+    async (target, init) => {
+      await act(async () => {
+        fireEvent[name](target, init);
+      });
+    },
+  ]),
+) as Record<'click' | 'change' | 'contextMenu' | 'keyDown' | 'scroll' | 'submit', Interaction>;
 
 type Callbacks = Record<string, ((...args: unknown[]) => void)[]>;
 
@@ -54,7 +67,7 @@ function installIrc(overrides: Record<string, unknown> = {}) {
         for (const cb of [...(callbacks[name] ?? [])]) cb(...args);
       }),
     event: (serverId: string, event: IrcEvent) =>
-      act(() => {
+      act(async () => {
         for (const cb of [...(callbacks.onEvent ?? [])]) cb(serverId, event);
       }),
   };
@@ -102,7 +115,9 @@ function withLayout() {
 
 async function mount(overrides: Record<string, unknown> = {}) {
   const irc = installIrc(overrides);
-  render(<App />);
+  await act(async () => {
+    render(<App />);
+  });
   await waitFor(() => expect(irc.spies.getSettings).toHaveBeenCalled());
   return irc;
 }
@@ -111,15 +126,17 @@ beforeEach(() => {
   withLayout();
   seed();
 });
-afterEach(() => {
+afterEach(async () => {
+  // Let what the test left in flight (history loads, sends) land inside act before it is torn down.
+  await act(async () => {});
   cleanup();
   vi.restoreAllMocks();
 });
 
 const composer = () => screen.getByPlaceholderText('Message #dolq') as HTMLInputElement;
 async function typeAndSend(text: string) {
-  fireEvent.change(composer(), { target: { value: text } });
-  fireEvent.submit(composer().closest('form') as HTMLFormElement);
+  await fire.change(composer(), { target: { value: text } });
+  await fire.submit(composer().closest('form') as HTMLFormElement);
 }
 
 describe('App: layout', () => {
@@ -135,13 +152,13 @@ describe('App: layout', () => {
   it('hides the members panel from the toolbar', async () => {
     await mount();
     await screen.findByText('mira');
-    fireEvent.click(screen.getByRole('button', { name: 'Members' }));
+    await fire.click(screen.getByRole('button', { name: 'Members' }));
     expect(screen.queryByText('mira')).toBeNull();
   });
 
   it('switches channels from the sidebar', async () => {
     await mount();
-    fireEvent.click(screen.getByText('other'));
+    await fire.click(screen.getByText('other'));
     expect(screen.getByRole('heading', { name: '#other' })).toBeTruthy();
   });
 
@@ -189,8 +206,8 @@ describe('App: incoming messages', () => {
     expect(irc.spies.playAlertSound).toHaveBeenCalled();
     await waitFor(() => expect(irc.spies.setBadgeCount).toHaveBeenLastCalledWith(1));
     // the toolbar offers a way to jump there
-    fireEvent.click(screen.getByRole('button', { name: 'Mentions' }));
-    fireEvent.click(screen.getByText('#other'));
+    await fire.click(screen.getByRole('button', { name: 'Mentions' }));
+    await fire.click(screen.getByText('#other'));
     expect(screen.getByRole('heading', { name: '#other' })).toBeTruthy();
     expect(useStore.getState().mentionedChannels['#other']).toBeUndefined();
   });
@@ -291,7 +308,7 @@ describe('App: channel membership', () => {
   it('explains a taken nickname in the log', async () => {
     const irc = await mount();
     await irc.event('s1', { type: 'NICKINUSE', nick: 'me', retrying: 'me_' });
-    fireEvent.click(screen.getByText('Server log'));
+    await fire.click(screen.getByText('Server log'));
     expect(await screen.findByText(/already in use - trying "me_"/)).toBeTruthy();
   });
 });
@@ -358,7 +375,7 @@ describe('App: sending', () => {
     expect(await screen.findByText('Looking up...')).toBeTruthy();
     await irc.event('s1', { type: 'whois', nick: 'mira', user: 'mira', host: 'example.org' });
     expect(await screen.findByText('mira@example.org')).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+    await fire.click(screen.getByRole('button', { name: 'Close' }));
     expect(screen.queryByText('mira@example.org')).toBeNull();
   });
 
@@ -375,16 +392,16 @@ describe('App: sending', () => {
 describe('App: dialogs', () => {
   it('opens and closes preferences from the sidebar and Escape', async () => {
     await mount();
-    fireEvent.click(screen.getByRole('button', { name: 'Preferences' }));
+    await fire.click(screen.getByRole('button', { name: 'Preferences' }));
     expect(screen.getByRole('dialog', { name: 'Preferences' })).toBeTruthy();
-    fireEvent.keyDown(window, { key: 'Escape' });
+    await fire.keyDown(window, { key: 'Escape' });
     expect(screen.queryByRole('dialog', { name: 'Preferences' })).toBeNull();
   });
 
   it('opens preferences when the menu asks for it, and saves them', async () => {
     const irc = await mount();
     irc.emit('onOpenPreferences');
-    fireEvent.submit(screen.getByRole('button', { name: 'Save' }).closest('form') as HTMLFormElement);
+    await fire.submit(screen.getByRole('button', { name: 'Save' }).closest('form') as HTMLFormElement);
     await waitFor(() => expect(irc.spies.setSettings).toHaveBeenCalled());
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Preferences' })).toBeNull());
   });
@@ -398,32 +415,32 @@ describe('App: dialogs', () => {
 
   it('adds a server and connects to it', async () => {
     const irc = await mount();
-    fireEvent.click(screen.getByRole('button', { name: 'Add server' }));
-    fireEvent.change(screen.getByPlaceholderText('irc.libera.chat'), { target: { value: 'irc.example.org' } });
-    fireEvent.change(screen.getByPlaceholderText('yournick'), { target: { value: 'newme' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Connect' }));
+    await fire.click(screen.getByRole('button', { name: 'Add server' }));
+    await fire.change(screen.getByPlaceholderText('irc.libera.chat'), { target: { value: 'irc.example.org' } });
+    await fire.change(screen.getByPlaceholderText('yournick'), { target: { value: 'newme' } });
+    await fire.click(screen.getByRole('button', { name: 'Connect' }));
     await waitFor(() => expect(irc.spies.connect).toHaveBeenCalled());
     expect(useStore.getState().servers).toHaveLength(2);
   });
 
   it('opens the server editor from its menu', async () => {
     await mount();
-    fireEvent.contextMenu(screen.getByRole('button', { name: 'Libera' }));
-    fireEvent.click(screen.getByText('Edit Server…'));
+    await fire.contextMenu(screen.getByRole('button', { name: 'Libera' }));
+    await fire.click(screen.getByText('Edit Server…'));
     expect(await screen.findByRole('dialog', { name: 'Edit server' })).toBeTruthy();
-    fireEvent.change(screen.getByPlaceholderText('My Server'), { target: { value: 'Libera 2' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await fire.change(screen.getByPlaceholderText('My Server'), { target: { value: 'Libera 2' } });
+    await fire.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(useStore.getState().servers[0].name).toBe('Libera 2'));
   });
 
   it('keeps the icon letters and colour picked in the server editor', async () => {
     await mount();
-    fireEvent.contextMenu(screen.getByRole('button', { name: 'Libera' }));
-    fireEvent.click(screen.getByText('Edit Server…'));
+    await fire.contextMenu(screen.getByRole('button', { name: 'Libera' }));
+    await fire.click(screen.getByText('Edit Server…'));
     await screen.findByRole('dialog', { name: 'Edit server' });
-    fireEvent.change(screen.getByLabelText('Icon letters'), { target: { value: ' lib ' } });
-    fireEvent.click(screen.getAllByRole('button', { name: /^Colour / })[2]);
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await fire.change(screen.getByLabelText('Icon letters'), { target: { value: ' lib ' } });
+    await fire.click(screen.getAllByRole('button', { name: /^Colour / })[2]);
+    await fire.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(useStore.getState().servers[0].initials).toBe('lib'));
     expect(useStore.getState().servers[0].color).toBe('var(--dolq-nick-3)');
     expect(screen.getByRole('button', { name: 'Libera' })).toHaveTextContent('lib');
@@ -432,8 +449,8 @@ describe('App: dialogs', () => {
   it('removes a server after confirmation', async () => {
     vi.spyOn(window, 'confirm').mockReturnValue(true);
     const irc = await mount();
-    fireEvent.contextMenu(screen.getByRole('button', { name: 'Libera' }));
-    fireEvent.click(screen.getByText('Remove Server'));
+    await fire.contextMenu(screen.getByRole('button', { name: 'Libera' }));
+    await fire.click(screen.getByText('Remove Server'));
     await waitFor(() => expect(useStore.getState().servers).toHaveLength(0));
     expect(irc.spies.forgetSecrets).toHaveBeenCalledWith('s1');
   });
@@ -441,8 +458,8 @@ describe('App: dialogs', () => {
   it('keeps the server when removal is not confirmed', async () => {
     vi.spyOn(window, 'confirm').mockReturnValue(false);
     await mount();
-    fireEvent.contextMenu(screen.getByRole('button', { name: 'Libera' }));
-    fireEvent.click(screen.getByText('Remove Server'));
+    await fire.contextMenu(screen.getByRole('button', { name: 'Libera' }));
+    await fire.click(screen.getByText('Remove Server'));
     expect(useStore.getState().servers).toHaveLength(1);
   });
 
@@ -471,9 +488,86 @@ describe('App: dialogs', () => {
     document.documentElement.style.removeProperty('--dolq-text');
   });
 
+  it('opens the dashboard from the rail and returns to the chat from a channel chip', async () => {
+    await mount();
+    await fire.click(screen.getByRole('button', { name: 'Dashboard' }));
+    expect(screen.getByRole('heading', { name: 'Dashboard' })).toBeTruthy();
+    expect(screen.queryByPlaceholderText('Message #dolq')).toBeNull();
+    await fire.click(within(screen.getByRole('region', { name: 'Libera' })).getByRole('button', { name: '#other' }));
+    expect(screen.getByRole('heading', { name: '#other' })).toBeTruthy();
+    expect(useStore.getState().selectedChannelId).toBe('#other');
+  });
+
+  it('hides the channel list and the user panel on the dashboard', async () => {
+    await mount();
+    expect(screen.getByText('Channels')).toBeTruthy();
+    await fire.click(screen.getByRole('button', { name: 'Dashboard' }));
+    expect(screen.queryByText('Channels')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Away' })).toBeNull();
+    // the rail's server entry comes first, before the server's card on the dashboard
+    await fire.click(screen.getAllByRole('button', { name: 'Libera' })[0]);
+    expect(screen.getByText('Channels')).toBeTruthy();
+  });
+
+  it('titles the strip with where you are, and walks back and forward through places visited', async () => {
+    await mount();
+    expect(screen.getByRole('banner')).toHaveTextContent('#dolq · Libera');
+    expect(screen.getByRole('button', { name: 'Back' }).parentElement).toHaveClass('pointer-events-none');
+    await fire.click(screen.getByRole('button', { name: 'Dashboard' }));
+    expect(screen.getByRole('banner')).toHaveTextContent('Dashboard');
+    await fire.click(screen.getByRole('button', { name: 'Back' }));
+    expect(screen.getByRole('banner')).toHaveTextContent('#dolq · Libera');
+    expect(screen.getByRole('heading', { name: '#dolq' })).toBeTruthy();
+    await fire.click(screen.getByRole('button', { name: 'Forward' }));
+    expect(screen.getByRole('banner')).toHaveTextContent('Dashboard');
+    await fire.click(screen.getByRole('button', { name: 'Back' }));
+    await fire.click(screen.getByText('other'));
+    expect(screen.getByRole('banner')).toHaveTextContent('#other · Libera');
+    await fire.click(screen.getByRole('button', { name: 'Back' }));
+    expect(screen.getByRole('banner')).toHaveTextContent('#dolq · Libera');
+  });
+
+  it('shows the latency the backend reports on the dashboard', async () => {
+    const irc = await mount();
+    await irc.event('s1', { type: 'LATENCY', ms: 42 });
+    await irc.event('s1', { type: 'LATENCY', ms: 58 });
+    expect(useStore.getState().latencyMap.s1.map((x) => x.ms)).toEqual([42, 58]);
+    await fire.click(screen.getByRole('button', { name: 'Dashboard' }));
+    expect(screen.getByText('58 ms')).toBeTruthy();
+    expect(screen.getByText('min 42 · avg 50 · max 58 ms')).toBeTruthy();
+  });
+
+  it('sets and clears away on every connected server from the title strip', async () => {
+    useStore.setState({
+      servers: [server, { ...server, id: 's2', name: 'Rizon' }],
+      statusMap: { s1: 'connected', s2: 'connected', s3: 'disconnected' },
+    });
+    const irc = await mount();
+    await fire.click(screen.getByRole('button', { name: 'Away on all servers' }));
+    expect(irc.spies.sendLine).toHaveBeenCalledWith('s1', 'AWAY :Away');
+    expect(irc.spies.sendLine).toHaveBeenCalledWith('s2', 'AWAY :Away');
+    await irc.event('s1', { type: 'SELFAWAY', away: true });
+    await irc.event('s2', { type: 'SELFAWAY', away: true });
+    irc.spies.sendLine.mockClear();
+    await fire.click(screen.getByRole('button', { name: 'Back from away on all servers' }));
+    expect(irc.spies.sendLine).toHaveBeenCalledWith('s1', 'AWAY');
+    expect(irc.spies.sendLine).toHaveBeenCalledWith('s2', 'AWAY');
+  });
+
+  it('searches everywhere from the title strip, and in the channel from the toolbar', async () => {
+    await mount();
+    await fire.click(screen.getByRole('button', { name: 'Search everywhere' }));
+    expect(screen.getByRole('radio', { name: 'Everywhere' })).toHaveAttribute('aria-checked', 'true');
+    await fire.keyDown(window, { key: 'Escape' });
+    cleanup();
+    await mount();
+    await fire.click(screen.getByRole('button', { name: 'Search history' }));
+    expect(screen.getByRole('radio', { name: 'This channel' })).toHaveAttribute('aria-checked', 'true');
+  });
+
   it('opens search from the toolbar', async () => {
     await mount();
-    fireEvent.click(screen.getByRole('button', { name: 'Search history' }));
+    await fire.click(screen.getByRole('button', { name: 'Search history' }));
     expect(screen.getByText('Search History')).toBeTruthy();
   });
 });
@@ -487,8 +581,8 @@ describe('App: prompts from the network', () => {
       target: 'me',
       text: 'This nickname is registered. Please choose a different nickname, or identify via /msg NickServ IDENTIFY <password>',
     });
-    fireEvent.change(await screen.findByPlaceholderText('Password'), { target: { value: 'pw' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Identify' }));
+    await fire.change(await screen.findByPlaceholderText('Password'), { target: { value: 'pw' } });
+    await fire.click(screen.getByRole('button', { name: 'Identify' }));
     await waitFor(() => expect(irc.spies.sendLine).toHaveBeenCalledWith('s1', 'PRIVMSG NickServ :identify pw'));
   });
 
@@ -496,7 +590,7 @@ describe('App: prompts from the network', () => {
     const irc = await mount();
     await irc.event('s1', { type: 'DCCCHATOFFER', nick: 'kestrel', ip: '1.2.3.4', port: 5000 });
     expect(await screen.findByText('DCC chat request')).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Accept' }));
+    await fire.click(screen.getByRole('button', { name: 'Accept' }));
     await waitFor(() => expect(irc.spies.dccAccept).toHaveBeenCalledWith('1.2.3.4', 5000));
     expect((await screen.findAllByText('kestrel')).length).toBeGreaterThan(0);
   });
@@ -504,7 +598,7 @@ describe('App: prompts from the network', () => {
   it('declines a DCC chat offer', async () => {
     const irc = await mount();
     await irc.event('s1', { type: 'DCCCHATOFFER', nick: 'kestrel', ip: '1.2.3.4', port: 5000 });
-    fireEvent.click(await screen.findByRole('button', { name: 'Decline' }));
+    await fire.click(await screen.findByRole('button', { name: 'Decline' }));
     expect(irc.spies.dccAccept).not.toHaveBeenCalled();
     expect(screen.queryByText('DCC chat request')).toBeNull();
   });
@@ -523,24 +617,26 @@ describe('App: prompts from the network', () => {
     const irc = await mount();
     await irc.event('s1', offer);
     expect(await screen.findByText('File offer')).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Accept' }));
+    await fire.click(screen.getByRole('button', { name: 'Accept' }));
     await waitFor(() =>
       expect(irc.spies.xdccAccept).toHaveBeenCalledWith('s1', 'bot', '1.2.3.4', 5000, 'f.iso', 2048, undefined),
     );
-    fireEvent.click(await screen.findByRole('button', { name: 'Transfers' }));
+    await fire.click(await screen.findByRole('button', { name: 'Transfers' }));
     expect(await screen.findByText('f.iso')).toBeTruthy();
     await irc.event('xfer-1', { type: 'XDCCTRANSFER', received: 1024, total: 2048, path: '/dl/f.iso' });
     expect(await screen.findByText(/50%/)).toBeTruthy();
     await irc.event('xfer-1', { type: 'XDCCTRANSFER', received: 2048, total: 2048, path: '/dl/f.iso', done: true });
     expect(await screen.findByText('Completed · 2.0 KB')).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Show in folder' }));
+    await fire.click(screen.getByRole('button', { name: 'Show in folder' }));
     expect(irc.spies.showInFolder).toHaveBeenCalledWith('/dl/f.iso');
   });
 
   it('trusts a sender for the session and skips the prompt the next time', async () => {
     const irc = await mount();
     await irc.event('s1', offer);
-    fireEvent.click(await screen.findByText(/until this server disconnects/));
+    await fire.click(await screen.findByRole('button', { name: 'Choose how to accept' }));
+    await fire.click(screen.getByText(/for this session/));
+    await fire.click(screen.getByRole('button', { name: 'Accept for session' }));
     await waitFor(() => expect(irc.spies.xdccAccept).toHaveBeenCalledTimes(1));
     await irc.event('s1', offer);
     await waitFor(() => expect(irc.spies.xdccAccept).toHaveBeenCalledTimes(2));
@@ -550,7 +646,9 @@ describe('App: prompts from the network', () => {
   it('remembers a sender permanently when asked', async () => {
     const irc = await mount();
     await irc.event('s1', offer);
-    fireEvent.click(await screen.findByText(/always trust/));
+    await fire.click(await screen.findByRole('button', { name: 'Choose how to accept' }));
+    await fire.click(screen.getByText(/Always accept from/));
+    await fire.click(screen.getByRole('button', { name: 'Always accept' }));
     await waitFor(() => expect(useStore.getState().xdccTrusted.s1).toHaveLength(1));
     expect(irc.spies.xdccAccept).toHaveBeenCalled();
   });
@@ -558,7 +656,7 @@ describe('App: prompts from the network', () => {
   it('declines a file offer', async () => {
     const irc = await mount();
     await irc.event('s1', offer);
-    fireEvent.click(await screen.findByRole('button', { name: 'Decline' }));
+    await fire.click(await screen.findByRole('button', { name: 'Decline' }));
     expect(irc.spies.xdccAccept).not.toHaveBeenCalled();
     expect(screen.queryByText('File offer')).toBeNull();
   });
@@ -566,8 +664,8 @@ describe('App: prompts from the network', () => {
   it('reports a failed download in the transfer card', async () => {
     const irc = await mount();
     await irc.event('s1', offer);
-    fireEvent.click(await screen.findByRole('button', { name: 'Accept' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Transfers' }));
+    await fire.click(await screen.findByRole('button', { name: 'Accept' }));
+    await fire.click(await screen.findByRole('button', { name: 'Transfers' }));
     await screen.findByText('f.iso');
     await irc.event('xfer-1', { type: 'XDCCTRANSFER', received: 0, total: 2048, path: '', error: 'connection reset' });
     expect(await screen.findByText(/Failed: connection reset/)).toBeTruthy();
@@ -576,14 +674,14 @@ describe('App: prompts from the network', () => {
   it('opens the transfers dialog from the toolbar and closes it again', async () => {
     const irc = await mount();
     await irc.event('s1', offer);
-    fireEvent.click(await screen.findByRole('button', { name: 'Accept' }));
+    await fire.click(await screen.findByRole('button', { name: 'Accept' }));
     expect(screen.queryByRole('dialog', { name: 'Transfers' })).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'Transfers' }));
+    await fire.click(screen.getByRole('button', { name: 'Transfers' }));
     expect(await screen.findByText('f.iso')).toBeTruthy();
-    fireEvent.keyDown(window, { key: 'Escape' });
+    await fire.keyDown(window, { key: 'Escape' });
     expect(screen.queryByRole('dialog', { name: 'Transfers' })).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'Transfers' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+    await fire.click(screen.getByRole('button', { name: 'Transfers' }));
+    await fire.click(screen.getByRole('button', { name: 'Close' }));
     expect(screen.queryByRole('dialog', { name: 'Transfers' })).toBeNull();
   });
 });
@@ -591,24 +689,24 @@ describe('App: prompts from the network', () => {
 describe('App: keyboard shortcuts', () => {
   it('moves between channels and mutes with the configured keys', async () => {
     await mount();
-    fireEvent.keyDown(window, { key: 'ArrowDown', altKey: true });
+    await fire.keyDown(window, { key: 'ArrowDown', altKey: true });
     expect(screen.getByRole('heading', { name: '#other' })).toBeTruthy();
-    fireEvent.keyDown(window, { key: 'ArrowUp', altKey: true });
+    await fire.keyDown(window, { key: 'ArrowUp', altKey: true });
     expect(screen.getByRole('heading', { name: '#dolq' })).toBeTruthy();
-    fireEvent.keyDown(window, { key: 'm', altKey: true });
+    await fire.keyDown(window, { key: 'm', altKey: true });
     expect(useStore.getState().mutedChannels['#dolq']).toBe(true);
   });
 
   it('leaves the current channel with the close shortcut', async () => {
     const irc = await mount();
-    fireEvent.keyDown(window, { key: 'w', altKey: true });
+    await fire.keyDown(window, { key: 'w', altKey: true });
     await waitFor(() => expect(irc.spies.sendLine).toHaveBeenCalledWith('s1', 'PART #dolq'));
   });
 
   it('opens the search with its shortcut', async () => {
     await mount();
     expect(screen.queryByRole('dialog', { name: 'Search History' })).toBeNull();
-    fireEvent.keyDown(window, { key: 'k', ctrlKey: true });
+    await fire.keyDown(window, { key: 'k', ctrlKey: true });
     expect(await screen.findByRole('dialog', { name: 'Search History' })).toBeTruthy();
   });
 });
@@ -635,7 +733,7 @@ describe('App: first run', () => {
   it('starts the add-server dialog on the network that was picked', async () => {
     seed(noServers);
     await mount();
-    fireEvent.click(screen.getByRole('button', { name: /OFTC/ }));
+    await fire.click(screen.getByRole('button', { name: /OFTC/ }));
     const network = (await screen.findByLabelText('Network')) as HTMLSelectElement;
     expect(network.value).toBe('irc.oftc.net:6697');
     expect((screen.getByPlaceholderText('irc.libera.chat') as HTMLInputElement).value).toBe('irc.oftc.net');
@@ -644,7 +742,7 @@ describe('App: first run', () => {
   it('opens the backend settings to pair with a remote backend', async () => {
     seed(noServers);
     await mount();
-    fireEvent.click(screen.getByRole('button', { name: 'Pair with a remote backend' }));
+    await fire.click(screen.getByRole('button', { name: 'Pair with a remote backend' }));
     const tab = await screen.findByRole('tab', { name: 'Backend' });
     expect(tab.getAttribute('aria-selected')).toBe('true');
   });
@@ -741,7 +839,7 @@ describe('App: history', () => {
         entry(2, { channel: '__log__', isRaw: true, line: ':bob!b@h PRIVMSG #dolq :already shown elsewhere' }),
       ],
     });
-    fireEvent.click(screen.getByText('Server log'));
+    await fire.click(screen.getByText('Server log'));
     expect(await screen.findByText(/Welcome/)).toBeTruthy();
     expect(screen.queryByText(/already shown elsewhere/)).toBeNull();
   });
@@ -760,8 +858,8 @@ describe('App: exporting', () => {
 
   it('saves the channel history as text', async () => {
     const irc = await mount({ getHistory: exported });
-    fireEvent.click(screen.getByRole('button', { name: 'Export log' }));
-    fireEvent.click(screen.getByText('Export as Text'));
+    await fire.click(screen.getByRole('button', { name: 'Export log' }));
+    await fire.click(screen.getByText('Export as Text'));
     await waitFor(() => expect(irc.spies.saveTextFile).toHaveBeenCalled());
     const [name, content] = irc.spies.saveTextFile.mock.calls[0];
     expect(name).toBe('dolq.txt');
@@ -770,8 +868,8 @@ describe('App: exporting', () => {
 
   it('saves the channel history as JSON', async () => {
     const irc = await mount({ getHistory: exported });
-    fireEvent.click(screen.getByRole('button', { name: 'Export log' }));
-    fireEvent.click(screen.getByText('Export as JSON'));
+    await fire.click(screen.getByRole('button', { name: 'Export log' }));
+    await fire.click(screen.getByText('Export as JSON'));
     await waitFor(() => expect(irc.spies.saveTextFile).toHaveBeenCalled());
     const [name, content] = irc.spies.saveTextFile.mock.calls[0];
     expect(name).toBe('dolq.json');
@@ -782,8 +880,8 @@ describe('App: exporting', () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
     const irc = await mount();
     irc.spies.getHistory.mockRejectedValue(new Error('backend down'));
-    fireEvent.click(screen.getByRole('button', { name: 'Export log' }));
-    fireEvent.click(screen.getByText('Export as Text'));
+    await fire.click(screen.getByRole('button', { name: 'Export log' }));
+    await fire.click(screen.getByText('Export as Text'));
     await waitFor(() => expect(console.error).toHaveBeenCalled());
     expect(irc.spies.saveTextFile).not.toHaveBeenCalled();
   });
@@ -791,8 +889,8 @@ describe('App: exporting', () => {
 
 describe('App: member actions', () => {
   const memberMenu = async (item: string) => {
-    fireEvent.contextMenu(await screen.findByText('mira', { selector: 'span.flex-1' }));
-    fireEvent.click(screen.getByText(item));
+    await fire.contextMenu(await screen.findByText('mira', { selector: 'span.flex-1' }));
+    await fire.click(screen.getByText(item));
   };
 
   it('looks a member up with whois from the member list', async () => {
@@ -815,14 +913,14 @@ describe('App: member actions', () => {
     await waitFor(() => expect(irc.spies.dccOffer).toHaveBeenCalledWith('s1', 'mira'));
     expect(await screen.findByRole('heading', { name: /mira/ })).toBeTruthy();
     // a DCC chat sends over the DCC link, not the IRC server
-    fireEvent.change(screen.getByPlaceholderText('Message mira'), { target: { value: 'private hello' } });
-    fireEvent.submit(screen.getByPlaceholderText('Message mira').closest('form') as HTMLFormElement);
+    await fire.change(screen.getByPlaceholderText('Message mira'), { target: { value: 'private hello' } });
+    await fire.submit(screen.getByPlaceholderText('Message mira').closest('form') as HTMLFormElement);
     await waitFor(() => expect(irc.spies.dccSend).toHaveBeenCalledWith('dcc:2', 'private hello'));
   });
 
   it('starts a conversation by clicking a member', async () => {
     await mount();
-    fireEvent.click(await screen.findByText('mira', { selector: 'span.flex-1' }));
+    await fire.click(await screen.findByText('mira', { selector: 'span.flex-1' }));
     expect(await screen.findByRole('heading', { name: '@mira' })).toBeTruthy();
   });
 
@@ -840,30 +938,30 @@ describe('App: member actions', () => {
 describe('App: channels', () => {
   it('leaves, rejoins and removes a channel from its menu', async () => {
     const irc = await mount();
-    fireEvent.contextMenu(screen.getByText('other'));
-    fireEvent.click(screen.getByText('Leave Channel'));
+    await fire.contextMenu(screen.getByText('other'));
+    await fire.click(screen.getByText('Leave Channel'));
     await waitFor(() => expect(irc.spies.sendLine).toHaveBeenCalledWith('s1', 'PART #other'));
     await irc.event('s1', { type: 'PART', nick: 'me', channel: '#other' });
-    fireEvent.contextMenu(screen.getByText('other'));
-    fireEvent.click(screen.getByText('Join Channel'));
+    await fire.contextMenu(screen.getByText('other'));
+    await fire.click(screen.getByText('Join Channel'));
     await waitFor(() => expect(irc.spies.sendLine).toHaveBeenCalledWith('s1', 'JOIN #other'));
-    fireEvent.contextMenu(screen.getByText('other'));
-    fireEvent.click(screen.getByText('Remove Channel'));
+    await fire.contextMenu(screen.getByText('other'));
+    await fire.click(screen.getByText('Remove Channel'));
     await waitFor(() => expect(screen.queryByText('other')).toBeNull());
   });
 
   it('closes a direct message without leaving anything on the server', async () => {
     const irc = await mount();
     await irc.event('s1', { type: 'PRIVMSG', nick: 'kestrel', target: 'me', text: 'psst' });
-    fireEvent.contextMenu(await screen.findByText('kestrel'));
-    fireEvent.click(screen.getByText('Close'));
+    await fire.contextMenu(await screen.findByText('kestrel'));
+    await fire.click(screen.getByText('Close'));
     await waitFor(() => expect(screen.queryByText('Direct messages')).toBeNull());
     expect(irc.spies.sendLine).not.toHaveBeenCalledWith('s1', expect.stringContaining('PART kestrel'));
   });
 
   it('mutes from the toolbar', async () => {
     await mount();
-    fireEvent.click(screen.getByRole('button', { name: 'Mute channel' }));
+    await fire.click(screen.getByRole('button', { name: 'Mute channel' }));
     expect(useStore.getState().mutedChannels['#dolq']).toBe(true);
     expect(screen.getByRole('button', { name: 'Unmute channel' })).toBeTruthy();
   });
@@ -883,7 +981,7 @@ describe('App: packs and search results', () => {
   it('requests a pack when its announcement is clicked', async () => {
     const irc = await mount();
     await irc.event('s1', pack);
-    fireEvent.click(await screen.findByTitle('Click to request this pack'));
+    await fire.click(await screen.findByTitle('Click to request this pack'));
     await waitFor(() => expect(irc.spies.sendLine).toHaveBeenCalledWith('s1', 'PRIVMSG bot :XDCC SEND #7'));
     // the request reads in the bot's conversation like the same line typed by hand
     expect(await screen.findByText('Direct messages')).toBeTruthy();
@@ -893,7 +991,7 @@ describe('App: packs and search results', () => {
   it('auto-accepts the offer that answers a pack we requested', async () => {
     const irc = await mount({ getSettings: { retentionDays: 0, xdccAutoAccept: true } });
     await irc.event('s1', pack);
-    fireEvent.click(await screen.findByTitle('Click to request this pack'));
+    await fire.click(await screen.findByTitle('Click to request this pack'));
     await waitFor(() => expect(irc.spies.sendLine).toHaveBeenCalledWith('s1', 'PRIVMSG bot :XDCC SEND #7'));
     await irc.event('s1', {
       type: 'XDCCSENDOFFER',
@@ -916,10 +1014,10 @@ describe('App: packs and search results', () => {
         }),
       ],
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Search history' }));
-    fireEvent.change(screen.getByPlaceholderText('Search for...'), { target: { value: 'needle' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Search' }));
-    fireEvent.click(await screen.findByRole('button', { name: /needle in a haystack/ }));
+    await fire.click(screen.getByRole('button', { name: 'Search history' }));
+    await fire.change(screen.getByPlaceholderText('Search for...'), { target: { value: 'needle' } });
+    await fire.click(screen.getByRole('button', { name: 'Search' }));
+    await fire.click(await screen.findByRole('button', { name: /needle in a haystack/ }));
     expect(screen.getByRole('heading', { name: '#other' })).toBeTruthy();
     expect(screen.queryByText('Search History')).toBeNull();
     expect(irc.spies.search).toHaveBeenCalled();
@@ -927,10 +1025,10 @@ describe('App: packs and search results', () => {
 
   it('jumps to the log from a log search result', async () => {
     await mount({ search: [entry(9, { channel: '__log__', isRaw: true, line: ':srv NOTICE * :needle' })] });
-    fireEvent.click(screen.getByRole('button', { name: 'Search history' }));
-    fireEvent.change(screen.getByPlaceholderText('Search for...'), { target: { value: 'needle' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Search' }));
-    fireEvent.click(await screen.findByText(/needle/));
+    await fire.click(screen.getByRole('button', { name: 'Search history' }));
+    await fire.change(screen.getByPlaceholderText('Search for...'), { target: { value: 'needle' } });
+    await fire.click(screen.getByRole('button', { name: 'Search' }));
+    await fire.click(await screen.findByText(/needle/));
     expect(screen.getByRole('heading', { name: 'Server log' })).toBeTruthy();
   });
 });
@@ -947,7 +1045,7 @@ describe('App: sending a file', () => {
   it('offers the chosen file to the person in a direct message and shows it in the transfers', async () => {
     openQuery();
     const irc = await mount({ chooseFile: '/tmp/some dir/a.iso', dccSendFile: 'xdcc:1' });
-    fireEvent.click(screen.getByRole('button', { name: 'Send file' }));
+    await fire.click(screen.getByRole('button', { name: 'Send file' }));
     await waitFor(() => expect(irc.spies.dccSendFile).toHaveBeenCalledWith('s1', 'mira', '/tmp/some dir/a.iso'));
     expect(await screen.findByText('a.iso')).toBeTruthy();
     expect(screen.getByText('Waiting for mira to connect')).toBeTruthy();
@@ -975,7 +1073,7 @@ describe('App: sending a file', () => {
   it('does nothing when the file picker is cancelled', async () => {
     openQuery();
     const irc = await mount({ chooseFile: null });
-    fireEvent.click(screen.getByRole('button', { name: 'Send file' }));
+    await fire.click(screen.getByRole('button', { name: 'Send file' }));
     await waitFor(() => expect(irc.spies.chooseFile).toHaveBeenCalled());
     expect(irc.spies.dccSendFile).not.toHaveBeenCalled();
   });
@@ -984,11 +1082,11 @@ describe('App: sending a file', () => {
     openQuery();
     const irc = await mount({ chooseFile: 'C:\\Users\\me\\a.iso' });
     irc.spies.dccSendFile.mockRejectedValueOnce(new Error('not a file'));
-    fireEvent.click(screen.getByRole('button', { name: 'Send file' }));
+    await fire.click(screen.getByRole('button', { name: 'Send file' }));
     expect(await screen.findByText('Could not send a.iso: not a file')).toBeTruthy();
 
     irc.spies.dccSendFile.mockResolvedValueOnce('xdcc:2');
-    fireEvent.click(screen.getByRole('button', { name: 'Send file' }));
+    await fire.click(screen.getByRole('button', { name: 'Send file' }));
     await screen.findByText('Waiting for mira to connect');
     await irc.event('xdcc:2', {
       type: 'XDCCTRANSFER',
@@ -1003,8 +1101,8 @@ describe('App: sending a file', () => {
 
   it('is reachable from the member menu', async () => {
     const irc = await mount({ chooseFile: '/tmp/b.iso', dccSendFile: 'xdcc:3' });
-    fireEvent.contextMenu(screen.getByText('mira'));
-    fireEvent.click(screen.getByText('Send File…'));
+    await fire.contextMenu(screen.getByText('mira'));
+    await fire.click(screen.getByText('Send File…'));
     await waitFor(() => expect(irc.spies.dccSendFile).toHaveBeenCalledWith('s1', 'mira', '/tmp/b.iso'));
   });
 });
@@ -1021,19 +1119,19 @@ describe('App: transfers', () => {
   };
   const startTransfer = async (irc: Awaited<ReturnType<typeof mount>>) => {
     await irc.event('s1', offer);
-    fireEvent.click(await screen.findByRole('button', { name: 'Accept' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Transfers' }));
+    await fire.click(await screen.findByRole('button', { name: 'Accept' }));
+    await fire.click(await screen.findByRole('button', { name: 'Transfers' }));
     await screen.findByText('f.iso');
   };
 
   it('pauses, resumes and cancels a download', async () => {
     const irc = await mount();
     await startTransfer(irc);
-    fireEvent.click(screen.getByRole('button', { name: 'Pause' }));
+    await fire.click(screen.getByRole('button', { name: 'Pause' }));
     expect(irc.spies.xdccPause).toHaveBeenCalledWith('xfer-1');
-    fireEvent.click(screen.getByRole('button', { name: 'Resume' }));
+    await fire.click(screen.getByRole('button', { name: 'Resume' }));
     expect(irc.spies.xdccResume).toHaveBeenCalledWith('xfer-1');
-    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    await fire.click(screen.getByRole('button', { name: 'Cancel' }));
     expect(irc.spies.xdccClose).toHaveBeenCalledWith('xfer-1');
     expect(screen.queryByText('f.iso')).toBeNull();
   });
@@ -1042,7 +1140,7 @@ describe('App: transfers', () => {
     const irc = await mount();
     await startTransfer(irc);
     await irc.event('xfer-1', { type: 'XDCCTRANSFER', received: 2048, total: 2048, path: '/dl/f.iso', done: true });
-    fireEvent.click(await screen.findByRole('button', { name: 'Dismiss' }));
+    await fire.click(await screen.findByRole('button', { name: 'Dismiss' }));
     expect(screen.queryByText('f.iso')).toBeNull();
   });
 });
@@ -1070,16 +1168,16 @@ describe('App: connecting', () => {
     await typeAndSend('/disconnect');
     await waitFor(() => expect(useStore.getState().statusMap.s1).toBe('disconnected'));
     await typeAndSend('/connect');
-    fireEvent.click(screen.getByText('Server log'));
+    await fire.click(screen.getByText('Server log'));
     expect(await screen.findByText(/connection refused/)).toBeTruthy();
     expect(useStore.getState().statusMap.s1).toBe('disconnected');
   });
 
   it('connects and disconnects from the toolbar power button', async () => {
     const irc = await mount();
-    fireEvent.click(screen.getByRole('button', { name: 'Disconnect' }));
+    await fire.click(screen.getByRole('button', { name: 'Disconnect' }));
     await waitFor(() => expect(irc.spies.disconnect).toHaveBeenCalledWith('s1'));
-    fireEvent.click(await screen.findByRole('button', { name: 'Connect' }));
+    await fire.click(await screen.findByRole('button', { name: 'Connect' }));
     await waitFor(() => expect(irc.spies.connect).toHaveBeenCalled());
   });
 });
@@ -1089,7 +1187,7 @@ describe('App: raw lines and DCC chats', () => {
     const irc = await mount();
     irc.emit('onLine', 's1', ':srv NOTICE * :server says hi');
     irc.emit('onLine', 's1', ':bob!b@h PRIVMSG #dolq :already a channel event');
-    fireEvent.click(screen.getByText('Server log'));
+    await fire.click(screen.getByText('Server log'));
     expect(await screen.findByText(/server says hi/)).toBeTruthy();
     expect(screen.queryByText(/already a channel event/)).toBeNull();
   });
@@ -1097,7 +1195,7 @@ describe('App: raw lines and DCC chats', () => {
   it('shows lines from a DCC chat under the peer', async () => {
     const irc = await mount();
     await irc.event('s1', { type: 'DCCCHATOFFER', nick: 'kestrel', ip: '1.2.3.4', port: 5000 });
-    fireEvent.click(await screen.findByRole('button', { name: 'Accept' }));
+    await fire.click(await screen.findByRole('button', { name: 'Accept' }));
     await waitFor(() => expect(useStore.getState().selectedChannelId).toBe('dcc:1'));
     irc.emit('onLine', 'dcc:1', 'hello from the peer');
     expect(await screen.findByText('hello from the peer')).toBeTruthy();
@@ -1107,10 +1205,10 @@ describe('App: raw lines and DCC chats', () => {
   it('closes a DCC chat on the DCC link rather than leaving a channel', async () => {
     const irc = await mount();
     await irc.event('s1', { type: 'DCCCHATOFFER', nick: 'kestrel', ip: '1.2.3.4', port: 5000 });
-    fireEvent.click(await screen.findByRole('button', { name: 'Accept' }));
+    await fire.click(await screen.findByRole('button', { name: 'Accept' }));
     await waitFor(() => expect(useStore.getState().selectedChannelId).toBe('dcc:1'));
-    fireEvent.contextMenu(screen.getAllByText('kestrel')[0]);
-    fireEvent.click(screen.getByText('Close'));
+    await fire.contextMenu(screen.getAllByText('kestrel')[0]);
+    await fire.click(screen.getByText('Close'));
     await waitFor(() => expect(irc.spies.dccClose).toHaveBeenCalledWith('dcc:1'));
   });
 });
@@ -1155,7 +1253,7 @@ describe('App: notifications', () => {
       expect(instances).toHaveLength(1);
       expect(instances[0].title).toBe('Mentioned in #other');
       expect(instances[0].body).toBe('me: look at this');
-      act(() => instances[0].onclick?.());
+      await act(async () => instances[0].onclick?.());
       expect(screen.getByRole('heading', { name: '#other' })).toBeTruthy();
     } finally {
       vi.unstubAllGlobals();
@@ -1166,9 +1264,9 @@ describe('App: notifications', () => {
 describe('App: sending edge cases', () => {
   it('sends plain lines typed in the server log straight to the server', async () => {
     const irc = await mount();
-    fireEvent.click(screen.getByText('Server log'));
-    fireEvent.change(screen.getByPlaceholderText(/Log view/), { target: { value: 'WHO #dolq' } });
-    fireEvent.submit(screen.getByPlaceholderText(/Log view/).closest('form') as HTMLFormElement);
+    await fire.click(screen.getByText('Server log'));
+    await fire.change(screen.getByPlaceholderText(/Log view/), { target: { value: 'WHO #dolq' } });
+    await fire.submit(screen.getByPlaceholderText(/Log view/).closest('form') as HTMLFormElement);
     await waitFor(() => expect(irc.spies.sendLine).toHaveBeenCalledWith('s1', 'WHO #dolq'));
   });
 
@@ -1199,8 +1297,8 @@ describe('App: sending edge cases', () => {
 describe('App: dialogs close', () => {
   it('closes search, the identify prompt, add-server and edit-server without acting', async () => {
     const irc = await mount();
-    fireEvent.click(screen.getByRole('button', { name: 'Search history' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+    await fire.click(screen.getByRole('button', { name: 'Search history' }));
+    await fire.click(screen.getByRole('button', { name: 'Close' }));
     expect(screen.queryByText('Search History')).toBeNull();
 
     await irc.event('s1', {
@@ -1209,16 +1307,16 @@ describe('App: dialogs close', () => {
       target: 'me',
       text: 'This nickname is registered. Please identify via /msg NickServ IDENTIFY',
     });
-    fireEvent.click(await screen.findByRole('button', { name: 'Dismiss' }));
+    await fire.click(await screen.findByRole('button', { name: 'Dismiss' }));
     expect(screen.queryByText('Identify with NickServ')).toBeNull();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Add server' }));
-    fireEvent.keyDown(window, { key: 'Escape' });
+    await fire.click(screen.getByRole('button', { name: 'Add server' }));
+    await fire.keyDown(window, { key: 'Escape' });
     expect(screen.queryByRole('dialog', { name: 'Add a server' })).toBeNull();
 
-    fireEvent.contextMenu(screen.getByRole('button', { name: 'Libera' }));
-    fireEvent.click(screen.getByText('Edit Server…'));
-    fireEvent.keyDown(window, { key: 'Escape' });
+    await fire.contextMenu(screen.getByRole('button', { name: 'Libera' }));
+    await fire.click(screen.getByText('Edit Server…'));
+    await fire.keyDown(window, { key: 'Escape' });
     expect(screen.queryByRole('dialog', { name: 'Edit server' })).toBeNull();
   });
 
@@ -1230,10 +1328,10 @@ describe('App: dialogs close', () => {
         }),
       ],
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Search history' }));
-    fireEvent.change(screen.getByPlaceholderText('Search for...'), { target: { value: 'f.iso' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Search' }));
-    fireEvent.click(await screen.findByTitle('Click to request this pack'));
+    await fire.click(screen.getByRole('button', { name: 'Search history' }));
+    await fire.change(screen.getByPlaceholderText('Search for...'), { target: { value: 'f.iso' } });
+    await fire.click(screen.getByRole('button', { name: 'Search' }));
+    await fire.click(await screen.findByTitle('Click to request this pack'));
     await waitFor(() => expect(irc.spies.sendLine).toHaveBeenCalledWith('s1', 'PRIVMSG bot :XDCC SEND #4'));
     expect(screen.queryByText('Search History')).toBeNull();
   });
@@ -1278,7 +1376,9 @@ describe('App: trust ends with the connection', () => {
       host: 'bot.example',
     };
     await irc.event('s1', offer);
-    fireEvent.click(await screen.findByText(/until this server disconnects/));
+    await fire.click(await screen.findByRole('button', { name: 'Choose how to accept' }));
+    await fire.click(screen.getByText(/for this session/));
+    await fire.click(screen.getByRole('button', { name: 'Accept for session' }));
     await waitFor(() => expect(irc.spies.xdccAccept).toHaveBeenCalledTimes(1));
     irc.emit('onStatus', 's1', 'disconnected');
     irc.emit('onStatus', 's1', 'connected');
@@ -1301,7 +1401,7 @@ describe('App: older history', () => {
     irc.spies.getHistory.mockResolvedValueOnce(page(900, 3));
     const scroller = document.querySelector('.overflow-y-auto.py-2') as HTMLElement;
     scroller.scrollTop = 0;
-    fireEvent.scroll(scroller);
+    await fire.scroll(scroller);
     await waitFor(() => expect(irc.spies.getHistory.mock.calls.length).toBe(before + 1));
     expect(irc.spies.getHistory.mock.calls.at(-1)?.[2]).toBe(1000); // continues from the oldest line it has
     await waitFor(() =>
@@ -1309,7 +1409,7 @@ describe('App: older history', () => {
     );
 
     // that short page was the last one
-    fireEvent.scroll(scroller);
+    await fire.scroll(scroller);
     await new Promise((r) => setTimeout(r, 20));
     expect(irc.spies.getHistory.mock.calls.length).toBe(before + 1);
   });
@@ -1334,16 +1434,16 @@ describe('App: odd input', () => {
 
   it('ignores keys that are not shortcuts', async () => {
     await mount();
-    fireEvent.keyDown(window, { key: 'x', altKey: true });
-    fireEvent.keyDown(window, { key: 'a' });
+    await fire.keyDown(window, { key: 'x', altKey: true });
+    await fire.keyDown(window, { key: 'a' });
     expect(screen.getByRole('heading', { name: '#dolq' })).toBeTruthy();
     expect(useStore.getState().mutedChannels).toEqual({});
   });
 
   it('puts the remembered nick into the preset for a server we already use', async () => {
     await mount();
-    fireEvent.click(screen.getByRole('button', { name: 'Add server' }));
-    fireEvent.change(screen.getByLabelText('Network'), { target: { value: 'irc.libera.chat:6697' } });
+    await fire.click(screen.getByRole('button', { name: 'Add server' }));
+    await fire.change(screen.getByLabelText('Network'), { target: { value: 'irc.libera.chat:6697' } });
     expect((screen.getByPlaceholderText('yournick') as HTMLInputElement).value).toBe('me');
   });
 
@@ -1360,10 +1460,10 @@ describe('App: connection errors and credentials', () => {
   it('writes why a new server could not be reached into its log', async () => {
     const irc = await mount();
     irc.spies.connect.mockRejectedValueOnce(new Error('getaddrinfo ENOTFOUND irc.nowhere.test'));
-    fireEvent.click(screen.getByRole('button', { name: 'Add server' }));
-    fireEvent.change(screen.getByPlaceholderText('irc.libera.chat'), { target: { value: 'irc.nowhere.test' } });
-    fireEvent.change(screen.getByPlaceholderText('yournick'), { target: { value: 'newme' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Connect' }));
+    await fire.click(screen.getByRole('button', { name: 'Add server' }));
+    await fire.change(screen.getByPlaceholderText('irc.libera.chat'), { target: { value: 'irc.nowhere.test' } });
+    await fire.change(screen.getByPlaceholderText('yournick'), { target: { value: 'newme' } });
+    await fire.click(screen.getByRole('button', { name: 'Connect' }));
     await waitFor(() => expect(useStore.getState().servers).toHaveLength(2));
     const added = useStore.getState().servers[1].id;
     await waitFor(() => expect(useStore.getState().messageMap[`${added}:__log__`]?.[0]?.text).toMatch(/ENOTFOUND/));
@@ -1371,12 +1471,12 @@ describe('App: connection errors and credentials', () => {
 
   it('remembers SASL credentials from the editor only when asked', async () => {
     const irc = await mount({ rememberSecrets: true });
-    fireEvent.contextMenu(screen.getByRole('button', { name: 'Libera' }));
-    fireEvent.click(screen.getByText('Edit Server…'));
+    await fire.contextMenu(screen.getByRole('button', { name: 'Libera' }));
+    await fire.click(screen.getByText('Edit Server…'));
     const remember = await screen.findByRole('checkbox', { name: /Remember/i });
     await waitFor(() => expect(remember).not.toBeDisabled());
-    fireEvent.click(remember);
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await fire.click(remember);
+    await fire.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(irc.spies.rememberSecrets).toHaveBeenCalledWith('s1', expect.any(Object)));
     expect(useStore.getState().servers[0].rememberCredentials).toBe(true);
   });
@@ -1385,20 +1485,20 @@ describe('App: connection errors and credentials', () => {
 describe('App: more flows', () => {
   it('exports an empty channel as an empty file rather than failing', async () => {
     const irc = await mount();
-    fireEvent.click(screen.getByRole('button', { name: 'Export log' }));
-    fireEvent.click(screen.getByText('Export as Text'));
+    await fire.click(screen.getByRole('button', { name: 'Export log' }));
+    await fire.click(screen.getByText('Export as Text'));
     await waitFor(() => expect(irc.spies.saveTextFile).toHaveBeenCalledWith('dolq.txt', ''));
   });
 
   it('keeps the credentials of a new server in the keystore when asked', async () => {
     const irc = await mount({ rememberSecrets: true });
-    fireEvent.click(screen.getByRole('button', { name: 'Add server' }));
-    fireEvent.change(screen.getByPlaceholderText('irc.libera.chat'), { target: { value: 'irc.example.org' } });
-    fireEvent.change(screen.getByPlaceholderText('yournick'), { target: { value: 'newme' } });
+    await fire.click(screen.getByRole('button', { name: 'Add server' }));
+    await fire.change(screen.getByPlaceholderText('irc.libera.chat'), { target: { value: 'irc.example.org' } });
+    await fire.change(screen.getByPlaceholderText('yournick'), { target: { value: 'newme' } });
     const remember = await screen.findByRole('checkbox', { name: /Remember/i });
     await waitFor(() => expect(remember).not.toBeDisabled());
-    fireEvent.click(remember);
-    fireEvent.click(screen.getByRole('button', { name: 'Connect' }));
+    await fire.click(remember);
+    await fire.click(screen.getByRole('button', { name: 'Connect' }));
     await waitFor(() => expect(irc.spies.rememberSecrets).toHaveBeenCalled());
     await waitFor(() => expect(useStore.getState().servers.at(-1)?.rememberCredentials).toBe(true));
   });

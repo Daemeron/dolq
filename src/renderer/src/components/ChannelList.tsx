@@ -121,14 +121,14 @@ export function ChannelList({
                   title={`${away.count} message${away.count === 1 ? '' : 's'} from ${away.people} ${away.people === 1 ? 'person' : 'people'} since you last looked`}
                   className={`min-w-5 h-5 px-1.5 rounded-full text-[11px] font-semibold inline-flex items-center justify-center shrink-0 ${
                     mentioned
-                      ? 'bg-(--dolq-accent) text-(--dolq-on-accent)'
+                      ? 'bg-(--dolq-brand) text-(--dolq-on-brand)'
                       : 'bg-(--dolq-bg-row-selected) text-(--dolq-text-muted)'
                   }`}
                 >
                   {away.count > 99 ? '99+' : away.count}
                 </span>
               )}
-              {mentioned && !away && <span className="w-2 h-2 rounded-full bg-(--dolq-accent) shrink-0" />}
+              {mentioned && !away && <span className="w-2 h-2 rounded-full bg-(--dolq-brand) shrink-0" />}
             </RowButton>
           );
         })}

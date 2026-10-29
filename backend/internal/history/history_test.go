@@ -577,3 +577,100 @@ func TestOldEntriesArePrunedOnASchedule(t *testing.T) {
 	}
 	t.Fatal("the stale entry was never pruned")
 }
+
+func TestKeepAliveLinesAreRemovedOnceFromAnOlderHistory(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "history.db")
+	s, err := Open(path, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw := func(line string) {
+		if _, err := s.db.Exec(`INSERT INTO messages (server_id, channel, payload, ts, is_raw) VALUES ('s', ?, ?, 1, 1)`, LogChannel, line); err != nil {
+			t.Fatal(err)
+		}
+	}
+	keep := []string{
+		":irc.example PONG irc.example :not-ours",
+		":nick!u@h PRIVMSG #c :look PONG x :dolq-123",
+		":irc.example NOTICE me :PONG irc.example :dolq-123",
+		":nick!u@h PRIVMSG #c :PING me",
+		":nick!u@h PRIVMSG me :\x01PING 123\x01",
+		":irc.example 372 me :- PING of the day",
+	}
+	for _, line := range keep {
+		raw(line)
+	}
+	for _, line := range []string{
+		":irc.mufff.in PONG irc.mufff.in :dolq-1793276761582912300",
+		"@time=2026-10-29T13:26:00.000Z :irc.mufff.in PONG irc.mufff.in :dolq-1793276791583253300",
+		"PING :irc.uworld.se",
+		"@time=2026-10-29T13:26:00.000Z PING :irc.uworld.se",
+		":irc.example PING :token",
+		"PING",
+	} {
+		raw(line)
+	}
+	// An event row is never a raw line, whatever its text says.
+	if _, err := s.db.Exec(`INSERT INTO messages (server_id, channel, payload, ts, is_raw) VALUES ('s', ?, 'PING :x', 1, 0)`, LogChannel); err != nil {
+		t.Fatal(err)
+	}
+	// A database the first cleanup (our PONGs only) already ran on.
+	if _, err := s.db.Exec(`PRAGMA user_version = 1`); err != nil {
+		t.Fatal(err)
+	}
+	s.Close()
+
+	s, err = Open(path, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var remaining []string
+	rows, err := s.db.Query(`SELECT payload FROM messages ORDER BY id`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for rows.Next() {
+		var p string
+		rows.Scan(&p)
+		remaining = append(remaining, p)
+	}
+	rows.Close()
+	want := append(keep, "PING :x")
+	if strings.Join(remaining, "|") != strings.Join(want, "|") {
+		t.Errorf("remaining = %q, want %q", remaining, want)
+	}
+	var version int
+	s.db.QueryRow(`PRAGMA user_version`).Scan(&version)
+	if version != cleanupVersion {
+		t.Errorf("user_version = %d, want %d so the cleanup does not run again", version, cleanupVersion)
+	}
+
+	// Once done, it is not repeated: a line that matches is left alone now.
+	if _, err := s.db.Exec(`INSERT INTO messages (server_id, channel, payload, ts, is_raw) VALUES ('s', ?, 'PING :late', 1, 1)`, LogChannel); err != nil {
+		t.Fatal(err)
+	}
+	s.Close()
+	s, err = Open(path, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	var n int
+	s.db.QueryRow(`SELECT COUNT(*) FROM messages WHERE payload = 'PING :late'`).Scan(&n)
+	if n != 1 {
+		t.Errorf("the cleanup ran a second time (%d rows)", n)
+	}
+}
+
+func TestNewDatabaseNeedsNoCleanupAndIsMarkedDone(t *testing.T) {
+	s, err := Open(":memory:", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	var version int
+	s.db.QueryRow(`PRAGMA user_version`).Scan(&version)
+	if version != cleanupVersion {
+		t.Errorf("user_version = %d, want %d", version, cleanupVersion)
+	}
+}

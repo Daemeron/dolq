@@ -5,19 +5,19 @@ describe('describeEvent', () => {
   it('marks other users joining, leaving, quitting and renaming as membership lines', () => {
     expect(describeEvent({ type: 'JOIN', nick: 'alice', channel: '#a' }, 'me')).toEqual({
       text: 'alice joined',
-      membership: true,
+      membership: 'join',
     });
     expect(describeEvent({ type: 'PART', nick: 'alice', channel: '#a', reason: 'bye' }, 'me')).toEqual({
       text: 'alice left (bye)',
-      membership: true,
+      membership: 'part',
     });
     expect(describeEvent({ type: 'QUIT', nick: 'alice', reason: 'Ping timeout' }, 'me')).toEqual({
       text: 'alice quit (Ping timeout)',
-      membership: true,
+      membership: 'quit',
     });
     expect(describeEvent({ type: 'NICK', oldNick: 'alice', newNick: 'alicia' }, 'me')).toEqual({
       text: 'alice is now known as alicia',
-      membership: true,
+      membership: 'nick',
     });
   });
 

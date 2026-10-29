@@ -55,7 +55,7 @@ export function MessageInput({ channelName, isLog, isQuery, onSend, onSendFile }
       )}
       <form
         onSubmit={handleSubmit}
-        className="rounded-2xl border border-(--dolq-border-strong) bg-(--dolq-bg-input) pt-2.5 pr-2.5 pb-2 pl-4 focus-within:border-(--dolq-accent) focus-within:shadow-[0_0_0_3px_var(--dolq-accent-soft)]"
+        className="rounded-2xl border border-(--dolq-border-strong) bg-(--dolq-bg-input) pt-2.5 pr-2.5 pb-2 pl-4 focus-within:border-(--dolq-brand) focus-within:shadow-[0_0_0_3px_var(--dolq-brand-soft)]"
       >
         <input
           ref={inputRef}
@@ -103,7 +103,7 @@ export function MessageInput({ channelName, isLog, isQuery, onSend, onSendFile }
             type="submit"
             aria-label="Send"
             disabled={!value.trim()}
-            className="shrink-0 w-8 h-8 flex items-center justify-center rounded-lg border-0 bg-(--dolq-accent) text-(--dolq-on-accent) cursor-pointer hover:bg-(--dolq-accent-hover) disabled:bg-(--dolq-bg-row-selected) disabled:text-(--dolq-text-faint) disabled:cursor-default"
+            className="shrink-0 w-8 h-8 flex items-center justify-center rounded-lg border-0 bg-(--dolq-brand) text-(--dolq-on-brand) cursor-pointer hover:bg-(--dolq-brand-hover) disabled:bg-(--dolq-bg-row-selected) disabled:text-(--dolq-text-faint) disabled:cursor-default"
           >
             <Icon name="send" />
           </button>

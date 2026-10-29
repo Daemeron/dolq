@@ -10,6 +10,11 @@ const PATHS = {
   power: 'M12 3v9M6.3 6.3a8 8 0 1 0 11.4 0',
   terminal: 'm4 17 6-6-6-6M12 19h8',
   plus: 'M12 5v14M5 12h14',
+  chevronRight: 'm9 6 6 6-6 6',
+  chevronDown: 'm6 9 6 6 6-6',
+  check: 'm5 12 5 5 9-10',
+  arrowLeft: 'M19 12H5m0 0 6-6m-6 6 6 6',
+  arrowRight: 'M5 12h14m0 0-6-6m6 6-6 6',
   send: 'M12 19V5m0 0-6 6m6-6 6 6',
   smile: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM8 14s1.5 2 4 2 4-2 4-2M9 9h.01M15 9h.01',
   zap: 'M13 2 4 14h7l-1 8 9-12h-7z',
@@ -48,6 +53,7 @@ export function IconButton({
   onClick,
   on,
   badge,
+  compact,
 }: {
   icon: IconName;
   label: string;
@@ -55,6 +61,8 @@ export function IconButton({
   on?: boolean;
   /** A small accent dot for something unseen. */
   badge?: boolean;
+  /** A slimmer button, for the title strip. */
+  compact?: boolean;
 }) {
   return (
     <button
@@ -63,15 +71,15 @@ export function IconButton({
       aria-label={label}
       aria-pressed={on}
       data-tip={label}
-      className={`has-tip relative w-8.5 h-8.5 flex items-center justify-center rounded-lg border-0 cursor-pointer hover:text-(--dolq-text) hover:bg-(--dolq-bg-row-hover) ${
+      className={`has-tip relative ${compact ? 'size-7' : 'size-8.5'} flex items-center justify-center rounded-lg border-0 cursor-pointer hover:text-(--dolq-text) hover:bg-(--dolq-bg-row-hover) ${
         on ? 'bg-(--dolq-bg-row-selected) text-(--dolq-text)' : 'bg-transparent text-(--dolq-text-dim)'
       }`}
     >
-      <Icon name={icon} />
+      <Icon name={icon} size={compact ? 16 : 18} />
       {badge && (
         <span
           data-testid="icon-badge"
-          className="absolute top-1.5 right-1.5 w-1.75 h-1.75 rounded-full bg-(--dolq-accent) border-2 border-(--dolq-bg)"
+          className="absolute top-1.5 right-1.5 w-1.75 h-1.75 rounded-full bg-(--dolq-brand) border-2 border-(--dolq-bg)"
         />
       )}
     </button>

@@ -1,4 +1,6 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { ContextMenuItem } from './ContextMenu';
+import { Icon } from './Icon';
 import { Button, Card, Setting } from './ui';
 import { ViewPanel } from './ViewPanel';
 
@@ -26,6 +28,8 @@ function formatBytes(n: number): string {
   return `${v.toFixed(1)} ${units[i]}`;
 }
 
+type Mode = 'once' | 'session' | 'always';
+
 export function XDCCOfferModal({
   nick,
   filename,
@@ -36,13 +40,26 @@ export function XDCCOfferModal({
   onAcceptAlways,
   onDecline,
 }: Props) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  // What the Accept button does: the menu only picks this, the button itself accepts.
+  const [mode, setMode] = useState<Mode>('once');
+  const accept = { once: onAccept, session: onAcceptSession, always: onAcceptAlways }[mode];
+  const label = { once: 'Accept', session: 'Accept for session', always: 'Always accept' }[mode];
+  const choose = (next: Mode) => {
+    setMode(next);
+    setMenuOpen(false);
+  };
+
+  // Escape closes the trust menu first, and only a second press declines the offer.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onDecline();
+      if (e.key !== 'Escape') return;
+      if (menuOpen) setMenuOpen(false);
+      else onDecline();
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [onDecline]);
+  }, [onDecline, menuOpen]);
 
   return (
     <ViewPanel
@@ -53,13 +70,47 @@ export function XDCCOfferModal({
       footer={
         <>
           <Button onClick={onDecline}>Decline</Button>
-          <Button variant="primary" onClick={onAccept}>
-            Accept
-          </Button>
+          {/* Accept, with the trust options attached to its right edge. */}
+          <div className="relative flex">
+            <Button variant="primary" className={trustable ? 'rounded-r-none' : ''} onClick={accept}>
+              {label}
+            </Button>
+            {trustable && (
+              <Button
+                variant="primary"
+                aria-label="Choose how to accept"
+                aria-haspopup="menu"
+                aria-expanded={menuOpen}
+                className="rounded-l-none border-l-(--dolq-on-brand)/30 px-2!"
+                onClick={() => setMenuOpen((open) => !open)}
+              >
+                <Icon name="chevronDown" size={16} />
+              </Button>
+            )}
+            {menuOpen && (
+              <>
+                <div aria-hidden="true" className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
+                <div
+                  role="menu"
+                  className="absolute right-0 bottom-full z-20 mb-2 w-max rounded-lg bg-(--dolq-bg-input) py-1.5 shadow-(--dolq-shadow)"
+                >
+                  <ContextMenuItem checked={mode === 'once'} onClick={() => choose('once')}>
+                    Accept this file only
+                  </ContextMenuItem>
+                  <ContextMenuItem checked={mode === 'session'} onClick={() => choose('session')}>
+                    Accept from {nick} for this session
+                  </ContextMenuItem>
+                  <ContextMenuItem checked={mode === 'always'} onClick={() => choose('always')}>
+                    Always accept from {nick}
+                  </ContextMenuItem>
+                </div>
+              </>
+            )}
+          </div>
         </>
       }
     >
-      <Card className="border-(--dolq-accent) bg-(--dolq-accent-soft)">
+      <Card className="border-(--dolq-brand) bg-(--dolq-brand-soft)">
         <Setting
           title={`${nick} offers a file`}
           description={
@@ -69,24 +120,6 @@ export function XDCCOfferModal({
           }
         />
       </Card>
-      {trustable && (
-        <div className="flex flex-col items-start gap-1">
-          <button
-            type="button"
-            onClick={onAcceptSession}
-            className="cursor-pointer border-0 bg-transparent p-0 text-[12px] text-(--dolq-text-dim) hover:text-(--dolq-text) hover:underline"
-          >
-            Accept and trust {nick} until this server disconnects
-          </button>
-          <button
-            type="button"
-            onClick={onAcceptAlways}
-            className="cursor-pointer border-0 bg-transparent p-0 text-[12px] text-(--dolq-text-dim) hover:text-(--dolq-text) hover:underline"
-          >
-            Accept and always trust {nick}
-          </button>
-        </div>
-      )}
     </ViewPanel>
   );
 }

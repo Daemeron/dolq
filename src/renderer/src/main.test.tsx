@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react';
+import { act, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('./App', () => ({ default: () => <p>the app</p> }));
@@ -15,7 +15,9 @@ afterEach(() => {
 describe('renderer entry', () => {
   it('mounts the app into #root', async () => {
     document.body.innerHTML = '<div id="root"></div>';
-    await import('./main');
+    await act(async () => {
+      await import('./main');
+    });
     await waitFor(() => expect(screen.getByText('the app')).toBeTruthy());
   });
 

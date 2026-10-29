@@ -25,9 +25,6 @@ type Props = {
   /** Channels on this server that mentioned you and are still unread. */
   mentions?: { id: string; label: string }[];
   onSelectMention?: (id: string) => void;
-  transferCount?: number;
-  showTransfers?: boolean;
-  onToggleTransfers?: () => void;
 };
 
 export function TopicBar({
@@ -50,14 +47,11 @@ export function TopicBar({
   serverColor,
   mentions = [],
   onSelectMention,
-  transferCount = 0,
-  showTransfers,
-  onToggleTransfers,
 }: Props) {
   const whoWhen = topicSetBy && `Set by ${topicSetBy}${topicSetAt ? ` at ${topicSetAt.toLocaleString()}` : ''}`;
   const { menu, open, close } = useContextMenu<null>();
   const mentionMenu = useContextMenu<null>();
-  const prefixStyle = { color: serverColor ?? 'var(--dolq-accent)' };
+  const prefixStyle = { color: serverColor ?? 'var(--dolq-brand)' };
   const connected = connectionStatus === 'connected';
   return (
     <div className="h-14 flex items-center gap-3 pl-5 pr-3 border-b border-(--dolq-border) bg-(--dolq-bg) shrink-0">
@@ -103,15 +97,6 @@ export function TopicBar({
               </ContextMenu>
             )}
           </>
-        )}
-        {onToggleTransfers && (
-          <IconButton
-            icon="download"
-            label="Transfers"
-            on={showTransfers}
-            badge={transferCount > 0}
-            onClick={onToggleTransfers}
-          />
         )}
         {onToggleMute && (
           <IconButton

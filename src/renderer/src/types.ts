@@ -1,4 +1,5 @@
 import type { PrivilegeLevel } from '../../shared/ipc';
+import type { MembershipKind } from './utils/eventMessages';
 
 export type Server = {
   id: string;
@@ -39,7 +40,7 @@ export type Message = {
   timestamp: Date;
   isRaw?: boolean;
   system?: boolean;
-  membership?: boolean;
+  membership?: MembershipKind;
   action?: boolean;
   notice?: boolean;
   xdccPack?: boolean;

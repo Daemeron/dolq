@@ -121,7 +121,7 @@ export function ConnectModal({ presets, nickMap, onConnect, onCancel, initial, i
           <Button variant="ghost" onClick={onCancel}>
             Cancel
           </Button>
-          <Button variant="primary" type="submit">
+          <Button variant="accent" type="submit">
             Connect
           </Button>
         </>

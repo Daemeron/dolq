@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"log"
 	"os"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -68,6 +70,10 @@ func Open(path string, retentionDays int) (*Store, error) {
 		db.Close()
 		return nil, err
 	}
+	if err := dropProtocolNoise(db); err != nil {
+		db.Close()
+		return nil, err
+	}
 	const bufferSize = 4096
 	s := &Store{db: db, entries: make(chan Entry, bufferSize), done: make(chan struct{}), retentionDays: retentionDays}
 	go s.run()
@@ -77,6 +83,61 @@ func Open(path string, retentionDays int) (*Store, error) {
 		go s.pruneLoop()
 	}
 	return s, nil
+}
+
+// protocolNoise matches the keep-alive lines that used to be logged: the server's PING, and its answer to a latency
+// PING of ours ([@tags ][:prefix ]PING ... or ...PONG server :dolq-<digits>).
+var protocolNoise = regexp.MustCompile(`^(@\S+ )?(:\S+ )?(PING( .*)?|PONG \S+ :dolq-\d+)$`)
+
+// cleanupVersion counts the one-time history cleanups; PRAGMA user_version records the last one done.
+const cleanupVersion = 2
+
+// dropProtocolNoise removes those lines from histories written before they were kept out of the log. It runs once per
+// database and cleanup version, so a large history is not scanned at every start.
+func dropProtocolNoise(db *sql.DB) error {
+	var version int
+	if err := db.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil {
+		return err
+	}
+	if version >= cleanupVersion {
+		return nil
+	}
+	rows, err := db.Query(`SELECT id, payload FROM messages WHERE is_raw = 1 AND (payload LIKE '%PING%' OR payload LIKE '%PONG%')`)
+	if err != nil {
+		return err
+	}
+	var ids []int64
+	for rows.Next() {
+		var id int64
+		var payload string
+		if err := rows.Scan(&id, &payload); err != nil {
+			rows.Close()
+			return err
+		}
+		if protocolNoise.MatchString(payload) {
+			ids = append(ids, id)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return err
+	}
+	rows.Close()
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+	for _, id := range ids {
+		if _, err := tx.Exec(`DELETE FROM messages WHERE id = ?`, id); err != nil {
+			tx.Rollback()
+			return err
+		}
+	}
+	if _, err := tx.Exec(fmt.Sprintf(`PRAGMA user_version = %d`, cleanupVersion)); err != nil {
+		tx.Rollback()
+		return err
+	}
+	return tx.Commit()
 }
 
 // restrictDBFiles makes the database owner-only before SQLite opens it:

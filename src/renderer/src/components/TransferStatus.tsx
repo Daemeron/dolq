@@ -1,3 +1,5 @@
+import { formatBytes } from '../utils/bytes';
+import { activeLine, transferPercent } from '../utils/transferLine';
 import { IconButton } from './Icon';
 import { Button, Card } from './ui';
 import { ViewPanel } from './ViewPanel';
@@ -26,18 +28,6 @@ type Props = {
   onClose: () => void;
 };
 
-function formatBytes(n: number): string {
-  if (n < 1024) return `${n} B`;
-  const units = ['KB', 'MB', 'GB', 'TB'];
-  let v = n / 1024;
-  let i = 0;
-  while (v >= 1024 && i < units.length - 1) {
-    v /= 1024;
-    i++;
-  }
-  return `${v.toFixed(1)} ${units[i]}`;
-}
-
 export function TransferStatus({ transfers, onPause, onResume, onCancel, onDismiss, onShowInFolder, onClose }: Props) {
   const entries = Object.entries(transfers);
 
@@ -54,7 +44,6 @@ export function TransferStatus({ transfers, onPause, onResume, onCancel, onDismi
       ) : (
         <Card>
           {entries.map(([id, t]) => {
-            const pct = t.total > 0 ? Math.min(100, Math.round((t.received / t.total) * 100)) : 0;
             const finished = t.done || !!t.error;
             return (
               <div key={id} className="flex items-center gap-4 px-4 py-3.5">
@@ -67,23 +56,15 @@ export function TransferStatus({ transfers, onPause, onResume, onCancel, onDismi
                       <span className="text-(--dolq-danger)">Failed: {t.error}</span>
                     ) : t.done ? (
                       `${t.sending ? 'Sent' : 'Completed'} · ${formatBytes(t.total)}`
-                    ) : t.sending ? (
-                      t.total > 0 ? (
-                        `Sending to ${t.nick} · ${pct}% of ${formatBytes(t.total)}`
-                      ) : (
-                        `Waiting for ${t.nick} to connect`
-                      )
-                    ) : t.paused ? (
-                      `${t.nick} · ${pct}% of ${formatBytes(t.total)} · paused`
                     ) : (
-                      `${t.nick} · ${pct}% of ${formatBytes(t.total)}${t.speedBps ? ` · ${formatBytes(t.speedBps)}/s` : ''}`
+                      activeLine(t)
                     )}
                   </div>
                   {!finished && (
                     <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-(--dolq-bg-row-selected)">
                       <div
-                        className={`h-full rounded-full transition-[width] ${t.paused ? 'bg-(--dolq-text-faint)' : 'bg-(--dolq-accent)'}`}
-                        style={{ width: `${pct}%` }}
+                        className={`h-full rounded-full transition-[width] ${t.paused ? 'bg-(--dolq-text-faint)' : 'bg-(--dolq-brand)'}`}
+                        style={{ width: `${transferPercent(t)}%` }}
                       />
                     </div>
                   )}

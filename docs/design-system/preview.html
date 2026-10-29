@@ -21,7 +21,9 @@
       <div><div class="sw" style="background:var(--surface)"></div><div class="hint">surface #FFF</div></div>
       <div><div class="sw" style="background:var(--text)"></div><div class="hint">text #141413</div></div>
       <div><div class="sw" style="background:var(--muted)"></div><div class="hint">muted #6B6963</div></div>
-      <div><div class="sw" style="background:var(--accent)"></div><div class="hint">accent #C6613F</div></div>
+      <div><div class="sw" style="background:var(--accent)"></div><div class="hint">accent #E0AC00</div></div>
+      <div><div class="sw" style="background:var(--brand)"></div><div class="hint">brand #C6613F</div></div>
+      <div><div class="sw" style="background:var(--download)"></div><div class="hint">download #4C2FC4</div></div>
       <div><div class="sw" style="background:var(--ok)"></div><div class="hint">ok #3E9B6A</div></div>
     </div></section>
 
@@ -38,7 +40,7 @@
 
   <section><h3>Controls</h3>
     <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
-      <button class="btn primary">Primary</button><button class="btn">Secondary</button><button class="btn ghost">Ghost</button><button class="btn danger">Danger</button>
+      <button class="btn primary">Primary</button><span style="display:inline-flex"><button class="btn primary split-l">Accept</button><button class="btn primary split-r" aria-label="More ways to accept">&#9662;</button></span><button class="btn accent">Settings action</button><button class="btn">Secondary</button><button class="btn ghost">Ghost</button><button class="btn danger">Danger</button>
       <input class="input" style="width:200px" placeholder="Input">
       <span class="switch on"></span><span class="switch"></span><span class="check on"><svg class="i sm" viewBox="0 0 24 24" style="width:12px;height:12px;stroke-width:3"><path d="m5 12 5 5 9-10"/></svg></span>
       <span class="count">3</span><span class="count quiet">12</span><span class="tag">bot</span><span class="kbd">⌘ K</span>
@@ -46,10 +48,48 @@
 
   <section><h3>Server icon and connection badge (hover the badges)</h3>
     <div style="display:flex;gap:28px;background:var(--bg-rail);padding:24px;border-radius:12px;width:fit-content">
-      <button class="srv" style="background:#C6613F" aria-label="Connected">LC<span class="badge has-tip" data-tip="Connected"></span></button>
+      <button class="srv" style="background:#1F46D0" aria-label="Connected">LC<span class="badge has-tip" data-tip="Connected"></span></button>
       <button class="srv" style="background:#8A5BC4" aria-label="Connecting">Rz<span class="badge busy has-tip" data-tip="Connecting…"></span></button>
       <button class="srv" style="background:#6C7A2A" aria-label="Disconnected">EF<span class="badge off has-tip" data-tip="Disconnected"></span></button>
       <button class="srv sel" style="background:#2F7EB8" aria-label="Selected">OF<span class="badge has-tip" data-tip="Connected"></span></button>
+    </div></section>
+
+  <section><h3>Title strip (32px, above the whole app)</h3>
+    <div style="width:640px;border:1px solid var(--border);border-radius:10px;overflow:hidden">
+      <div style="height:32px;display:flex;align-items:center;gap:2px;padding:0 8px 0 12px;background:var(--bg-rail);border-bottom:1px solid var(--border)">
+        <button class="icon-btn" style="width:28px;height:28px" aria-label="Back"><svg class="i" viewBox="0 0 24 24" style="width:16px;height:16px"><path d="M19 12H5m0 0 6-6m-6 6 6 6"/></svg></button><button class="icon-btn" style="width:28px;height:28px;opacity:.35" aria-label="Forward"><svg class="i" viewBox="0 0 24 24" style="width:16px;height:16px"><path d="M5 12h14m0 0-6-6m6 6-6 6"/></svg></button><span style="flex:1;text-align:center;font-size:12px;font-weight:500;color:var(--muted)">#dolq · Libera</span>
+        <button class="icon-btn" style="width:28px;height:28px" aria-label="Search everywhere"><svg class="i" viewBox="0 0 24 24" style="width:16px;height:16px"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></button>
+        <button class="icon-btn" style="width:28px;height:28px" aria-label="Transfers"><svg class="i" viewBox="0 0 24 24" style="width:16px;height:16px"><path d="M12 3v12m0 0-4-4m4 4 4-4M4 21h16"/></svg></button>
+        <button class="icon-btn on" style="width:28px;height:28px" aria-label="Away on all servers"><svg class="i" viewBox="0 0 24 24" style="width:16px;height:16px"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
+        <button class="icon-btn" style="width:28px;height:28px" aria-label="Preferences"><svg class="i" viewBox="0 0 24 24" style="width:16px;height:16px"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/></svg></button>
+        <span class="hint" style="margin-left:12px">window buttons (native)</span>
+      </div>
+      <div style="height:48px"></div>
+    </div></section>
+
+  <section><h3>Folded joins and leaves</h3>
+    <div style="width:520px;border:1px solid var(--border);border-radius:10px;padding:6px 0">
+      <div class="msg"><span class="gutter">13:03</span><div class="body"><div class="text" style="font-style:italic;color:var(--muted);font-size:13px;display:flex;gap:12px"><span style="flex:1">nolden, MintCarrot and 2 others joined &middot; warrior left</span><span class="hint">7 events &middot; until 13:09 &rsaquo;</span></div></div></div>
+    </div></section>
+
+  <section><h3>Server log: new session divider</h3>
+    <div style="width:520px;border:1px solid var(--border);border-radius:10px;padding:10px 0;font-family:var(--mono, monospace);font-size:12px;line-height:20px">
+      <div style="padding:0 28px"><span class="hint" style="margin-right:12px">13:04</span>*** Disconnected</div>
+      <div style="display:flex;align-items:center;gap:12px;margin:32px 28px 12px"><span style="height:1px;flex:1;background:var(--border)"></span><span style="border-radius:999px;background:var(--brand-soft, rgba(198,97,63,.1));color:var(--brand-text);padding:2px 12px;font:600 11px var(--sans, inherit);letter-spacing:.08em;text-transform:uppercase">New session</span><span style="height:1px;flex:1;background:var(--border)"></span></div>
+      <div style="padding:0 28px"><span class="hint" style="margin-right:12px">13:20</span>:irc.example 001 me :Welcome</div>
+    </div></section>
+
+  <section><h3>Dashboard: bandwidth card</h3>
+    <div style="width:520px;border:1px solid var(--border);border-radius:12px;background:var(--surface);padding:14px 16px;display:flex;flex-direction:column;gap:8px">
+      <div style="display:flex;align-items:baseline;gap:16px;font-size:13px"><b style="font-weight:500">Bandwidth</b><span class="hint" style="display:flex;align-items:center;gap:6px"><i style="width:12px;height:8px;border-top:2px solid var(--download);background:color-mix(in srgb,var(--download) 20%,transparent);border-radius:2px"></i>Download</span><span class="hint" style="display:flex;align-items:center;gap:6px"><i style="width:12px;border-top:2px dashed var(--n3)"></i>Upload</span><span class="hint" style="margin-left:auto">peak 3.2 MB/s</span></div>
+      <svg width="100%" height="80" viewBox="0 0 640 80" preserveAspectRatio="none"><line x1="0" x2="640" y1="80" y2="80" stroke="var(--border)"/><polygon points="0,80 0,80 100,30 200,14 300,40 400,10 500,24 640,50 640,80" fill="var(--download)" fill-opacity=".2"/><polyline points="0,80 100,30 200,14 300,40 400,10 500,24 640,50" fill="none" stroke="var(--download)" stroke-width="2" vector-effect="non-scaling-stroke"/><polyline points="0,80 100,70 200,64 300,72 400,60 500,66 640,70" fill="none" stroke="var(--n3)" stroke-width="2" stroke-dasharray="5 4" vector-effect="non-scaling-stroke"/></svg>
+    </div></section>
+
+  <section><h3>Dashboard: server card with latency</h3>
+    <div style="width:520px;border:1px solid var(--border);border-radius:12px;background:var(--surface);padding:14px 16px;display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;align-items:center;gap:12px"><span class="avatar" style="background:var(--n2);width:32px;height:32px;border-radius:10px;font-size:12px">LC</span><b style="font-weight:500">Libera</b><span class="hint">Connected</span><span style="margin-left:auto;font-size:18px;font-weight:500;color:var(--ok)">42 ms</span></div>
+      <div style="display:flex;align-items:center;gap:16px;color:var(--brand-text)"><svg width="240" height="32" viewBox="0 0 240 32" style="overflow:visible"><polyline points="0,20 40,12 80,24 120,8 160,16 200,4 240,14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/></svg><span class="hint">min 31 · avg 44 · max 71 ms</span></div>
+      <div style="display:flex;gap:6px"><span class="tag" style="border-radius:999px;padding:2px 10px">#dolq</span><span class="tag" style="border-radius:999px;padding:2px 10px">#linux</span></div>
     </div></section>
 
   <section><h3>Toolbar, rows, grouped messages</h3>

@@ -13,10 +13,17 @@
   --text-2: #3d3d3a;
   --muted: #6b6963;
   --faint: #a3a199;
-  --accent: #c6613f;
-  --accent-hover: #b3532f;
-  --on-accent: #ffffff;
-  --accent-soft: rgba(198, 97, 63, 0.1);
+  --accent: #e0ac00;
+  --accent-hover: #cc9b00;
+  --accent-text: #6e5200;
+  --on-accent: #141413;
+  --accent-soft: rgba(224, 172, 0, 0.18);
+  --brand: #c6613f;
+  --brand-hover: #b3532f;
+  --brand-text: #c6613f;
+  --on-brand: #ffffff;
+  --brand-soft: rgba(198, 97, 63, 0.1);
+  --download: #4c2fc4;
   --ok: #3e9b6a;
   --warn: #b7791f;
   --danger: #b5372b;
@@ -60,10 +67,17 @@
   --text-2: #d3d1c7;
   --muted: #a09e95;
   --faint: #6e6c65;
-  --accent: #d97757;
-  --accent-hover: #e48767;
+  --accent: #f5c518;
+  --accent-hover: #ffd43b;
+  --accent-text: #f5c518;
   --on-accent: #1f1e1d;
-  --accent-soft: rgba(217, 119, 87, 0.14);
+  --accent-soft: rgba(245, 197, 24, 0.18);
+  --brand: #d97757;
+  --brand-hover: #e48767;
+  --brand-text: #d97757;
+  --on-brand: #1f1e1d;
+  --brand-soft: rgba(217, 119, 87, 0.14);
+  --download: #b4a8ff;
   --ok: #5cbf8a;
   --warn: #e0a64a;
   --danger: #e5736a;
@@ -160,11 +174,20 @@
   background: var(--hover);
 }
 .dq .btn.primary {
+  background: var(--brand);
+  border-color: var(--brand);
+  color: var(--on-brand);
+}
+.dq .btn.primary:hover {
+  background: var(--brand-hover);
+  border-color: var(--brand-hover);
+}
+.dq .btn.accent {
   background: var(--accent);
   border-color: var(--accent);
   color: var(--on-accent);
 }
-.dq .btn.primary:hover {
+.dq .btn.accent:hover {
   background: var(--accent-hover);
   border-color: var(--accent-hover);
 }
@@ -204,11 +227,11 @@
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: var(--accent);
+  background: var(--brand);
   border: 2px solid var(--bg);
 }
 :focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--brand);
   outline-offset: 2px;
 }
 
@@ -466,8 +489,8 @@
   height: 20px;
   padding: 0 6px;
   border-radius: 10px;
-  background: var(--accent);
-  color: var(--on-accent);
+  background: var(--brand);
+  color: var(--on-brand);
   font-size: 11px;
   font-weight: 600;
   display: inline-flex;
@@ -606,10 +629,10 @@
   overflow-wrap: anywhere;
 }
 .dq .msg.mention {
-  background: var(--accent-soft);
+  background: var(--brand-soft);
 }
 .dq .msg.mention:hover {
-  background: var(--accent-soft);
+  background: var(--brand-soft);
 }
 .dq .sys {
   padding: 2px 28px 2px 76px;
@@ -655,7 +678,7 @@
   font-size: 12.5px;
 }
 .dq .link {
-  color: var(--accent);
+  color: var(--brand);
   text-decoration: underline;
   text-underline-offset: 2px;
 }
@@ -673,8 +696,8 @@
   box-shadow: 0 1px 2px rgba(20, 20, 19, 0.04);
 }
 .dq .composer:focus-within {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-soft);
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px var(--brand-soft);
 }
 .dq .composer textarea {
   width: 100%;
@@ -699,14 +722,14 @@
   width: 32px;
   height: 32px;
   border-radius: var(--r-md);
-  background: var(--accent);
-  color: var(--on-accent);
+  background: var(--brand);
+  color: var(--on-brand);
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
 .dq .send:hover {
-  background: var(--accent-hover);
+  background: var(--brand-hover);
 }
 .dq .send[disabled] {
   background: var(--active);
@@ -756,7 +779,7 @@
 
 /* Dialogs & panels */
 .dq .scrim {
-  background: rgba(20, 20, 19, 0.38);
+  background: rgba(0, 0, 0, 0.6);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -855,7 +878,7 @@
 .dq .progress > i {
   display: block;
   height: 100%;
-  background: var(--accent);
+  background: var(--brand);
   border-radius: 6px;
 }
 .dq .kbd {
@@ -867,4 +890,14 @@
   padding: 1px 6px;
   color: var(--text-2);
   background: var(--surface);
+}
+.dq .btn.split-l {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.dq .btn.split-r {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  border-left-color: rgba(255, 255, 255, 0.3);
+  padding: 0 8px;
 }

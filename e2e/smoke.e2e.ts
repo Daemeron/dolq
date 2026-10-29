@@ -48,6 +48,9 @@ test('launches, renders and talks to its local backend', async () => {
       await expect(page).toHaveTitle('Dolq');
       await expect(page.getByRole('button', { name: 'Add server' })).toBeVisible();
 
+      await page.getByRole('button', { name: 'Dashboard' }).click();
+      await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
+
       // Waits for the spawned dolqd to report its socket, accept the token and answer.
       const status = await page.evaluate(() => (window as unknown as { irc: IrcApi }).irc.getStatus('smoke-test'));
       expect(status).toBe('disconnected');

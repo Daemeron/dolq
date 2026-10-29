@@ -869,9 +869,10 @@ will hang the UI.
 
 ## Milestone 5 — Cross-platform distribution
 
-- [ ] Windows and Linux build parity (README currently says "targeting macOS...
-      multiplatform planned" - `electron-builder.json5` already has
-      `win`/`linux` targets configured but they're unverified)
+- [x] Windows and Linux build parity - releases ship binaries for all three
+      platforms (the Build Binaries workflow runs vet, tests and packaging on
+      macOS, Linux and Windows, including a `GOOS=windows go vet` step), and the
+      app runs on Windows 11
 - [ ] Auto-update (`electron-updater` + a release feed)
 - [ ] Code signing for Windows (currently self-signed, triggers SmartScreen per
       the README)

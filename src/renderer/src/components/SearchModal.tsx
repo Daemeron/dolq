@@ -9,6 +9,7 @@ import { Segmented, Switch } from './ui';
 import { ViewPanel } from './ViewPanel';
 
 type Props = {
+  initialScope?: Scope;
   servers: Server[];
   defaultServerId: string;
   defaultChannel: string;
@@ -37,7 +38,7 @@ function preview(entry: HistoryEntry): { nick: string; text: string } {
   return { nick: '', text: e ? JSON.stringify(e) : '' };
 }
 
-type Scope = 'channel' | 'server' | 'everywhere';
+export type Scope = 'channel' | 'server' | 'everywhere';
 
 const whenLabel = (timestamp: string | number) => {
   const d = new Date(timestamp);
@@ -45,6 +46,7 @@ const whenLabel = (timestamp: string | number) => {
 };
 
 export function SearchModal({
+  initialScope = 'channel',
   servers,
   defaultServerId,
   defaultChannel,
@@ -54,7 +56,7 @@ export function SearchModal({
   onClose,
 }: Props) {
   const [query, setQuery] = useState('');
-  const [scope, setScope] = useState<Scope>('channel');
+  const [scope, setScope] = useState<Scope>(initialScope);
   const [packsOnly, setPacksOnly] = useState(false);
   const [results, setResults] = useState<HistoryEntry[] | null>(null);
   const [searched, setSearched] = useState('');

@@ -29,17 +29,55 @@ describe('XDCCOfferModal', () => {
     expect(screen.getByText(/pack\.iso/).textContent).toContain('5.0 GB');
   });
 
-  it('offers the trust options only when the sender can be recognised', () => {
-    const { onAcceptSession, onAcceptAlways } = setup(true);
-    fireEvent.click(screen.getByText(/until this server disconnects/));
-    fireEvent.click(screen.getByText(/always trust/));
-    expect(onAcceptSession).toHaveBeenCalled();
-    expect(onAcceptAlways).toHaveBeenCalled();
+  it('picks how to accept from a menu, then accepts with the button', () => {
+    const { onAccept, onAcceptSession, onAcceptAlways } = setup(true);
+    const choose = (name: string) => {
+      fireEvent.click(screen.getByRole('button', { name: 'Choose how to accept' }));
+      fireEvent.click(screen.getByRole('menuitemradio', { name }));
+    };
+    choose('Accept from bot for this session');
+    expect(onAcceptSession).not.toHaveBeenCalled();
+    expect(screen.queryByRole('menu')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Accept for session' }));
+    expect(onAcceptSession).toHaveBeenCalledTimes(1);
+
+    choose('Always accept from bot');
+    fireEvent.click(screen.getByRole('button', { name: 'Always accept' }));
+    expect(onAcceptAlways).toHaveBeenCalledTimes(1);
+
+    choose('Accept this file only');
+    fireEvent.click(screen.getByRole('button', { name: 'Accept' }));
+    expect(onAccept).toHaveBeenCalledTimes(1);
+  });
+
+  it('marks the current choice in the menu', () => {
+    setup(true);
+    fireEvent.click(screen.getByRole('button', { name: 'Choose how to accept' }));
+    expect(screen.getByRole('menuitemradio', { name: 'Accept this file only' }).getAttribute('aria-checked')).toBe(
+      'true',
+    );
+    expect(screen.getByRole('menuitemradio', { name: 'Always accept from bot' }).getAttribute('aria-checked')).toBe(
+      'false',
+    );
+  });
+
+  it('closes the menu on Escape before declining, and on a click outside it', () => {
+    const { onDecline } = setup(true);
+    const open = () => fireEvent.click(screen.getByRole('button', { name: 'Choose how to accept' }));
+    open();
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(screen.queryByRole('menu')).toBeNull();
+    expect(onDecline).not.toHaveBeenCalled();
+    open();
+    fireEvent.click(document.querySelector('.fixed.inset-0.z-10') as Element);
+    expect(screen.queryByRole('menu')).toBeNull();
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(onDecline).toHaveBeenCalledTimes(1);
   });
 
   it('hides the trust options for an unrecognisable sender', () => {
     setup(false);
-    expect(screen.queryByText(/always trust/)).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Choose how to accept' })).toBeNull();
   });
 
   it('accepts once, declines, and declines on Escape', () => {

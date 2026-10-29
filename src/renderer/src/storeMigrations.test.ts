@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { type Migration, migrateState, migrateStore } from './storeMigrations';
 
 const add =
@@ -43,7 +43,10 @@ describe('migrateState', () => {
     const boom: Migration = () => {
       throw new Error('bad shape');
     };
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     expect(migrateState({ a: 1 }, 0, 1, { 0: boom })).toEqual({});
+    expect(warn).toHaveBeenCalledWith('store: migration 0 -> 1 failed, starting fresh', expect.any(Error));
+    warn.mockRestore();
   });
 
   it('flushes data written by a newer build', () => {

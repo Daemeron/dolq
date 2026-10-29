@@ -921,3 +921,14 @@ func TestDisconnectBeforeARedialStartsItsClient(t *testing.T) {
 		t.Errorf("Status(server-a) right after Disconnect = %q, want disconnected", got)
 	}
 }
+
+func TestLiveStateEventsAreNotKeptInHistory(t *testing.T) {
+	for _, event := range []any{ircclient.NamesEvent{}, ircclient.LatencyEvent{Type: "LATENCY", Ms: 12}} {
+		if !transientEvent(event) {
+			t.Errorf("%T should not be recorded", event)
+		}
+	}
+	if transientEvent(ircparse.PrivmsgEvent{}) {
+		t.Error("a message must be recorded")
+	}
+}
