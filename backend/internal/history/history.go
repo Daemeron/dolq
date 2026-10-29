@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"log"
 	"os"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -68,6 +69,10 @@ func Open(path string, retentionDays int) (*Store, error) {
 		db.Close()
 		return nil, err
 	}
+	if err := dropOwnPongs(db); err != nil {
+		db.Close()
+		return nil, err
+	}
 	const bufferSize = 4096
 	s := &Store{db: db, entries: make(chan Entry, bufferSize), done: make(chan struct{}), retentionDays: retentionDays}
 	go s.run()
@@ -77,6 +82,57 @@ func Open(path string, retentionDays int) (*Store, error) {
 		go s.pruneLoop()
 	}
 	return s, nil
+}
+
+// ownPong matches the server's answer to a latency PING of ours: [@tags ]:server PONG server :dolq-<digits>.
+var ownPong = regexp.MustCompile(`^(@\S+ )?:\S+ PONG \S+ :dolq-\d+$`)
+
+// dropOwnPongs removes those answers from histories written before they were kept out of the log. It runs once per
+// database (PRAGMA user_version), so a large history is not scanned at every start.
+func dropOwnPongs(db *sql.DB) error {
+	var version int
+	if err := db.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil {
+		return err
+	}
+	if version >= 1 {
+		return nil
+	}
+	rows, err := db.Query(`SELECT id, payload FROM messages WHERE is_raw = 1 AND payload LIKE '% PONG % :dolq-%'`)
+	if err != nil {
+		return err
+	}
+	var ids []int64
+	for rows.Next() {
+		var id int64
+		var payload string
+		if err := rows.Scan(&id, &payload); err != nil {
+			rows.Close()
+			return err
+		}
+		if ownPong.MatchString(payload) {
+			ids = append(ids, id)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return err
+	}
+	rows.Close()
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+	for _, id := range ids {
+		if _, err := tx.Exec(`DELETE FROM messages WHERE id = ?`, id); err != nil {
+			tx.Rollback()
+			return err
+		}
+	}
+	if _, err := tx.Exec(`PRAGMA user_version = 1`); err != nil {
+		tx.Rollback()
+		return err
+	}
+	return tx.Commit()
 }
 
 // restrictDBFiles makes the database owner-only before SQLite opens it:

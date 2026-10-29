@@ -577,3 +577,89 @@ func TestOldEntriesArePrunedOnASchedule(t *testing.T) {
 	}
 	t.Fatal("the stale entry was never pruned")
 }
+
+func TestOwnLatencyPongsAreRemovedOnceFromAnOlderHistory(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "history.db")
+	s, err := Open(path, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw := func(line string) {
+		if _, err := s.db.Exec(`INSERT INTO messages (server_id, channel, payload, ts, is_raw) VALUES ('s', ?, ?, 1, 1)`, LogChannel, line); err != nil {
+			t.Fatal(err)
+		}
+	}
+	keep := []string{
+		":irc.example PONG irc.example :not-ours",
+		":nick!u@h PRIVMSG #c :look PONG x :dolq-123",
+		":irc.example NOTICE me :PONG irc.example :dolq-123",
+	}
+	for _, line := range keep {
+		raw(line)
+	}
+	raw(":irc.mufff.in PONG irc.mufff.in :dolq-1793276761582912300")
+	raw("@time=2026-10-29T13:26:00.000Z :irc.mufff.in PONG irc.mufff.in :dolq-1793276791583253300")
+	// An event row is never a raw line, whatever its text says.
+	if _, err := s.db.Exec(`INSERT INTO messages (server_id, channel, payload, ts, is_raw) VALUES ('s', ?, ':x PONG y :dolq-1', 1, 0)`, LogChannel); err != nil {
+		t.Fatal(err)
+	}
+	// An older database: user_version was never set.
+	if _, err := s.db.Exec(`PRAGMA user_version = 0`); err != nil {
+		t.Fatal(err)
+	}
+	s.Close()
+
+	s, err = Open(path, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var remaining []string
+	rows, err := s.db.Query(`SELECT payload FROM messages ORDER BY id`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for rows.Next() {
+		var p string
+		rows.Scan(&p)
+		remaining = append(remaining, p)
+	}
+	rows.Close()
+	want := append(keep, ":x PONG y :dolq-1")
+	if strings.Join(remaining, "|") != strings.Join(want, "|") {
+		t.Errorf("remaining = %q, want %q", remaining, want)
+	}
+	var version int
+	s.db.QueryRow(`PRAGMA user_version`).Scan(&version)
+	if version != 1 {
+		t.Errorf("user_version = %d, want 1 so the cleanup does not run again", version)
+	}
+
+	// Once done, it is not repeated: a line that matches is left alone now.
+	if _, err := s.db.Exec(`INSERT INTO messages (server_id, channel, payload, ts, is_raw) VALUES ('s', ?, ':a PONG a :dolq-9', 1, 1)`, LogChannel); err != nil {
+		t.Fatal(err)
+	}
+	s.Close()
+	s, err = Open(path, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	var n int
+	s.db.QueryRow(`SELECT COUNT(*) FROM messages WHERE payload = ':a PONG a :dolq-9'`).Scan(&n)
+	if n != 1 {
+		t.Errorf("the cleanup ran a second time (%d rows)", n)
+	}
+}
+
+func TestNewDatabaseNeedsNoCleanupAndIsMarkedDone(t *testing.T) {
+	s, err := Open(":memory:", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	var version int
+	s.db.QueryRow(`PRAGMA user_version`).Scan(&version)
+	if version != 1 {
+		t.Errorf("user_version = %d, want 1", version)
+	}
+}
