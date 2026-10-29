@@ -5,8 +5,49 @@
 
 ### Features
 
-* dashboard with latency and transfer rates, global actions in the title strip ([#56](https://github.com/Daemeron/dolq/issues/56)) ([cc676ed](https://github.com/Daemeron/dolq/commit/cc676ede9246c35cec2c830fa3f41a61486420ea))
-* server icon colour and letters, and a themed window frame ([#55](https://github.com/Daemeron/dolq/issues/55)) ([1f0c347](https://github.com/Daemeron/dolq/commit/1f0c34766f270a6db9d54b1b4e9d031a69409344))
+**Dashboard** ([#56](https://github.com/Daemeron/dolq/issues/56))
+
+* The Dolq logo, first in the server rail, opens a Dashboard: every server with its status, joined channels (click one to jump to it), current latency and a latency graph over time with min, average and max.
+* Latency is measured with a PING/PONG to each server, and live upload and download rates are shown, with a bandwidth graph of the last five minutes (download as a filled area, upload dashed). Transfer speed is measured over a one-second window, so bursts of progress events no longer read as speed spikes.
+* The Dashboard hides the channel list and user panel, since it is about all servers.
+
+**A title strip across the whole window** ([#55](https://github.com/Daemeron/dolq/issues/55), [#56](https://github.com/Daemeron/dolq/issues/56))
+
+* A 32px strip above the app holds back and forward navigation through the places you have visited, a title saying where you are, and the app-wide actions: search everywhere, transfers, away on all servers and preferences.
+* The window controls live in the strip and follow the theme, on macOS and Windows. They stay the native ones, so Windows 11 snap layouts keep working.
+* Hovering Transfers shows what is transferring right now: file, sender, progress and speed.
+
+**Server icons** ([#55](https://github.com/Daemeron/dolq/issues/55))
+
+* Server icons take their colour from the nick palette, the colour can be changed in Edit server (and is kept), and you can pick 2 to 3 letters for the icon.
+
+**Busy channels and the server log** ([#56](https://github.com/Daemeron/dolq/issues/56))
+
+* Runs of three or more joins, leaves, quits and nick changes fold into one line ("nolden, MintCarrot and 2 others joined · warrior left"), with the event count and how long it lasted. Click it to expand the lines in place.
+* A new connection is set apart in the server log by a NEW SESSION divider.
+* PING and PONG lines are no longer shown or stored in the server log, and the ones already stored are removed once from existing histories.
+
+**File offers** ([#56](https://github.com/Daemeron/dolq/issues/56))
+
+* Accept is now a split button. Its menu picks how to accept (this file only, from the sender for this session, or always), and clicking the button then accepts that way. It replaces the small links in the dialog body.
+
+**Look** ([#56](https://github.com/Daemeron/dolq/issues/56))
+
+* A yellow accent for settings forms (switches, the active tab, focused inputs and their Save and Connect buttons). Everything else keeps the orange.
+* New app and tray icons, a yellow tile with a larger dagger. The macOS menu bar keeps its monochrome glyph.
+* The download line has its own violet, the backdrop behind dialogs is darker, and the Dolq logo is drawn on transparent instead of on a tile.
+
+### Bug Fixes
+
+* A window frame call missing from an older preload no longer crashes the app ([#55](https://github.com/Daemeron/dolq/issues/55)).
+* The member count stays in the Members header ([#55](https://github.com/Daemeron/dolq/issues/55)).
+* Answering the server's PING no longer writes it to the log ([#56](https://github.com/Daemeron/dolq/issues/56)).
+* Scrolling up through a folded run of joins and quits no longer jumps ([#56](https://github.com/Daemeron/dolq/issues/56)).
+
+### Under the hood
+
+* New README screenshots (including the Dashboard), design-system documentation for the new pieces, and a test run that prints no warnings ([#56](https://github.com/Daemeron/dolq/issues/56)).
+* The release pull request now builds the installers for all three platforms and must pass before it can merge ([#57](https://github.com/Daemeron/dolq/issues/57)).
 
 ## [0.6.2](https://github.com/Daemeron/dolq/compare/dolq-v0.6.1...dolq-v0.6.2) (2026-10-28)
 
