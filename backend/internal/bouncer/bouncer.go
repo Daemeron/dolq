@@ -253,6 +253,15 @@ func (b *Bouncer) connect(serverID string, client *ircclient.Client, initial Sub
 	client.Start()
 }
 
+// transientEvent is live state that is not worth keeping in the history.
+func transientEvent(event any) bool {
+	switch event.(type) {
+	case ircclient.NamesEvent, ircclient.LatencyEvent:
+		return true
+	}
+	return false
+}
+
 func (b *Bouncer) wire(serverID string, sess *session, client *ircclient.Client) {
 	client.AddLineListener(func(line string) {
 		if !channelScopedLine(line) {
@@ -261,7 +270,7 @@ func (b *Bouncer) wire(serverID string, sess *session, client *ircclient.Client)
 		sess.fanOutLine(serverID, line)
 	})
 	client.AddEventListener(func(event any) {
-		if _, ok := event.(ircclient.NamesEvent); !ok {
+		if !transientEvent(event) {
 			now := time.Now()
 			b.store.AppendEvent(serverID, eventChannel(event), event, now)
 			for _, ch := range sharedChannels(event) {

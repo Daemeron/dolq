@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"log"
 	"net"
 	"slices"
@@ -22,6 +23,7 @@ import (
 const (
 	DefaultPingTimeout       = 5 * time.Minute
 	DefaultPingCheckInterval = 30 * time.Second
+	DefaultLatencyInterval   = 30 * time.Second
 )
 
 // dialTimeout covers the whole connect, TLS handshake included; a variable so a test can shorten it.
@@ -40,6 +42,12 @@ type NamesEvent struct {
 	Type    string          `json:"type"`
 	Channel string          `json:"channel"`
 	Users   []ircparse.User `json:"users"`
+}
+
+// LatencyEvent reports how long the server took to answer our PING.
+type LatencyEvent struct {
+	Type string `json:"type"`
+	Ms   int64  `json:"ms"`
 }
 
 type Client struct {
@@ -61,6 +69,10 @@ type Client struct {
 
 	lastActivity atomic.Int64
 
+	// pingToken and pingSent identify the PING whose PONG is awaited (guarded by mu).
+	pingToken string
+	pingSent  time.Time
+
 	closed  chan struct{}
 	started atomic.Bool
 
@@ -68,7 +80,9 @@ type Client struct {
 
 	PingTimeout       time.Duration
 	PingCheckInterval time.Duration
-	CapTimeout        time.Duration
+	// LatencyInterval is how often the server is pinged to measure the round trip; 0 turns it off.
+	LatencyInterval time.Duration
+	CapTimeout      time.Duration
 
 	FloodBurst    int
 	FloodInterval time.Duration
@@ -119,6 +133,7 @@ func newClient(conn net.Conn, nick string) *Client {
 		capLines:          make(chan string, 16),
 		PingTimeout:       DefaultPingTimeout,
 		PingCheckInterval: DefaultPingCheckInterval,
+		LatencyInterval:   DefaultLatencyInterval,
 		CapTimeout:        DefaultCapTimeout,
 		FloodBurst:        DefaultFloodBurst,
 		FloodInterval:     DefaultFloodInterval,
@@ -131,6 +146,7 @@ func (c *Client) Start() {
 	c.started.Store(true)
 	go c.readLoop()
 	go c.watchPingTimeout()
+	go c.measureLatency()
 	go c.handshake()
 }
 
@@ -378,6 +394,60 @@ func (c *Client) watchPingTimeout() {
 	}
 }
 
+// measureLatency pings the server every LatencyInterval once registered (the
+// first time after a sixth of it, so a new connection has a reading soon);
+// handleLine turns the matching PONG into a LatencyEvent.
+func (c *Client) measureLatency() {
+	interval := c.LatencyInterval
+	if interval <= 0 {
+		return
+	}
+	wait := interval / 6
+	for {
+		select {
+		case <-time.After(wait):
+		case <-c.closed:
+			return
+		}
+		wait = interval
+		c.mu.Lock()
+		ready := c.registered
+		token := fmt.Sprintf("dolq-%d", time.Now().UnixNano())
+		if ready {
+			c.pingToken, c.pingSent = token, time.Now()
+		}
+		c.mu.Unlock()
+		if !ready {
+			continue
+		}
+		if err := c.Send("PING :" + token); err != nil {
+			return
+		}
+	}
+}
+
+// handlePong reports the round trip when line is the PONG for our latest PING.
+func (c *Client) handlePong(line string) {
+	fields := strings.Fields(line)
+	if len(fields) > 0 && strings.HasPrefix(fields[0], ":") {
+		fields = fields[1:]
+	}
+	if len(fields) < 2 || fields[0] != "PONG" {
+		return
+	}
+	token := strings.TrimPrefix(fields[len(fields)-1], ":")
+	c.mu.Lock()
+	match := c.pingToken != "" && token == c.pingToken
+	sent := c.pingSent
+	if match {
+		c.pingToken = ""
+	}
+	c.mu.Unlock()
+	if match {
+		c.emitEvent(LatencyEvent{Type: "LATENCY", Ms: time.Since(sent).Milliseconds()})
+	}
+}
+
 func (c *Client) readLoop() {
 	scanner := bufio.NewScanner(c.conn)
 	for scanner.Scan() {
@@ -405,6 +475,8 @@ func (c *Client) handleLine(line string) {
 		token := strings.TrimSpace(strings.TrimPrefix(untagged, "PING"))
 		c.Send("PONG " + token)
 	}
+
+	c.handlePong(untagged)
 
 	if isCapOrAuthLine(untagged) {
 		select {
