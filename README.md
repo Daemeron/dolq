@@ -15,6 +15,7 @@ CTCP, DCC, and XDCC file transfers all work like a "real" IRC client, just with
 a friendlier shell around them. It runs on macOS, Windows and Linux.
 
 > ![Main chat view](/resources/screenshots/main-view.png)
+> ![Dashboard](/resources/screenshots/dashboard.png)
 > ![Preferences panel](/resources/screenshots/preferences.png)
 > ![Add a server](/resources/screenshots/connect.png)
 

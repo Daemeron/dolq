@@ -81,7 +81,7 @@ export function XDCCOfferModal({
                 aria-label="Choose how to accept"
                 aria-haspopup="menu"
                 aria-expanded={menuOpen}
-                className="rounded-l-none border-l-(--dolq-on-brand)/30 px-2"
+                className="rounded-l-none border-l-(--dolq-on-brand)/30 px-2!"
                 onClick={() => setMenuOpen((open) => !open)}
               >
                 <Icon name="chevronDown" size={16} />
