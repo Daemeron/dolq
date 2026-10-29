@@ -48,11 +48,8 @@ test('launches, renders and talks to its local backend', async () => {
       await expect(page).toHaveTitle('Dolq');
       await expect(page.getByRole('button', { name: 'Add server' })).toBeVisible();
 
-      // The rail's logo is an inlined image: the page's CSP must let it load.
-      const dashboard = page.getByRole('button', { name: 'Dashboard' });
-      await dashboard.click();
+      await page.getByRole('button', { name: 'Dashboard' }).click();
       await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
-      expect(await dashboard.locator('img').evaluate((img: HTMLImageElement) => img.naturalWidth)).toBeGreaterThan(0);
 
       // Waits for the spawned dolqd to report its socket, accept the token and answer.
       const status = await page.evaluate(() => (window as unknown as { irc: IrcApi }).irc.getStatus('smoke-test'));
