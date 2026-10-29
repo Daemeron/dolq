@@ -141,6 +141,8 @@ contextBridge.exposeInMainWorld('irc', {
     return () => ipcRenderer.removeListener(IrcMessages.openPreferences, handler);
   },
 
+  appReady: () => ipcRenderer.invoke(IrcMessages.appReady),
+
   getUpdateStatus: () => ipcRenderer.invoke(IrcMessages.getUpdateStatus),
 
   downloadUpdate: () => ipcRenderer.invoke(IrcMessages.downloadUpdate),

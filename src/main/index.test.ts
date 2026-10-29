@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { IrcMessages } from '../shared/ipc';
+import { SPLASH_DELAY_MS } from './splash';
 
 // The Electron entry point wires the whole app together, so these tests stand in for Electron
 // itself and check what it does with each OS event, IPC call and setting.
@@ -59,6 +60,9 @@ vi.mock('electron', () => {
       this.visible = true;
     });
     focus = vi.fn();
+    destroy = vi.fn(() => {
+      this.destroyed = true;
+    });
     setTitleBarOverlay = vi.fn();
     webContents = {
       setWindowOpenHandler: (fn: (d: { url: string }) => { action: string }) => {
@@ -126,6 +130,7 @@ vi.mock('electron', () => {
       getPath: (name: string) => (name === 'userData' ? h.userData : `/downloads-${name}`),
     },
     BrowserWindow: FakeWindow,
+    nativeTheme: { shouldUseDarkColors: true },
     Tray: FakeTray,
     Menu: {
       buildFromTemplate: (t: unknown) => t,
@@ -232,11 +237,14 @@ const invoke = (channel: string, ...args: unknown[]) =>
   (h.ipc.get(channel) as (...a: unknown[]) => unknown)({}, ...args);
 const appHandler = (name: string) => h.appHandlers.get(name) as (...a: unknown[]) => unknown;
 
-async function boot(settings: Record<string, unknown> = { retentionDays: 3 }) {
+// `rendered` stands in for the renderer saying it has drawn its first screen, which is what shows the window and
+// cancels the splash. A test of the start-up itself passes false and does that part itself.
+async function boot(settings: Record<string, unknown> = { retentionDays: 3 }, rendered = true) {
   h.settings = settings;
   vi.resetModules();
   await import('./index.js');
   await vi.waitFor(() => expect(h.backends.length).toBe(1));
+  if (rendered) await invoke(IrcMessages.appReady);
   return { electron: await import('electron') };
 }
 
@@ -850,5 +858,62 @@ describe('updates', () => {
       await invoke(IrcMessages.downloadUpdate);
       expect(h.updater.downloadUpdate).not.toHaveBeenCalled();
     });
+  });
+});
+
+const REVEAL_FALLBACK_MS = 10_000;
+
+describe('start-up', () => {
+  const windows = () => h.windows as (FakeWin & { destroy: ReturnType<typeof vi.fn> })[];
+
+  it('keeps the window hidden until the renderer says it has rendered, and shows it once', async () => {
+    await boot(undefined, false);
+    const [main] = windows();
+    expect(main.options.show).toBe(false);
+    expect(main.show).not.toHaveBeenCalled();
+    await invoke(IrcMessages.appReady);
+    expect(main.show).toHaveBeenCalledTimes(1);
+    await invoke(IrcMessages.appReady);
+    expect(main.show).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows no splash when the app is ready quickly', async () => {
+    await boot();
+    await new Promise((resolve) => setTimeout(resolve, SPLASH_DELAY_MS + 50));
+    expect(windows()).toHaveLength(1);
+  });
+
+  it('covers a slow start with a splash, and closes it when the app is ready', async () => {
+    await boot(undefined, false);
+    await vi.waitFor(() => expect(windows()).toHaveLength(2));
+    const [main, splash] = windows();
+    expect(splash.options).toMatchObject({ frame: false, resizable: false });
+    expect(splash.url.startsWith('data:text/html')).toBe(true);
+    expect(main.show).not.toHaveBeenCalled();
+
+    await invoke(IrcMessages.appReady);
+    expect(main.show).toHaveBeenCalledTimes(1);
+    expect(splash.destroy).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows the window anyway when the renderer never says it is ready', async () => {
+    // The wait is ten real seconds, so take the timer it schedules and run it by hand.
+    let giveUp: (() => void) | undefined;
+    const realSetTimeout = globalThis.setTimeout;
+    vi.spyOn(globalThis, 'setTimeout').mockImplementation(((fn: () => void, ms?: number) => {
+      if (ms === REVEAL_FALLBACK_MS) {
+        giveUp = fn;
+        return 0;
+      }
+      return realSetTimeout(fn, ms);
+    }) as unknown as typeof setTimeout);
+    await boot(undefined, false);
+    await vi.waitFor(() => expect(windows()).toHaveLength(2));
+    const [main, splash] = windows();
+    expect(main.show).not.toHaveBeenCalled();
+
+    giveUp?.();
+    expect(main.show).toHaveBeenCalledTimes(1);
+    expect(splash.destroy).toHaveBeenCalledTimes(1);
   });
 });

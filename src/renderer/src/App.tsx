@@ -214,6 +214,8 @@ export default function App() {
   const [showSearch, setShowSearch] = useState(false);
   const [searchScope, setSearchScope] = useState<'channel' | 'everywhere'>('channel');
   const [settings, setSettingsState] = useState<Settings>({ retentionDays: 0 });
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
+  const [firstHistoryLoaded, setFirstHistoryLoaded] = useState(false);
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
   const requestedPacks = useRef(new Set<string>());
@@ -240,7 +242,10 @@ export default function App() {
   const historyPages = useRef(new Map<string, HistoryPage>());
 
   useEffect(() => {
-    window.irc.getSettings().then(setSettingsState);
+    window.irc.getSettings().then((loaded) => {
+      setSettingsState(loaded);
+      setSettingsLoaded(true);
+    });
   }, []);
 
   // The optional calls cover a preload from before updates existed (a dev run that was not restarted).
@@ -248,6 +253,14 @@ export default function App() {
     Promise.resolve(window.irc.getUpdateStatus?.()).then((status) => status && setUpdate(status));
     return window.irc.onUpdateStatus?.(setUpdate);
   }, []);
+
+  // The first screen is done once the settings are in and the open channel's latest history has landed (or there is
+  // no open channel). The main process keeps the window hidden behind a splash until then. Not tied to an animation
+  // frame: a window that has not been shown yet runs none, so waiting for one would never end.
+  const firstScreenReady = settingsLoaded && (!selectedServerId || firstHistoryLoaded);
+  useEffect(() => {
+    if (firstScreenReady) void window.irc.appReady?.();
+  }, [firstScreenReady]);
 
   useEffect(() => {
     window.irc.setBadgeCount(Object.keys(mentionedChannels).length);
@@ -860,7 +873,8 @@ export default function App() {
         })
         .catch(() => {
           if (historyPages.current.get(key) === page) historyPages.current.delete(key);
-        });
+        })
+        .finally(() => setFirstHistoryLoaded(true));
     },
     [setHistory, fetchHistoryPage],
   );

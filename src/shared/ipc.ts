@@ -185,6 +185,8 @@ export type IrcApi = {
   // may have changed meanwhile.
   onBackendReconnected: (callback: () => void) => () => void;
   getUpdateStatus: () => Promise<UpdateStatus | null>;
+  /** The window has rendered its first screen and can be shown; until then a splash covers the start. */
+  appReady: () => Promise<void>;
   downloadUpdate: () => Promise<void>;
   installUpdate: () => Promise<void>;
   onUpdateStatus: (callback: (status: UpdateStatus) => void) => () => void;
@@ -228,6 +230,7 @@ export enum IrcMessages {
   backendReconnected = 'irc:backendReconnected',
   updateStatus = 'update:status',
   getUpdateStatus = 'update:get',
+  appReady = 'app:ready',
   downloadUpdate = 'update:download',
   installUpdate = 'update:install',
   secretsAvailable = 'secrets:available',

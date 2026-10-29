@@ -48,6 +48,18 @@ test('launches, renders and talks to its local backend', async () => {
       await expect(page).toHaveTitle('Dolq');
       await expect(page.getByRole('button', { name: 'Add server' })).toBeVisible();
 
+      // The window stays hidden until the renderer says it has rendered its first screen, and any splash is gone by then.
+      await expect
+        .poll(() =>
+          app.evaluate(({ BrowserWindow }) =>
+            BrowserWindow.getAllWindows().map((w) => ({
+              visible: w.isVisible(),
+              url: w.webContents.getURL().slice(0, 40),
+            })),
+          ),
+        )
+        .toEqual([expect.objectContaining({ visible: true })]);
+
       await page.getByRole('button', { name: 'Dashboard' }).click();
       await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
 
