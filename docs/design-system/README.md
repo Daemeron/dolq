@@ -1,6 +1,6 @@
 # Dolq design system
 
-The look of the app: Claude-style warm neutrals, one blue accent, and colour only where it identifies something (server icons and nicknames). Light and dark share the same token names.
+The look of the app: Claude-style warm neutrals, one yellow accent, and colour only where it identifies something (server icons and nicknames). Light and dark share the same token names.
 
 - `preview.html`: open in a browser for every token and component, with a light/dark toggle.
 - `reference.css`: the prototype stylesheet the design was approved in. It is a reference only; the app uses the tokens in `src/renderer/src/index.css`.
@@ -34,8 +34,8 @@ Use tokens through Tailwind's variable syntax, e.g. `bg-(--dolq-bg-panel)`, `tex
 | `--dolq-text-muted` | #D3D1C7 | #3D3D3A | Secondary text |
 | `--dolq-text-dim` | #A09E95 | #6B6963 | Labels, meta |
 | `--dolq-text-faint` | #7E7C75 | #7C7A72 | Placeholders, hashes |
-| `--dolq-accent` (+ `-hover`, `-soft`, `on-accent`) | #4268F2 | #1F46D0 | Primary actions, focus, unread |
-| `--dolq-accent-text` (+ `-hover`) | #9DB3FF | #1F46D0 | Accent used as text or a thin line (links, code, focus ring, sparkline): a lighter blue in dark, because the fill blue is too dark to read on the dark background. Fills (buttons, switches, selected states) use `--dolq-accent` |
+| `--dolq-accent` (+ `-hover`, `-soft`, `on-accent`) | #F5C518 | #E0AC00 | Primary actions, focus, unread |
+| `--dolq-accent-text` (+ `-hover`) | #F5C518 | #6E5200 | Accent used as text or a thin line (links, code, focus ring, sparkline): a deep gold in light, because the bright yellow fill is too pale to read as text on the light background. Text on a yellow fill is dark (`--dolq-on-accent`). Fills (buttons, switches, selected states) use `--dolq-accent` |
 | `--dolq-ok` / `--dolq-warn` / `--dolq-danger` | green / amber / red | | Connection state, errors |
 | `--dolq-nick-1`..`8` | brighter set | deeper set | Nick and avatar colour |
 

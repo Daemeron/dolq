@@ -28,12 +28,12 @@
   --dolq-text-faint: #7e7c75;
   --dolq-mention: #e0a64a;
 
-  --dolq-accent: #4268f2;
-  --dolq-accent-hover: #5a7cf5;
-  --dolq-accent-text: #9db3ff;
-  --dolq-accent-text-hover: #c0ccff;
-  --dolq-on-accent: #ffffff;
-  --dolq-accent-soft: rgba(66, 104, 242, 0.22);
+  --dolq-accent: #f5c518;
+  --dolq-accent-hover: #ffd43b;
+  --dolq-accent-text: #f5c518;
+  --dolq-accent-text-hover: #ffd95e;
+  --dolq-on-accent: #1f1e1d;
+  --dolq-accent-soft: rgba(245, 197, 24, 0.18);
   --dolq-download: #b4a8ff;
   --dolq-ok: #5cbf8a;
   --dolq-warn: #e0a64a;
@@ -70,12 +70,12 @@
   --dolq-text-faint: #7c7a72;
   --dolq-mention: #b3532f;
 
-  --dolq-accent: #1f46d0;
-  --dolq-accent-hover: #1a3aaa;
-  --dolq-accent-text: #1f46d0;
-  --dolq-accent-text-hover: #1a3aaa;
-  --dolq-on-accent: #ffffff;
-  --dolq-accent-soft: rgba(31, 70, 208, 0.12);
+  --dolq-accent: #e0ac00;
+  --dolq-accent-hover: #cc9b00;
+  --dolq-accent-text: #6e5200;
+  --dolq-accent-text-hover: #574100;
+  --dolq-on-accent: #141413;
+  --dolq-accent-soft: rgba(224, 172, 0, 0.18);
   --dolq-download: #4c2fc4;
   --dolq-ok: #3e9b6a;
   --dolq-warn: #b7791f;
