@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import { BrowserWindow, nativeTheme, type Rectangle } from 'electron';
+import { pickJoke } from './splashJokes';
 
 /** Starting is only worth a splash when it takes a while: a window that is ready sooner than this never shows one. */
 export const SPLASH_DELAY_MS = 250;
@@ -28,8 +29,10 @@ const COLOURS = {
   light: { bg: '#faf9f5', text: '#141413', dim: '#6b6963' },
 };
 
-/** The splash page: the app icon, the name and a quiet "Starting", on the surface colour of the OS theme. */
-export function splashHtml(dark: boolean, icon: Buffer): string {
+const escapeHtml = (text: string) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+/** The splash page: the app icon, the name, a quiet "Starting" and a joke, on the surface colour of the OS theme. */
+export function splashHtml(dark: boolean, icon: Buffer, joke: string): string {
   const c = dark ? COLOURS.dark : COLOURS.light;
   return `<!doctype html><html><head><meta charset="utf-8" />
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'" />
@@ -40,9 +43,10 @@ export function splashHtml(dark: boolean, icon: Buffer): string {
   img { width: 112px; height: 112px; }
   h1 { margin: 0; font: 400 34px Georgia, 'Times New Roman', serif; color: ${c.text}; }
   p { margin: 0; font-size: 13px; color: ${c.dim}; animation: pulse 1.6s ease-in-out infinite; }
+  pre { margin: 30px 0 0; font: 12.5px/1.5 ui-monospace, Menlo, Consolas, monospace; color: ${c.dim}; text-align: left; }
   @keyframes pulse { 50% { opacity: 0.35; } }
 </style></head>
-<body><img alt="" src="data:image/png;base64,${icon.toString('base64')}" /><h1>Dolq</h1><p>Starting…</p></body></html>`;
+<body><img alt="" src="data:image/png;base64,${icon.toString('base64')}" /><h1>Dolq</h1><p>Starting…</p><pre>${escapeHtml(joke)}</pre></body></html>`;
 }
 
 /** A frameless window with the splash page, in the colours of the OS theme, exactly where and as large as `bounds` (the app's window), so the app appears in place of it. */
@@ -59,6 +63,8 @@ export function createSplashWindow(iconPath: string, bounds?: Rectangle): Browse
     backgroundColor: (dark ? COLOURS.dark : COLOURS.light).bg,
     icon: iconPath,
   });
-  splash.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(splashHtml(dark, fs.readFileSync(iconPath)))}`);
+  splash.loadURL(
+    `data:text/html;charset=utf-8,${encodeURIComponent(splashHtml(dark, fs.readFileSync(iconPath), pickJoke()))}`,
+  );
   return splash;
 }

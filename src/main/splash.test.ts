@@ -72,22 +72,29 @@ describe('startSplash', () => {
 
 describe('splashHtml', () => {
   const icon = Buffer.from('png-bytes');
+  const JOKE = '<ghost_> I swear & I was online';
 
   it('shows the icon, the name and a status line', () => {
-    const html = splashHtml(true, icon);
+    const html = splashHtml(true, icon, JOKE);
     expect(html).toContain(`data:image/png;base64,${icon.toString('base64')}`);
     expect(html).toContain('<h1>Dolq</h1>');
     expect(html).toContain('Starting…');
   });
 
   it('follows the theme', () => {
-    expect(splashHtml(true, icon)).toContain('background: #262624');
-    expect(splashHtml(false, icon)).toContain('background: #faf9f5');
+    expect(splashHtml(true, icon, JOKE)).toContain('background: #262624');
+    expect(splashHtml(false, icon, JOKE)).toContain('background: #faf9f5');
+  });
+
+  it('shows the joke as text, with its characters escaped', () => {
+    const html = splashHtml(true, icon, JOKE);
+    expect(html).toContain('<pre>&lt;ghost_&gt; I swear &amp; I was online</pre>');
+    expect(html).not.toContain('<ghost_>');
   });
 
   it('loads nothing from outside the page', () => {
-    expect(splashHtml(true, icon)).toContain("default-src 'none'; img-src data:");
-    expect(splashHtml(true, icon)).not.toMatch(/https?:/);
+    expect(splashHtml(true, icon, JOKE)).toContain("default-src 'none'; img-src data:");
+    expect(splashHtml(true, icon, JOKE)).not.toMatch(/https?:/);
   });
 });
 
