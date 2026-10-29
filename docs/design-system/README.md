@@ -1,6 +1,6 @@
 # Dolq design system
 
-The look of the app: Claude-style warm neutrals, one clay accent, and colour only where it identifies something (server icons and nicknames). Light and dark share the same token names.
+The look of the app: Claude-style warm neutrals, one violet accent, and colour only where it identifies something (server icons and nicknames). Light and dark share the same token names.
 
 - `preview.html`: open in a browser for every token and component, with a light/dark toggle.
 - `reference.css`: the prototype stylesheet the design was approved in. It is a reference only; the app uses the tokens in `src/renderer/src/index.css`.
@@ -34,7 +34,7 @@ Use tokens through Tailwind's variable syntax, e.g. `bg-(--dolq-bg-panel)`, `tex
 | `--dolq-text-muted` | #D3D1C7 | #3D3D3A | Secondary text |
 | `--dolq-text-dim` | #A09E95 | #6B6963 | Labels, meta |
 | `--dolq-text-faint` | #7E7C75 | #7C7A72 | Placeholders, hashes |
-| `--dolq-accent` (+ `-hover`, `-soft`, `on-accent`) | #D97757 | #C6613F | Primary actions, focus, unread |
+| `--dolq-accent` (+ `-hover`, `-soft`, `on-accent`) | #8B7CF6 | #6552D9 | Primary actions, focus, unread |
 | `--dolq-ok` / `--dolq-warn` / `--dolq-danger` | green / amber / red | | Connection state, errors |
 | `--dolq-nick-1`..`8` | brighter set | deeper set | Nick and avatar colour |
 
