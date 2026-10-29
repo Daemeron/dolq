@@ -48,6 +48,7 @@ export function IconButton({
   onClick,
   on,
   badge,
+  compact,
 }: {
   icon: IconName;
   label: string;
@@ -55,6 +56,8 @@ export function IconButton({
   on?: boolean;
   /** A small accent dot for something unseen. */
   badge?: boolean;
+  /** A slimmer button, for the title strip. */
+  compact?: boolean;
 }) {
   return (
     <button
@@ -63,11 +66,11 @@ export function IconButton({
       aria-label={label}
       aria-pressed={on}
       data-tip={label}
-      className={`has-tip relative w-8.5 h-8.5 flex items-center justify-center rounded-lg border-0 cursor-pointer hover:text-(--dolq-text) hover:bg-(--dolq-bg-row-hover) ${
+      className={`has-tip relative ${compact ? 'size-7' : 'size-8.5'} flex items-center justify-center rounded-lg border-0 cursor-pointer hover:text-(--dolq-text) hover:bg-(--dolq-bg-row-hover) ${
         on ? 'bg-(--dolq-bg-row-selected) text-(--dolq-text)' : 'bg-transparent text-(--dolq-text-dim)'
       }`}
     >
-      <Icon name={icon} />
+      <Icon name={icon} size={compact ? 16 : 18} />
       {badge && (
         <span
           data-testid="icon-badge"

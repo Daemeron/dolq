@@ -52,6 +52,26 @@
       <button class="srv sel" style="background:#2F7EB8" aria-label="Selected">OF<span class="badge has-tip" data-tip="Connected"></span></button>
     </div></section>
 
+  <section><h3>Title strip (32px, above the whole app)</h3>
+    <div style="width:640px;border:1px solid var(--border);border-radius:10px;overflow:hidden">
+      <div style="height:32px;display:flex;align-items:center;gap:2px;padding:0 8px 0 12px;background:var(--bg-rail);border-bottom:1px solid var(--border)">
+        <span style="flex:1;font-size:12px;font-weight:500;color:var(--muted)">Dolq</span>
+        <button class="icon-btn" style="width:28px;height:28px" aria-label="Search everywhere"><svg class="i" viewBox="0 0 24 24" style="width:16px;height:16px"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></button>
+        <button class="icon-btn" style="width:28px;height:28px" aria-label="Transfers"><svg class="i" viewBox="0 0 24 24" style="width:16px;height:16px"><path d="M12 3v12m0 0-4-4m4 4 4-4M4 21h16"/></svg></button>
+        <button class="icon-btn on" style="width:28px;height:28px" aria-label="Away on all servers"><svg class="i" viewBox="0 0 24 24" style="width:16px;height:16px"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
+        <button class="icon-btn" style="width:28px;height:28px" aria-label="Preferences"><svg class="i" viewBox="0 0 24 24" style="width:16px;height:16px"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/></svg></button>
+        <span class="hint" style="margin-left:12px">window buttons (native)</span>
+      </div>
+      <div style="height:48px"></div>
+    </div></section>
+
+  <section><h3>Dashboard: server card with latency</h3>
+    <div style="width:520px;border:1px solid var(--border);border-radius:12px;background:var(--surface);padding:14px 16px;display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;align-items:center;gap:12px"><span class="avatar" style="background:var(--n2);width:32px;height:32px;border-radius:10px;font-size:12px">LC</span><b style="font-weight:500">Libera</b><span class="hint">Connected</span><span style="margin-left:auto;font-size:18px;font-weight:500;color:var(--ok)">42 ms</span></div>
+      <div style="display:flex;align-items:center;gap:16px;color:var(--accent)"><svg width="240" height="32" viewBox="0 0 240 32" style="overflow:visible"><polyline points="0,20 40,12 80,24 120,8 160,16 200,4 240,14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/></svg><span class="hint">min 31 · avg 44 · max 71 ms</span></div>
+      <div style="display:flex;gap:6px"><span class="tag" style="border-radius:999px;padding:2px 10px">#dolq</span><span class="tag" style="border-radius:999px;padding:2px 10px">#linux</span></div>
+    </div></section>
+
   <section><h3>Toolbar, rows, grouped messages</h3>
     <div style="display:flex;gap:32px">
       <div class="toolbar" style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:4px;height:fit-content">

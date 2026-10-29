@@ -17,9 +17,10 @@ globalThis.localStorage = new MemoryStorage() as unknown as Storage;
 
 let useStore: typeof import('./store').useStore;
 let DEFAULT_KEYBINDINGS: typeof import('./store').DEFAULT_KEYBINDINGS;
+let LATENCY_SAMPLES: number;
 
 beforeAll(async () => {
-  ({ useStore, DEFAULT_KEYBINDINGS } = await import('./store'));
+  ({ useStore, DEFAULT_KEYBINDINGS, LATENCY_SAMPLES } = await import('./store'));
 });
 
 beforeEach(() => {
@@ -96,6 +97,25 @@ describe('servers', () => {
     get().addPreset({ id: 'mine', name: 'Mine', host: 'h', port: 1, secure: true } as never);
     get().addPreset({ id: 'mine', name: 'Mine', host: 'h', port: 1, secure: true } as never);
     expect(get().presets).toHaveLength(before + 1);
+  });
+});
+
+describe('latency', () => {
+  it('records round trips per server, keeping only the latest hour', () => {
+    withServer('a');
+    for (let i = 0; i < LATENCY_SAMPLES + 5; i++) get().recordLatency('a', i, i);
+    const samples = get().latencyMap.a;
+    expect(samples).toHaveLength(LATENCY_SAMPLES);
+    expect(samples[0]).toEqual({ at: 5, ms: 5 });
+    expect(samples.at(-1)?.ms).toBe(LATENCY_SAMPLES + 4);
+  });
+
+  it('stamps a reading with the time it arrived, and forgets a removed server', () => {
+    withServer('a');
+    get().recordLatency('a', 30);
+    expect(get().latencyMap.a[0].at).toBeGreaterThan(0);
+    get().removeServer('a');
+    expect(get().latencyMap.a).toBeUndefined();
   });
 });
 

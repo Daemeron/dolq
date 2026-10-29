@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { HistoryEntry, IrcEvent, Settings } from '../../shared/ipc';
 import { ChannelList } from './components/ChannelList';
 import { type ConnectForm, ConnectModal, parseList } from './components/ConnectModal';
+import { Dashboard } from './components/Dashboard';
 import { DCCOfferModal } from './components/DCCOfferModal';
 import { type EditServerForm, EditServerModal } from './components/EditServerModal';
 import { MessageArea } from './components/MessageArea';
@@ -33,6 +34,7 @@ import { mentionsAny } from './utils/mentions';
 import { isNickServIdentifyPrompt } from './utils/nickserv';
 import { reconcileServers, reconcileStep } from './utils/reconcile';
 import { buildServerId, normalizeHost, resolveHostPort, serverColor, serverInitials } from './utils/server';
+import { transferRates } from './utils/transferRate';
 import { computeAwayStats } from './utils/unread';
 import { takeAutoAccept, xdccRequestKey, xdccRequestTarget, xdccSenderKey } from './utils/xdcc';
 
@@ -96,6 +98,7 @@ function toMessages(entries: HistoryEntry[], forLog: boolean, selfNick: string):
 type MainView =
   | { kind: 'chat' }
   | { kind: 'connect' }
+  | { kind: 'dashboard' }
   | { kind: 'preferences'; tab?: PreferencesTab }
   | { kind: 'editServer'; serverId: string };
 
@@ -188,6 +191,8 @@ export default function App() {
     removeIgnore,
     applyAwayEverywhere,
     setSelfAway,
+    recordLatency,
+    latencyMap,
     setAlias,
     removeAlias,
     setKeybinding,
@@ -203,6 +208,7 @@ export default function App() {
     channel?: string;
   } | null>(null);
   const [showSearch, setShowSearch] = useState(false);
+  const [searchScope, setSearchScope] = useState<'channel' | 'everywhere'>('channel');
   const [settings, setSettingsState] = useState<Settings>({ retentionDays: 0 });
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
@@ -292,6 +298,7 @@ export default function App() {
       if (!action) return;
       if (action === 'openSearch') {
         e.preventDefault();
+        setSearchScope('channel');
         setShowSearch(true);
         return;
       }
@@ -773,6 +780,9 @@ export default function App() {
         case 'SELFAWAY':
           setSelfAway(serverId, event.away);
           break;
+        case 'LATENCY':
+          recordLatency(serverId, event.ms);
+          break;
       }
     });
   }, [
@@ -793,6 +803,7 @@ export default function App() {
     whoisNick,
     applyAwayEverywhere,
     setSelfAway,
+    recordLatency,
     isIgnored,
     dmKey,
     ensureQuery,
@@ -1173,6 +1184,11 @@ export default function App() {
     setShowSearch(false);
   }
 
+  // One switch for every connected server; each reports back through SELFAWAY.
+  function handleToggleAwayAll() {
+    for (const id of connectedIds) window.irc.sendLine(id, allAway ? 'AWAY' : 'AWAY :Away').catch(() => undefined);
+  }
+
   async function handleExportChannel(format: 'text' | 'json') {
     const backendChannel = backendChannelFor(selectedServerId, selectedChannelId);
     const pageSize = 1000;
@@ -1229,6 +1245,9 @@ export default function App() {
     .filter((c) => mentionedChannels[c.id])
     .map((c) => ({ id: c.id, label: c.isQuery ? `@${c.name}` : `#${c.name}` }));
   const transferCount = Object.keys(transfers).length;
+  const rates = transferRates(Object.values(transfers));
+  const connectedIds = servers.filter((s) => statusMap[s.id] === 'connected').map((s) => s.id);
+  const allAway = connectedIds.length > 0 && connectedIds.every((id) => selfAwayMap[id]);
   useEffect(() => {
     if (!showTransfers) return;
     function onKey(e: KeyboardEvent) {
@@ -1327,7 +1346,19 @@ export default function App() {
 
   return (
     <div className="flex h-screen w-full flex-col overflow-hidden">
-      <TitleBar />
+      <TitleBar
+        onOpenSearch={() => {
+          setSearchScope('everywhere');
+          setShowSearch(true);
+        }}
+        away={allAway}
+        awayDisabled={connectedIds.length === 0}
+        onToggleAway={handleToggleAwayAll}
+        transferCount={transferCount}
+        showTransfers={showTransfers}
+        onToggleTransfers={() => setShowTransfers((v) => !v)}
+        onOpenPreferences={() => setView({ kind: 'preferences' })}
+      />
       <div className="flex min-h-0 w-full flex-1">
         {whoisNick && (
           <WhoisModal
@@ -1386,6 +1417,7 @@ export default function App() {
         )}
         {showSearch && (
           <SearchModal
+            initialScope={searchScope}
             servers={servers}
             defaultServerId={selectedServerId}
             defaultChannel={backendChannelFor(selectedServerId, selectedChannelId)}
@@ -1403,14 +1435,15 @@ export default function App() {
         <div className="flex shrink-0">
           <ServerList
             servers={servers}
-            selectedId={selectedServerId}
+            selectedId={view.kind === 'dashboard' ? '' : selectedServerId}
             onSelect={handleSelectServer}
             onAddServer={() => setView({ kind: 'connect' })}
             onRemove={handleRemoveServer}
             onEditServer={(id) => setView({ kind: 'editServer', serverId: id })}
             statusMap={statusMap}
             onToggleConnection={handleToggleConnection}
-            onOpenPreferences={() => setView({ kind: 'preferences' })}
+            dashboardActive={view.kind === 'dashboard'}
+            onOpenDashboard={() => setView({ kind: 'dashboard' })}
           />
           {servers.length > 0 && (
             <div className="flex flex-col">
@@ -1504,7 +1537,20 @@ export default function App() {
               onKeybindingChange={setKeybinding}
             />
           )}
-          {servers.length === 0 ? (
+          {view.kind === 'dashboard' ? (
+            <Dashboard
+              servers={servers}
+              statusMap={statusMap}
+              channelMap={channelMap}
+              latencyMap={latencyMap}
+              rates={rates}
+              onOpenServer={handleSelectServer}
+              onOpenChannel={(serverId, channelId) => {
+                handleSelectServer(serverId);
+                handleSelectChannel(channelId);
+              }}
+            />
+          ) : servers.length === 0 ? (
             <Welcome
               presets={presets}
               onPickPreset={(id) => {
@@ -1527,7 +1573,10 @@ export default function App() {
                   isDCC={selectedChannel?.isDCC}
                   dccStatus={selectedChannel?.isDCC ? statusMap[selectedChannelId] : undefined}
                   onExport={selectedChannel?.isDCC ? undefined : handleExportChannel}
-                  onOpenSearch={() => setShowSearch(true)}
+                  onOpenSearch={() => {
+                    setSearchScope('channel');
+                    setShowSearch(true);
+                  }}
                   connectionStatus={connectionStatus}
                   onToggleConnection={() => handleToggleConnection(selectedServerId)}
                   muted={!!mutedChannels[selectedChannelId]}
@@ -1535,9 +1584,6 @@ export default function App() {
                   serverColor={selectedServer && serverColor(selectedServer)}
                   mentions={mentionedHere}
                   onSelectMention={handleSelectChannel}
-                  transferCount={transferCount}
-                  showTransfers={showTransfers}
-                  onToggleTransfers={() => setShowTransfers((v) => !v)}
                   showMembers={showMembers}
                   onToggleMembers={isLog || isQuery ? undefined : () => setShowMembers((v) => !v)}
                 />

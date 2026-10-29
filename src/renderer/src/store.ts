@@ -7,6 +7,11 @@ import type { Channel, Message, Server, User } from './types';
 import { mergeHistory } from './utils/mergeHistory';
 import { type XdccSender, xdccSenderKey } from './utils/xdcc';
 
+export type LatencySample = { at: number; ms: number };
+
+// One sample every 30 seconds: an hour of history.
+export const LATENCY_SAMPLES = 120;
+
 type State = {
   servers: Server[];
   presets: ServerPreset[];
@@ -18,6 +23,8 @@ type State = {
   selectedChannelId: string;
   lastChannelMap: Record<string, string>;
   statusMap: Record<string, 'disconnected' | 'connecting' | 'connected'>;
+  // Round trips to each server, newest last. Live state: never persisted.
+  latencyMap: Record<string, LatencySample[]>;
   saslMap: Record<string, { user: string; pass: string }>;
   passwordMap: Record<string, string>;
   mentionedChannels: Record<string, boolean>;
@@ -114,6 +121,7 @@ type Actions = {
   untrustXdccSender: (serverId: string, sender: XdccSender) => void;
   applyAwayEverywhere: (serverId: string, nick: string, away: boolean) => void;
   setSelfAway: (serverId: string, away: boolean) => void;
+  recordLatency: (serverId: string, ms: number, at?: number) => void;
   setAlias: (name: string, template: string) => void;
   removeAlias: (name: string) => void;
   setKeybinding: (action: KeybindAction, combo: string) => void;
@@ -133,6 +141,7 @@ export const useStore = create<State & Actions>()(
       selectedChannelId: '__log__',
       lastChannelMap: {},
       statusMap: {},
+      latencyMap: {},
       saslMap: {},
       passwordMap: {},
       mentionedChannels: {},
@@ -177,6 +186,8 @@ export const useStore = create<State & Actions>()(
           delete nickMap[id];
           const statusMap = { ...s.statusMap };
           delete statusMap[id];
+          const latencyMap = { ...s.latencyMap };
+          delete latencyMap[id];
           const saslMap = { ...s.saslMap };
           delete saslMap[id];
           const passwordMap = { ...s.passwordMap };
@@ -198,6 +209,7 @@ export const useStore = create<State & Actions>()(
               userMap,
               nickMap,
               statusMap,
+              latencyMap,
               saslMap,
               passwordMap,
               ignoredNicks,
@@ -218,6 +230,7 @@ export const useStore = create<State & Actions>()(
             userMap,
             nickMap,
             statusMap,
+            latencyMap,
             saslMap,
             passwordMap,
             ignoredNicks,
@@ -405,6 +418,14 @@ export const useStore = create<State & Actions>()(
             channelMap: { ...s.channelMap, [serverId]: channels.map((c) => (c.joined ? { ...c, joined: false } : c)) },
           };
         }),
+
+      recordLatency: (serverId, ms, at = Date.now()) =>
+        set((s) => ({
+          latencyMap: {
+            ...s.latencyMap,
+            [serverId]: [...(s.latencyMap[serverId] ?? []), { at, ms }].slice(-LATENCY_SAMPLES),
+          },
+        })),
 
       setSelfAway: (serverId, away) => set((s) => ({ selfAwayMap: { ...s.selfAwayMap, [serverId]: away } })),
 

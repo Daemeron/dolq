@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { IrcEvent } from '../../shared/ipc';
 import App from './App';
@@ -469,6 +469,54 @@ describe('App: dialogs', () => {
     expect(screen.getByRole('button', { name: 'Libera' })).toBeTruthy();
     document.documentElement.style.removeProperty('--dolq-bg-panel-alt');
     document.documentElement.style.removeProperty('--dolq-text');
+  });
+
+  it('opens the dashboard from the rail and returns to the chat from a channel chip', async () => {
+    await mount();
+    fireEvent.click(screen.getByRole('button', { name: 'Dashboard' }));
+    expect(screen.getByRole('heading', { name: 'Dashboard' })).toBeTruthy();
+    expect(screen.queryByPlaceholderText('Message #dolq')).toBeNull();
+    fireEvent.click(within(screen.getByRole('region', { name: 'Libera' })).getByRole('button', { name: '#other' }));
+    expect(screen.getByRole('heading', { name: '#other' })).toBeTruthy();
+    expect(useStore.getState().selectedChannelId).toBe('#other');
+  });
+
+  it('shows the latency the backend reports on the dashboard', async () => {
+    const irc = await mount();
+    await irc.event('s1', { type: 'LATENCY', ms: 42 });
+    await irc.event('s1', { type: 'LATENCY', ms: 58 });
+    expect(useStore.getState().latencyMap.s1.map((x) => x.ms)).toEqual([42, 58]);
+    fireEvent.click(screen.getByRole('button', { name: 'Dashboard' }));
+    expect(screen.getByText('58 ms')).toBeTruthy();
+    expect(screen.getByText('min 42 · avg 50 · max 58 ms')).toBeTruthy();
+  });
+
+  it('sets and clears away on every connected server from the title strip', async () => {
+    useStore.setState({
+      servers: [server, { ...server, id: 's2', name: 'Rizon' }],
+      statusMap: { s1: 'connected', s2: 'connected', s3: 'disconnected' },
+    });
+    const irc = await mount();
+    fireEvent.click(screen.getByRole('button', { name: 'Away on all servers' }));
+    expect(irc.spies.sendLine).toHaveBeenCalledWith('s1', 'AWAY :Away');
+    expect(irc.spies.sendLine).toHaveBeenCalledWith('s2', 'AWAY :Away');
+    await irc.event('s1', { type: 'SELFAWAY', away: true });
+    await irc.event('s2', { type: 'SELFAWAY', away: true });
+    irc.spies.sendLine.mockClear();
+    fireEvent.click(screen.getByRole('button', { name: 'Back from away on all servers' }));
+    expect(irc.spies.sendLine).toHaveBeenCalledWith('s1', 'AWAY');
+    expect(irc.spies.sendLine).toHaveBeenCalledWith('s2', 'AWAY');
+  });
+
+  it('searches everywhere from the title strip, and in the channel from the toolbar', async () => {
+    await mount();
+    fireEvent.click(screen.getByRole('button', { name: 'Search everywhere' }));
+    expect(screen.getByRole('radio', { name: 'Everywhere' })).toHaveAttribute('aria-checked', 'true');
+    fireEvent.keyDown(window, { key: 'Escape' });
+    cleanup();
+    await mount();
+    fireEvent.click(screen.getByRole('button', { name: 'Search history' }));
+    expect(screen.getByRole('radio', { name: 'This channel' })).toHaveAttribute('aria-checked', 'true');
   });
 
   it('opens search from the toolbar', async () => {

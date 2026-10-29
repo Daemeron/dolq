@@ -1,9 +1,9 @@
+import logo from '../../../../resources/icons/64x64.png';
 import type { ConnectionStatus } from '../../../shared/ipc';
 import { useContextMenu } from '../hooks/useContextMenu';
 import type { Server } from '../types';
 import { serverColor, serverIconText } from '../utils/server';
 import { ContextMenu, ContextMenuHeader, ContextMenuItem } from './ContextMenu';
-import { Icon } from './Icon';
 
 type Props = {
   servers: Server[];
@@ -14,7 +14,8 @@ type Props = {
   onEditServer: (id: string) => void;
   statusMap: Record<string, ConnectionStatus>;
   onToggleConnection: (id: string) => void;
-  onOpenPreferences: () => void;
+  dashboardActive: boolean;
+  onOpenDashboard: () => void;
 };
 
 export const STATUS_LABEL: Record<ConnectionStatus, string> = {
@@ -38,7 +39,8 @@ export function ServerList({
   onEditServer,
   statusMap,
   onToggleConnection,
-  onOpenPreferences,
+  dashboardActive,
+  onOpenDashboard,
 }: Props) {
   const { menu, open, close, dismissIfUnhandled } = useContextMenu<string>();
   const menuServer = servers.find((s) => s.id === menu?.target);
@@ -48,6 +50,19 @@ export function ServerList({
       onContextMenu={dismissIfUnhandled}
     >
       <div className="flex-1 min-h-0 overflow-y-auto scroll-invisible flex flex-col items-center gap-2.5 px-3 py-3.5">
+        <button
+          type="button"
+          aria-label="Dashboard"
+          data-tip="Dashboard"
+          aria-current={dashboardActive || undefined}
+          onClick={onOpenDashboard}
+          className={`has-tip tip-right w-10.5 h-10.5 shrink-0 cursor-pointer select-none overflow-hidden rounded-[13px] border-0 bg-transparent p-0 transition-[border-radius] duration-150 hover:rounded-2xl ${
+            dashboardActive ? 'ring-2 ring-offset-2 ring-(--dolq-text) ring-offset-(--dolq-bg-panel-alt)' : ''
+          }`}
+        >
+          <img src={logo} alt="" className="size-full" />
+        </button>
+        <div className="my-1 h-px w-6 bg-(--dolq-border)" />
         {servers.map((s) => {
           const status = statusMap[s.id] ?? 'disconnected';
           return (
@@ -95,16 +110,6 @@ export function ServerList({
           </svg>
         </button>
       </div>
-
-      <button
-        type="button"
-        aria-label="Preferences"
-        data-tip="Preferences"
-        onClick={onOpenPreferences}
-        className="has-tip tip-right mx-auto mb-3.5 w-8.5 h-8.5 shrink-0 flex items-center justify-center rounded-lg border-0 bg-transparent text-(--dolq-text-dim) cursor-pointer hover:text-(--dolq-text) hover:bg-(--dolq-bg-row-hover)"
-      >
-        <Icon name="sliders" />
-      </button>
 
       {menu && menuServer && (
         <ContextMenu x={menu.x} y={menu.y}>

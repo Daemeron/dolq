@@ -26,6 +26,7 @@ export type IrcEvent =
   | { type: 'NICKINUSE'; nick: string; retrying?: string }
   | { type: 'AWAY'; nick: string; away: boolean; message?: string }
   | { type: 'SELFAWAY'; away: boolean }
+  | { type: 'LATENCY'; ms: number }
   | {
       type: 'MODE';
       by?: string;
