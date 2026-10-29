@@ -28,6 +28,8 @@ function formatBytes(n: number): string {
   return `${v.toFixed(1)} ${units[i]}`;
 }
 
+type Mode = 'once' | 'session' | 'always';
+
 export function XDCCOfferModal({
   nick,
   filename,
@@ -39,6 +41,14 @@ export function XDCCOfferModal({
   onDecline,
 }: Props) {
   const [menuOpen, setMenuOpen] = useState(false);
+  // What the Accept button does: the menu only picks this, the button itself accepts.
+  const [mode, setMode] = useState<Mode>('once');
+  const accept = { once: onAccept, session: onAcceptSession, always: onAcceptAlways }[mode];
+  const label = { once: 'Accept', session: 'Accept for session', always: 'Always accept' }[mode];
+  const choose = (next: Mode) => {
+    setMode(next);
+    setMenuOpen(false);
+  };
 
   // Escape closes the trust menu first, and only a second press declines the offer.
   useEffect(() => {
@@ -62,13 +72,13 @@ export function XDCCOfferModal({
           <Button onClick={onDecline}>Decline</Button>
           {/* Accept, with the trust options attached to its right edge. */}
           <div className="relative flex">
-            <Button variant="primary" className={trustable ? 'rounded-r-none' : ''} onClick={onAccept}>
-              Accept
+            <Button variant="primary" className={trustable ? 'rounded-r-none' : ''} onClick={accept}>
+              {label}
             </Button>
             {trustable && (
               <Button
                 variant="primary"
-                aria-label="More ways to accept"
+                aria-label="Choose how to accept"
                 aria-haspopup="menu"
                 aria-expanded={menuOpen}
                 className="rounded-l-none border-l-(--dolq-on-brand)/30 px-2"
@@ -84,8 +94,15 @@ export function XDCCOfferModal({
                   role="menu"
                   className="absolute right-0 bottom-full z-20 mb-2 w-max rounded-lg bg-(--dolq-bg-input) py-1.5 shadow-(--dolq-shadow)"
                 >
-                  <ContextMenuItem onClick={onAcceptSession}>Accept from {nick} for this session</ContextMenuItem>
-                  <ContextMenuItem onClick={onAcceptAlways}>Always accept from {nick}</ContextMenuItem>
+                  <ContextMenuItem checked={mode === 'once'} onClick={() => choose('once')}>
+                    Accept this file only
+                  </ContextMenuItem>
+                  <ContextMenuItem checked={mode === 'session'} onClick={() => choose('session')}>
+                    Accept from {nick} for this session
+                  </ContextMenuItem>
+                  <ContextMenuItem checked={mode === 'always'} onClick={() => choose('always')}>
+                    Always accept from {nick}
+                  </ContextMenuItem>
                 </div>
               </>
             )}

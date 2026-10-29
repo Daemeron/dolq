@@ -617,8 +617,9 @@ describe('App: prompts from the network', () => {
   it('trusts a sender for the session and skips the prompt the next time', async () => {
     const irc = await mount();
     await irc.event('s1', offer);
-    fireEvent.click(await screen.findByRole('button', { name: 'More ways to accept' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Choose how to accept' }));
     fireEvent.click(screen.getByText(/for this session/));
+    fireEvent.click(screen.getByRole('button', { name: 'Accept for session' }));
     await waitFor(() => expect(irc.spies.xdccAccept).toHaveBeenCalledTimes(1));
     await irc.event('s1', offer);
     await waitFor(() => expect(irc.spies.xdccAccept).toHaveBeenCalledTimes(2));
@@ -628,8 +629,9 @@ describe('App: prompts from the network', () => {
   it('remembers a sender permanently when asked', async () => {
     const irc = await mount();
     await irc.event('s1', offer);
-    fireEvent.click(await screen.findByRole('button', { name: 'More ways to accept' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Choose how to accept' }));
     fireEvent.click(screen.getByText(/Always accept from/));
+    fireEvent.click(screen.getByRole('button', { name: 'Always accept' }));
     await waitFor(() => expect(useStore.getState().xdccTrusted.s1).toHaveLength(1));
     expect(irc.spies.xdccAccept).toHaveBeenCalled();
   });
@@ -1357,8 +1359,9 @@ describe('App: trust ends with the connection', () => {
       host: 'bot.example',
     };
     await irc.event('s1', offer);
-    fireEvent.click(await screen.findByRole('button', { name: 'More ways to accept' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Choose how to accept' }));
     fireEvent.click(screen.getByText(/for this session/));
+    fireEvent.click(screen.getByRole('button', { name: 'Accept for session' }));
     await waitFor(() => expect(irc.spies.xdccAccept).toHaveBeenCalledTimes(1));
     irc.emit('onStatus', 's1', 'disconnected');
     irc.emit('onStatus', 's1', 'connected');

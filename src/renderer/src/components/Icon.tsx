@@ -12,6 +12,7 @@ const PATHS = {
   plus: 'M12 5v14M5 12h14',
   chevronRight: 'm9 6 6 6-6 6',
   chevronDown: 'm6 9 6 6 6-6',
+  check: 'm5 12 5 5 9-10',
   arrowLeft: 'M19 12H5m0 0 6-6m-6 6 6 6',
   arrowRight: 'M5 12h14m0 0-6-6m6 6-6 6',
   send: 'M12 19V5m0 0-6 6m6-6 6 6',
