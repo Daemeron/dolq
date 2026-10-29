@@ -24,7 +24,7 @@
     "backend:test:coverage": "cd backend && ./scripts/check-coverage.sh",
     "backend:test:dev": "go -C backend run github.com/air-verse/air@v1.67.4 -c .air.test.toml",
     "run": "electron-vite preview",
-    "package": "npm run backend:build && npm run frontend:build && electron-builder"
+    "package": "npm run backend:build && npm run frontend:build && electron-builder --publish never"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.14",

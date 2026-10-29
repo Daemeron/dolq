@@ -44,7 +44,7 @@ jobs:
       - run: npm ci
       - run: go build -C backend -o bin/ ./cmd/dolqd
       - run: npx electron-vite build
-      - run: npx electron-builder
+      - run: npx electron-builder --publish never
 
   # One check with a fixed name for the ruleset to require: a skipped matrix job has no stable name of its own.
   result:
