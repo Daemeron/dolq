@@ -476,9 +476,11 @@ func (c *Client) readLoop() {
 func (c *Client) handleLine(line string) {
 	untagged := stripMessageTags(line)
 
+	// Keep-alive: answered here, and not the user's to see or keep in the log.
 	if strings.HasPrefix(untagged, "PING") {
 		token := strings.TrimSpace(strings.TrimPrefix(untagged, "PING"))
 		c.Send("PONG " + token)
+		return
 	}
 
 	if c.handlePong(untagged) {

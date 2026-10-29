@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"log"
 	"os"
 	"regexp"
@@ -69,7 +70,7 @@ func Open(path string, retentionDays int) (*Store, error) {
 		db.Close()
 		return nil, err
 	}
-	if err := dropOwnPongs(db); err != nil {
+	if err := dropProtocolNoise(db); err != nil {
 		db.Close()
 		return nil, err
 	}
@@ -84,20 +85,24 @@ func Open(path string, retentionDays int) (*Store, error) {
 	return s, nil
 }
 
-// ownPong matches the server's answer to a latency PING of ours: [@tags ]:server PONG server :dolq-<digits>.
-var ownPong = regexp.MustCompile(`^(@\S+ )?:\S+ PONG \S+ :dolq-\d+$`)
+// protocolNoise matches the keep-alive lines that used to be logged: the server's PING, and its answer to a latency
+// PING of ours ([@tags ][:prefix ]PING ... or ...PONG server :dolq-<digits>).
+var protocolNoise = regexp.MustCompile(`^(@\S+ )?(:\S+ )?(PING( .*)?|PONG \S+ :dolq-\d+)$`)
 
-// dropOwnPongs removes those answers from histories written before they were kept out of the log. It runs once per
-// database (PRAGMA user_version), so a large history is not scanned at every start.
-func dropOwnPongs(db *sql.DB) error {
+// cleanupVersion counts the one-time history cleanups; PRAGMA user_version records the last one done.
+const cleanupVersion = 2
+
+// dropProtocolNoise removes those lines from histories written before they were kept out of the log. It runs once per
+// database and cleanup version, so a large history is not scanned at every start.
+func dropProtocolNoise(db *sql.DB) error {
 	var version int
 	if err := db.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil {
 		return err
 	}
-	if version >= 1 {
+	if version >= cleanupVersion {
 		return nil
 	}
-	rows, err := db.Query(`SELECT id, payload FROM messages WHERE is_raw = 1 AND payload LIKE '% PONG % :dolq-%'`)
+	rows, err := db.Query(`SELECT id, payload FROM messages WHERE is_raw = 1 AND (payload LIKE '%PING%' OR payload LIKE '%PONG%')`)
 	if err != nil {
 		return err
 	}
@@ -109,7 +114,7 @@ func dropOwnPongs(db *sql.DB) error {
 			rows.Close()
 			return err
 		}
-		if ownPong.MatchString(payload) {
+		if protocolNoise.MatchString(payload) {
 			ids = append(ids, id)
 		}
 	}
@@ -128,7 +133,7 @@ func dropOwnPongs(db *sql.DB) error {
 			return err
 		}
 	}
-	if _, err := tx.Exec(`PRAGMA user_version = 1`); err != nil {
+	if _, err := tx.Exec(fmt.Sprintf(`PRAGMA user_version = %d`, cleanupVersion)); err != nil {
 		tx.Rollback()
 		return err
 	}

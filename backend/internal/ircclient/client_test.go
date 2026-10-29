@@ -1689,3 +1689,25 @@ func TestOurOwnPongsAreKeptOutOfTheLog(t *testing.T) {
 	case <-time.After(50 * time.Millisecond):
 	}
 }
+
+func TestServerPingsAreAnsweredButKeptOutOfTheLog(t *testing.T) {
+	c, server, r := pipeClient(t, "testnick")
+	lines := make(chan string, 8)
+	c.AddLineListener(func(line string) { lines <- line })
+	c.Start()
+	drainHandshake(t, r)
+
+	writeLine(t, server, "PING :irc.uworld.se")
+	if got := expectLine(t, r); got != "PONG :irc.uworld.se\r\n" {
+		t.Fatalf("got %q, want the PONG", got)
+	}
+	writeLine(t, server, ":nick!u@h PRIVMSG #c :after")
+	select {
+	case l := <-lines:
+		if !strings.Contains(l, "PRIVMSG") {
+			t.Errorf("first logged line = %q, want the message, not the PING", l)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("the message never reached the log")
+	}
+}
