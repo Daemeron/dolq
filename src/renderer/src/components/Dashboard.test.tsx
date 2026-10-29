@@ -24,6 +24,10 @@ function setup(over: Partial<React.ComponentProps<typeof Dashboard>> = {}) {
       b: [{ at: 1, ms: 500 }],
     },
     rates: { down: 2 * 1024 * 1024, up: 512 * 1024, active: 2 },
+    bandwidth: [
+      { at: 1, down: 0, up: 0 },
+      { at: 2, down: 2 * 1024 * 1024, up: 512 * 1024 },
+    ],
     onOpenServer: vi.fn(),
     onOpenChannel: vi.fn(),
     ...over,
@@ -39,6 +43,20 @@ describe('Dashboard', () => {
     expect(screen.getByText('2.0 MB/s')).toBeTruthy();
     expect(screen.getByText('512.0 KB/s')).toBeTruthy();
     expect(screen.getByText('2 active transfers')).toBeTruthy();
+  });
+
+  it('graphs download and upload over time, with the peak', () => {
+    setup();
+    expect(
+      screen.getByRole('img', { name: 'Download and upload over time, 2.0 MB/s down and 512.0 KB/s up now' }),
+    ).toBeTruthy();
+    expect(screen.getByText('peak 2.0 MB/s')).toBeTruthy();
+  });
+
+  it('says it is collecting while the bandwidth history is too short to draw', () => {
+    setup({ bandwidth: [] });
+    expect(screen.getByText('Collecting samples…')).toBeTruthy();
+    expect(screen.getByRole('img', { name: 'Download and upload over time' })).toBeTruthy();
   });
 
   it('shows a connected server with its latency, trend and joined channels only', () => {

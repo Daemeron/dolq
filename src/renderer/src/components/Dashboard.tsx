@@ -1,9 +1,11 @@
 import type { ConnectionStatus } from '../../../shared/ipc';
+import type { RateSample } from '../hooks/useRateHistory';
 import type { LatencySample } from '../store';
 import type { Channel, Server } from '../types';
 import { formatRate } from '../utils/bytes';
 import { latencyStats, latencyTone } from '../utils/latency';
 import { serverColor, serverIconText } from '../utils/server';
+import { BandwidthChart } from './BandwidthChart';
 import { STATUS_LABEL } from './ServerList';
 import { Sparkline } from './Sparkline';
 import { Card } from './ui';
@@ -14,6 +16,7 @@ type Props = {
   channelMap: Record<string, Channel[]>;
   latencyMap: Record<string, LatencySample[]>;
   rates: { down: number; up: number; active: number };
+  bandwidth: RateSample[];
   onOpenServer: (serverId: string) => void;
   onOpenChannel: (serverId: string, channelId: string) => void;
 };
@@ -31,7 +34,16 @@ function Stat({ label, value, hint }: { label: string; value: string; hint?: str
 }
 
 /** The client's control panel: what is connected, how fast, and what is moving. */
-export function Dashboard({ servers, statusMap, channelMap, latencyMap, rates, onOpenServer, onOpenChannel }: Props) {
+export function Dashboard({
+  servers,
+  statusMap,
+  channelMap,
+  latencyMap,
+  rates,
+  bandwidth,
+  onOpenServer,
+  onOpenChannel,
+}: Props) {
   const connected = servers.filter((s) => statusMap[s.id] === 'connected').length;
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -46,6 +58,9 @@ export function Dashboard({ servers, statusMap, channelMap, latencyMap, rates, o
             <Stat label="Servers" value={`${connected} of ${servers.length}`} hint="connected" />
             <Stat label="Download" value={formatRate(rates.down)} hint={`${rates.active} active transfers`} />
             <Stat label="Upload" value={formatRate(rates.up)} />
+          </Card>
+          <Card>
+            <BandwidthChart samples={bandwidth} />
           </Card>
           {servers.length === 0 && <p className="text-(--dolq-text-dim)">No servers yet. Add one from the rail.</p>}
           {servers.map((s) => {

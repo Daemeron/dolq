@@ -19,6 +19,7 @@ import { UserPanel } from './components/UserPanel';
 import { Welcome } from './components/Welcome';
 import { WhoisModal } from './components/WhoisModal';
 import { XDCCOfferModal } from './components/XDCCOfferModal';
+import { useRateHistory } from './hooks/useRateHistory';
 import { scopeKey, useStore } from './store';
 import type { Message, Server } from './types';
 import { shouldAlert } from './utils/alerts';
@@ -1246,6 +1247,7 @@ export default function App() {
     .map((c) => ({ id: c.id, label: c.isQuery ? `@${c.name}` : `#${c.name}` }));
   const transferCount = Object.keys(transfers).length;
   const rates = transferRates(Object.values(transfers));
+  const bandwidth = useRateHistory(rates, view.kind === 'dashboard');
   const connectedIds = servers.filter((s) => statusMap[s.id] === 'connected').map((s) => s.id);
   const allAway = connectedIds.length > 0 && connectedIds.every((id) => selfAwayMap[id]);
   useEffect(() => {
@@ -1544,6 +1546,7 @@ export default function App() {
               channelMap={channelMap}
               latencyMap={latencyMap}
               rates={rates}
+              bandwidth={bandwidth}
               onOpenServer={handleSelectServer}
               onOpenChannel={(serverId, channelId) => {
                 handleSelectServer(serverId);

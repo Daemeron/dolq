@@ -32,6 +32,13 @@ describe('sparklinePoints', () => {
     expect(sparklinePoints([0, 10, 5], 100, 20)).toBe('0.0,20.0 50.0,0.0 100.0,10.0');
   });
 
+  it('puts several series on one shared scale when given a range', () => {
+    const range = { min: 0, max: 10 };
+    expect(sparklinePoints([0, 5], 10, 20, range)).toBe('0.0,20.0 10.0,10.0');
+    expect(sparklinePoints([10, 10], 10, 20, range)).toBe('0.0,0.0 10.0,0.0');
+    expect(sparklinePoints([3, 3], 10, 20, { min: 0, max: 0 })).toBe('0.0,10.0 10.0,10.0');
+  });
+
   it('puts a flat or single point series mid-height, and an empty one nowhere', () => {
     expect(sparklinePoints([7, 7], 10, 20)).toBe('0.0,10.0 10.0,10.0');
     expect(sparklinePoints([7], 10, 20)).toBe('0.0,10.0');
