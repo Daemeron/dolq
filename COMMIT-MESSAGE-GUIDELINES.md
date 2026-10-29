@@ -117,4 +117,33 @@ The content of the commit message body should contain:
   format: `This reverts commit <SHA>`,
 - a clear description of the reason for reverting the commit message.
 
+## Curating a branch before it merges
+
+The commits on a branch are what land on `main`, and release-please turns each
+one into a line of the changelog. So a branch is cleaned up before it merges,
+not squashed into one commit:
+
+- **One commit per logical change**, each with a message that follows this
+  format. Fixups, "address review" and "fix lint" commits are folded into the
+  commit they belong to, and the history is reordered so it reads as the story
+  of the change.
+- **The application builds at every commit**, not only at the tip, so any
+  commit can be checked out, bisected or reverted on its own. Check it before
+  merging by running your build and checks over every commit of the branch:
+
+  ```bash
+  git rebase --exec "go build -C backend ./... && npm run frontend:typecheck && npx biome ci . && npx electron-vite build" origin/main
+  ```
+
+  Add the tests that the commit touches. A commit that fails is fixed in place.
+- **Only `feat` and `fix` commits are user-visible.** They are the ones that
+  appear in the release notes and decide the version bump, so use them only for
+  changes a user would notice. Everything else is `docs`, `test`, `refactor`,
+  `ci`, `build` or `perf`.
+- **Pull requests are merged by rebase**, which keeps the commits as they are.
+  Squash merging is switched off in the repository settings, because it would
+  collapse the whole branch into a single changelog line.
+- Force-pushing a branch you have rewritten is expected. Do not rewrite
+  commits that are already on `main`.
+
 [angularjs-commit-message-format]: https://docs.google.com/document/d/1QrDFcIiPjSLDn3EL15IJygNPiHORgU1_OOAqWjiDU5Y/edit#
