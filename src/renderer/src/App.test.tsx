@@ -389,6 +389,28 @@ describe('App: sending', () => {
   });
 });
 
+describe('App: start-up', () => {
+  it('tells the main process once the settings are in and the open channel has its history', async () => {
+    const irc = await mount();
+    await waitFor(() => expect(irc.spies.appReady).toHaveBeenCalledTimes(1));
+  });
+
+  it('waits for the open channel history before saying it is ready', async () => {
+    let land: (entries: unknown[]) => void = () => {};
+    const irc = await mount({ getHistory: new Promise((resolve) => (land = resolve)) });
+    await new Promise((resolve) => setTimeout(resolve, 80));
+    expect(irc.spies.appReady).not.toHaveBeenCalled();
+    await act(async () => land([]));
+    await waitFor(() => expect(irc.spies.appReady).toHaveBeenCalledTimes(1));
+  });
+
+  it('is ready as soon as the settings are in when there is no server to show', async () => {
+    useStore.setState({ servers: [], selectedServerId: '' });
+    const irc = await mount();
+    await waitFor(() => expect(irc.spies.appReady).toHaveBeenCalledTimes(1));
+  });
+});
+
 describe('App: updates', () => {
   const found = (over: Partial<UpdateStatus> = {}): UpdateStatus => ({
     state: 'available',

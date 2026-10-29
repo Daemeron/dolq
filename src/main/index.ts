@@ -12,6 +12,7 @@ import { type RemoteHooks, resolveRemoteBackend } from './remoteBackend';
 import { applyIncomingSettings, BACKEND_SECRET_ID } from './remoteSettings';
 import { type SecretCipher, SecretsStore, type ServerSecrets, withSavedSecrets } from './secrets';
 import { loadSettings, saveSettings } from './settings';
+import { createSplashWindow, startSplash } from './splash';
 import { startUpdater } from './updater';
 import { TITLE_BAR_HEIGHT, windowFrame } from './windowFrame';
 
@@ -60,8 +61,16 @@ const TRAY_ICON_PATH =
   process.platform === 'darwin' ? join(RESOURCES_DIR, 'trayIconTemplate.png') : join(RESOURCES_DIR, 'icons/32x32.png');
 const IRC_URL_SCHEMES = ['irc', 'ircs'];
 
-function createWindow(): void {
+// If the renderer never says it is ready, show the window anyway rather than leave Dolq invisible.
+const REVEAL_TIMEOUT_MS = 10_000;
+
+// Shows the main window the first time it is called (the renderer has rendered its first screen).
+let revealMainWindow: () => void = () => {};
+
+// `onReveal` runs when the window is first shown: the start-up splash closes then.
+function createWindow(onReveal?: () => void): void {
   mainWindow = new BrowserWindow({
+    show: false,
     width: 2000,
     height: 1080,
     minWidth: 800,
@@ -73,6 +82,20 @@ function createWindow(): void {
       preload: join(__dirname, '../preload/index.js'),
     },
   });
+
+  // Hidden until the renderer says it has rendered its first screen (IrcMessages.appReady), so the window never
+  // appears half-drawn and a splash covers the wait.
+  const win = mainWindow;
+  let revealed = false;
+  const reveal = () => {
+    if (revealed) return;
+    revealed = true;
+    clearTimeout(fallback);
+    onReveal?.();
+    if (!win.isDestroyed()) win.show();
+  };
+  const fallback = setTimeout(reveal, REVEAL_TIMEOUT_MS);
+  revealMainWindow = reveal;
 
   const appUrl = process.env.ELECTRON_RENDERER_URL ?? pathToFileURL(join(__dirname, '../renderer/index.html')).href;
   mainWindow.loadURL(appUrl);
@@ -286,7 +309,7 @@ if (!app.requestSingleInstanceLock()) {
     // at startup only to immediately destroy it again.
     const settings = loadSettings();
 
-    createWindow();
+    createWindow(startSplash(() => createSplashWindow(ICON_PATH)));
     if (settings.trayEnabled) createTray();
     registerBadgeCountHandler();
     createAppMenu();
@@ -322,6 +345,8 @@ if (!app.requestSingleInstanceLock()) {
 // has to come through here. Rechecked server-side rather than trusting the
 // renderer's own http(s)-only regex as the sole guard.
 function registerShellHandlers(): void {
+  ipcMain.handle(IrcMessages.appReady, () => revealMainWindow());
+
   ipcMain.handle(IrcMessages.openExternal, (_event, url: string) => {
     if (!isWebLink(url)) throw new Error(`refusing to open non-http(s) link: ${url}`);
     return shell.openExternal(url);

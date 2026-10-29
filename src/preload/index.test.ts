@@ -61,6 +61,7 @@ describe('preload bridge: requests', () => {
     ['setBadgeCount', [3], IrcMessages.setBadgeCount],
     ['setZoomFactor', [1.2], IrcMessages.setZoomFactor],
     ['playAlertSound', [], IrcMessages.playAlertSound],
+    ['appReady', [], IrcMessages.appReady],
     ['getUpdateStatus', [], IrcMessages.getUpdateStatus],
     ['downloadUpdate', [], IrcMessages.downloadUpdate],
     ['installUpdate', [], IrcMessages.installUpdate],
