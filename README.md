@@ -292,23 +292,21 @@ npm run backend:test:dev     # rerun on every backend/**/*.go change, also via a
 
 ## Merging a pull request
 
-Nothing reaches `main` unless it could be released as it is, so a pull request
-passes three gates in order:
+`main` only takes pull requests whose checks are green, and a release is never
+broken:
 
-1. **CI** (`Build and Test - CI`, runs on every push to the branch): Go build,
-   vet, race tests and coverage, Biome, typecheck, the renderer tests and the
-   Electron smoke test.
-2. **Review.** Someone reads the change.
-3. **Binaries** (`PR - Build Binaries`): builds the real installers for macOS,
-   Linux and Windows from the pull request's head commit and reports the result
-   as the commit status `Build Binaries`. It starts when the pull request is
-   approved, or by hand with `gh workflow run pr-build-binaries.yml -f pr=<number>`
-   (Actions → *PR - Build Binaries* → *Run workflow*). It refuses to start
-   until CI has passed on that commit. A new push means a new head commit, so
-   the binaries are built again.
+1. **CI** (`Build and Test - CI`, every pull request): Go build, vet, race
+   tests and coverage, Biome, typecheck, the renderer tests and the Electron
+   smoke test.
+2. **Build Binaries** (`Release PR - Build Binaries`): on the release pull
+   request only (the one release-please opens), builds the real installers for
+   macOS, Linux and Windows. Every other pull request passes this check at
+   once without building anything.
 
-`main`'s ruleset requires CI and `Build Binaries` to be green before a pull
-request can be merged.
+`main`'s ruleset requires both checks, so the release pull request cannot be
+merged until its installers build, and merging it is what publishes them.
+
+---
 
 ---
 

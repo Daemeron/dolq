@@ -1,0 +1,60 @@
+name: Release PR - Build Binaries
+
+# A release must never be broken, so the release pull request builds the real
+# installers for macOS, Linux and Windows before it can be merged. Every other
+# pull request skips the build and passes the "Build Binaries" check at once,
+# which lets main's ruleset require that check on all of them.
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    # release-please opens the release pull request from this branch.
+    if: startsWith(github.head_ref, 'release-please--')
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-24.04, windows-latest]
+    runs-on: ${{ matrix.os }}
+    # Keep these steps in line with create-a-release-build-binaries.yml, minus the release upload.
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - run: go vet ./...
+        working-directory: backend
+      - run: test -z "$(gofmt -l .)"
+        working-directory: backend
+        shell: bash
+      - run: go test ./...
+        working-directory: backend
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: go build -C backend -o bin/ ./cmd/dolqd
+      - run: npx electron-vite build
+      - run: npx electron-builder
+
+  # One check with a fixed name for the ruleset to require: a skipped matrix job has no stable name of its own.
+  result:
+    name: Build Binaries
+    needs: build
+    if: always()
+    runs-on: ubuntu-24.04
+    steps:
+      - env:
+          BUILD: ${{ needs.build.result }}
+        run: |
+          echo "builds: $BUILD"
+          case "$BUILD" in success|skipped) ;; *) exit 1 ;; esac
