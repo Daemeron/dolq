@@ -86,6 +86,7 @@ describe('BackendClient', () => {
   });
 
   it('keeps retrying while the backend is unreachable, waiting longer each time', async () => {
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {});
     const client = new BackendClient(0, remote);
     await client.getStatus('s1');
     fake.refuse = true;
@@ -98,6 +99,8 @@ describe('BackendClient', () => {
     expect(fake.sockets).toHaveLength(2);
     await vi.advanceTimersByTimeAsync(1);
     expect(fake.sockets).toHaveLength(3);
+    expect(err).toHaveBeenCalledWith('backend redial failed:', expect.objectContaining({ message: 'ECONNREFUSED' }));
+    err.mockRestore();
     await client.stop();
   });
 

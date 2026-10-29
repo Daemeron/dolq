@@ -71,6 +71,8 @@ export function MessageArea({
     estimateSize: (index) => (hiddenByFold(followers, messages[index].id, isOpen) ? 0 : rowEstimate),
     getItemKey: (index) => messages[index].id,
     overscan: 8,
+    // The virtualizer reports changes from layout effects, where React refuses a synchronous flush.
+    useFlushSync: false,
     anchorTo: 'end',
     followOnAppend: switchedChannel ? false : 'smooth',
     scrollEndThreshold: AT_BOTTOM_THRESHOLD,

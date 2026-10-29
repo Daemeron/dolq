@@ -230,6 +230,9 @@ export default function App() {
   } | null>(null);
   const [pendingXDCCOffer, setPendingXDCCOffer] = useState<PendingXDCCOffer | null>(null);
   const [transfers, setTransfers] = useState<Record<string, Transfer & { serverId: string; path: string }>>({});
+  // The latest transfers, for event handlers that must act on one without doing it inside a state updater.
+  const transfersRef = useRef(transfers);
+  transfersRef.current = transfers;
   const transferSpeedTrack = useRef<Record<string, { received: number; at: number }>>({});
   const [pendingIdentifyServerId, setPendingIdentifyServerId] = useState<string | null>(null);
   const nextMsgId = useRef(Date.now());
@@ -731,36 +734,38 @@ export default function App() {
           const id = serverId;
           if (event.done || event.error) {
             delete transferSpeedTrack.current[id];
-            setTransfers((prev) => {
-              const t = prev[id];
-              if (!t) return prev;
-              const text = t.sending
-                ? event.error
-                  ? `Sending ${t.filename} failed: ${event.error}`
-                  : `Sent ${t.filename}`
-                : event.error
-                  ? `Download of ${t.filename} failed: ${event.error}`
-                  : `Downloaded ${t.filename} to ${event.path}`;
-              ensureQuery(t.serverId, t.nick);
-              appendMessage(scopeKey(t.serverId, t.nick), {
-                id: nextMsgId.current++,
-                nick: '',
-                text,
-                timestamp: new Date(),
-                system: true,
-              });
-              return {
-                ...prev,
-                [id]: {
-                  ...t,
-                  received: event.received,
-                  total: event.total,
-                  path: event.path,
-                  done: event.done,
-                  error: event.error,
-                },
-              };
+            const finished = transfersRef.current[id];
+            if (!finished) break;
+            const text = finished.sending
+              ? event.error
+                ? `Sending ${finished.filename} failed: ${event.error}`
+                : `Sent ${finished.filename}`
+              : event.error
+                ? `Download of ${finished.filename} failed: ${event.error}`
+                : `Downloaded ${finished.filename} to ${event.path}`;
+            ensureQuery(finished.serverId, finished.nick);
+            appendMessage(scopeKey(finished.serverId, finished.nick), {
+              id: nextMsgId.current++,
+              nick: '',
+              text,
+              timestamp: new Date(),
+              system: true,
             });
+            setTransfers((prev) =>
+              prev[id]
+                ? {
+                    ...prev,
+                    [id]: {
+                      ...prev[id],
+                      received: event.received,
+                      total: event.total,
+                      path: event.path,
+                      done: event.done,
+                      error: event.error,
+                    },
+                  }
+                : prev,
+            );
             break;
           }
           const { track, speedBps } = updateSpeed(transferSpeedTrack.current[id], event.received, Date.now());
