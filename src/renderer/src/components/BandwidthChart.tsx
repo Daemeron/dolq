@@ -19,7 +19,7 @@ export function BandwidthChart({ samples }: { samples: RateSample[] }) {
           Download
         </span>
         <span className="flex items-center gap-1.5 text-(--dolq-text-dim)">
-          <span aria-hidden="true" className="h-0.5 w-3 rounded bg-(--dolq-nick-2)" />
+          <span aria-hidden="true" className="h-0.5 w-3 rounded bg-(--dolq-nick-3)" />
           Upload
         </span>
         <span className="ml-auto text-(--dolq-text-faint)">peak {formatRate(peak)}</span>
@@ -55,7 +55,7 @@ export function BandwidthChart({ samples }: { samples: RateSample[] }) {
                 range,
               )}
               fill="none"
-              stroke="var(--dolq-nick-2)"
+              stroke="var(--dolq-nick-3)"
               strokeWidth="1.5"
               vectorEffect="non-scaling-stroke"
               strokeLinejoin="round"
