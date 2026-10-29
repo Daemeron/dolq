@@ -209,7 +209,7 @@ export function PreferencesModal({
           <Button variant="ghost" onClick={onCancel}>
             Cancel
           </Button>
-          <Button variant="primary" type="submit">
+          <Button variant="accent" type="submit">
             Save
           </Button>
         </>
@@ -477,7 +477,7 @@ export function PreferencesModal({
                     <button
                       type="button"
                       onClick={() => setRemoteFingerprint('')}
-                      className="cursor-pointer border-0 bg-transparent p-0 text-(--dolq-accent-text) underline"
+                      className="cursor-pointer border-0 bg-transparent p-0 text-(--dolq-brand-text) underline"
                     >
                       Forget
                     </button>

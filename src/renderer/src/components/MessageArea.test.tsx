@@ -282,8 +282,8 @@ describe('MessageArea: day dividers and mentions', () => {
       'me',
     );
     const rowOf = (text: string) => getByText(text).closest('[data-index]') as HTMLElement;
-    expect(rowOf('me: can you cut the release?').className).toContain('accent-soft');
-    expect(rowOf('me: talking to myself').className).not.toContain('accent-soft');
+    expect(rowOf('me: can you cut the release?').className).toContain('brand-soft');
+    expect(rowOf('me: talking to myself').className).not.toContain('brand-soft');
   });
 });
 

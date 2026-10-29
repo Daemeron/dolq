@@ -78,7 +78,7 @@ export function IconButton({
       {badge && (
         <span
           data-testid="icon-badge"
-          className="absolute top-1.5 right-1.5 w-1.75 h-1.75 rounded-full bg-(--dolq-accent) border-2 border-(--dolq-bg)"
+          className="absolute top-1.5 right-1.5 w-1.75 h-1.75 rounded-full bg-(--dolq-brand) border-2 border-(--dolq-bg)"
         />
       )}
     </button>

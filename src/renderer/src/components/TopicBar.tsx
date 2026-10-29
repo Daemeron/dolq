@@ -51,7 +51,7 @@ export function TopicBar({
   const whoWhen = topicSetBy && `Set by ${topicSetBy}${topicSetAt ? ` at ${topicSetAt.toLocaleString()}` : ''}`;
   const { menu, open, close } = useContextMenu<null>();
   const mentionMenu = useContextMenu<null>();
-  const prefixStyle = { color: serverColor ?? 'var(--dolq-accent)' };
+  const prefixStyle = { color: serverColor ?? 'var(--dolq-brand)' };
   const connected = connectionStatus === 'connected';
   return (
     <div className="h-14 flex items-center gap-3 pl-5 pr-3 border-b border-(--dolq-border) bg-(--dolq-bg) shrink-0">

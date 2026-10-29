@@ -59,7 +59,7 @@ export function XDCCOfferModal({
         </>
       }
     >
-      <Card className="border-(--dolq-accent) bg-(--dolq-accent-soft)">
+      <Card className="border-(--dolq-brand) bg-(--dolq-brand-soft)">
         <Setting
           title={`${nick} offers a file`}
           description={

@@ -32,7 +32,7 @@ export function DCCOfferModal({ nick, onAccept, onDecline }: Props) {
         </>
       }
     >
-      <Card className="border-(--dolq-accent) bg-(--dolq-accent-soft)">
+      <Card className="border-(--dolq-brand) bg-(--dolq-brand-soft)">
         <Setting title={`${nick} wants to chat`} description="A direct chat outside the server." />
       </Card>
     </ViewPanel>

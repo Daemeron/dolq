@@ -79,7 +79,7 @@ export function EditServerModal({ server, nick, saslUser, saslPass, onSave, onCa
           <Button variant="ghost" onClick={onCancel}>
             Cancel
           </Button>
-          <Button variant="primary" type="submit">
+          <Button variant="accent" type="submit">
             Save
           </Button>
         </>

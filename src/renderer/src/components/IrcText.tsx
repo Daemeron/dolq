@@ -323,7 +323,7 @@ export function IrcText({ text, mark }: { text: string; mark?: string }) {
                     typeof piece === 'string' ? (
                       piece
                     ) : (
-                      <mark key={k} className="rounded-[3px] bg-(--dolq-accent-soft) text-inherit">
+                      <mark key={k} className="rounded-[3px] bg-(--dolq-brand-soft) text-inherit">
                         {piece.match}
                       </mark>
                     ),
@@ -336,7 +336,7 @@ export function IrcText({ text, mark }: { text: string; mark?: string }) {
                       window.irc.openExternal(part.url);
                     }}
                     href={part.url}
-                    className="cursor-pointer text-(--dolq-accent-text) underline underline-offset-2 hover:text-(--dolq-accent-text-hover)"
+                    className="cursor-pointer text-(--dolq-brand-text) underline underline-offset-2 hover:text-(--dolq-brand-text-hover)"
                   >
                     {part.url}
                   </a>

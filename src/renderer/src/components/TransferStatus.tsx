@@ -71,7 +71,7 @@ export function TransferStatus({ transfers, onPause, onResume, onCancel, onDismi
                   {!finished && (
                     <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-(--dolq-bg-row-selected)">
                       <div
-                        className={`h-full rounded-full transition-[width] ${t.paused ? 'bg-(--dolq-text-faint)' : 'bg-(--dolq-accent)'}`}
+                        className={`h-full rounded-full transition-[width] ${t.paused ? 'bg-(--dolq-text-faint)' : 'bg-(--dolq-brand)'}`}
                         style={{ width: `${pct}%` }}
                       />
                     </div>

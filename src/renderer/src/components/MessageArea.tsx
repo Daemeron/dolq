@@ -158,7 +158,7 @@ export function MessageArea({
                 key={virtualRow.key}
                 ref={rowVirtualizer.measureElement}
                 data-index={virtualRow.index}
-                className={mention ? 'bg-(--dolq-accent-soft)' : undefined}
+                className={mention ? 'bg-(--dolq-brand-soft)' : undefined}
                 style={{
                   position: 'absolute',
                   top: 0,
@@ -177,7 +177,7 @@ export function MessageArea({
                 {newSession && (
                   <div className="mx-7 mt-8 mb-3 flex items-center gap-3">
                     <span className="h-px flex-1 bg-(--dolq-border-strong)" />
-                    <span className="rounded-full bg-(--dolq-accent-soft) px-3 py-0.5 text-[11px] font-semibold tracking-wider text-(--dolq-accent-text) uppercase">
+                    <span className="rounded-full bg-(--dolq-brand-soft) px-3 py-0.5 text-[11px] font-semibold tracking-wider text-(--dolq-brand-text) uppercase">
                       New session
                     </span>
                     <span className="h-px flex-1 bg-(--dolq-border-strong)" />

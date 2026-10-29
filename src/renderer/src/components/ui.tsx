@@ -5,10 +5,13 @@ import { Children, cloneElement, isValidElement, type ReactElement, type ReactNo
 export const inputClass =
   'h-9.5 w-full rounded-lg border border-(--dolq-border-strong) bg-(--dolq-bg-input) px-3 text-[14px] text-(--dolq-text) outline-none placeholder:text-(--dolq-text-faint) focus:border-(--dolq-accent) focus:shadow-[0_0_0_3px_var(--dolq-accent-soft)] disabled:opacity-50';
 
-type Variant = 'primary' | 'secondary' | 'ghost' | 'danger';
+type Variant = 'primary' | 'accent' | 'secondary' | 'ghost' | 'danger';
 
 const VARIANT: Record<Variant, string> = {
   primary:
+    'border-(--dolq-brand) bg-(--dolq-brand) text-(--dolq-on-brand) hover:border-(--dolq-brand-hover) hover:bg-(--dolq-brand-hover)',
+  // The settings forms' own action.
+  accent:
     'border-(--dolq-accent) bg-(--dolq-accent) text-(--dolq-on-accent) hover:border-(--dolq-accent-hover) hover:bg-(--dolq-accent-hover)',
   secondary: 'border-(--dolq-border-strong) bg-transparent text-(--dolq-text) hover:bg-(--dolq-bg-row-hover)',
   ghost: 'border-transparent bg-transparent text-(--dolq-text) hover:bg-(--dolq-bg-row-hover)',
