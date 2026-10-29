@@ -336,7 +336,7 @@ export function IrcText({ text, mark }: { text: string; mark?: string }) {
                       window.irc.openExternal(part.url);
                     }}
                     href={part.url}
-                    className="cursor-pointer text-(--dolq-accent) underline underline-offset-2 hover:text-(--dolq-accent-hover)"
+                    className="cursor-pointer text-(--dolq-accent-text) underline underline-offset-2 hover:text-(--dolq-accent-text-hover)"
                   >
                     {part.url}
                   </a>

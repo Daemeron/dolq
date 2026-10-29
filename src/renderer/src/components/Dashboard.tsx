@@ -94,7 +94,7 @@ export function Dashboard({
                     )}
                   </div>
                   {stats && (
-                    <div className="flex items-center gap-4 text-(--dolq-accent)">
+                    <div className="flex items-center gap-4 text-(--dolq-accent-text)">
                       <Sparkline
                         values={samples.map((x) => x.ms)}
                         label={`Latency to ${s.name} over time, ${stats.last} ms now`}

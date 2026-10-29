@@ -177,7 +177,7 @@ export function MessageArea({
                 {newSession && (
                   <div className="mx-7 mt-8 mb-3 flex items-center gap-3">
                     <span className="h-px flex-1 bg-(--dolq-border-strong)" />
-                    <span className="rounded-full bg-(--dolq-accent-soft) px-3 py-0.5 text-[11px] font-semibold tracking-wider text-(--dolq-accent) uppercase">
+                    <span className="rounded-full bg-(--dolq-accent-soft) px-3 py-0.5 text-[11px] font-semibold tracking-wider text-(--dolq-accent-text) uppercase">
                       New session
                     </span>
                     <span className="h-px flex-1 bg-(--dolq-border-strong)" />

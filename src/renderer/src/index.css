@@ -28,10 +28,12 @@
   --dolq-text-faint: #7e7c75;
   --dolq-mention: #e0a64a;
 
-  --dolq-accent: #5b80ff;
-  --dolq-accent-hover: #7392ff;
-  --dolq-on-accent: #1f1e1d;
-  --dolq-accent-soft: rgba(91, 128, 255, 0.2);
+  --dolq-accent: #4268f2;
+  --dolq-accent-hover: #5a7cf5;
+  --dolq-accent-text: #9db3ff;
+  --dolq-accent-text-hover: #c0ccff;
+  --dolq-on-accent: #ffffff;
+  --dolq-accent-soft: rgba(66, 104, 242, 0.22);
   --dolq-download: #b4a8ff;
   --dolq-ok: #5cbf8a;
   --dolq-warn: #e0a64a;
@@ -70,6 +72,8 @@
 
   --dolq-accent: #1f46d0;
   --dolq-accent-hover: #1a3aaa;
+  --dolq-accent-text: #1f46d0;
+  --dolq-accent-text-hover: #1a3aaa;
   --dolq-on-accent: #ffffff;
   --dolq-accent-soft: rgba(31, 70, 208, 0.12);
   --dolq-download: #4c2fc4;
@@ -110,13 +114,13 @@ code {
   background: var(--dolq-bg-panel);
   padding: 2px 5px;
   border-radius: 4px;
-  color: var(--dolq-accent);
+  color: var(--dolq-accent-text);
 }
 
 /* In a layer so utilities such as `outline-none` still win over it. */
 @layer base {
   :focus-visible {
-    outline: 2px solid var(--dolq-accent);
+    outline: 2px solid var(--dolq-accent-text);
     outline-offset: 2px;
   }
 }

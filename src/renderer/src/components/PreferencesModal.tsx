@@ -477,7 +477,7 @@ export function PreferencesModal({
                     <button
                       type="button"
                       onClick={() => setRemoteFingerprint('')}
-                      className="cursor-pointer border-0 bg-transparent p-0 text-(--dolq-accent) underline"
+                      className="cursor-pointer border-0 bg-transparent p-0 text-(--dolq-accent-text) underline"
                     >
                       Forget
                     </button>

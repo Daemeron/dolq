@@ -34,7 +34,8 @@ Use tokens through Tailwind's variable syntax, e.g. `bg-(--dolq-bg-panel)`, `tex
 | `--dolq-text-muted` | #D3D1C7 | #3D3D3A | Secondary text |
 | `--dolq-text-dim` | #A09E95 | #6B6963 | Labels, meta |
 | `--dolq-text-faint` | #7E7C75 | #7C7A72 | Placeholders, hashes |
-| `--dolq-accent` (+ `-hover`, `-soft`, `on-accent`) | #5B80FF | #1F46D0 | Primary actions, focus, unread |
+| `--dolq-accent` (+ `-hover`, `-soft`, `on-accent`) | #4268F2 | #1F46D0 | Primary actions, focus, unread |
+| `--dolq-accent-text` (+ `-hover`) | #9DB3FF | #1F46D0 | Accent used as text or a thin line (links, code, focus ring, sparkline): a lighter blue in dark, because the fill blue is too dark to read on the dark background. Fills (buttons, switches, selected states) use `--dolq-accent` |
 | `--dolq-ok` / `--dolq-warn` / `--dolq-danger` | green / amber / red | | Connection state, errors |
 | `--dolq-nick-1`..`8` | brighter set | deeper set | Nick and avatar colour |
 
