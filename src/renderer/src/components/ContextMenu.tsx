@@ -39,8 +39,7 @@ export function ContextMenuItem({
   return (
     <button
       type="button"
-      role={checked === undefined ? undefined : 'menuitemradio'}
-      aria-checked={checked}
+      {...(checked === undefined ? {} : { role: 'menuitemradio', 'aria-checked': checked })}
       onClick={onClick}
       className={`flex items-center w-[calc(100%-8px)] mx-1 text-left px-2.5 py-1.5 text-[13px] rounded-md bg-transparent border-0 cursor-pointer hover:bg-(--dolq-bg-row-hover) ${
         danger ? 'text-(--dolq-danger)' : 'text-(--dolq-text)'

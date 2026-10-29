@@ -1,4 +1,5 @@
 import { formatBytes } from '../utils/bytes';
+import { activeLine, transferPercent } from '../utils/transferLine';
 import { IconButton } from './Icon';
 import { Button, Card } from './ui';
 import { ViewPanel } from './ViewPanel';
@@ -43,7 +44,6 @@ export function TransferStatus({ transfers, onPause, onResume, onCancel, onDismi
       ) : (
         <Card>
           {entries.map(([id, t]) => {
-            const pct = t.total > 0 ? Math.min(100, Math.round((t.received / t.total) * 100)) : 0;
             const finished = t.done || !!t.error;
             return (
               <div key={id} className="flex items-center gap-4 px-4 py-3.5">
@@ -56,23 +56,15 @@ export function TransferStatus({ transfers, onPause, onResume, onCancel, onDismi
                       <span className="text-(--dolq-danger)">Failed: {t.error}</span>
                     ) : t.done ? (
                       `${t.sending ? 'Sent' : 'Completed'} · ${formatBytes(t.total)}`
-                    ) : t.sending ? (
-                      t.total > 0 ? (
-                        `Sending to ${t.nick} · ${pct}% of ${formatBytes(t.total)}`
-                      ) : (
-                        `Waiting for ${t.nick} to connect`
-                      )
-                    ) : t.paused ? (
-                      `${t.nick} · ${pct}% of ${formatBytes(t.total)} · paused`
                     ) : (
-                      `${t.nick} · ${pct}% of ${formatBytes(t.total)}${t.speedBps ? ` · ${formatBytes(t.speedBps)}/s` : ''}`
+                      activeLine(t)
                     )}
                   </div>
                   {!finished && (
                     <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-(--dolq-bg-row-selected)">
                       <div
                         className={`h-full rounded-full transition-[width] ${t.paused ? 'bg-(--dolq-text-faint)' : 'bg-(--dolq-brand)'}`}
-                        style={{ width: `${pct}%` }}
+                        style={{ width: `${transferPercent(t)}%` }}
                       />
                     </div>
                   )}

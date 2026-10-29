@@ -1,4 +1,7 @@
+import { useState } from 'react';
 import { IconButton } from './Icon';
+import type { Transfer } from './TransferStatus';
+import { TransfersPeek } from './TransfersPeek';
 
 type Props = {
   /** Where you are: shown in the middle. */
@@ -13,7 +16,7 @@ type Props = {
   away: boolean;
   awayDisabled: boolean;
   onToggleAway: () => void;
-  transferCount: number;
+  transfers: Record<string, Transfer>;
   showTransfers: boolean;
   onToggleTransfers: () => void;
 };
@@ -32,10 +35,12 @@ export function TitleBar({
   away,
   awayDisabled,
   onToggleAway,
-  transferCount,
+  transfers,
   showTransfers,
   onToggleTransfers,
 }: Props) {
+  const [peek, setPeek] = useState(false);
+  const transferCount = Object.keys(transfers).length;
   return (
     <header
       // Off macOS the OS draws the window controls over the right end; on macOS the traffic lights take the left.
@@ -55,14 +60,24 @@ export function TitleBar({
       <div className="flex-1" />
       <div role="toolbar" aria-label="App actions" className="titlebar-nodrag flex items-center gap-0.5">
         <IconButton compact icon="search" label="Search everywhere" onClick={onOpenSearch} />
-        <IconButton
-          compact
-          icon="download"
-          label="Transfers"
-          on={showTransfers}
-          badge={transferCount > 0}
-          onClick={onToggleTransfers}
-        />
+        {/* biome-ignore lint/a11y/noStaticElementInteractions: the wrapper only listens for hover and focus on the button inside it */}
+        <div
+          className="relative"
+          onMouseEnter={() => setPeek(true)}
+          onMouseLeave={() => setPeek(false)}
+          onFocus={() => setPeek(true)}
+          onBlur={() => setPeek(false)}
+        >
+          <IconButton
+            compact
+            icon="download"
+            label="Transfers"
+            on={showTransfers}
+            badge={transferCount > 0}
+            onClick={onToggleTransfers}
+          />
+          {peek && !showTransfers && <TransfersPeek transfers={transfers} />}
+        </div>
         <IconButton
           compact
           icon="moon"

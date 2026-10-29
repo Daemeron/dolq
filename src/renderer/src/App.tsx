@@ -1245,7 +1245,6 @@ export default function App() {
   const mentionedHere = channels
     .filter((c) => mentionedChannels[c.id])
     .map((c) => ({ id: c.id, label: c.isQuery ? `@${c.name}` : `#${c.name}` }));
-  const transferCount = Object.keys(transfers).length;
   const rates = transferRates(Object.values(transfers));
   const bandwidth = useRateHistory(rates, view.kind === 'dashboard');
   const nav = useNavHistory(
@@ -1381,7 +1380,7 @@ export default function App() {
         away={allAway}
         awayDisabled={connectedIds.length === 0}
         onToggleAway={handleToggleAwayAll}
-        transferCount={transferCount}
+        transfers={transfers}
         showTransfers={showTransfers}
         onToggleTransfers={() => setShowTransfers((v) => !v)}
         onOpenPreferences={() => setView({ kind: 'preferences' })}
