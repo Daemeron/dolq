@@ -873,7 +873,11 @@ will hang the UI.
       platforms (the Build Binaries workflow runs vet, tests and packaging on
       macOS, Linux and Windows, including a `GOOS=windows go vet` step), and the
       app runs on Windows 11
-- [ ] Auto-update (`electron-updater` + a release feed)
+- [x] Auto-update (`electron-updater` + the latest release's `latest*.yml` as the feed): checks at
+      startup and every four hours, announces a new version in the title strip and downloads it only
+      when asked (or when *Download updates automatically* is on). Windows and the Linux AppImage
+      install on quit or on a click; macOS (ad-hoc signed, so it cannot replace itself) and the `.deb`
+      open the release page
 - [ ] Code signing for Windows (currently self-signed, triggers SmartScreen per
       the README)
 - [ ] Notarization for macOS (currently ad-hoc signed, per

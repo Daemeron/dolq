@@ -44,6 +44,11 @@ a friendlier shell around them. It runs on macOS, Windows and Linux.
   (`ACTION`/`VERSION`/`PING`), WHOIS, away status, ignore lists, multiple
   identities per network, nick collision handling, flood protection,
   auto-reconnect, NickServ-aware prompts, `/alias` scripting
+- **Updates** — Dolq checks for a new version at startup and every few hours and
+  says so in the top strip; nothing is downloaded until you click it (or turn on
+  *Download updates automatically*). Windows and the Linux AppImage download it
+  and install it when you quit; on macOS and for the `.deb` the strip opens the
+  release page, since those cannot replace themselves
 - **Desktop integration** — system tray with unread badge, desktop notifications
   with per-channel mute, `irc://`/`ircs://` link handling
 - **Customization** — keybindings, sound alerts, per-server color overrides,
