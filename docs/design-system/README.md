@@ -34,7 +34,7 @@ Use tokens through Tailwind's variable syntax, e.g. `bg-(--dolq-bg-panel)`, `tex
 | `--dolq-text-muted` | #D3D1C7 | #3D3D3A | Secondary text |
 | `--dolq-text-dim` | #A09E95 | #6B6963 | Labels, meta |
 | `--dolq-text-faint` | #7E7C75 | #7C7A72 | Placeholders, hashes |
-| `--dolq-accent` (+ `-hover`, `-soft`, `on-accent`) | #7BBCFF | #0850B0 | Primary actions, focus, unread |
+| `--dolq-accent` (+ `-hover`, `-soft`, `on-accent`) | #5B80FF | #1F46D0 | Primary actions, focus, unread |
 | `--dolq-ok` / `--dolq-warn` / `--dolq-danger` | green / amber / red | | Connection state, errors |
 | `--dolq-nick-1`..`8` | brighter set | deeper set | Nick and avatar colour |
 
