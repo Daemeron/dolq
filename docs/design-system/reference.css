@@ -17,6 +17,7 @@
   --accent-hover: #063f8c;
   --on-accent: #ffffff;
   --accent-soft: rgba(8, 80, 176, 0.12);
+  --download: #4c2fc4;
   --ok: #3e9b6a;
   --warn: #b7791f;
   --danger: #b5372b;
@@ -64,6 +65,7 @@
   --accent-hover: #94c9ff;
   --on-accent: #1f1e1d;
   --accent-soft: rgba(123, 188, 255, 0.2);
+  --download: #b4a8ff;
   --ok: #5cbf8a;
   --warn: #e0a64a;
   --danger: #e5736a;

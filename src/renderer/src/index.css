@@ -32,6 +32,7 @@
   --dolq-accent-hover: #94c9ff;
   --dolq-on-accent: #1f1e1d;
   --dolq-accent-soft: rgba(123, 188, 255, 0.2);
+  --dolq-download: #b4a8ff;
   --dolq-ok: #5cbf8a;
   --dolq-warn: #e0a64a;
   --dolq-danger: #e5736a;
@@ -71,6 +72,7 @@
   --dolq-accent-hover: #063f8c;
   --dolq-on-accent: #ffffff;
   --dolq-accent-soft: rgba(8, 80, 176, 0.12);
+  --dolq-download: #4c2fc4;
   --dolq-ok: #3e9b6a;
   --dolq-warn: #b7791f;
   --dolq-danger: #b5372b;

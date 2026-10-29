@@ -15,7 +15,7 @@ export function BandwidthChart({ samples }: { samples: RateSample[] }) {
       <div className="flex items-baseline gap-4 text-[13px]">
         <span className="font-medium text-(--dolq-text)">Bandwidth</span>
         <span className="flex items-center gap-1.5 text-(--dolq-text-dim)">
-          <span aria-hidden="true" className="h-0.5 w-3 rounded bg-(--dolq-accent)" />
+          <span aria-hidden="true" className="h-0.5 w-3 rounded bg-(--dolq-download)" />
           Download
         </span>
         <span className="flex items-center gap-1.5 text-(--dolq-text-dim)">
@@ -42,7 +42,7 @@ export function BandwidthChart({ samples }: { samples: RateSample[] }) {
                 range,
               )}
               fill="none"
-              stroke="var(--dolq-accent)"
+              stroke="var(--dolq-download)"
               strokeWidth="1.5"
               vectorEffect="non-scaling-stroke"
               strokeLinejoin="round"
