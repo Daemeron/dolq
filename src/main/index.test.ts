@@ -60,6 +60,7 @@ vi.mock('electron', () => {
       this.visible = true;
     });
     focus = vi.fn();
+    getBounds = () => ({ x: 120, y: 80, width: 2000, height: 1080 });
     destroy = vi.fn(() => {
       this.destroyed = true;
     });
@@ -887,7 +888,7 @@ describe('start-up', () => {
     await boot(undefined, false);
     await vi.waitFor(() => expect(windows()).toHaveLength(2));
     const [main, splash] = windows();
-    expect(splash.options).toMatchObject({ frame: false, resizable: false });
+    expect(splash.options).toMatchObject({ frame: false, resizable: false, x: 120, y: 80, width: 2000, height: 1080 });
     expect(splash.url.startsWith('data:text/html')).toBe(true);
     expect(main.show).not.toHaveBeenCalled();
 

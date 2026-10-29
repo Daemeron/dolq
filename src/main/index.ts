@@ -91,8 +91,9 @@ function createWindow(onReveal?: () => void): void {
     if (revealed) return;
     revealed = true;
     clearTimeout(fallback);
-    onReveal?.();
+    // The window first, so the splash (the same size, in the same place) is never replaced by a gap.
     if (!win.isDestroyed()) win.show();
+    onReveal?.();
   };
   const fallback = setTimeout(reveal, REVEAL_TIMEOUT_MS);
   revealMainWindow = reveal;
@@ -309,7 +310,9 @@ if (!app.requestSingleInstanceLock()) {
     // at startup only to immediately destroy it again.
     const settings = loadSettings();
 
-    createWindow(startSplash(() => createSplashWindow(ICON_PATH)));
+    createWindow(
+      startSplash(() => createSplashWindow(ICON_PATH, mainWindow.isDestroyed() ? undefined : mainWindow.getBounds())),
+    );
     if (settings.trayEnabled) createTray();
     registerBadgeCountHandler();
     createAppMenu();

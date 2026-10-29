@@ -92,11 +92,15 @@ describe('splashHtml', () => {
 });
 
 describe('createSplashWindow', () => {
-  it('opens a small frameless window in the OS theme', () => {
+  it('opens a frameless window as large as the app window, in the OS theme', () => {
     h.dark = false;
-    createSplashWindow(ICON);
+    createSplashWindow(ICON, { x: 40, y: 30, width: 1600, height: 900 });
     const [win] = h.windows;
     expect(win.options).toMatchObject({
+      x: 40,
+      y: 30,
+      width: 1600,
+      height: 900,
       frame: false,
       resizable: false,
       skipTaskbar: true,
