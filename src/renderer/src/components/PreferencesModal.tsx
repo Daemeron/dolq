@@ -126,6 +126,8 @@ export function PreferencesModal({
   }
   const [retentionDays, setRetentionDays] = useState(String(settings.retentionDays));
   const [xdccAutoAccept, setXdccAutoAccept] = useState(settings.xdccAutoAccept ?? false);
+  const [autoUpdate, setAutoUpdate] = useState(settings.autoUpdate ?? true);
+  const [autoDownloadUpdates, setAutoDownloadUpdates] = useState(settings.autoDownloadUpdates ?? false);
   const [downloadDir, setDownloadDir] = useState(settings.downloadDir ?? '');
   const [dccPortMin, setDccPortMin] = useState(settings.dccPortMin ? String(settings.dccPortMin) : '');
   const [dccPortMax, setDccPortMax] = useState(settings.dccPortMax ? String(settings.dccPortMax) : '');
@@ -188,6 +190,8 @@ export function PreferencesModal({
       dccPortMin: portMin || undefined,
       dccPortMax: portMax || undefined,
       xdccAutoAccept,
+      autoUpdate,
+      autoDownloadUpdates,
       trayEnabled,
       remoteEnabled,
       remoteUrl: remoteUrl || undefined,
@@ -223,6 +227,18 @@ export function PreferencesModal({
             </Setting>
             <Setting title="Show a tray/menu bar icon">
               <Switch checked={trayEnabled} onChange={(e) => setTrayEnabled(e.target.checked)} />
+            </Setting>
+            <Setting
+              title="Check for updates"
+              description="Looks for a new version when Dolq starts and every few hours, and says so in the top strip. Nothing is downloaded until you click it."
+            >
+              <Switch checked={autoUpdate} onChange={(e) => setAutoUpdate(e.target.checked)} />
+            </Setting>
+            <Setting
+              title="Download updates automatically"
+              description="Fetch a new version as soon as it is found and install it when you quit. On Windows and the Linux AppImage; elsewhere the top strip opens the release page."
+            >
+              <Switch checked={autoDownloadUpdates} onChange={(e) => setAutoDownloadUpdates(e.target.checked)} />
             </Setting>
             <Setting
               title="Auto-accept XDCC downloads"

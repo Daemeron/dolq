@@ -1,6 +1,6 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { IrcEvent } from '../../shared/ipc';
+import { type IrcEvent, RELEASES_URL, type UpdateStatus } from '../../shared/ipc';
 import App from './App';
 import { useStore } from './store';
 import type { Channel, Server } from './types';
@@ -386,6 +386,54 @@ describe('App: sending', () => {
     await waitFor(() => expect(useStore.getState().statusMap.s1).toBe('disconnected'));
     await typeAndSend('/connect');
     await waitFor(() => expect(irc.spies.connect).toHaveBeenCalled());
+  });
+});
+
+describe('App: updates', () => {
+  const found = (over: Partial<UpdateStatus> = {}): UpdateStatus => ({
+    state: 'available',
+    version: '0.8.0',
+    canInstall: true,
+    ...over,
+  });
+
+  it('shows nothing until a newer version is reported, then follows it from found to downloaded', async () => {
+    const irc = await mount();
+    expect(screen.queryByRole('button', { name: /update/i })).toBeNull();
+    await irc.emit('onUpdateStatus', found());
+    expect(screen.getByRole('button', { name: 'Update to 0.8.0' })).toBeTruthy();
+    await irc.emit('onUpdateStatus', found({ state: 'downloading' }));
+    expect(screen.getByRole('button', { name: 'Downloading 0.8.0…' })).toBeTruthy();
+    await irc.emit('onUpdateStatus', found({ state: 'downloaded' }));
+    expect(screen.getByRole('button', { name: 'Restart to update' })).toBeTruthy();
+  });
+
+  it('picks up a version that was found before the window opened', async () => {
+    await mount({ getUpdateStatus: found({ state: 'downloaded' }) });
+    expect(await screen.findByRole('button', { name: 'Restart to update' })).toBeTruthy();
+  });
+
+  it('downloads when the notice is clicked where Dolq can install', async () => {
+    const irc = await mount();
+    await irc.emit('onUpdateStatus', found());
+    await fire.click(screen.getByRole('button', { name: 'Update to 0.8.0' }));
+    expect(irc.spies.downloadUpdate).toHaveBeenCalledTimes(1);
+    expect(irc.spies.openExternal).not.toHaveBeenCalled();
+  });
+
+  it('opens the release page when the notice is clicked where Dolq cannot install', async () => {
+    const irc = await mount();
+    await irc.emit('onUpdateStatus', found({ canInstall: false }));
+    await fire.click(screen.getByRole('button', { name: 'Update to 0.8.0' }));
+    expect(irc.spies.openExternal).toHaveBeenCalledWith(RELEASES_URL);
+    expect(irc.spies.downloadUpdate).not.toHaveBeenCalled();
+  });
+
+  it('restarts into a downloaded version', async () => {
+    const irc = await mount();
+    await irc.emit('onUpdateStatus', found({ state: 'downloaded' }));
+    await fire.click(screen.getByRole('button', { name: 'Restart to update' }));
+    expect(irc.spies.installUpdate).toHaveBeenCalledTimes(1);
   });
 });
 
