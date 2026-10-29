@@ -5,6 +5,7 @@ import { dayLabel } from '../utils/dayLabel';
 import { continuesGroup } from '../utils/groupMessages';
 import { mentionsAny } from '../utils/mentions';
 import { nickColor, nickInitial } from '../utils/nickColor';
+import { startsNewSession } from '../utils/session';
 import { IrcText } from './IrcText';
 
 type Props = {
@@ -128,6 +129,7 @@ export function MessageArea({
               if (onGetPack && m.xdccPackNumber != null) onGetPack(m.nick, m.xdccPackNumber);
             };
             const day = isLog ? null : dayLabel(messages[virtualRow.index - 1], m);
+            const newSession = isLog && startsNewSession(messages[virtualRow.index - 1]);
             const mention =
               !!selfNick &&
               !isLog &&
@@ -153,6 +155,15 @@ export function MessageArea({
                     <span className="h-px flex-1 bg-(--dolq-border)" />
                     {day}
                     <span className="h-px flex-1 bg-(--dolq-border)" />
+                  </div>
+                )}
+                {newSession && (
+                  <div className="mx-7 mt-8 mb-3 flex items-center gap-3">
+                    <span className="h-px flex-1 bg-(--dolq-border-strong)" />
+                    <span className="rounded-full bg-(--dolq-accent-soft) px-3 py-0.5 text-[11px] font-semibold tracking-wider text-(--dolq-accent) uppercase">
+                      New session
+                    </span>
+                    <span className="h-px flex-1 bg-(--dolq-border-strong)" />
                   </div>
                 )}
                 {isLog ? (

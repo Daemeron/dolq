@@ -286,3 +286,60 @@ describe('MessageArea: day dividers and mentions', () => {
     expect(rowOf('me: talking to myself').className).not.toContain('accent-soft');
   });
 });
+
+describe('MessageArea: sessions in the server log', () => {
+  function withLayout() {
+    vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(600);
+    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({
+      width: 800,
+      height: 600,
+      top: 0,
+      left: 0,
+      right: 800,
+      bottom: 600,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+  }
+  const raw = (id: number, text: string): Message => ({
+    id,
+    nick: '',
+    text,
+    timestamp: new Date(id * 1000),
+    isRaw: true,
+  });
+  const area = (isLog: boolean, messages: Message[]) =>
+    render(
+      <MessageArea
+        isLog={isLog}
+        timestampFormat="24h"
+        density="cozy"
+        channelId="s:x"
+        messages={messages}
+        onLoadOlder={() => {}}
+      />,
+    );
+
+  it('sets a new connection apart from the one before with a divider', () => {
+    withLayout();
+    const { container } = area(true, [
+      raw(1, ':srv 001 me :Welcome'),
+      raw(2, '*** Disconnected'),
+      raw(3, ':srv 001 me :Welcome'),
+      raw(4, '*** Connection lost - reconnecting...'),
+      raw(5, '*** Reconnected'),
+    ]);
+    expect([...container.querySelectorAll('span')].filter((s) => s.textContent === 'New session')).toHaveLength(2);
+  });
+
+  it('has no divider before the first session, and none in a conversation', () => {
+    withLayout();
+    expect(
+      area(true, [raw(1, ':srv 001 me :Welcome'), raw(2, ':srv 372 me :motd')]).container.textContent,
+    ).not.toContain('New session');
+    expect(area(false, [raw(1, '*** Disconnected'), raw(2, 'hello')]).container.textContent).not.toContain(
+      'New session',
+    );
+  });
+});
