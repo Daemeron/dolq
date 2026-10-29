@@ -38,6 +38,7 @@ import { isNickServIdentifyPrompt } from './utils/nickserv';
 import { reconcileServers, reconcileStep } from './utils/reconcile';
 import { buildServerId, normalizeHost, resolveHostPort, serverColor, serverInitials } from './utils/server';
 import { transferRates } from './utils/transferRate';
+import { updateSpeed } from './utils/transferSpeed';
 import { computeAwayStats } from './utils/unread';
 import { takeAutoAccept, xdccRequestKey, xdccRequestTarget, xdccSenderKey } from './utils/xdcc';
 
@@ -762,11 +763,8 @@ export default function App() {
             });
             break;
           }
-          const now = Date.now();
-          const prevTrack = transferSpeedTrack.current[id];
-          const dt = prevTrack ? (now - prevTrack.at) / 1000 : 0;
-          const speedBps = dt > 0 ? (event.received - prevTrack.received) / dt : undefined;
-          transferSpeedTrack.current[id] = { received: event.received, at: now };
+          const { track, speedBps } = updateSpeed(transferSpeedTrack.current[id], event.received, Date.now());
+          transferSpeedTrack.current[id] = track;
           setTransfers((prev) => {
             const t = prev[id];
             if (!t) return prev;
