@@ -2,8 +2,8 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { TopicBar } from './TopicBar';
 
-function renderBar(extra: Partial<Parameters<typeof TopicBar>[0]> = {}) {
-  const props = {
+function barProps(extra: Partial<Parameters<typeof TopicBar>[0]> = {}) {
+  return {
     channelName: 'dolq',
     topic: 'A self-hosted IRC client',
     isLog: false,
@@ -12,6 +12,10 @@ function renderBar(extra: Partial<Parameters<typeof TopicBar>[0]> = {}) {
     onToggleConnection: vi.fn(),
     ...extra,
   };
+}
+
+function renderBar(extra: Partial<Parameters<typeof TopicBar>[0]> = {}) {
+  const props = barProps(extra);
   render(<TopicBar {...props} />);
   return props;
 }
@@ -22,6 +26,14 @@ describe('TopicBar toolbar', () => {
     const heading = screen.getByRole('heading');
     expect(heading.textContent).toBe('#dolq');
     expect((heading.firstChild as HTMLElement).style.color).toBe('rgb(1, 2, 3)');
+  });
+
+  it('leaves room for the window controls only when it is the rightmost header', () => {
+    const { unmount } = render(<TopicBar {...barProps()} />);
+    expect(screen.getByRole('heading').parentElement).not.toHaveClass('titlebar-end');
+    unmount();
+    render(<TopicBar {...barProps({ clearsWindowControls: true })} />);
+    expect(screen.getByRole('heading').parentElement).toHaveClass('titlebar-end');
   });
 
   it('titles a query with an at sign and a DCC chat with a bolt', () => {
