@@ -254,7 +254,8 @@ export default function App() {
       const style = getComputedStyle(document.documentElement);
       const bar = style.getPropertyValue('--dolq-bg').trim();
       const symbols = style.getPropertyValue('--dolq-text').trim();
-      if (bar && symbols) window.irc.setTitleBar(bar, symbols).catch(() => undefined);
+      // Cosmetic: an older preload without setTitleBar must not take the app down.
+      if (bar && symbols) Promise.resolve(window.irc.setTitleBar?.(bar, symbols)).catch(() => undefined);
     };
     apply();
     if (theme !== 'system') return;
