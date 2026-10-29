@@ -481,6 +481,35 @@ describe('App: dialogs', () => {
     expect(useStore.getState().selectedChannelId).toBe('#other');
   });
 
+  it('hides the channel list and the user panel on the dashboard', async () => {
+    await mount();
+    expect(screen.getByText('Channels')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Dashboard' }));
+    expect(screen.queryByText('Channels')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Away' })).toBeNull();
+    // the rail's server entry comes first, before the server's card on the dashboard
+    fireEvent.click(screen.getAllByRole('button', { name: 'Libera' })[0]);
+    expect(screen.getByText('Channels')).toBeTruthy();
+  });
+
+  it('titles the strip with where you are, and walks back and forward through places visited', async () => {
+    await mount();
+    expect(screen.getByRole('banner')).toHaveTextContent('#dolq · Libera');
+    expect(screen.getByRole('button', { name: 'Back' }).parentElement).toHaveClass('pointer-events-none');
+    fireEvent.click(screen.getByRole('button', { name: 'Dashboard' }));
+    expect(screen.getByRole('banner')).toHaveTextContent('Dashboard');
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+    expect(screen.getByRole('banner')).toHaveTextContent('#dolq · Libera');
+    expect(screen.getByRole('heading', { name: '#dolq' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Forward' }));
+    expect(screen.getByRole('banner')).toHaveTextContent('Dashboard');
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+    fireEvent.click(screen.getByText('other'));
+    expect(screen.getByRole('banner')).toHaveTextContent('#other · Libera');
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+    expect(screen.getByRole('banner')).toHaveTextContent('#dolq · Libera');
+  });
+
   it('shows the latency the backend reports on the dashboard', async () => {
     const irc = await mount();
     await irc.event('s1', { type: 'LATENCY', ms: 42 });

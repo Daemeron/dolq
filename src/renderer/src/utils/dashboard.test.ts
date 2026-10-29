@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { formatBytes, formatRate } from './bytes';
-import { latencyStats, latencyTone } from './latency';
+import { latencyRange, latencyStats, latencyTone } from './latency';
 import { sparklinePoints } from './sparkline';
 import { transferRates } from './transferRate';
 
@@ -18,6 +18,11 @@ describe('latencyStats and latencyTone', () => {
   it('summarises the samples, and has nothing to say about none', () => {
     expect(latencyStats([])).toBeNull();
     expect(latencyStats([{ ms: 40 }, { ms: 100 }, { ms: 10 }])).toEqual({ last: 10, min: 10, max: 100, avg: 50 });
+  });
+
+  it('never scales a trend tighter than 50 ms, so a steady line looks steady', () => {
+    expect(latencyRange({ last: 11, min: 11, max: 12, avg: 11 })).toEqual({ min: 11, max: 61 });
+    expect(latencyRange({ last: 85, min: 28, max: 185, avg: 85 })).toEqual({ min: 28, max: 185 });
   });
 
   it('grades a round trip', () => {

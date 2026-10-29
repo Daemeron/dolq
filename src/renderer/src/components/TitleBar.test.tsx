@@ -1,9 +1,14 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { TitleBar } from './TitleBar';
 
 function setup(over: Partial<React.ComponentProps<typeof TitleBar>> = {}) {
   const props = {
+    title: 'Dashboard',
+    canGoBack: true,
+    canGoForward: true,
+    onGoBack: vi.fn(),
+    onGoForward: vi.fn(),
     onOpenSearch: vi.fn(),
     onOpenPreferences: vi.fn(),
     away: false,
@@ -19,11 +24,26 @@ function setup(over: Partial<React.ComponentProps<typeof TitleBar>> = {}) {
 }
 
 describe('TitleBar', () => {
-  it('is the draggable strip across the top, named for the app', () => {
+  it('is the draggable strip across the top', () => {
     setup();
-    const strip = screen.getByRole('banner');
-    expect(strip).toHaveClass('titlebar-drag');
-    expect(strip).toHaveTextContent('Dolq');
+    expect(screen.getByRole('banner')).toHaveClass('titlebar-drag');
+  });
+
+  it('names where you are, in the middle', () => {
+    setup({ title: '#dolq · Libera' });
+    expect(screen.getByText('#dolq · Libera')).toBeTruthy();
+  });
+
+  it('goes back and forward, and shows a direction that has nowhere to go as unavailable', () => {
+    const p = setup();
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Forward' }));
+    expect(p.onGoBack).toHaveBeenCalled();
+    expect(p.onGoForward).toHaveBeenCalled();
+    cleanup();
+    setup({ canGoBack: false, canGoForward: false });
+    expect(screen.getByRole('button', { name: 'Back' }).parentElement).toHaveClass('pointer-events-none');
+    expect(screen.getByRole('button', { name: 'Forward' }).parentElement).toHaveClass('pointer-events-none');
   });
 
   it('holds the app-wide actions', () => {

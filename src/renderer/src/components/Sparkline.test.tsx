@@ -9,6 +9,13 @@ describe('Sparkline', () => {
     expect(container.querySelector('polyline')).toBeTruthy();
   });
 
+  it('can be scaled to a given range rather than its own spread', () => {
+    const { container } = render(
+      <Sparkline values={[10, 10]} label="x" width={10} height={20} range={{ min: 0, max: 20 }} />,
+    );
+    expect(container.querySelector('polyline')).toHaveAttribute('points', '0.0,10.0 10.0,10.0');
+  });
+
   it('draws nothing until there are two points', () => {
     const { container } = render(<Sparkline values={[10]} label="x" />);
     expect(container.querySelector('polyline')).toBeNull();

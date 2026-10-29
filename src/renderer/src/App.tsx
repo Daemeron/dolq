@@ -19,6 +19,7 @@ import { UserPanel } from './components/UserPanel';
 import { Welcome } from './components/Welcome';
 import { WhoisModal } from './components/WhoisModal';
 import { XDCCOfferModal } from './components/XDCCOfferModal';
+import { useNavHistory } from './hooks/useNavHistory';
 import { useRateHistory } from './hooks/useRateHistory';
 import { scopeKey, useStore } from './store';
 import type { Message, Server } from './types';
@@ -30,6 +31,7 @@ import { describeEvent, eventChannels } from './utils/eventMessages';
 import { formatEntry } from './utils/exportFormat';
 import { canLoadOlder, dropServerPages, type HistoryPage, linesToStore, pagesToReload } from './utils/historyPages';
 import { comboFromEvent } from './utils/keybind';
+import { locationTitle } from './utils/locationTitle';
 import { isChannelScopedLine } from './utils/logFilter';
 import { mentionsAny } from './utils/mentions';
 import { isNickServIdentifyPrompt } from './utils/nickserv';
@@ -1248,6 +1250,26 @@ export default function App() {
   const transferCount = Object.keys(transfers).length;
   const rates = transferRates(Object.values(transfers));
   const bandwidth = useRateHistory(rates, view.kind === 'dashboard');
+  const nav = useNavHistory(
+    view.kind === 'dashboard'
+      ? { kind: 'dashboard' }
+      : { kind: 'chat', serverId: selectedServerId, channelId: selectedChannelId },
+    (to) => {
+      if (to.kind === 'dashboard') {
+        setView({ kind: 'dashboard' });
+        return;
+      }
+      handleSelectServer(to.serverId);
+      handleSelectChannel(to.channelId);
+    },
+    (l) => l.kind === 'dashboard' || (channelMap[l.serverId] ?? []).some((c) => c.id === l.channelId),
+  );
+  const title = locationTitle({
+    view: view.kind,
+    hasServers: servers.length > 0,
+    serverName: selectedServer?.name,
+    channel: selectedChannel,
+  });
   const connectedIds = servers.filter((s) => statusMap[s.id] === 'connected').map((s) => s.id);
   const allAway = connectedIds.length > 0 && connectedIds.every((id) => selfAwayMap[id]);
   useEffect(() => {
@@ -1349,6 +1371,11 @@ export default function App() {
   return (
     <div className="flex h-screen w-full flex-col overflow-hidden">
       <TitleBar
+        title={title}
+        canGoBack={nav.canGoBack}
+        canGoForward={nav.canGoForward}
+        onGoBack={nav.goBack}
+        onGoForward={nav.goForward}
         onOpenSearch={() => {
           setSearchScope('everywhere');
           setShowSearch(true);
@@ -1447,7 +1474,7 @@ export default function App() {
             dashboardActive={view.kind === 'dashboard'}
             onOpenDashboard={() => setView({ kind: 'dashboard' })}
           />
-          {servers.length > 0 && (
+          {servers.length > 0 && view.kind !== 'dashboard' && (
             <div className="flex flex-col">
               <ChannelList
                 serverName={selectedServer?.name ?? ''}

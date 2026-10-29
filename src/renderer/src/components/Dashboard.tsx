@@ -3,7 +3,7 @@ import type { RateSample } from '../hooks/useRateHistory';
 import type { LatencySample } from '../store';
 import type { Channel, Server } from '../types';
 import { formatRate } from '../utils/bytes';
-import { latencyStats, latencyTone } from '../utils/latency';
+import { latencyRange, latencyStats, latencyTone } from '../utils/latency';
 import { serverColor, serverIconText } from '../utils/server';
 import { BandwidthChart } from './BandwidthChart';
 import { STATUS_LABEL } from './ServerList';
@@ -99,6 +99,7 @@ export function Dashboard({
                         values={samples.map((x) => x.ms)}
                         label={`Latency to ${s.name} over time, ${stats.last} ms now`}
                         width={240}
+                        range={latencyRange(stats)}
                       />
                       <span className="text-[12px] text-(--dolq-text-dim)">
                         min {stats.min} · avg {stats.avg} · max {stats.max} ms
