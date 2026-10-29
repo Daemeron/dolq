@@ -1,5 +1,5 @@
 import fs from 'node:fs';
-import { BrowserWindow, nativeTheme } from 'electron';
+import { BrowserWindow, nativeTheme, type Rectangle } from 'electron';
 
 /** Starting is only worth a splash when it takes a while: a window that is ready sooner than this never shows one. */
 export const SPLASH_DELAY_MS = 250;
@@ -37,20 +37,19 @@ export function splashHtml(dark: boolean, icon: Buffer): string {
   html, body { height: 100%; margin: 0; background: ${c.bg}; overflow: hidden; user-select: none; -webkit-app-region: drag; }
   body { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
          font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; }
-  img { width: 96px; height: 96px; }
-  h1 { margin: 0; font: 400 30px Georgia, 'Times New Roman', serif; color: ${c.text}; }
-  p { margin: 0; font-size: 12px; color: ${c.dim}; animation: pulse 1.6s ease-in-out infinite; }
+  img { width: 112px; height: 112px; }
+  h1 { margin: 0; font: 400 34px Georgia, 'Times New Roman', serif; color: ${c.text}; }
+  p { margin: 0; font-size: 13px; color: ${c.dim}; animation: pulse 1.6s ease-in-out infinite; }
   @keyframes pulse { 50% { opacity: 0.35; } }
 </style></head>
 <body><img alt="" src="data:image/png;base64,${icon.toString('base64')}" /><h1>Dolq</h1><p>Starting…</p></body></html>`;
 }
 
-/** A small frameless window with the splash page, in the colours of the OS theme. */
-export function createSplashWindow(iconPath: string): BrowserWindow {
+/** A frameless window with the splash page, in the colours of the OS theme, exactly where and as large as `bounds` (the app's window), so the app appears in place of it. */
+export function createSplashWindow(iconPath: string, bounds?: Rectangle): BrowserWindow {
   const dark = nativeTheme.shouldUseDarkColors;
   const splash = new BrowserWindow({
-    width: 340,
-    height: 280,
+    ...bounds,
     frame: false,
     resizable: false,
     minimizable: false,
