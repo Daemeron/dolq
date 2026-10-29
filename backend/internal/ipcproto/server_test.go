@@ -8,6 +8,7 @@ import (
 	"os"
 	"reflect"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -278,19 +279,19 @@ func TestSendsToOneServerArriveInOrder(t *testing.T) {
 			}
 			defer conn.Close()
 			r := bufio.NewReader(conn)
-			for i := 0; i < 3; i++ { // CAP LS, PASS, NICK/USER lines
-				if _, err := r.ReadString('\n'); err != nil {
-					return
-				}
-			}
-			conn.Write([]byte(":irc.example.net 001 testnick :Welcome\r\n"))
+			welcomed := false
 			for {
 				line, err := r.ReadString('\n')
 				if err != nil {
 					return
 				}
+				// A line typed while the client is still registering can land among the handshake lines.
 				if len(line) > 8 && line[:8] == "PRIVMSG " {
 					got <- line
+				}
+				if !welcomed && strings.HasPrefix(line, "USER ") {
+					welcomed = true
+					conn.Write([]byte(":irc.example.net 001 testnick :Welcome\r\n"))
 				}
 			}
 		}()
