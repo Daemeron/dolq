@@ -129,6 +129,7 @@ describe('App: layout', () => {
     expect(screen.getByRole('heading', { name: '#dolq' })).toBeTruthy();
     expect(screen.getByText('other')).toBeTruthy();
     expect(await screen.findByText('mira')).toBeTruthy();
+    expect(screen.getByText(/^\d+ online$/)).toBeTruthy();
   });
 
   it('hides the members panel from the toolbar', async () => {

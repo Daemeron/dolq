@@ -1564,8 +1564,9 @@ export default function App() {
               </div>
               {!isLog && !isQuery && showMembers && (
                 <aside className="w-58 bg-(--dolq-bg-panel) border-l border-(--dolq-border) shrink-0 flex flex-col overflow-hidden">
-                  <div className="h-14 px-4 flex items-center shrink-0">
+                  <div className="h-14 px-4 flex items-center justify-between shrink-0">
                     <span className="font-semibold text-[15px] text-(--dolq-text)">Members</span>
+                    <span className="text-[12px] text-(--dolq-text-dim)">{users.length} online</span>
                   </div>
                   <UserList
                     users={users}
