@@ -1,7 +1,7 @@
 import type { BrowserWindowConstructorOptions } from 'electron';
 
-// The toolbar row at the top of the chat view is this tall; the Windows/Linux window controls sit inside it.
-export const TITLE_BAR_HEIGHT = 56;
+// Height of the Windows/Linux window controls: the usual 32px caption buttons, top-aligned over the 56px toolbar.
+export const TITLE_BAR_HEIGHT = 32;
 
 /** Window chrome: macOS keeps its traffic lights inset into the app; elsewhere the OS controls are drawn over a themed bar and the menu hides behind Alt. */
 export function windowFrame(platform: NodeJS.Platform): BrowserWindowConstructorOptions {
