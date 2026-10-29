@@ -9,7 +9,7 @@ type Props = {
 
 export function UserPanel({ currentNick, away, onToggleAway }: Props) {
   return (
-    <div className="flex items-center gap-2.5 px-3 py-2.5 border-t border-(--dolq-border) shrink-0">
+    <div className="flex items-center gap-2.5 px-3 py-2.5 shrink-0">
       <div
         className="w-7 h-7 rounded-full text-white flex items-center justify-center font-semibold text-xs shrink-0"
         style={{ background: away ? 'var(--dolq-text-faint)' : nickColor(currentNick) }}

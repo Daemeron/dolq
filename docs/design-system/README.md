@@ -44,7 +44,7 @@ Use tokens through Tailwind's variable syntax, e.g. `bg-(--dolq-bg-panel)`, `tex
 | `--dolq-nick-1`..`8` | brighter set | deeper set | Nick and avatar colour |
 
 Type: Inter for the interface (the Font Family preference still overrides `--dolq-font-family`), Newsreader for view titles (`--dolq-font-serif`), JetBrains Mono for code and logs.
-Shape: 8px controls, 12px cards, 16px composer, 13px server icons.
+Shape: 8px controls, 12px cards, 16px composer, 13px server icons. The channel list's bottom-right corner is rounded 16px, like the composer and the dialogs, where it meets the lighter user panel and chat, so the list reads as a panel set into the window and not a hard block. The list owns the line under it (its right border curves into its bottom border as one line); the user panel has no top border of its own.
 
 ## Rules
 
