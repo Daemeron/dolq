@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.8.0](https://github.com/Daemeron/dolq/compare/dolq-v0.7.0...dolq-v0.8.0) (2026-10-29)
+
+
+### Features
+
+* a random ASCII joke on the splash ([f08d540](https://github.com/Daemeron/dolq/commit/f08d5400d50144f47e0d0e391f3b643d2d7fbaef))
+* a splash while Dolq starts, and a window that shows once it has rendered ([9f492c9](https://github.com/Daemeron/dolq/commit/9f492c9eca184e48216d856acaea9307cd376fe8))
+* **main:** look for a new version, and fetch and install it on request ([f353cf3](https://github.com/Daemeron/dolq/commit/f353cf311da764a2b337c50a374e3ebb0e0384d4))
+* **renderer:** an update notice in the title strip and two switches in Preferences ([107efd1](https://github.com/Daemeron/dolq/commit/107efd18b4a8497ebb286695edc5ae013b8759ab))
+
+
+### Bug Fixes
+
+* make the splash the size of the window, so nothing jumps when the app shows ([7fa9076](https://github.com/Daemeron/dolq/commit/7fa90767331bf618ed5846f11b824f8af2d573f6))
+* **renderer:** round the channel list's bottom-right corner ([8ab8e90](https://github.com/Daemeron/dolq/commit/8ab8e901c3ba4727707caf7dad07f6496fb8fe5b))
+* **renderer:** the user panel no longer says Online while the server is not connected ([5606522](https://github.com/Daemeron/dolq/commit/5606522fa75172cdb92192d7528359947a9740ec))
+
 ## [0.7.0](https://github.com/Daemeron/dolq/compare/dolq-v0.6.2...dolq-v0.7.0) (2026-10-29)
 
 
