@@ -102,6 +102,22 @@ export type Settings = {
   // Write-only: sent to save a new token, never returned by getSettings
   remoteToken?: string;
   remoteTokenSet?: boolean;
+  // Look for new versions; on unless explicitly false
+  autoUpdate?: boolean;
+  // Fetch a new version as soon as it is found instead of waiting to be asked; off unless true
+  autoDownloadUpdates?: boolean;
+};
+
+export const RELEASES_URL = 'https://github.com/Daemeron/dolq/releases/latest';
+
+/**
+ * A newer version and how far this install has got with it: found, being downloaded, or downloaded (installed on quit).
+ * Where Dolq cannot replace itself (macOS, a .deb) it stops at found, and the release page is the way to get it.
+ */
+export type UpdateStatus = {
+  state: 'available' | 'downloading' | 'downloaded';
+  version: string;
+  canInstall: boolean;
 };
 
 export type IrcApi = {
@@ -168,6 +184,10 @@ export type IrcApi = {
   // The connection to a remote backend dropped and came back; its sessions
   // may have changed meanwhile.
   onBackendReconnected: (callback: () => void) => () => void;
+  getUpdateStatus: () => Promise<UpdateStatus | null>;
+  downloadUpdate: () => Promise<void>;
+  installUpdate: () => Promise<void>;
+  onUpdateStatus: (callback: (status: UpdateStatus) => void) => () => void;
 };
 
 export type ConnectionStatus = 'connected' | 'connecting' | 'disconnected';
@@ -206,6 +226,10 @@ export enum IrcMessages {
   openIrcUrl = 'irc:openIrcUrl',
   openPreferences = 'irc:openPreferences',
   backendReconnected = 'irc:backendReconnected',
+  updateStatus = 'update:status',
+  getUpdateStatus = 'update:get',
+  downloadUpdate = 'update:download',
+  installUpdate = 'update:install',
   secretsAvailable = 'secrets:available',
   secretsRemember = 'secrets:remember',
   secretsForget = 'secrets:forget',

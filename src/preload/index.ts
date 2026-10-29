@@ -1,5 +1,12 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import { type ConnectionStatus, type IrcApi, type IrcEvent, IrcMessages, type Settings } from '../shared/ipc';
+import {
+  type ConnectionStatus,
+  type IrcApi,
+  type IrcEvent,
+  IrcMessages,
+  type Settings,
+  type UpdateStatus,
+} from '../shared/ipc';
 
 contextBridge.exposeInMainWorld('irc', {
   connect: (
@@ -132,6 +139,18 @@ contextBridge.exposeInMainWorld('irc', {
     const handler = () => callback();
     ipcRenderer.on(IrcMessages.openPreferences, handler);
     return () => ipcRenderer.removeListener(IrcMessages.openPreferences, handler);
+  },
+
+  getUpdateStatus: () => ipcRenderer.invoke(IrcMessages.getUpdateStatus),
+
+  downloadUpdate: () => ipcRenderer.invoke(IrcMessages.downloadUpdate),
+
+  installUpdate: () => ipcRenderer.invoke(IrcMessages.installUpdate),
+
+  onUpdateStatus: (callback) => {
+    const handler = (_event: Electron.IpcRendererEvent, status: UpdateStatus) => callback(status);
+    ipcRenderer.on(IrcMessages.updateStatus, handler);
+    return () => ipcRenderer.removeListener(IrcMessages.updateStatus, handler);
   },
 
   onBackendReconnected: (callback) => {
