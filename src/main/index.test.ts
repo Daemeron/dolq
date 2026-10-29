@@ -19,6 +19,18 @@ const h = vi.hoisted(() => {
     trays: [] as unknown[],
     backends: [] as unknown[],
     menuTemplate: undefined as unknown,
+    packaged: false,
+    updater: {
+      autoDownload: true,
+      autoInstallOnAppQuit: false,
+      handlers: {} as Record<string, (info?: unknown) => void>,
+      on(event: string, fn: (info?: unknown) => void) {
+        this.handlers[event] = fn;
+      },
+      checkForUpdates: vi.fn(() => Promise.resolve(null)),
+      downloadUpdate: vi.fn(() => Promise.resolve([])),
+      quitAndInstall: vi.fn(),
+    },
     saved: [] as unknown[],
     enc: { available: false, backend: 'basic_text' },
     dialog: {
@@ -100,7 +112,9 @@ vi.mock('electron', () => {
   return {
     app: {
       name: 'Dolq',
-      isPackaged: false,
+      get isPackaged() {
+        return h.packaged;
+      },
       dock: { setIcon: vi.fn() },
       setName: vi.fn(),
       requestSingleInstanceLock: () => h.lock,
@@ -136,6 +150,8 @@ vi.mock('electron', () => {
     shell: { openExternal: vi.fn(), showItemInFolder: vi.fn(), beep: vi.fn() },
   };
 });
+
+vi.mock('electron-updater', () => ({ autoUpdater: h.updater }));
 
 vi.mock('electron-devtools-installer', () => ({
   installExtension: vi.fn().mockResolvedValue({ name: 'React DevTools' }),
@@ -236,6 +252,8 @@ beforeEach(() => {
   h.backends.length = 0;
   h.saved.length = 0;
   h.menuTemplate = undefined;
+  h.packaged = false;
+  h.updater.handlers = {};
   h.enc = { available: false, backend: 'basic_text' };
   h.dialog.showMessageBox = vi.fn().mockResolvedValue({ response: 0 });
   originalArgv = process.argv;
@@ -754,5 +772,83 @@ describe('remote backend prompts', () => {
     await boot(remoteSettings);
     hooks().onPin('AA:BB');
     expect(h.saved.at(-1)).toMatchObject({ remoteFingerprint: 'AA:BB' });
+  });
+});
+
+describe('updates', () => {
+  const asPlatform = async (platform: string, fn: () => Promise<void>) => {
+    const original = process.platform;
+    Object.defineProperty(process, 'platform', { value: platform, configurable: true });
+    try {
+      await fn();
+    } finally {
+      Object.defineProperty(process, 'platform', { value: original, configurable: true });
+    }
+  };
+
+  // A packaged app finds its icons under process.resourcesPath, which only exists in one.
+  const packaged = async (platform: string, fn: () => Promise<void>) => {
+    h.packaged = true;
+    Object.defineProperty(process, 'resourcesPath', { value: '/resources', configurable: true });
+    try {
+      await asPlatform(platform, fn);
+    } finally {
+      Reflect.deleteProperty(process, 'resourcesPath');
+    }
+  };
+
+  it('has nothing to look at in a dev run, and answers the renderer anyway', async () => {
+    await boot();
+    expect(h.updater.handlers).toEqual({});
+    expect(await invoke(IrcMessages.getUpdateStatus)).toBeNull();
+    await invoke(IrcMessages.downloadUpdate);
+    await invoke(IrcMessages.installUpdate);
+    expect(h.updater.downloadUpdate).not.toHaveBeenCalled();
+    expect(h.updater.quitAndInstall).not.toHaveBeenCalled();
+  });
+
+  it('announces a version on Windows, downloads it when asked, and restarts into it on request', async () => {
+    await packaged('win32', async () => {
+      await boot();
+      h.updater.handlers['update-available']({ version: '0.8.0' });
+      expect(win().sent).toContainEqual([
+        IrcMessages.updateStatus,
+        { state: 'available', version: '0.8.0', canInstall: true },
+      ]);
+      expect(h.updater.downloadUpdate).not.toHaveBeenCalled();
+
+      await invoke(IrcMessages.downloadUpdate);
+      expect(h.updater.downloadUpdate).toHaveBeenCalledTimes(1);
+      h.updater.handlers['update-downloaded']({ version: '0.8.0' });
+      expect(await invoke(IrcMessages.getUpdateStatus)).toEqual({
+        state: 'downloaded',
+        version: '0.8.0',
+        canInstall: true,
+      });
+      await invoke(IrcMessages.installUpdate);
+      expect(h.updater.quitAndInstall).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it('downloads a found version at once when Preferences says so', async () => {
+    await packaged('win32', async () => {
+      await boot({ retentionDays: 3, autoDownloadUpdates: true });
+      h.updater.handlers['update-available']({ version: '0.8.0' });
+      expect(h.updater.downloadUpdate).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it('only says a version is out on macOS, where it cannot install', async () => {
+    await packaged('darwin', async () => {
+      await boot({ retentionDays: 3, autoDownloadUpdates: true });
+      h.updater.handlers['update-available']({ version: '0.8.0' });
+      expect(await invoke(IrcMessages.getUpdateStatus)).toEqual({
+        state: 'available',
+        version: '0.8.0',
+        canInstall: false,
+      });
+      await invoke(IrcMessages.downloadUpdate);
+      expect(h.updater.downloadUpdate).not.toHaveBeenCalled();
+    });
   });
 });

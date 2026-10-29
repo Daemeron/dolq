@@ -3,7 +3,8 @@ import { isAbsolute, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, safeStorage, shell, Tray } from 'electron';
 import { installExtension, REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';
-import { type ConnectionStatus, IrcMessages, type Settings } from '../shared/ipc';
+import { autoUpdater } from 'electron-updater';
+import { type ConnectionStatus, IrcMessages, type Settings, type UpdateStatus } from '../shared/ipc';
 import { BackendClient } from './irc/BackendClient';
 import { parseIrcUrl } from './ircUrl';
 import { isAppNavigation, isWebLink } from './navigation';
@@ -11,6 +12,7 @@ import { type RemoteHooks, resolveRemoteBackend } from './remoteBackend';
 import { applyIncomingSettings, BACKEND_SECRET_ID } from './remoteSettings';
 import { type SecretCipher, SecretsStore, type ServerSecrets, withSavedSecrets } from './secrets';
 import { loadSettings, saveSettings } from './settings';
+import { startUpdater } from './updater';
 import { TITLE_BAR_HEIGHT, windowFrame } from './windowFrame';
 
 // A packaged build already gets this from electron-builder's own
@@ -309,6 +311,7 @@ if (!app.requestSingleInstanceLock()) {
     registerSecretsHandlers(secrets);
     registerSettingsHandlers(settingsBox, secrets);
     registerShellHandlers();
+    registerUpdateHandlers(settingsBox);
     registerAppLifecycleHandlers(backend);
     if (!app.isPackaged) installReactDevTools();
   });
@@ -568,6 +571,27 @@ function registerSettingsHandlers(settingsBox: { current: Settings }, secrets: S
     if (next.trayEnabled) createTray();
     else destroyTray();
   });
+}
+
+// A packaged build carries the address of its update feed (app-update.yml, written when it is built); a dev run has none.
+function registerUpdateHandlers(settingsBox: { current: Settings }): void {
+  let latest: UpdateStatus | null = null;
+  const updates = app.isPackaged
+    ? startUpdater({
+        updater: autoUpdater,
+        // Squirrel needs a signed app on macOS and a .deb needs root, so those only get told a version is out.
+        canInstall: process.platform === 'win32' || Boolean(process.env.APPIMAGE),
+        enabled: () => settingsBox.current.autoUpdate !== false,
+        autoDownload: () => settingsBox.current.autoDownloadUpdates === true,
+        onStatus: (status) => {
+          latest = status;
+          sendToWindow(IrcMessages.updateStatus, status);
+        },
+      })
+    : undefined;
+  ipcMain.handle(IrcMessages.getUpdateStatus, () => latest);
+  ipcMain.handle(IrcMessages.downloadUpdate, () => updates?.download());
+  ipcMain.handle(IrcMessages.installUpdate, () => updates?.install());
 }
 
 function registerAppLifecycleHandlers(backend: BackendClient): void {

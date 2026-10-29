@@ -58,5 +58,8 @@
     "esbuild": true,
     "electron-winstaller": true,
     "fsevents": true
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.11"
   }
 }

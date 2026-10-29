@@ -61,6 +61,9 @@ describe('preload bridge: requests', () => {
     ['setBadgeCount', [3], IrcMessages.setBadgeCount],
     ['setZoomFactor', [1.2], IrcMessages.setZoomFactor],
     ['playAlertSound', [], IrcMessages.playAlertSound],
+    ['getUpdateStatus', [], IrcMessages.getUpdateStatus],
+    ['downloadUpdate', [], IrcMessages.downloadUpdate],
+    ['installUpdate', [], IrcMessages.installUpdate],
   ];
 
   it.each(cases)('%s forwards its arguments to the right channel', async (method, args, channel) => {
