@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Message } from '../types';
 import type { MembershipKind } from './eventMessages';
-import { membershipRuns, summarizeRun } from './membershipGroups';
+import { hiddenByFold, membershipRuns, summarizeRun } from './membershipGroups';
 
 let id = 0;
 const at = (day: number, text: string, membership?: MembershipKind): Message => ({
@@ -45,6 +45,16 @@ describe('membershipRuns', () => {
 
   it('is empty for no messages', () => {
     expect(membershipRuns([]).runs.size).toBe(0);
+  });
+});
+
+describe('hiddenByFold', () => {
+  const followers = new Map([[2, 1]]);
+  it('hides a follower of a closed run only', () => {
+    expect(hiddenByFold(followers, 2, () => false)).toBe(true);
+    expect(hiddenByFold(followers, 2, (first) => first === 1)).toBe(false);
+    expect(hiddenByFold(followers, 1, () => false)).toBe(false);
+    expect(hiddenByFold(followers, 9, () => false)).toBe(false);
   });
 });
 

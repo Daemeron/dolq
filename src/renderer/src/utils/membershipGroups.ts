@@ -37,6 +37,12 @@ export function membershipRuns(messages: Message[]): MembershipRuns {
   return { runs, followers };
 }
 
+/** True for a line that is folded away entirely: part of a run, but not its first line, while the run is closed. */
+export function hiddenByFold(followers: Map<number, number>, id: number, isOpen: (firstId: number) => boolean) {
+  const first = followers.get(id);
+  return first !== undefined && !isOpen(first);
+}
+
 const WORDS: Record<MembershipKind, string> = {
   join: 'joined',
   part: 'left',

@@ -3,7 +3,7 @@ import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { Message } from '../types';
 import { dayLabel } from '../utils/dayLabel';
 import { continuesGroup } from '../utils/groupMessages';
-import { membershipRuns } from '../utils/membershipGroups';
+import { hiddenByFold, membershipRuns } from '../utils/membershipGroups';
 import { mentionsAny } from '../utils/mentions';
 import { nickColor, nickInitial } from '../utils/nickColor';
 import { startsNewSession } from '../utils/session';
@@ -67,7 +67,8 @@ export function MessageArea({
   const rowVirtualizer = useVirtualizer({
     count: messages.length,
     getScrollElement: () => containerRef.current,
-    estimateSize: () => rowEstimate,
+    // A folded-away line measures 0, so estimating it taller would shift the scroll as each one comes into view.
+    estimateSize: (index) => (hiddenByFold(followers, messages[index].id, isOpen) ? 0 : rowEstimate),
     getItemKey: (index) => messages[index].id,
     overscan: 8,
     anchorTo: 'end',
@@ -144,9 +145,8 @@ export function MessageArea({
             const day = isLog ? null : dayLabel(messages[virtualRow.index - 1], m);
             const newSession = isLog && startsNewSession(messages[virtualRow.index - 1]);
             const run = runs.get(m.id);
-            const leader = followers.get(m.id);
             // Folded away: the first line of a closed run shows the summary alone, the rest show nothing.
-            const folded = run ? !isOpen(m.id) : leader !== undefined && !isOpen(leader);
+            const folded = run ? !isOpen(m.id) : hiddenByFold(followers, m.id, isOpen);
             const mention =
               !!selfNick &&
               !isLog &&
