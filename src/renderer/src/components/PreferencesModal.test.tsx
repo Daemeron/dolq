@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, type Mock, vi } from 'vitest';
 import type { Settings } from '../../../shared/ipc';
 import { PreferencesModal } from './PreferencesModal';
@@ -155,6 +155,22 @@ describe('PreferencesModal: saving', () => {
     fireEvent.click(screen.getByLabelText('Auto-accept XDCC downloads'));
     save();
     expect(saved(p)).toMatchObject({ trayEnabled: true, xdccAutoAccept: true });
+  });
+
+  it('checks for updates by default and downloads them only when asked to, and saves both choices', () => {
+    const p = setup();
+    expect(screen.getByLabelText('Check for updates')).toBeChecked();
+    expect(screen.getByLabelText('Download updates automatically')).not.toBeChecked();
+    save();
+    expect(saved(p)).toMatchObject({ autoUpdate: true, autoDownloadUpdates: false });
+
+    cleanup();
+    const q = setup({ autoUpdate: false, autoDownloadUpdates: true });
+    expect(screen.getByLabelText('Check for updates')).not.toBeChecked();
+    fireEvent.click(screen.getByLabelText('Check for updates'));
+    fireEvent.click(screen.getByLabelText('Download updates automatically'));
+    save();
+    expect(saved(q)).toMatchObject({ autoUpdate: true, autoDownloadUpdates: false });
   });
 
   it('cancels from the button and from Escape', () => {

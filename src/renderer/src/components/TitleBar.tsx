@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import type { UpdateStatus } from '../../../shared/ipc';
 import { IconButton } from './Icon';
 import type { Transfer } from './TransferStatus';
 import { TransfersPeek } from './TransfersPeek';
@@ -17,6 +18,9 @@ type Props = {
   awayDisabled: boolean;
   onToggleAway: () => void;
   transfers: Record<string, Transfer>;
+  /** A newer version of Dolq, if there is one. */
+  update: UpdateStatus | null;
+  onUpdate: () => void;
   showTransfers: boolean;
   onToggleTransfers: () => void;
 };
@@ -36,6 +40,8 @@ export function TitleBar({
   awayDisabled,
   onToggleAway,
   transfers,
+  update,
+  onUpdate,
   showTransfers,
   onToggleTransfers,
 }: Props) {
@@ -59,6 +65,7 @@ export function TitleBar({
       </span>
       <div className="flex-1" />
       <div role="toolbar" aria-label="App actions" className="titlebar-nodrag flex items-center gap-0.5">
+        {update && <UpdateNotice update={update} onUpdate={onUpdate} />}
         <IconButton compact icon="search" label="Search everywhere" onClick={onOpenSearch} />
         {/* biome-ignore lint/a11y/noStaticElementInteractions: the wrapper only listens for hover and focus on the button inside it */}
         <div
@@ -88,5 +95,31 @@ export function TitleBar({
         <IconButton compact icon="sliders" label="Preferences" onClick={onOpenPreferences} />
       </div>
     </header>
+  );
+}
+
+const UPDATE_LABEL = {
+  available: (v: string) => `Update to ${v}`,
+  downloading: (v: string) => `Downloading ${v}…`,
+  downloaded: () => 'Restart to update',
+};
+const UPDATE_HINT = {
+  available: 'A new version of Dolq is out',
+  downloading: 'Downloading the new version',
+  downloaded: 'Downloaded: Dolq installs it when you restart, or when you quit',
+};
+
+/** A small pill for a new version: a click fetches it, opens its page (where Dolq cannot install) or restarts into it. */
+function UpdateNotice({ update, onUpdate }: { update: UpdateStatus; onUpdate: () => void }) {
+  return (
+    <button
+      type="button"
+      title={UPDATE_HINT[update.state]}
+      disabled={update.state === 'downloading'}
+      onClick={onUpdate}
+      className="mr-1 h-5 cursor-pointer rounded-full border-0 bg-(--dolq-brand-soft) px-2.5 text-[11px] font-semibold text-(--dolq-brand-text) hover:bg-(--dolq-brand) hover:text-(--dolq-on-brand) disabled:cursor-default disabled:opacity-60 disabled:hover:bg-(--dolq-brand-soft) disabled:hover:text-(--dolq-brand-text)"
+    >
+      {UPDATE_LABEL[update.state](update.version)}
+    </button>
   );
 }

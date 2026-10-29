@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { HistoryEntry, IrcEvent, Settings } from '../../shared/ipc';
+import { type HistoryEntry, type IrcEvent, RELEASES_URL, type Settings, type UpdateStatus } from '../../shared/ipc';
 import { ChannelList } from './components/ChannelList';
 import { type ConnectForm, ConnectModal, parseList } from './components/ConnectModal';
 import { Dashboard } from './components/Dashboard';
@@ -234,12 +234,19 @@ export default function App() {
   const transfersRef = useRef(transfers);
   transfersRef.current = transfers;
   const transferSpeedTrack = useRef<Record<string, { received: number; at: number }>>({});
+  const [update, setUpdate] = useState<UpdateStatus | null>(null);
   const [pendingIdentifyServerId, setPendingIdentifyServerId] = useState<string | null>(null);
   const nextMsgId = useRef(Date.now());
   const historyPages = useRef(new Map<string, HistoryPage>());
 
   useEffect(() => {
     window.irc.getSettings().then(setSettingsState);
+  }, []);
+
+  // The optional calls cover a preload from before updates existed (a dev run that was not restarted).
+  useEffect(() => {
+    Promise.resolve(window.irc.getUpdateStatus?.()).then((status) => status && setUpdate(status));
+    return window.irc.onUpdateStatus?.(setUpdate);
   }, []);
 
   useEffect(() => {
@@ -1057,6 +1064,14 @@ export default function App() {
     }
   }
 
+  // Fetch the new version, open its page where Dolq cannot install it, or restart into a downloaded one.
+  function handleUpdate() {
+    if (update?.state === 'downloaded') void window.irc.installUpdate();
+    else if (update?.state !== 'available') return;
+    else if (update.canInstall) void window.irc.downloadUpdate();
+    else void window.irc.openExternal(RELEASES_URL);
+  }
+
   async function handleSendFile(nick: string) {
     const path = await window.irc.chooseFile();
     if (!path) return;
@@ -1386,6 +1401,8 @@ export default function App() {
         awayDisabled={connectedIds.length === 0}
         onToggleAway={handleToggleAwayAll}
         transfers={transfers}
+        update={update}
+        onUpdate={handleUpdate}
         showTransfers={showTransfers}
         onToggleTransfers={() => setShowTransfers((v) => !v)}
         onOpenPreferences={() => setView({ kind: 'preferences' })}

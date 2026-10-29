@@ -17,6 +17,8 @@ function setup(over: Partial<React.ComponentProps<typeof TitleBar>> = {}) {
     awayDisabled: false,
     onToggleAway: vi.fn(),
     transfers: {},
+    update: null,
+    onUpdate: vi.fn(),
     showTransfers: false,
     onToggleTransfers: vi.fn(),
     ...over,
@@ -125,6 +127,25 @@ describe('TitleBar', () => {
       setup({ transfers: { a: bot }, showTransfers: true });
       hover();
       expect(screen.queryByRole('tooltip')).toBeNull();
+    });
+  });
+
+  describe('the update notice', () => {
+    it('is absent when there is nothing newer', () => {
+      setup();
+      expect(screen.queryByRole('button', { name: /update/i })).toBeNull();
+    });
+
+    it.each([
+      ['available', 'Update to 0.8.0', false],
+      ['downloading', 'Downloading 0.8.0…', true],
+      ['downloaded', 'Restart to update', false],
+    ] as const)('says what a %s version offers', (state, label, disabled) => {
+      const p = setup({ update: { state, version: '0.8.0', canInstall: true } });
+      const button = screen.getByRole('button', { name: label });
+      expect((button as HTMLButtonElement).disabled).toBe(disabled);
+      fireEvent.click(button);
+      expect(p.onUpdate).toHaveBeenCalledTimes(disabled ? 0 : 1);
     });
   });
 });
