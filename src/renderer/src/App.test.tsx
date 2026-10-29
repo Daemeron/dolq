@@ -446,17 +446,17 @@ describe('App: dialogs', () => {
   });
 
   it('hands the toolbar colours to the window controls and marks the platform', async () => {
-    document.documentElement.style.setProperty('--dolq-bg', ' #262624 ');
+    document.documentElement.style.setProperty('--dolq-bg-panel-alt', ' #262624 ');
     document.documentElement.style.setProperty('--dolq-text', '#faf9f5');
     const irc = await mount();
     expect(irc.spies.setTitleBar).toHaveBeenCalledWith('#262624', '#faf9f5');
     expect(document.documentElement.dataset.platform).toBe('other');
-    document.documentElement.style.removeProperty('--dolq-bg');
+    document.documentElement.style.removeProperty('--dolq-bg-panel-alt');
     document.documentElement.style.removeProperty('--dolq-text');
   });
 
   it('survives a preload that has no setTitleBar', async () => {
-    document.documentElement.style.setProperty('--dolq-bg', '#262624');
+    document.documentElement.style.setProperty('--dolq-bg-panel-alt', '#262624');
     document.documentElement.style.setProperty('--dolq-text', '#faf9f5');
     await mount();
     const real = window.irc;
@@ -466,7 +466,7 @@ describe('App: dialogs', () => {
     act(() => useStore.getState().setTheme('light'));
     expect(screen.queryByText('Something went wrong')).toBeNull();
     expect(screen.getByRole('button', { name: 'Libera' })).toBeTruthy();
-    document.documentElement.style.removeProperty('--dolq-bg');
+    document.documentElement.style.removeProperty('--dolq-bg-panel-alt');
     document.documentElement.style.removeProperty('--dolq-text');
   });
 

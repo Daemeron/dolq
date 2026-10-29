@@ -47,8 +47,6 @@ export function ServerList({
       className="relative flex flex-col w-17 bg-(--dolq-bg-panel-alt) border-r border-(--dolq-border) shrink-0"
       onContextMenu={dismissIfUnhandled}
     >
-      {/* macOS traffic lights sit here; the rest of the title bar is the toolbar */}
-      <div className="titlebar-drag hidden h-9.5 shrink-0 in-data-[platform=mac]:block" />
       <div className="flex-1 min-h-0 overflow-y-auto scroll-invisible flex flex-col items-center gap-2.5 px-3 py-3.5">
         {servers.map((s) => {
           const status = statusMap[s.id] ?? 'disconnected';

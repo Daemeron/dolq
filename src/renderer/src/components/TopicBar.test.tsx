@@ -28,14 +28,6 @@ describe('TopicBar toolbar', () => {
     expect((heading.firstChild as HTMLElement).style.color).toBe('rgb(1, 2, 3)');
   });
 
-  it('leaves room for the window controls only when it is the rightmost header', () => {
-    const { unmount } = render(<TopicBar {...barProps()} />);
-    expect(screen.getByRole('heading').parentElement).not.toHaveClass('titlebar-end');
-    unmount();
-    render(<TopicBar {...barProps({ clearsWindowControls: true })} />);
-    expect(screen.getByRole('heading').parentElement).toHaveClass('titlebar-end');
-  });
-
   it('titles a query with an at sign and a DCC chat with a bolt', () => {
     const { unmount } = render(
       <TopicBar

@@ -22,8 +22,6 @@ type Props = {
   showMembers?: boolean;
   onToggleMembers?: () => void;
   serverColor?: string;
-  /** True when this bar is the rightmost header, so it must leave room for the Windows/Linux window controls. */
-  clearsWindowControls?: boolean;
   /** Channels on this server that mentioned you and are still unread. */
   mentions?: { id: string; label: string }[];
   onSelectMention?: (id: string) => void;
@@ -50,7 +48,6 @@ export function TopicBar({
   showMembers,
   onToggleMembers,
   serverColor,
-  clearsWindowControls,
   mentions = [],
   onSelectMention,
   transferCount = 0,
@@ -63,9 +60,7 @@ export function TopicBar({
   const prefixStyle = { color: serverColor ?? 'var(--dolq-accent)' };
   const connected = connectionStatus === 'connected';
   return (
-    <div
-      className={`titlebar-drag ${clearsWindowControls ? 'titlebar-end' : 'pr-3'} h-14 flex items-center gap-3 pl-5 border-b border-(--dolq-border) bg-(--dolq-bg) shrink-0`}
-    >
+    <div className="h-14 flex items-center gap-3 pl-5 pr-3 border-b border-(--dolq-border) bg-(--dolq-bg) shrink-0">
       <h1 className="m-0 font-(family-name:--dolq-font-serif) font-medium text-[20px] text-(--dolq-text) whitespace-nowrap">
         {isLog ? (
           'Server log'
@@ -81,11 +76,7 @@ export function TopicBar({
         {!isLog && !isQuery && topic && <IrcText text={topic} />}
       </span>
 
-      <div
-        role="toolbar"
-        aria-label="Conversation actions"
-        className="titlebar-nodrag flex items-center gap-0.5 shrink-0"
-      >
+      <div role="toolbar" aria-label="Conversation actions" className="flex items-center gap-0.5 shrink-0">
         <IconButton icon="search" label="Search history" onClick={onOpenSearch} />
         {onSelectMention && (
           <>

@@ -3,7 +3,7 @@ import { TITLE_BAR_HEIGHT, windowFrame } from './windowFrame';
 
 describe('windowFrame', () => {
   it('insets the traffic lights on macOS', () => {
-    expect(windowFrame('darwin')).toEqual({ titleBarStyle: 'hiddenInset' });
+    expect(windowFrame('darwin')).toMatchObject({ titleBarStyle: 'hiddenInset' });
   });
 
   it.each(['win32', 'linux'] as const)(

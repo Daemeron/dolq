@@ -10,6 +10,7 @@ import { NickServIdentifyModal } from './components/NickServIdentifyModal';
 import { PreferencesModal, type Tab as PreferencesTab } from './components/PreferencesModal';
 import { SearchModal } from './components/SearchModal';
 import { ServerList } from './components/ServerList';
+import { TitleBar } from './components/TitleBar';
 import { TopicBar } from './components/TopicBar';
 import { type Transfer, TransferStatus } from './components/TransferStatus';
 import { UserList } from './components/UserList';
@@ -252,7 +253,7 @@ export default function App() {
       else document.documentElement.removeAttribute('data-theme');
       // The Windows/Linux window controls are drawn over the toolbar, so they follow its colours.
       const style = getComputedStyle(document.documentElement);
-      const bar = style.getPropertyValue('--dolq-bg').trim();
+      const bar = style.getPropertyValue('--dolq-bg-panel-alt').trim();
       const symbols = style.getPropertyValue('--dolq-text').trim();
       // Cosmetic: an older preload without setTitleBar must not take the app down.
       if (bar && symbols) Promise.resolve(window.irc.setTitleBar?.(bar, symbols)).catch(() => undefined);
@@ -1325,257 +1326,263 @@ export default function App() {
   }
 
   return (
-    <div className="flex w-full h-screen overflow-hidden">
-      {whoisNick && (
-        <WhoisModal
-          nick={whoisNick}
-          result={whoisResult}
-          onClose={() => {
-            setWhoisNick(null);
-            setWhoisResult(null);
-          }}
-          onMessage={() => {
-            handleOpenQuery(whoisNick);
-            setWhoisNick(null);
-            setWhoisResult(null);
-          }}
-          onSendFile={() => {
-            handleSendFile(whoisNick);
-            setWhoisNick(null);
-            setWhoisResult(null);
-          }}
-          onIgnore={() => {
-            addIgnore(selectedServerId, whoisNick);
-            setWhoisNick(null);
-            setWhoisResult(null);
-          }}
-        />
-      )}
-      {pendingDCCOffer && (
-        <DCCOfferModal nick={pendingDCCOffer.nick} onAccept={handleAcceptDCCOffer} onDecline={handleDeclineDCCOffer} />
-      )}
-      {pendingXDCCOffer && (
-        <XDCCOfferModal
-          nick={pendingXDCCOffer.nick}
-          filename={pendingXDCCOffer.filename}
-          size={pendingXDCCOffer.size}
-          trustable={xdccSenderKey(pendingXDCCOffer) !== ''}
-          onAccept={() => handleAcceptXDCCOffer()}
-          onAcceptSession={() => handleAcceptXDCCOffer('session')}
-          onAcceptAlways={() => handleAcceptXDCCOffer('always')}
-          onDecline={handleDeclineXDCCOffer}
-        />
-      )}
-      {showTransfers && (
-        <TransferStatus
-          transfers={transfers}
-          onPause={handlePauseTransfer}
-          onResume={handleResumeTransfer}
-          onCancel={handleCancelTransfer}
-          onDismiss={handleDismissTransfer}
-          onShowInFolder={(path) => window.irc.showInFolder(path)}
-          onClose={() => setShowTransfers(false)}
-        />
-      )}
-      {showSearch && (
-        <SearchModal
-          servers={servers}
-          defaultServerId={selectedServerId}
-          defaultChannel={backendChannelFor(selectedServerId, selectedChannelId)}
-          defaultChannelLabel={
-            isLog ? 'Log' : isQuery ? (selectedChannel?.name ?? '') : `#${selectedChannel?.name ?? ''}`
-          }
-          onJump={handleJumpToSearchResult}
-          onGetPack={handleGetPackFrom}
-          onClose={() => setShowSearch(false)}
-        />
-      )}
-      {pendingIdentifyServerId && (
-        <NickServIdentifyModal onIdentify={handleIdentify} onDismiss={() => setPendingIdentifyServerId(null)} />
-      )}
-      <div className="flex shrink-0">
-        <ServerList
-          servers={servers}
-          selectedId={selectedServerId}
-          onSelect={handleSelectServer}
-          onAddServer={() => setView({ kind: 'connect' })}
-          onRemove={handleRemoveServer}
-          onEditServer={(id) => setView({ kind: 'editServer', serverId: id })}
-          statusMap={statusMap}
-          onToggleConnection={handleToggleConnection}
-          onOpenPreferences={() => setView({ kind: 'preferences' })}
-        />
-        {servers.length > 0 && (
-          <div className="flex flex-col">
-            <ChannelList
-              serverName={selectedServer?.name ?? ''}
-              channels={channels}
-              selectedId={selectedChannelId}
-              onSelect={handleSelectChannel}
-              mentionedChannels={mentionedChannels}
-              awayStats={awayStats}
-              mutedChannels={mutedChannels}
-              onToggleMuteChannel={toggleMuteChannel}
-              onJoinChannel={handleJoinChannel}
-              onLeaveChannel={handleLeaveChannel}
-              onRemoveChannel={handleRemoveChannel}
-              onCloseQuery={handleRemoveChannel}
-            />
-            <UserPanel
-              currentNick={currentNick}
-              away={selfAwayMap[selectedServerId] ?? false}
-              onToggleAway={() => handleSend(selfAwayMap[selectedServerId] ? '/away' : '/away Away')}
-            />
-          </div>
-        )}
-      </div>
-      <main className="flex flex-col flex-1 bg-(--dolq-bg) overflow-hidden">
-        {view.kind === 'connect' && (
-          <ConnectModal
-            key={connectPrefill ? `${connectPrefill.host}:${connectPrefill.port}` : 'blank'}
-            presets={presets}
-            nickMap={presetNickMap()}
-            onConnect={handleConnect}
-            onCancel={() => {
-              setView({ kind: 'chat' });
-              setConnectPrefill(null);
-              setConnectPresetId(undefined);
+    <div className="flex h-screen w-full flex-col overflow-hidden">
+      <TitleBar />
+      <div className="flex min-h-0 w-full flex-1">
+        {whoisNick && (
+          <WhoisModal
+            nick={whoisNick}
+            result={whoisResult}
+            onClose={() => {
+              setWhoisNick(null);
+              setWhoisResult(null);
             }}
-            initial={connectPrefill ?? undefined}
-            initialPresetId={connectPresetId}
+            onMessage={() => {
+              handleOpenQuery(whoisNick);
+              setWhoisNick(null);
+              setWhoisResult(null);
+            }}
+            onSendFile={() => {
+              handleSendFile(whoisNick);
+              setWhoisNick(null);
+              setWhoisResult(null);
+            }}
+            onIgnore={() => {
+              addIgnore(selectedServerId, whoisNick);
+              setWhoisNick(null);
+              setWhoisResult(null);
+            }}
           />
         )}
-        {view.kind === 'editServer' &&
-          (() => {
-            const server = servers.find((s) => s.id === view.serverId);
-            if (!server) return null;
-            const sasl = saslMap[view.serverId];
-            return (
-              <EditServerModal
-                key={server.id}
-                server={server}
-                nick={nickMap[view.serverId] ?? ''}
-                saslUser={sasl?.user ?? ''}
-                saslPass={sasl?.pass ?? ''}
-                onSave={handleEditServer}
-                onCancel={() => setView({ kind: 'chat' })}
-              />
-            );
-          })()}
-        {view.kind === 'preferences' && (
-          <PreferencesModal
-            initialTab={view.tab}
-            settings={settings}
-            onSave={handleSavePreferences}
-            onCancel={() => setView({ kind: 'chat' })}
-            notificationsEnabled={notificationsEnabled}
-            onNotificationsEnabledChange={setNotificationsEnabled}
-            soundAlertsEnabled={soundAlertsEnabled}
-            onSoundAlertsEnabledChange={setSoundAlertsEnabled}
-            showMembershipEvents={showMembershipEvents}
-            onShowMembershipEventsChange={setShowMembershipEvents}
-            timestampFormat={timestampFormat}
-            onTimestampFormatChange={setTimestampFormat}
-            messageDensity={messageDensity}
-            onMessageDensityChange={setMessageDensity}
-            fontSize={fontSize}
-            onFontSizeChange={setFontSize}
-            fontFamily={fontFamily}
-            onFontFamilyChange={setFontFamily}
-            theme={theme}
-            onThemeChange={setTheme}
-            highlightWords={highlightWords}
-            onHighlightWordsChange={setHighlightWords}
+        {pendingDCCOffer && (
+          <DCCOfferModal
+            nick={pendingDCCOffer.nick}
+            onAccept={handleAcceptDCCOffer}
+            onDecline={handleDeclineDCCOffer}
+          />
+        )}
+        {pendingXDCCOffer && (
+          <XDCCOfferModal
+            nick={pendingXDCCOffer.nick}
+            filename={pendingXDCCOffer.filename}
+            size={pendingXDCCOffer.size}
+            trustable={xdccSenderKey(pendingXDCCOffer) !== ''}
+            onAccept={() => handleAcceptXDCCOffer()}
+            onAcceptSession={() => handleAcceptXDCCOffer('session')}
+            onAcceptAlways={() => handleAcceptXDCCOffer('always')}
+            onDecline={handleDeclineXDCCOffer}
+          />
+        )}
+        {showTransfers && (
+          <TransferStatus
+            transfers={transfers}
+            onPause={handlePauseTransfer}
+            onResume={handleResumeTransfer}
+            onCancel={handleCancelTransfer}
+            onDismiss={handleDismissTransfer}
+            onShowInFolder={(path) => window.irc.showInFolder(path)}
+            onClose={() => setShowTransfers(false)}
+          />
+        )}
+        {showSearch && (
+          <SearchModal
             servers={servers}
-            ignoredNicks={ignoredNicks}
-            onRemoveIgnore={removeIgnore}
-            xdccTrusted={xdccTrusted}
-            onUntrustXdcc={untrustXdccSender}
-            aliases={aliases}
-            onRemoveAlias={removeAlias}
-            keybindings={keybindings}
-            onKeybindingChange={setKeybinding}
+            defaultServerId={selectedServerId}
+            defaultChannel={backendChannelFor(selectedServerId, selectedChannelId)}
+            defaultChannelLabel={
+              isLog ? 'Log' : isQuery ? (selectedChannel?.name ?? '') : `#${selectedChannel?.name ?? ''}`
+            }
+            onJump={handleJumpToSearchResult}
+            onGetPack={handleGetPackFrom}
+            onClose={() => setShowSearch(false)}
           />
         )}
-        {servers.length === 0 ? (
-          <Welcome
-            presets={presets}
-            onPickPreset={(id) => {
-              setConnectPresetId(id);
-              setView({ kind: 'connect' });
-            }}
-            onAddCustom={() => setView({ kind: 'connect' })}
-            onPair={() => setView({ kind: 'preferences', tab: 'backend' })}
+        {pendingIdentifyServerId && (
+          <NickServIdentifyModal onIdentify={handleIdentify} onDismiss={() => setPendingIdentifyServerId(null)} />
+        )}
+        <div className="flex shrink-0">
+          <ServerList
+            servers={servers}
+            selectedId={selectedServerId}
+            onSelect={handleSelectServer}
+            onAddServer={() => setView({ kind: 'connect' })}
+            onRemove={handleRemoveServer}
+            onEditServer={(id) => setView({ kind: 'editServer', serverId: id })}
+            statusMap={statusMap}
+            onToggleConnection={handleToggleConnection}
+            onOpenPreferences={() => setView({ kind: 'preferences' })}
           />
-        ) : (
-          <div className="flex flex-1 overflow-hidden">
-            <div className="flex flex-col flex-1 overflow-hidden">
-              <TopicBar
-                channelName={selectedChannel?.name ?? ''}
-                topic={selectedChannel?.topic}
-                topicSetBy={selectedChannel?.topicSetBy}
-                topicSetAt={selectedChannel?.topicSetAt}
-                isLog={isLog}
-                isQuery={isQuery}
-                isDCC={selectedChannel?.isDCC}
-                dccStatus={selectedChannel?.isDCC ? statusMap[selectedChannelId] : undefined}
-                onExport={selectedChannel?.isDCC ? undefined : handleExportChannel}
-                onOpenSearch={() => setShowSearch(true)}
-                connectionStatus={connectionStatus}
-                onToggleConnection={() => handleToggleConnection(selectedServerId)}
-                muted={!!mutedChannels[selectedChannelId]}
-                onToggleMute={isLog || isQuery ? undefined : () => toggleMuteChannel(selectedChannelId)}
-                serverColor={selectedServer && serverColor(selectedServer)}
-                clearsWindowControls={isLog || isQuery || !showMembers}
-                mentions={mentionedHere}
-                onSelectMention={handleSelectChannel}
-                transferCount={transferCount}
-                showTransfers={showTransfers}
-                onToggleTransfers={() => setShowTransfers((v) => !v)}
-                showMembers={showMembers}
-                onToggleMembers={isLog || isQuery ? undefined : () => setShowMembers((v) => !v)}
+          {servers.length > 0 && (
+            <div className="flex flex-col">
+              <ChannelList
+                serverName={selectedServer?.name ?? ''}
+                channels={channels}
+                selectedId={selectedChannelId}
+                onSelect={handleSelectChannel}
+                mentionedChannels={mentionedChannels}
+                awayStats={awayStats}
+                mutedChannels={mutedChannels}
+                onToggleMuteChannel={toggleMuteChannel}
+                onJoinChannel={handleJoinChannel}
+                onLeaveChannel={handleLeaveChannel}
+                onRemoveChannel={handleRemoveChannel}
+                onCloseQuery={handleRemoveChannel}
               />
-              <MessageArea
-                messages={messages}
-                isLog={isLog}
-                channelId={scopeKey(selectedServerId, selectedChannelId)}
-                onLoadOlder={loadOlderHistory}
-                timestampFormat={timestampFormat}
-                density={messageDensity}
-                onGetPack={handleGetPack}
-                selfNick={currentNick}
-                highlightWords={highlightWords}
-              />
-              <MessageInput
-                channelName={selectedChannel?.name ?? ''}
-                isLog={isLog}
-                isQuery={isQuery}
-                onSend={handleSend}
-                onSendFile={
-                  isQuery && !selectedChannel?.isDCC ? () => handleSendFile(selectedChannel?.name ?? '') : undefined
-                }
+              <UserPanel
+                currentNick={currentNick}
+                away={selfAwayMap[selectedServerId] ?? false}
+                onToggleAway={() => handleSend(selfAwayMap[selectedServerId] ? '/away' : '/away Away')}
               />
             </div>
-            {!isLog && !isQuery && showMembers && (
-              <aside className="w-58 bg-(--dolq-bg-panel) border-l border-(--dolq-border) shrink-0 flex flex-col overflow-hidden">
-                <div className="titlebar-drag titlebar-end h-14 pl-4 flex items-center shrink-0">
-                  <span className="font-semibold text-[15px] text-(--dolq-text)">Members</span>
-                </div>
-                <UserList
-                  users={users}
-                  currentNick={currentNick}
-                  onOpenQuery={handleOpenQuery}
-                  onWhois={handleWhois}
-                  ignoredNicks={ignoredNicks[selectedServerId] ?? []}
-                  onToggleIgnore={handleToggleIgnore}
-                  onDCCOffer={handleDCCOffer}
-                  onSendFile={handleSendFile}
+          )}
+        </div>
+        <main className="flex flex-col flex-1 bg-(--dolq-bg) overflow-hidden">
+          {view.kind === 'connect' && (
+            <ConnectModal
+              key={connectPrefill ? `${connectPrefill.host}:${connectPrefill.port}` : 'blank'}
+              presets={presets}
+              nickMap={presetNickMap()}
+              onConnect={handleConnect}
+              onCancel={() => {
+                setView({ kind: 'chat' });
+                setConnectPrefill(null);
+                setConnectPresetId(undefined);
+              }}
+              initial={connectPrefill ?? undefined}
+              initialPresetId={connectPresetId}
+            />
+          )}
+          {view.kind === 'editServer' &&
+            (() => {
+              const server = servers.find((s) => s.id === view.serverId);
+              if (!server) return null;
+              const sasl = saslMap[view.serverId];
+              return (
+                <EditServerModal
+                  key={server.id}
+                  server={server}
+                  nick={nickMap[view.serverId] ?? ''}
+                  saslUser={sasl?.user ?? ''}
+                  saslPass={sasl?.pass ?? ''}
+                  onSave={handleEditServer}
+                  onCancel={() => setView({ kind: 'chat' })}
                 />
-              </aside>
-            )}
-          </div>
-        )}
-      </main>
+              );
+            })()}
+          {view.kind === 'preferences' && (
+            <PreferencesModal
+              initialTab={view.tab}
+              settings={settings}
+              onSave={handleSavePreferences}
+              onCancel={() => setView({ kind: 'chat' })}
+              notificationsEnabled={notificationsEnabled}
+              onNotificationsEnabledChange={setNotificationsEnabled}
+              soundAlertsEnabled={soundAlertsEnabled}
+              onSoundAlertsEnabledChange={setSoundAlertsEnabled}
+              showMembershipEvents={showMembershipEvents}
+              onShowMembershipEventsChange={setShowMembershipEvents}
+              timestampFormat={timestampFormat}
+              onTimestampFormatChange={setTimestampFormat}
+              messageDensity={messageDensity}
+              onMessageDensityChange={setMessageDensity}
+              fontSize={fontSize}
+              onFontSizeChange={setFontSize}
+              fontFamily={fontFamily}
+              onFontFamilyChange={setFontFamily}
+              theme={theme}
+              onThemeChange={setTheme}
+              highlightWords={highlightWords}
+              onHighlightWordsChange={setHighlightWords}
+              servers={servers}
+              ignoredNicks={ignoredNicks}
+              onRemoveIgnore={removeIgnore}
+              xdccTrusted={xdccTrusted}
+              onUntrustXdcc={untrustXdccSender}
+              aliases={aliases}
+              onRemoveAlias={removeAlias}
+              keybindings={keybindings}
+              onKeybindingChange={setKeybinding}
+            />
+          )}
+          {servers.length === 0 ? (
+            <Welcome
+              presets={presets}
+              onPickPreset={(id) => {
+                setConnectPresetId(id);
+                setView({ kind: 'connect' });
+              }}
+              onAddCustom={() => setView({ kind: 'connect' })}
+              onPair={() => setView({ kind: 'preferences', tab: 'backend' })}
+            />
+          ) : (
+            <div className="flex flex-1 overflow-hidden">
+              <div className="flex flex-col flex-1 overflow-hidden">
+                <TopicBar
+                  channelName={selectedChannel?.name ?? ''}
+                  topic={selectedChannel?.topic}
+                  topicSetBy={selectedChannel?.topicSetBy}
+                  topicSetAt={selectedChannel?.topicSetAt}
+                  isLog={isLog}
+                  isQuery={isQuery}
+                  isDCC={selectedChannel?.isDCC}
+                  dccStatus={selectedChannel?.isDCC ? statusMap[selectedChannelId] : undefined}
+                  onExport={selectedChannel?.isDCC ? undefined : handleExportChannel}
+                  onOpenSearch={() => setShowSearch(true)}
+                  connectionStatus={connectionStatus}
+                  onToggleConnection={() => handleToggleConnection(selectedServerId)}
+                  muted={!!mutedChannels[selectedChannelId]}
+                  onToggleMute={isLog || isQuery ? undefined : () => toggleMuteChannel(selectedChannelId)}
+                  serverColor={selectedServer && serverColor(selectedServer)}
+                  mentions={mentionedHere}
+                  onSelectMention={handleSelectChannel}
+                  transferCount={transferCount}
+                  showTransfers={showTransfers}
+                  onToggleTransfers={() => setShowTransfers((v) => !v)}
+                  showMembers={showMembers}
+                  onToggleMembers={isLog || isQuery ? undefined : () => setShowMembers((v) => !v)}
+                />
+                <MessageArea
+                  messages={messages}
+                  isLog={isLog}
+                  channelId={scopeKey(selectedServerId, selectedChannelId)}
+                  onLoadOlder={loadOlderHistory}
+                  timestampFormat={timestampFormat}
+                  density={messageDensity}
+                  onGetPack={handleGetPack}
+                  selfNick={currentNick}
+                  highlightWords={highlightWords}
+                />
+                <MessageInput
+                  channelName={selectedChannel?.name ?? ''}
+                  isLog={isLog}
+                  isQuery={isQuery}
+                  onSend={handleSend}
+                  onSendFile={
+                    isQuery && !selectedChannel?.isDCC ? () => handleSendFile(selectedChannel?.name ?? '') : undefined
+                  }
+                />
+              </div>
+              {!isLog && !isQuery && showMembers && (
+                <aside className="w-58 bg-(--dolq-bg-panel) border-l border-(--dolq-border) shrink-0 flex flex-col overflow-hidden">
+                  <div className="h-14 px-4 flex items-center shrink-0">
+                    <span className="font-semibold text-[15px] text-(--dolq-text)">Members</span>
+                  </div>
+                  <UserList
+                    users={users}
+                    currentNick={currentNick}
+                    onOpenQuery={handleOpenQuery}
+                    onWhois={handleWhois}
+                    ignoredNicks={ignoredNicks[selectedServerId] ?? []}
+                    onToggleIgnore={handleToggleIgnore}
+                    onDCCOffer={handleDCCOffer}
+                    onSendFile={handleSendFile}
+                  />
+                </aside>
+              )}
+            </div>
+          )}
+        </main>
+      </div>
     </div>
   );
 }

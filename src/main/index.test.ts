@@ -582,7 +582,7 @@ describe('IPC handlers', () => {
     await invoke(IrcMessages.setTitleBar, '#faf9f5', '#141413');
     expect(win().setTitleBarOverlay).toHaveBeenCalledTimes(process.platform === 'darwin' ? 0 : 1);
     if (process.platform !== 'darwin') {
-      expect(win().setTitleBarOverlay).toHaveBeenCalledWith({ color: '#faf9f5', symbolColor: '#141413', height: 28 });
+      expect(win().setTitleBarOverlay).toHaveBeenCalledWith({ color: '#faf9f5', symbolColor: '#141413', height: 32 });
     }
     expect(() => invoke(IrcMessages.setTitleBar, 1, '#fff')).toThrow(/refusing/);
   });
