@@ -53,7 +53,7 @@ export function ViewPanel({
     // biome-ignore lint/a11y/noStaticElementInteractions: backdrop click-to-dismiss, Escape is handled by the caller
     <div
       role="presentation"
-      className={`fixed inset-0 z-50 flex justify-center bg-black/40 p-6 ${top ? 'items-start pt-[10vh]' : 'items-center'}`}
+      className={`titlebar-nodrag fixed inset-0 z-50 flex justify-center bg-black/40 p-6 ${top ? 'items-start pt-[10vh]' : 'items-center'}`}
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
       <div

@@ -117,7 +117,6 @@ type Actions = {
   setAlias: (name: string, template: string) => void;
   removeAlias: (name: string) => void;
   setKeybinding: (action: KeybindAction, combo: string) => void;
-  setServerColor: (id: string, color: string) => void;
   updateServer: (id: string, patch: Partial<Server>) => void;
 };
 
@@ -478,8 +477,6 @@ export const useStore = create<State & Actions>()(
         }),
 
       setKeybinding: (action, combo) => set((s) => ({ keybindings: { ...s.keybindings, [action]: combo } })),
-
-      setServerColor: (id, color) => get().updateServer(id, { color }),
 
       updateServer: (id, patch) =>
         set((s) => ({ servers: s.servers.map((sv) => (sv.id === id ? { ...sv, ...patch } : sv)) })),

@@ -415,6 +415,19 @@ describe('App: dialogs', () => {
     await waitFor(() => expect(useStore.getState().servers[0].name).toBe('Libera 2'));
   });
 
+  it('keeps the icon letters and colour picked in the server editor', async () => {
+    await mount();
+    fireEvent.contextMenu(screen.getByRole('button', { name: 'Libera' }));
+    fireEvent.click(screen.getByText('Edit Server…'));
+    await screen.findByRole('dialog', { name: 'Edit server' });
+    fireEvent.change(screen.getByLabelText('Icon letters'), { target: { value: ' lib ' } });
+    fireEvent.click(screen.getAllByRole('button', { name: /^Colour / })[2]);
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(useStore.getState().servers[0].initials).toBe('lib'));
+    expect(useStore.getState().servers[0].color).toBe('var(--dolq-nick-3)');
+    expect(screen.getByRole('button', { name: 'Libera' })).toHaveTextContent('lib');
+  });
+
   it('removes a server after confirmation', async () => {
     vi.spyOn(window, 'confirm').mockReturnValue(true);
     const irc = await mount();
@@ -430,6 +443,16 @@ describe('App: dialogs', () => {
     fireEvent.contextMenu(screen.getByRole('button', { name: 'Libera' }));
     fireEvent.click(screen.getByText('Remove Server'));
     expect(useStore.getState().servers).toHaveLength(1);
+  });
+
+  it('hands the toolbar colours to the window controls and marks the platform', async () => {
+    document.documentElement.style.setProperty('--dolq-bg', ' #262624 ');
+    document.documentElement.style.setProperty('--dolq-text', '#faf9f5');
+    const irc = await mount();
+    expect(irc.spies.setTitleBar).toHaveBeenCalledWith('#262624', '#faf9f5');
+    expect(document.documentElement.dataset.platform).toBe('other');
+    document.documentElement.style.removeProperty('--dolq-bg');
+    document.documentElement.style.removeProperty('--dolq-text');
   });
 
   it('opens search from the toolbar', async () => {

@@ -11,6 +11,7 @@ import { type RemoteHooks, resolveRemoteBackend } from './remoteBackend';
 import { applyIncomingSettings, BACKEND_SECRET_ID } from './remoteSettings';
 import { type SecretCipher, SecretsStore, type ServerSecrets, withSavedSecrets } from './secrets';
 import { loadSettings, saveSettings } from './settings';
+import { TITLE_BAR_HEIGHT, windowFrame } from './windowFrame';
 
 // A packaged build already gets this from electron-builder's own
 // `productName` (electron-builder.json5), but that's a packaging-time
@@ -65,6 +66,7 @@ function createWindow(): void {
     minHeight: 600,
     backgroundColor: '#212121',
     icon: ICON_PATH,
+    ...windowFrame(process.platform),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
     },
@@ -326,6 +328,12 @@ function registerShellHandlers(): void {
   ipcMain.handle(IrcMessages.showInFolder, (_event, filePath: string) => {
     if (typeof filePath !== 'string' || !isAbsolute(filePath)) throw new Error('refusing to reveal a relative path');
     shell.showItemInFolder(filePath);
+  });
+
+  // The Windows/Linux window controls take the toolbar's colours; macOS has none to colour.
+  ipcMain.handle(IrcMessages.setTitleBar, (_event, color: string, symbolColor: string) => {
+    if (typeof color !== 'string' || typeof symbolColor !== 'string') throw new Error('refusing non-string colours');
+    if (process.platform !== 'darwin') mainWindow?.setTitleBarOverlay({ color, symbolColor, height: TITLE_BAR_HEIGHT });
   });
 
   ipcMain.handle(IrcMessages.saveTextFile, async (_event, defaultName: string, content: string) => {

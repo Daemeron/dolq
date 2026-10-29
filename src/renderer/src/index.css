@@ -140,6 +140,18 @@ code {
 
 /* In a layer so utilities such as `absolute` still win over .has-tip's `position: relative`. */
 @layer components {
+  /* Window chrome (src/main/windowFrame.ts): the toolbar drags the window, and keeps clear of the
+     Windows/Linux window controls, whose area env(titlebar-area-*) describes (no controls: no extra padding). */
+  .titlebar-drag {
+    -webkit-app-region: drag;
+  }
+  .titlebar-nodrag {
+    -webkit-app-region: no-drag;
+  }
+  .titlebar-end {
+    padding-right: calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw) + 0.75rem);
+  }
+
   /* CSS-only tooltip for any element with data-tip. Add `tip-right` to open sideways. */
   .has-tip {
     position: relative;

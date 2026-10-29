@@ -31,7 +31,7 @@ import { isChannelScopedLine } from './utils/logFilter';
 import { mentionsAny } from './utils/mentions';
 import { isNickServIdentifyPrompt } from './utils/nickserv';
 import { reconcileServers, reconcileStep } from './utils/reconcile';
-import { buildServerId, normalizeHost, resolveHostPort, serverInitials } from './utils/server';
+import { buildServerId, normalizeHost, resolveHostPort, serverColor, serverInitials } from './utils/server';
 import { computeAwayStats } from './utils/unread';
 import { takeAutoAccept, xdccRequestKey, xdccRequestTarget, xdccSenderKey } from './utils/xdcc';
 
@@ -190,7 +190,6 @@ export default function App() {
     setAlias,
     removeAlias,
     setKeybinding,
-    setServerColor,
     updateServer,
   } = useStore();
 
@@ -242,11 +241,20 @@ export default function App() {
   }, [fontFamily]);
 
   useEffect(() => {
+    document.documentElement.dataset.platform = /Mac/i.test(navigator.platform) ? 'mac' : 'other';
+  }, []);
+
+  useEffect(() => {
     const query = window.matchMedia('(prefers-color-scheme: light)');
     const apply = () => {
       const light = theme === 'light' || (theme === 'system' && query.matches);
       if (light) document.documentElement.setAttribute('data-theme', 'light');
       else document.documentElement.removeAttribute('data-theme');
+      // The Windows/Linux window controls are drawn over the toolbar, so they follow its colours.
+      const style = getComputedStyle(document.documentElement);
+      const bar = style.getPropertyValue('--dolq-bg').trim();
+      const symbols = style.getPropertyValue('--dolq-text').trim();
+      if (bar && symbols) window.irc.setTitleBar(bar, symbols).catch(() => undefined);
     };
     apply();
     if (theme !== 'system') return;
@@ -946,6 +954,8 @@ export default function App() {
       rememberCredentials: remembered || undefined,
       name,
       initial: serverInitials(name),
+      color: form.color || undefined,
+      initials: form.initials.trim() || undefined,
       host,
       port,
       secure: form.secure,
@@ -1389,7 +1399,6 @@ export default function App() {
           onSelect={handleSelectServer}
           onAddServer={() => setView({ kind: 'connect' })}
           onRemove={handleRemoveServer}
-          onChangeColor={setServerColor}
           onEditServer={(id) => setView({ kind: 'editServer', serverId: id })}
           statusMap={statusMap}
           onToggleConnection={handleToggleConnection}
@@ -1515,7 +1524,7 @@ export default function App() {
                 onToggleConnection={() => handleToggleConnection(selectedServerId)}
                 muted={!!mutedChannels[selectedChannelId]}
                 onToggleMute={isLog || isQuery ? undefined : () => toggleMuteChannel(selectedChannelId)}
-                serverColor={selectedServer?.color}
+                serverColor={selectedServer && serverColor(selectedServer)}
                 mentions={mentionedHere}
                 onSelectMention={handleSelectChannel}
                 transferCount={transferCount}

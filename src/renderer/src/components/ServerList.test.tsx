@@ -14,7 +14,6 @@ function renderList(statusMap: Record<string, ConnectionStatus>) {
     onSelect: vi.fn(),
     onAddServer: vi.fn(),
     onRemove: vi.fn(),
-    onChangeColor: vi.fn(),
     onEditServer: vi.fn(),
     statusMap,
     onToggleConnection: vi.fn(),
@@ -75,14 +74,25 @@ describe('ServerList connection badge', () => {
     expect(onRemove).toHaveBeenCalledWith('b');
   });
 
-  it('recolours a server through the colour picker', () => {
-    const { onChangeColor } = renderList({});
-    const picker = document.querySelector('input[type="color"]') as HTMLInputElement;
-    const click = vi.spyOn(picker, 'click').mockImplementation(() => {});
-    fireEvent.contextMenu(screen.getByRole('button', { name: 'Alpha' }));
-    fireEvent.click(screen.getByText('Change Color…'));
-    expect(click).toHaveBeenCalled();
-    fireEvent.change(picker, { target: { value: '#112233' } });
-    expect(onChangeColor).toHaveBeenCalledWith('a', '#112233');
+  it('draws each icon from the server colour and letters, else from its id and name', () => {
+    render(
+      <ServerList
+        servers={[{ ...server('a', 'Alpha'), color: '#112233', initials: 'ALP' }, server('b', 'Beta Net')]}
+        selectedId="a"
+        onSelect={vi.fn()}
+        onAddServer={vi.fn()}
+        onRemove={vi.fn()}
+        onEditServer={vi.fn()}
+        statusMap={{}}
+        onToggleConnection={vi.fn()}
+        onOpenPreferences={vi.fn()}
+      />,
+    );
+    const alpha = screen.getByRole('button', { name: 'Alpha' });
+    expect(alpha).toHaveTextContent('ALP');
+    expect(alpha.style.background).toContain('rgb(17, 34, 51)');
+    const beta = screen.getByRole('button', { name: 'Beta Net' });
+    expect(beta).toHaveTextContent('BN');
+    expect(beta.style.background).toContain('--dolq-nick-');
   });
 });

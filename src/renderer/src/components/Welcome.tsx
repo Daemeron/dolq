@@ -15,7 +15,8 @@ type Props = {
 export function Welcome({ presets, onPickPreset, onAddCustom, onPair }: Props) {
   const featured = presets.filter((p) => PRESET_BLURBS[p.id]);
   return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-7 p-8">
+    <div className="relative flex flex-1 flex-col items-center justify-center gap-7 p-8">
+      <div className="titlebar-drag absolute inset-x-0 top-0 h-14" />
       <div className="max-w-130 text-center">
         <h1 className="m-0 mb-3 font-(family-name:--dolq-font-serif) text-[44px] leading-[1.15] font-normal text-(--dolq-text)">
           Welcome to Dolq

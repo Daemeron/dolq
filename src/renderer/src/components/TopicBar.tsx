@@ -3,7 +3,6 @@ import { useContextMenu } from '../hooks/useContextMenu';
 import { ContextMenu, ContextMenuHeader, ContextMenuItem } from './ContextMenu';
 import { Icon, IconButton } from './Icon';
 import { IrcText } from './IrcText';
-import { DEFAULT_ACCENT } from './ServerList';
 
 type Props = {
   channelName: string;
@@ -58,10 +57,10 @@ export function TopicBar({
   const whoWhen = topicSetBy && `Set by ${topicSetBy}${topicSetAt ? ` at ${topicSetAt.toLocaleString()}` : ''}`;
   const { menu, open, close } = useContextMenu<null>();
   const mentionMenu = useContextMenu<null>();
-  const prefixStyle = { color: serverColor ?? DEFAULT_ACCENT };
+  const prefixStyle = { color: serverColor ?? 'var(--dolq-accent)' };
   const connected = connectionStatus === 'connected';
   return (
-    <div className="h-14 flex items-center gap-3 pl-5 pr-3 border-b border-(--dolq-border) bg-(--dolq-bg) shrink-0">
+    <div className="titlebar-drag titlebar-end h-14 flex items-center gap-3 pl-5 border-b border-(--dolq-border) bg-(--dolq-bg) shrink-0">
       <h1 className="m-0 font-(family-name:--dolq-font-serif) font-medium text-[20px] text-(--dolq-text) whitespace-nowrap">
         {isLog ? (
           'Server log'
@@ -77,7 +76,11 @@ export function TopicBar({
         {!isLog && !isQuery && topic && <IrcText text={topic} />}
       </span>
 
-      <div role="toolbar" aria-label="Conversation actions" className="flex items-center gap-0.5 shrink-0">
+      <div
+        role="toolbar"
+        aria-label="Conversation actions"
+        className="titlebar-nodrag flex items-center gap-0.5 shrink-0"
+      >
         <IconButton icon="search" label="Search history" onClick={onOpenSearch} />
         {onSelectMention && (
           <>

@@ -97,12 +97,6 @@ describe('servers', () => {
     get().addPreset({ id: 'mine', name: 'Mine', host: 'h', port: 1, secure: true } as never);
     expect(get().presets).toHaveLength(before + 1);
   });
-
-  it('setServerColor recolours one server', () => {
-    withServer('a');
-    get().setServerColor('a', '#123456');
-    expect(get().servers[0].color).toBe('#123456');
-  });
 });
 
 describe('channels', () => {
