@@ -75,7 +75,7 @@ export function ChannelList({
 
   return (
     <aside
-      className="relative flex flex-col flex-1 min-h-0 w-62 bg-(--dolq-bg-panel) border-r border-(--dolq-border) shrink-0 overflow-hidden"
+      className="relative flex flex-col flex-1 min-h-0 w-62 bg-(--dolq-bg-panel) border-r border-b border-(--dolq-border) rounded-br-2xl shrink-0 overflow-hidden"
       onContextMenu={dismissIfUnhandled}
     >
       <div className="px-4 h-14 flex items-center justify-between shrink-0">
