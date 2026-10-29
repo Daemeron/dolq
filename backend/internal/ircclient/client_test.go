@@ -1658,3 +1658,34 @@ func TestLatencyIsNotMeasuredBeforeRegistrationOrWhenOff(t *testing.T) {
 	time.Sleep(80 * time.Millisecond)
 	expectNothingSent(t, server2, r2)
 }
+
+func TestOurOwnPongsAreKeptOutOfTheLog(t *testing.T) {
+	c, server, r := pipeClient(t, "testnick")
+	lines := make(chan string, 8)
+	c.AddLineListener(func(line string) { lines <- line })
+	c.Start()
+	drainHandshake(t, r)
+
+	writeLine(t, server, ":irc.example PONG irc.example :dolq-123")
+	// A PONG to a ping of ours that nobody is waiting for any more is ours too; a PONG to anything else is not.
+	writeLine(t, server, ":irc.example PONG irc.example :somebody-elses")
+	writeLine(t, server, ":nick!u@h PRIVMSG #c :after")
+
+	var got []string
+	for len(got) < 2 {
+		select {
+		case l := <-lines:
+			got = append(got, l)
+		case <-time.After(2 * time.Second):
+			t.Fatalf("timed out; got %q", got)
+		}
+	}
+	if !strings.Contains(got[0], "somebody-elses") || !strings.Contains(got[1], "PRIVMSG") {
+		t.Errorf("got %q, want the other PONG and the message, without our own PONG", got)
+	}
+	select {
+	case l := <-lines:
+		t.Errorf("unexpected extra line %q", l)
+	case <-time.After(50 * time.Millisecond):
+	}
+}

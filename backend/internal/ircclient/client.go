@@ -412,7 +412,7 @@ func (c *Client) measureLatency() {
 		wait = interval
 		c.mu.Lock()
 		ready := c.registered
-		token := fmt.Sprintf("dolq-%d", time.Now().UnixNano())
+		token := fmt.Sprintf("%s%d", latencyTokenPrefix, time.Now().UnixNano())
 		if ready {
 			c.pingToken, c.pingSent = token, time.Now()
 		}
@@ -426,14 +426,18 @@ func (c *Client) measureLatency() {
 	}
 }
 
-// handlePong reports the round trip when line is the PONG for our latest PING.
-func (c *Client) handlePong(line string) {
+// latencyTokenPrefix marks the PINGs we send ourselves to time the server; their PONGs are not for the user to see.
+const latencyTokenPrefix = "dolq-"
+
+// handlePong reports the round trip when line is the PONG for our latest PING. It returns true for any PONG to a
+// PING of ours (even a late one), which the caller keeps out of the log.
+func (c *Client) handlePong(line string) bool {
 	fields := strings.Fields(line)
 	if len(fields) > 0 && strings.HasPrefix(fields[0], ":") {
 		fields = fields[1:]
 	}
 	if len(fields) < 2 || fields[0] != "PONG" {
-		return
+		return false
 	}
 	token := strings.TrimPrefix(fields[len(fields)-1], ":")
 	c.mu.Lock()
@@ -446,6 +450,7 @@ func (c *Client) handlePong(line string) {
 	if match {
 		c.emitEvent(LatencyEvent{Type: "LATENCY", Ms: time.Since(sent).Milliseconds()})
 	}
+	return strings.HasPrefix(token, latencyTokenPrefix)
 }
 
 func (c *Client) readLoop() {
@@ -476,7 +481,9 @@ func (c *Client) handleLine(line string) {
 		c.Send("PONG " + token)
 	}
 
-	c.handlePong(untagged)
+	if c.handlePong(untagged) {
+		return
+	}
 
 	if isCapOrAuthLine(untagged) {
 		select {
