@@ -760,7 +760,7 @@
 
 /* Dialogs & panels */
 .dq .scrim {
-  background: rgba(20, 20, 19, 0.38);
+  background: rgba(0, 0, 0, 0.6);
   display: flex;
   align-items: center;
   justify-content: center;
