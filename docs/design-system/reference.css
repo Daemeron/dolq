@@ -891,3 +891,13 @@
   color: var(--text-2);
   background: var(--surface);
 }
+.dq .btn.split-l {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.dq .btn.split-r {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  border-left-color: rgba(255, 255, 255, 0.3);
+  padding: 0 8px;
+}

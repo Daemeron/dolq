@@ -1,4 +1,6 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { ContextMenuItem } from './ContextMenu';
+import { Icon } from './Icon';
 import { Button, Card, Setting } from './ui';
 import { ViewPanel } from './ViewPanel';
 
@@ -36,13 +38,18 @@ export function XDCCOfferModal({
   onAcceptAlways,
   onDecline,
 }: Props) {
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  // Escape closes the trust menu first, and only a second press declines the offer.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onDecline();
+      if (e.key !== 'Escape') return;
+      if (menuOpen) setMenuOpen(false);
+      else onDecline();
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [onDecline]);
+  }, [onDecline, menuOpen]);
 
   return (
     <ViewPanel
@@ -53,9 +60,36 @@ export function XDCCOfferModal({
       footer={
         <>
           <Button onClick={onDecline}>Decline</Button>
-          <Button variant="primary" onClick={onAccept}>
-            Accept
-          </Button>
+          {/* Accept, with the trust options attached to its right edge. */}
+          <div className="relative flex">
+            <Button variant="primary" className={trustable ? 'rounded-r-none' : ''} onClick={onAccept}>
+              Accept
+            </Button>
+            {trustable && (
+              <Button
+                variant="primary"
+                aria-label="More ways to accept"
+                aria-haspopup="menu"
+                aria-expanded={menuOpen}
+                className="rounded-l-none border-l-(--dolq-on-brand)/30 px-2"
+                onClick={() => setMenuOpen((open) => !open)}
+              >
+                <Icon name="chevronDown" size={16} />
+              </Button>
+            )}
+            {menuOpen && (
+              <>
+                <div aria-hidden="true" className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
+                <div
+                  role="menu"
+                  className="absolute right-0 bottom-full z-20 mb-2 w-max rounded-lg bg-(--dolq-bg-input) py-1.5 shadow-(--dolq-shadow)"
+                >
+                  <ContextMenuItem onClick={onAcceptSession}>Accept from {nick} for this session</ContextMenuItem>
+                  <ContextMenuItem onClick={onAcceptAlways}>Always accept from {nick}</ContextMenuItem>
+                </div>
+              </>
+            )}
+          </div>
         </>
       }
     >
@@ -69,24 +103,6 @@ export function XDCCOfferModal({
           }
         />
       </Card>
-      {trustable && (
-        <div className="flex flex-col items-start gap-1">
-          <button
-            type="button"
-            onClick={onAcceptSession}
-            className="cursor-pointer border-0 bg-transparent p-0 text-[12px] text-(--dolq-text-dim) hover:text-(--dolq-text) hover:underline"
-          >
-            Accept and trust {nick} until this server disconnects
-          </button>
-          <button
-            type="button"
-            onClick={onAcceptAlways}
-            className="cursor-pointer border-0 bg-transparent p-0 text-[12px] text-(--dolq-text-dim) hover:text-(--dolq-text) hover:underline"
-          >
-            Accept and always trust {nick}
-          </button>
-        </div>
-      )}
     </ViewPanel>
   );
 }

@@ -29,17 +29,33 @@ describe('XDCCOfferModal', () => {
     expect(screen.getByText(/pack\.iso/).textContent).toContain('5.0 GB');
   });
 
-  it('offers the trust options only when the sender can be recognised', () => {
+  it('offers the trust options in a menu on the Accept button', () => {
     const { onAcceptSession, onAcceptAlways } = setup(true);
-    fireEvent.click(screen.getByText(/until this server disconnects/));
-    fireEvent.click(screen.getByText(/always trust/));
+    expect(screen.queryByRole('menu')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'More ways to accept' }));
+    fireEvent.click(screen.getByText('Accept from bot for this session'));
+    fireEvent.click(screen.getByText('Always accept from bot'));
     expect(onAcceptSession).toHaveBeenCalled();
     expect(onAcceptAlways).toHaveBeenCalled();
   });
 
+  it('closes the menu on Escape before declining, and on a click outside it', () => {
+    const { onDecline } = setup(true);
+    const open = () => fireEvent.click(screen.getByRole('button', { name: 'More ways to accept' }));
+    open();
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(screen.queryByRole('menu')).toBeNull();
+    expect(onDecline).not.toHaveBeenCalled();
+    open();
+    fireEvent.click(document.querySelector('.fixed.inset-0.z-10') as Element);
+    expect(screen.queryByRole('menu')).toBeNull();
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(onDecline).toHaveBeenCalledTimes(1);
+  });
+
   it('hides the trust options for an unrecognisable sender', () => {
     setup(false);
-    expect(screen.queryByText(/always trust/)).toBeNull();
+    expect(screen.queryByRole('button', { name: 'More ways to accept' })).toBeNull();
   });
 
   it('accepts once, declines, and declines on Escape', () => {
