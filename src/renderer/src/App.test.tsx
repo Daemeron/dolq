@@ -169,6 +169,13 @@ describe('App: layout', () => {
     await waitFor(() => expect(useStore.getState().statusMap.s1).toBe('connected'));
   });
 
+  it('does not say Online in the user panel while the server is disconnected', async () => {
+    useStore.setState({ statusMap: { s1: 'disconnected' } });
+    await mount({ getStatus: 'disconnected' });
+    expect(await screen.findByText('Offline')).toBeTruthy();
+    expect(screen.queryByText('Online')).toBeNull();
+  });
+
   it('follows status changes pushed by the backend', async () => {
     const irc = await mount();
     irc.emit('onStatus', 's1', 'disconnected');
