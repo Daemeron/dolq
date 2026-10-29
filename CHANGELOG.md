@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.7.0](https://github.com/Daemeron/dolq/compare/dolq-v0.6.2...dolq-v0.7.0) (2026-10-29)
+
+
+### Features
+
+* dashboard with latency and transfer rates, global actions in the title strip ([#56](https://github.com/Daemeron/dolq/issues/56)) ([cc676ed](https://github.com/Daemeron/dolq/commit/cc676ede9246c35cec2c830fa3f41a61486420ea))
+* server icon colour and letters, and a themed window frame ([#55](https://github.com/Daemeron/dolq/issues/55)) ([1f0c347](https://github.com/Daemeron/dolq/commit/1f0c34766f270a6db9d54b1b4e9d031a69409344))
+
 ## [0.6.2](https://github.com/Daemeron/dolq/compare/dolq-v0.6.1...dolq-v0.6.2) (2026-10-28)
 
 
