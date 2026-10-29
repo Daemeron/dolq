@@ -19,7 +19,13 @@
       "to": "bin"
     }
   ],
-  "publish": null,
+  // The update feed is the latest release's own assets (latest.yml and friends), so no publish step is needed.
+  "publish": [
+    {
+      "provider": "generic",
+      "url": "https://github.com/Daemeron/dolq/releases/latest/download"
+    }
+  ],
   "mac": {
     "sign": {
       "identity": "-",
@@ -35,6 +41,10 @@
     "target": [
       "nsis"
     ]
+  },
+  // No spaces: GitHub renames a spaced asset, and latest.yml has to name the file exactly as it is uploaded.
+  "nsis": {
+    "artifactName": "${productName}-Setup-${version}.${ext}"
   },
   "linux": {
     "target": [
