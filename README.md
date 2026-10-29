@@ -12,8 +12,7 @@ designed to bring a familiar, modern interface to IRC. It borrows Discord's
 layout — server list, channel list, topic bar, message area, and user list —
 while staying true to the IRC protocol underneath: TLS, SASL, CAP negotiation,
 CTCP, DCC, and XDCC file transfers all work like a "real" IRC client, just with
-a friendlier shell around them. Currently targeting macOS, with multiplatform
-support planned.
+a friendlier shell around them. It runs on macOS, Windows and Linux.
 
 > ![Main chat view](/resources/screenshots/main-view.png)
 > ![Preferences panel](/resources/screenshots/preferences.png)
@@ -23,11 +22,16 @@ support planned.
 
 ## Features
 
+- **Dashboard** — click the Dolq logo above the server rail for every server's
+  state, joined channels, latency over time and live upload/download rates; the
+  strip on top of the window holds back/forward and the app-wide actions
+  (search everywhere, transfers, away on all servers, preferences)
 - **Multi-server** — connect to as many networks/identities as you want at once,
   switch between them from the server rail; nothing connects on launch unless
   you tick **Connect when the app opens** for that server
 - **Channel list** — joined channels, DMs, and DCC chats, with a persistent
-  **Log** view showing raw server output
+  **Log** view showing raw server output; runs of joins, parts and quits fold
+  into one expandable line so the conversation stays readable
 - **XDCC file transfers** — browse pack listings, request/accept `DCC SEND` in
   passive or active mode, resume partial downloads, and track progress in a
   queue with pause/resume
@@ -43,7 +47,8 @@ support planned.
   with per-channel mute, `irc://`/`ircs://` link handling
 - **Customization** — keybindings, sound alerts, per-server color overrides,
   font size/family, timestamp format, message density
-- **Dark theme** — grayscale dark UI built with Tailwind CSS
+- **Light and dark themes** — warm neutrals, built with Tailwind CSS; the design
+  system lives in [docs/design-system](./docs/design-system/README.md)
 
 See [ROADMAP.md](./ROADMAP.md) for the full feature list and what's still in
 progress.
@@ -72,7 +77,8 @@ and the SQLite history store, while the renderer stays a thin UI on top.
 
 - **Node.js** ≥ 22
 - **Go** ≥ 1.26 (only needed to build the backend daemon)
-- **macOS** (for packaging — dev mode works on any platform)
+- **macOS, Windows or Linux** (packaging builds for the OS it runs on; dev mode
+  works on any platform)
 - **npm** ≥ 10
 
 ---
@@ -241,7 +247,8 @@ npm run run
 ```
 
 **Package a distributable** — builds the backend, builds the frontend, then
-outputs `.dmg`/`.zip` to `dist/`:
+outputs the installers for the OS you run it on (`.dmg`/`.zip` on macOS, an
+NSIS installer on Windows, AppImage/`.deb` on Linux) to `dist/`:
 
 ```bash
 npm run package
@@ -311,10 +318,13 @@ src/
 │       ├── store.ts          # zustand store (servers, channels, messages, users, preferences)
 │       ├── utils/            # Pure, unit-tested logic: commands, aliases, reconcile on launch,
 │       │                      # history paging, log filter, alerts, export, ...
-│       └── components/       # ServerList, ChannelList, TopicBar, MessageArea, UserList,
-│                              # MessageInput, PreferencesModal, SearchModal, XDCC/DCC modals, ...
+│       └── components/       # TitleBar, ServerList, ChannelList, Dashboard, TopicBar, MessageArea,
+│                              # UserList, MessageInput, PreferencesModal, SearchModal, XDCC/DCC modals, ...
 └── shared/
     └── ipc.ts                # IPC channel names and types shared between main and renderer
+
+resources/                    # App and tray icons, generated from icon.svg by scripts/build-icons.mjs
+docs/design-system/           # Tokens, rules and a browsable preview of every component
 
 backend/
 ├── cmd/dolqd/                # Daemon entry point
