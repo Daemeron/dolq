@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.9.0](https://github.com/Daemeron/dolq/compare/dolq-v0.8.0...dolq-v0.9.0) (2026-10-30)
+
+
+### Features
+
+* **renderer:** fade the member list when we are not in the channel ([f142a41](https://github.com/Daemeron/dolq/commit/f142a4158b176ff7ced96ef961045e610c32656f))
+
+
+### Bug Fixes
+
+* **renderer:** keep the member list of a channel we have left as it was ([36a409e](https://github.com/Daemeron/dolq/commit/36a409ea0ec7ca9d5888c53e0a958b9e39675324))
+* **renderer:** make the composer one line, with its buttons on either side of the input ([b20d138](https://github.com/Daemeron/dolq/commit/b20d1385089745923d93fd230f7a4bfd5599a0f7))
+
 ## [0.8.0](https://github.com/Daemeron/dolq/compare/dolq-v0.7.0...dolq-v0.8.0) (2026-10-29)
 
 
