@@ -53,14 +53,20 @@ export function scopeKey(serverId: string, channelId: string): string {
 
 // Applies fn to the user list of every channel on one server; other servers'
 // lists are left alone, since the same nick on another network is someone else.
+// A channel we have left (joined === false) keeps the list as it was when we left: a quit or a nick change seen
+// through another channel must not rewrite what was "last seen" there.
 function mapServerUsers(
   userMap: Record<string, User[]>,
   serverId: string,
+  channelMap: Record<string, Channel[]>,
   fn: (users: User[]) => User[],
 ): Record<string, User[]> {
   const prefix = `${serverId}:`;
+  const left = new Set(
+    (channelMap[serverId] ?? []).filter((c) => c.joined === false).map((c) => scopeKey(serverId, c.id)),
+  );
   return Object.fromEntries(
-    Object.entries(userMap).map(([key, users]) => [key, key.startsWith(prefix) ? fn(users) : users]),
+    Object.entries(userMap).map(([key, users]) => [key, key.startsWith(prefix) && !left.has(key) ? fn(users) : users]),
   );
 }
 
@@ -354,19 +360,19 @@ export const useStore = create<State & Actions>()(
 
       removeUserEverywhere: (serverId, nick) =>
         set((s) => ({
-          userMap: mapServerUsers(s.userMap, serverId, (users) => users.filter((u) => u.nick !== nick)),
+          userMap: mapServerUsers(s.userMap, serverId, s.channelMap, (users) => users.filter((u) => u.nick !== nick)),
         })),
 
       renameUserEverywhere: (serverId, oldNick, newNick) =>
         set((s) => ({
-          userMap: mapServerUsers(s.userMap, serverId, (users) =>
+          userMap: mapServerUsers(s.userMap, serverId, s.channelMap, (users) =>
             users.map((u) => (u.nick === oldNick ? { ...u, nick: newNick } : u)),
           ),
         })),
 
       applyAwayEverywhere: (serverId, nick, away) =>
         set((s) => ({
-          userMap: mapServerUsers(s.userMap, serverId, (users) =>
+          userMap: mapServerUsers(s.userMap, serverId, s.channelMap, (users) =>
             users.map((u) => (u.nick === nick ? { ...u, away } : u)),
           ),
         })),
