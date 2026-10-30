@@ -111,4 +111,15 @@ describe('MessageInput: send file', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Send file' }));
     expect(onSendFile).toHaveBeenCalled();
   });
+
+  it('is one row: the emoji and file buttons before the input, send after it', () => {
+    render(<MessageInput channelName="mira" isLog={false} isQuery onSend={() => {}} onSendFile={() => {}} />);
+    const form = screen.getByPlaceholderText('Message mira').closest('form') as HTMLFormElement;
+    expect(Array.from(form.children).map((el) => el.getAttribute('aria-label') ?? el.tagName)).toEqual([
+      'Emoji',
+      'Send file',
+      'INPUT',
+      'Send',
+    ]);
+  });
 });
