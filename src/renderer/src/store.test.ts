@@ -87,6 +87,31 @@ describe('store: per-nick updates are scoped to one server', () => {
   });
 });
 
+describe('store: a channel we have left keeps its list as it was last seen', () => {
+  it('quit, rename and away seen through other channels do not rewrite it', () => {
+    const { setUsers, addServer, setChannelJoined, removeUserEverywhere, renameUserEverywhere, applyAwayEverywhere } =
+      useStore.getState();
+    addServer(server('server-c'), { id: 'server-c:__log__', name: 'Log', isLog: true });
+    const here = scopeKey('server-c', '#here');
+    const gone = scopeKey('server-c', '#gone');
+    for (const id of ['#here', '#gone']) {
+      useStore.getState().addChannel('server-c', { id, name: id.slice(1), isLog: false });
+      setUsers(scopeKey('server-c', id), [{ nick: 'sam', privileges: [] }]);
+    }
+    setChannelJoined('server-c', '#here', true);
+    setChannelJoined('server-c', '#gone', false);
+
+    renameUserEverywhere('server-c', 'sam', 'samuel');
+    applyAwayEverywhere('server-c', 'samuel', true);
+    expect(useStore.getState().userMap[here]).toEqual([{ nick: 'samuel', privileges: [], away: true }]);
+    expect(useStore.getState().userMap[gone]).toEqual([{ nick: 'sam', privileges: [] }]);
+
+    removeUserEverywhere('server-c', 'samuel');
+    expect(useStore.getState().userMap[here]).toEqual([]);
+    expect(useStore.getState().userMap[gone]).toEqual([{ nick: 'sam', privileges: [] }]);
+  });
+});
+
 describe('store: updateServer', () => {
   it('turning connect on startup off clears the old value', () => {
     const { addServer, updateServer } = useStore.getState();
