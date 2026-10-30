@@ -55,11 +55,34 @@ export function MessageInput({ channelName, isLog, isQuery, onSend, onSendFile }
       )}
       <form
         onSubmit={handleSubmit}
-        className="rounded-2xl border border-(--dolq-border-strong) bg-(--dolq-bg-input) pt-2.5 pr-2.5 pb-2 pl-4 focus-within:border-(--dolq-brand) focus-within:shadow-[0_0_0_3px_var(--dolq-brand-soft)]"
+        className="flex items-center gap-0.5 rounded-2xl border border-(--dolq-border-strong) bg-(--dolq-bg-input) px-1.5 py-1.5 focus-within:border-(--dolq-brand) focus-within:shadow-[0_0_0_3px_var(--dolq-brand-soft)]"
       >
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setShowEmoji((v) => !v);
+          }}
+          data-tip="Emoji"
+          aria-label="Emoji"
+          className="has-tip shrink-0 w-8.5 h-8.5 flex items-center justify-center rounded-lg border-0 bg-transparent text-(--dolq-text-dim) cursor-pointer hover:text-(--dolq-text) hover:bg-(--dolq-bg-row-hover)"
+        >
+          <Icon name="smile" />
+        </button>
+        {onSendFile && (
+          <button
+            type="button"
+            onClick={onSendFile}
+            data-tip="Send file"
+            aria-label="Send file"
+            className="has-tip shrink-0 w-8.5 h-8.5 flex items-center justify-center rounded-lg border-0 bg-transparent text-(--dolq-text-dim) cursor-pointer hover:text-(--dolq-text) hover:bg-(--dolq-bg-row-hover)"
+          >
+            <Icon name="paperclip" />
+          </button>
+        )}
         <input
           ref={inputRef}
-          className="block w-full bg-transparent border-0 text-(--dolq-text) text-[15px] h-6.5 p-0 outline-none caret-(--dolq-text) placeholder:text-(--dolq-text-faint) disabled:opacity-40 disabled:cursor-not-allowed"
+          className="min-w-0 flex-1 bg-transparent border-0 text-(--dolq-text) text-[15px] h-8.5 px-2 outline-none caret-(--dolq-text) placeholder:text-(--dolq-text-faint) disabled:opacity-40 disabled:cursor-not-allowed"
           value={value}
           onChange={(e) => {
             setValue(e.target.value);
@@ -73,41 +96,14 @@ export function MessageInput({ channelName, isLog, isQuery, onSend, onSendFile }
                 : `Message #${channelName}`
           }
         />
-        <div className="mt-1 flex items-center justify-between">
-          <div className="flex items-center gap-0.5">
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                setShowEmoji((v) => !v);
-              }}
-              data-tip="Emoji"
-              aria-label="Emoji"
-              className="has-tip shrink-0 w-8.5 h-8.5 flex items-center justify-center rounded-lg border-0 bg-transparent text-(--dolq-text-dim) cursor-pointer hover:text-(--dolq-text) hover:bg-(--dolq-bg-row-hover)"
-            >
-              <Icon name="smile" />
-            </button>
-            {onSendFile && (
-              <button
-                type="button"
-                onClick={onSendFile}
-                data-tip="Send file"
-                aria-label="Send file"
-                className="has-tip shrink-0 w-8.5 h-8.5 flex items-center justify-center rounded-lg border-0 bg-transparent text-(--dolq-text-dim) cursor-pointer hover:text-(--dolq-text) hover:bg-(--dolq-bg-row-hover)"
-              >
-                <Icon name="paperclip" />
-              </button>
-            )}
-          </div>
-          <button
-            type="submit"
-            aria-label="Send"
-            disabled={!value.trim()}
-            className="shrink-0 w-8 h-8 flex items-center justify-center rounded-lg border-0 bg-(--dolq-brand) text-(--dolq-on-brand) cursor-pointer hover:bg-(--dolq-brand-hover) disabled:bg-(--dolq-bg-row-selected) disabled:text-(--dolq-text-faint) disabled:cursor-default"
-          >
-            <Icon name="send" />
-          </button>
-        </div>
+        <button
+          type="submit"
+          aria-label="Send"
+          disabled={!value.trim()}
+          className="shrink-0 w-8 h-8 flex items-center justify-center rounded-lg border-0 bg-(--dolq-brand) text-(--dolq-on-brand) cursor-pointer hover:bg-(--dolq-brand-hover) disabled:bg-(--dolq-bg-row-selected) disabled:text-(--dolq-text-faint) disabled:cursor-default"
+        >
+          <Icon name="send" />
+        </button>
       </form>
     </div>
   );
