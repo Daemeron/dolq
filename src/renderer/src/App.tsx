@@ -1274,6 +1274,8 @@ export default function App() {
   const isQuery = selectedChannel?.isQuery ?? false;
   const currentNick = nickMap[selectedServerId] ?? 'dolq_user';
   const connectionStatus = statusMap[selectedServerId] ?? 'disconnected';
+  // The member list is live only while we are in the channel; otherwise it is who was there when we last were.
+  const membersLive = connectionStatus === 'connected' && selectedChannel?.joined === true;
   const [showMembers, setShowMembers] = useState(true);
   const [showTransfers, setShowTransfers] = useState(false);
   const mentionedHere = channels
@@ -1676,7 +1678,12 @@ export default function App() {
                 <aside className="w-58 bg-(--dolq-bg-panel) border-l border-(--dolq-border) shrink-0 flex flex-col overflow-hidden">
                   <div className="h-14 px-4 flex items-center justify-between shrink-0">
                     <span className="font-semibold text-[15px] text-(--dolq-text)">Members</span>
-                    <span className="text-[12px] text-(--dolq-text-dim)">{users.length} online</span>
+                    <span
+                      className="text-[12px] text-(--dolq-text-dim)"
+                      title={membersLive ? undefined : 'Who was here when you last were in this channel'}
+                    >
+                      {membersLive ? `${users.length} online` : 'Last seen online'}
+                    </span>
                   </div>
                   <UserList
                     users={users}
@@ -1687,6 +1694,7 @@ export default function App() {
                     onToggleIgnore={handleToggleIgnore}
                     onDCCOffer={handleDCCOffer}
                     onSendFile={handleSendFile}
+                    state={{ lastSeen: !membersLive, connected: connectionStatus === 'connected' }}
                   />
                 </aside>
               )}

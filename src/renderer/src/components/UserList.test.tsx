@@ -1,9 +1,11 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { User } from '../types';
-import { toRows, UserList } from './UserList';
+import { type ListState, toRows, UserList } from './UserList';
 
 const user = (nick: string, privileges: User['privileges'] = []): User => ({ nick, privileges });
+
+const LIVE: ListState = { lastSeen: false, connected: true };
 
 describe('toRows', () => {
   it('groups by highest privilege, ops before regular users', () => {
@@ -45,6 +47,8 @@ describe('UserList', () => {
         ignoredNicks={[]}
         onToggleIgnore={() => {}}
         onDCCOffer={() => {}}
+        onSendFile={() => {}}
+        state={LIVE}
       />,
     );
     const row = screen.getByTitle('Message mira');
@@ -70,7 +74,7 @@ describe('UserList menu', () => {
     });
   }
 
-  function setup(ignored: string[] = []) {
+  function setup(ignored: string[] = [], state: ListState = LIVE) {
     withLayout();
     const h = {
       onWhois: vi.fn(),
@@ -79,7 +83,9 @@ describe('UserList menu', () => {
       onSendFile: vi.fn(),
       onOpenQuery: vi.fn(),
     };
-    render(<UserList users={[user('mira'), user('me')]} currentNick="me" ignoredNicks={ignored} {...h} />);
+    render(
+      <UserList users={[user('mira'), user('me')]} currentNick="me" ignoredNicks={ignored} state={state} {...h} />,
+    );
     return h;
   }
 
@@ -109,5 +115,68 @@ describe('UserList menu', () => {
     const h = setup();
     fireEvent.click(screen.getByText('me'));
     expect(h.onOpenQuery).not.toHaveBeenCalled();
+  });
+
+  it('with the list only last seen but the server connected, keeps every command', () => {
+    const h = setup([], { lastSeen: true, connected: true });
+    fireEvent.contextMenu(screen.getByText('mira'));
+    for (const name of ['WHOIS', 'DCC Chat', 'Send File…', 'Ignore']) expect(screen.getByText(name)).toBeTruthy();
+    fireEvent.click(screen.getByTitle('Message mira'));
+    expect(h.onOpenQuery).toHaveBeenCalledWith('mira');
+  });
+
+  it('with no server to ask, leaves only ignoring and no message on click', () => {
+    const h = setup([], { lastSeen: true, connected: false });
+    fireEvent.contextMenu(screen.getByText('mira'));
+    expect(screen.getByText('Ignore')).toBeTruthy();
+    for (const name of ['WHOIS', 'DCC Chat', 'Send File…']) expect(screen.queryByText(name)).toBeNull();
+    expect(screen.queryByTitle('Message mira')).toBeNull();
+    fireEvent.click(screen.getAllByText('mira')[0]);
+    expect(h.onOpenQuery).not.toHaveBeenCalled();
+  });
+});
+
+describe('UserList when the channel is only last seen', () => {
+  function render_(state: ListState) {
+    vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(600);
+    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({
+      width: 200,
+      height: 600,
+      top: 0,
+      left: 0,
+      right: 200,
+      bottom: 600,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+    return render(
+      <UserList
+        users={[user('mira', ['op']), user('kai'), user('lu')]}
+        currentNick="me"
+        onOpenQuery={() => {}}
+        onWhois={() => {}}
+        ignoredNicks={[]}
+        onToggleIgnore={() => {}}
+        onDCCOffer={() => {}}
+        onSendFile={() => {}}
+        state={state}
+      />,
+    );
+  }
+
+  it('is faded out, and its groups show no counts', () => {
+    const { container } = render_({ lastSeen: true, connected: false });
+    expect(container.firstElementChild?.className).toContain('opacity-45');
+    expect(screen.getByText('Operators')).toBeTruthy();
+    expect(screen.getByText('Members')).toBeTruthy();
+    expect(screen.queryByText(/·/)).toBeNull();
+  });
+
+  it('is at full strength, with counts, while live', () => {
+    const { container } = render_(LIVE);
+    expect(container.firstElementChild?.className).not.toContain('opacity-45');
+    expect(screen.getByText('Operators · 1')).toBeTruthy();
+    expect(screen.getByText('Members · 2')).toBeTruthy();
   });
 });
