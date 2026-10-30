@@ -149,6 +149,28 @@ describe('App: layout', () => {
     expect(screen.getByText(/^\d+ online$/)).toBeTruthy();
   });
 
+  it('fades the member list and says "Last seen online" while the server is disconnected', async () => {
+    useStore.setState({
+      statusMap: { s1: 'disconnected' },
+      channelMap: { s1: [log, { ...dolq, joined: false }, { ...other, joined: false }] },
+    });
+    await mount({ getStatus: 'disconnected' });
+    expect(await screen.findByText('Last seen online')).toBeTruthy();
+    expect(screen.queryByText(/^\d+ online$/)).toBeNull();
+    const member = screen.getByText('mira');
+    expect(member.closest('.opacity-45')).not.toBeNull();
+  });
+
+  it('does the same when connected but not in the channel, and lights up again on joining', async () => {
+    const irc = await mount({ getJoinedChannels: [] });
+    expect(await screen.findByText('Last seen online')).toBeTruthy();
+    expect(screen.getByText('mira').closest('.opacity-45')).not.toBeNull();
+
+    await irc.event('s1', { type: 'JOIN', nick: 'me', channel: '#dolq' });
+    expect(await screen.findByText(/^\d+ online$/)).toBeTruthy();
+    expect(screen.getByText('mira').closest('.opacity-45')).toBeNull();
+  });
+
   it('hides the members panel from the toolbar', async () => {
     await mount();
     await screen.findByText('mira');

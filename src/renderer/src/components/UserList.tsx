@@ -26,6 +26,14 @@ const SYMBOL: Record<PrivilegeLevel, string> = {
 
 type Row = { type: 'header'; privilege: PrivilegeLevel; count: number; first: boolean } | { type: 'user'; user: User };
 
+/** What the list may do for the channel it shows. */
+export type ListState = {
+  /** Not in the channel right now (disconnected, or connected but not joined): the list is who was there when we last were. */
+  lastSeen: boolean;
+  /** Connected to the server, so a nick can still be messaged or asked about. */
+  connected: boolean;
+};
+
 export function toRows(users: User[]): Row[] {
   const rows: Row[] = [];
   let first = true;
@@ -87,6 +95,7 @@ type ListProps = {
   onToggleIgnore: (nick: string) => void;
   onDCCOffer: (nick: string) => void;
   onSendFile: (nick: string) => void;
+  state: ListState;
 };
 
 export function UserList({
@@ -98,7 +107,10 @@ export function UserList({
   onToggleIgnore,
   onDCCOffer,
   onSendFile,
+  state,
 }: ListProps) {
+  // Everything but ignoring is a request to the server, so it goes when there is none.
+  const canAsk = state.connected;
   const containerRef = useRef<HTMLDivElement>(null);
   const rows = toRows(users);
   const { menu, open, close, dismissIfUnhandled } = useContextMenu<string>();
@@ -115,7 +127,7 @@ export function UserList({
     // biome-ignore lint/a11y/noStaticElementInteractions: context menu has no keyboard equivalent here
     <div
       ref={containerRef}
-      className="relative flex-1 min-h-0 overflow-y-auto pt-1 pb-3 px-2"
+      className={`relative flex-1 min-h-0 overflow-y-auto pt-1 pb-3 px-2 transition-opacity ${state.lastSeen ? 'opacity-45' : ''}`}
       onContextMenu={dismissIfUnhandled}
     >
       <div style={{ height: rowVirtualizer.getTotalSize(), position: 'relative' }}>
@@ -137,13 +149,14 @@ export function UserList({
               {row.type === 'header' ? (
                 <div className={row.first ? 'px-2 pb-1' : 'px-2 pb-1 mt-3'}>
                   <div className="text-[12px] font-medium text-(--dolq-text-dim)">
-                    {GROUP_LABEL[row.privilege]} · {row.count}
+                    {GROUP_LABEL[row.privilege]}
+                    {state.lastSeen ? '' : ` · ${row.count}`}
                   </div>
                 </div>
               ) : (
                 <UserRow
                   user={row.user}
-                  onOpenQuery={row.user.nick === currentNick ? undefined : onOpenQuery}
+                  onOpenQuery={row.user.nick === currentNick || !canAsk ? undefined : onOpenQuery}
                   onContextMenu={(e) => open(row.user.nick, e)}
                   ignored={ignoredNicks.includes(row.user.nick)}
                 />
@@ -156,30 +169,34 @@ export function UserList({
       {menu && (
         <ContextMenu x={menu.x} y={menu.y}>
           <ContextMenuHeader>{menu.target}</ContextMenuHeader>
-          <ContextMenuItem
-            onClick={() => {
-              onWhois(menu.target);
-              close();
-            }}
-          >
-            WHOIS
-          </ContextMenuItem>
-          <ContextMenuItem
-            onClick={() => {
-              onDCCOffer(menu.target);
-              close();
-            }}
-          >
-            DCC Chat
-          </ContextMenuItem>
-          <ContextMenuItem
-            onClick={() => {
-              onSendFile(menu.target);
-              close();
-            }}
-          >
-            Send File…
-          </ContextMenuItem>
+          {canAsk && (
+            <>
+              <ContextMenuItem
+                onClick={() => {
+                  onWhois(menu.target);
+                  close();
+                }}
+              >
+                WHOIS
+              </ContextMenuItem>
+              <ContextMenuItem
+                onClick={() => {
+                  onDCCOffer(menu.target);
+                  close();
+                }}
+              >
+                DCC Chat
+              </ContextMenuItem>
+              <ContextMenuItem
+                onClick={() => {
+                  onSendFile(menu.target);
+                  close();
+                }}
+              >
+                Send File…
+              </ContextMenuItem>
+            </>
+          )}
           <ContextMenuItem
             danger={!ignoredNicks.includes(menu.target)}
             onClick={() => {
