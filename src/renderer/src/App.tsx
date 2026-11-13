@@ -40,7 +40,7 @@ import { buildServerId, normalizeHost, resolveHostPort, serverColor, serverIniti
 import { transferRates } from './utils/transferRate';
 import { updateSpeed } from './utils/transferSpeed';
 import { computeAwayStats } from './utils/unread';
-import { takeAutoAccept, xdccRequestKey, xdccRequestTarget, xdccSenderKey } from './utils/xdcc';
+import { queryXdccText, takeAutoAccept, xdccRequestKey, xdccRequestTarget, xdccSenderKey } from './utils/xdcc';
 
 const HISTORY_PAGE_SIZE = 100;
 
@@ -1314,7 +1314,8 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, [showTransfers]);
 
-  async function handleSend(text: string, aliasDepth = 0): Promise<void> {
+  async function handleSend(input: string, aliasDepth = 0): Promise<void> {
+    const text = isQuery && !selectedChannel?.isDCC ? queryXdccText(input) : input;
     const joinMatch = text.match(/^\/join\s+(#\S+)(?:\s+(\S+))?$/);
     const meMatch = text.match(/^\/me\s+(.+)$/);
     const msgMatch = text.match(/^\/msg\s+(\S+)\s+(.+)$/);

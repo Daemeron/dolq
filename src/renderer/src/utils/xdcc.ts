@@ -33,3 +33,8 @@ export function takeAutoAccept(
   const wasRequested = requested.delete(xdccRequestKey(serverId, nick));
   return trusted || (enabled && wasRequested);
 }
+
+// In a query window "/xdcc send #5" needs no nick: it is the same as typing "xdcc send #5" there.
+export function queryXdccText(text: string): string {
+  return /^\/xdcc\s/i.test(text) ? text.slice(1) : text;
+}
