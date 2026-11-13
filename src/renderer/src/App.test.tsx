@@ -133,10 +133,10 @@ afterEach(async () => {
   vi.restoreAllMocks();
 });
 
-const composer = () => screen.getByPlaceholderText('Message #dolq') as HTMLInputElement;
-async function typeAndSend(text: string) {
-  await fire.change(composer(), { target: { value: text } });
-  await fire.submit(composer().closest('form') as HTMLFormElement);
+const composer = (placeholder = 'Message #dolq') => screen.getByPlaceholderText(placeholder) as HTMLInputElement;
+async function typeAndSend(text: string, placeholder?: string) {
+  await fire.change(composer(placeholder), { target: { value: text } });
+  await fire.submit(composer(placeholder).closest('form') as HTMLFormElement);
 }
 
 describe('App: layout', () => {
@@ -343,6 +343,14 @@ describe('App: channel membership', () => {
 });
 
 describe('App: sending', () => {
+  it('sends /xdcc in a private chat to that nick', async () => {
+    const irc = await mount();
+    await irc.event('s1', { type: 'PRIVMSG', nick: 'kestrel', target: 'me', text: 'psst' });
+    await fire.click(await screen.findByText('kestrel', { selector: 'span.flex-1' }));
+    await typeAndSend('/xdcc send #7', 'Message kestrel');
+    await waitFor(() => expect(irc.spies.sendLine).toHaveBeenCalledWith('s1', 'PRIVMSG kestrel :xdcc send #7'));
+  });
+
   it('sends a channel message and shows it', async () => {
     const irc = await mount();
     await typeAndSend('hello world');

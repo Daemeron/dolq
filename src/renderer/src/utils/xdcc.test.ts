@@ -60,3 +60,13 @@ describe('xdccSenderKey', () => {
     expect(xdccSenderKey({ nick: 'Bot' })).toBe('');
   });
 });
+
+import { queryXdccText } from './xdcc';
+
+describe('queryXdccText', () => {
+  it('drops the slash from an xdcc command only', () => {
+    expect(queryXdccText('/xdcc send #5')).toBe('xdcc send #5');
+    expect(queryXdccText('/XDCC batch 1-3')).toBe('XDCC batch 1-3');
+    expect(queryXdccText('/msg a hi')).toBe('/msg a hi');
+  });
+});
