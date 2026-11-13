@@ -483,6 +483,17 @@ describe('App: sending', () => {
     expect(await screen.findByText(/Nothing is open that matches "zzz"/)).toBeTruthy();
   });
 
+  it('searches for the text given to /search and lists servers with /servers', async () => {
+    const irc = await mount();
+    await typeAndSend('/search kusuriya');
+    await waitFor(() => expect(irc.spies.search).toHaveBeenCalledWith('s1', '#dolq', 'kusuriya', expect.any(Number)));
+    await fire.click(await screen.findByRole('button', { name: 'Close' }));
+    await typeAndSend('/servers');
+    expect(await screen.findByText(/1\. Libera: connected/)).toBeTruthy();
+    await typeAndSend('/unread');
+    expect(await screen.findByText('Nothing unread on this server.')).toBeTruthy();
+  });
+
   it('sends /xdcc in a private chat to that nick', async () => {
     const irc = await mount();
     await irc.event('s1', { type: 'PRIVMSG', nick: 'kestrel', target: 'me', text: 'psst' });
