@@ -409,6 +409,33 @@ describe('App: packlist queue', () => {
     expect(irc.spies.sendLine).not.toHaveBeenCalledWith('s1', expect.stringContaining('PRIVMSG Few'));
   });
 
+  it('refuses a packlist for a network none of the servers is on', async () => {
+    const html = '<a href="irc://irc.rizon.net/packs"></a><p>/msg BotA xdcc send #1</p>';
+    const irc = await mount({ fetchPage: html });
+    await fire.click(await screen.findByRole('button', { name: 'Transfers' }));
+    await fire.change(await screen.findByLabelText('Packlist link'), { target: { value: 'https://example.org/p' } });
+    await fire.click(screen.getByRole('button', { name: 'Find packs' }));
+    await fire.click(await screen.findByRole('button', { name: 'Queue requests' }));
+    expect((await screen.findByRole('alert')).textContent).toMatch(/none of your servers is on that network/);
+    expect(irc.spies.sendLine).not.toHaveBeenCalledWith('s1', expect.stringContaining('BATCH'));
+  });
+
+  it('joins the packlist channel first and asks the bot once it is joined', async () => {
+    const html = '<a href="irc://irc.libera.chat/packs"></a><p>/msg BotA xdcc send #1</p><p>/msg BotA xdcc send #2</p>';
+    const irc = await mount({ fetchPage: html });
+    await fire.click(await screen.findByRole('button', { name: 'Transfers' }));
+    await fire.change(await screen.findByLabelText('Packlist link'), { target: { value: 'https://example.org/p' } });
+    await fire.click(screen.getByRole('button', { name: 'Find packs' }));
+    await fire.click(await screen.findByRole('button', { name: 'Queue requests' }));
+    await waitFor(() => expect(irc.spies.sendLine).toHaveBeenCalledWith('s1', 'JOIN #packs'));
+    expect(await screen.findByText(/waiting to join #packs/)).toBeTruthy();
+    expect(irc.spies.sendLine).not.toHaveBeenCalledWith('s1', expect.stringContaining('BATCH'));
+    await irc.event('s1', { type: 'JOIN', nick: 'me', channel: '#packs' });
+    await waitFor(() => expect(irc.spies.sendLine).toHaveBeenCalledWith('s1', 'PRIVMSG BotA :XDCC BATCH 1-2'), {
+      timeout: 5000,
+    });
+  }, 15000);
+
   it('says so when a page has no requests', async () => {
     await mount({ fetchPage: '<p>nothing here</p>' });
     await fire.click(await screen.findByRole('button', { name: 'Transfers' }));

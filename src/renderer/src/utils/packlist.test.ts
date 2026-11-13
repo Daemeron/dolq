@@ -4,8 +4,10 @@ import {
   fileNumber,
   loadPackRequests,
   PackListError,
+  packSource,
   parsePackData,
   pickOnePeerPerFile,
+  sameNetwork,
   toBatches,
   xdccParserDataUrl,
 } from './packlist';
@@ -104,7 +106,7 @@ describe('XDCC Parser pages', () => {
       return url.includes('search.php') ? DATA : SHELL;
     };
     const found = await loadPackRequests('https://subsplease.org/xdcc/?=Kusuriya', fetchPage);
-    expect(found).toHaveLength(3);
+    expect(found.requests).toHaveLength(3);
     expect(fetched).toEqual([
       'https://subsplease.org/xdcc/?=Kusuriya',
       'https://subsplease.org/xdcc/search.php?t=Kusuriya',
@@ -113,7 +115,7 @@ describe('XDCC Parser pages', () => {
 
   it('keeps the commands written on a page and does not fetch more', async () => {
     const fetchPage = async () => '<p>/msg A xdcc send #1</p>';
-    expect(await loadPackRequests('https://x.org/p', fetchPage)).toMatchObject([{ bot: 'A', pack: 1 }]);
+    expect((await loadPackRequests('https://x.org/p', fetchPage)).requests).toMatchObject([{ bot: 'A', pack: 1 }]);
   });
 
   it('says which required part is missing', async () => {
@@ -149,5 +151,21 @@ describe('pickOnePeerPerFile', () => {
   });
   it('keeps one request when a bot lists the same file twice', () => {
     expect(pickOnePeerPerFile([r('A', 1, 'x.mkv'), r('A', 2, 'x.mkv')])).toHaveLength(1);
+  });
+});
+
+describe('packSource', () => {
+  it('reads the network and channel from the irc link', () => {
+    expect(packSource('<a href="irc://irc.rizon.net/subsplease">#x</a>')).toEqual({
+      host: 'irc.rizon.net',
+      channel: '#subsplease',
+    });
+    expect(packSource('<a href="ircs://Irc.Example.org:6697/%23a"></a>')?.host).toBe('irc.example.org');
+    expect(packSource('irc://irc.x.net/')).toEqual({ host: 'irc.x.net', channel: undefined });
+    expect(packSource('<p>no link</p>')).toBeNull();
+  });
+  it('treats regional hosts of one network as the same', () => {
+    expect(sameNetwork('irc.eu.rizon.net', 'irc.rizon.net')).toBe(true);
+    expect(sameNetwork('irc.libera.chat', 'irc.rizon.net')).toBe(false);
   });
 });

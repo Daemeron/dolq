@@ -39,7 +39,7 @@ import { mentionsAny } from './utils/mentions';
 import type { NavAction } from './utils/navCommands';
 import { resolveNavCommand } from './utils/navCommands';
 import { isNickServIdentifyPrompt } from './utils/nickserv';
-import type { PackBatch } from './utils/packlist';
+import { type PackBatch, type PackSource, sameNetwork } from './utils/packlist';
 import { reconcileServers, reconcileStep } from './utils/reconcile';
 import { buildServerId, normalizeHost, resolveHostPort, serverColor, serverInitials } from './utils/server';
 import { transferRates } from './utils/transferRate';
@@ -252,6 +252,8 @@ export default function App() {
   const [pendingXDCCOffer, setPendingXDCCOffer] = useState<PendingXDCCOffer | null>(null);
   const [packQueue, setPackQueue] = useState<QueuedBatch[]>([]);
   const lastBatchAt = useRef(0);
+  const channelsAsked = useRef(new Set<string>());
+  const channelsSettled = useRef(new Set<string>());
   const [transfers, setTransfers] = useState<Record<string, Transfer & { serverId: string; path: string }>>({});
   // The latest transfers, for event handlers that must act on one without doing it inside a state updater.
   const transfersRef = useRef(transfers);
@@ -1198,17 +1200,56 @@ export default function App() {
     });
   }
 
-  function handleQueuePacks(batches: PackBatch[]) {
-    const serverId = selectedServerId;
-    setPackQueue((q) => [...q, ...batches.map((b) => ({ ...b, id: nextMsgId.current++, serverId }))]);
+  // The bots of a packlist are on one network and usually only answer people in its channel, so the
+  // requests go through the server on that network and wait until we are in that channel.
+  function handleQueuePacks(batches: PackBatch[], source: PackSource | null): string | undefined {
+    let serverId = selectedServerId;
+    if (source) {
+      const match = servers.find((s) => sameNetwork(resolveHostPort(s).host, source.host));
+      if (!match)
+        return `This packlist is for ${source.host}, and none of your servers is on that network. Add it first.`;
+      serverId = match.id;
+    }
+    const channel = source?.channel;
+    setPackQueue((q) => [...q, ...batches.map((b) => ({ ...b, id: nextMsgId.current++, serverId, channel }))]);
   }
 
-  // Bots get their batch one after another, a couple of seconds apart, once their server is connected.
+  // Bots get their batch one after another, a couple of seconds apart, once their server is connected
+  // and we are in the channel they want requests from.
   const batchDue = packQueue[0];
   const batchServerUp = batchDue ? statusMap[batchDue.serverId] === 'connected' : false;
+  const batchChannelKey = batchDue?.channel ? `${batchDue.serverId}\0${batchDue.channel.toLowerCase()}` : '';
+  const batchChannelJoined =
+    !batchDue?.channel ||
+    (channelMap[batchDue.serverId] ?? []).some(
+      (c) => c.id.toLowerCase() === batchDue.channel?.toLowerCase() && c.joined === true,
+    );
+  const packWaitingFor = !batchDue
+    ? undefined
+    : !batchServerUp
+      ? 'waiting for the server to connect'
+      : !batchChannelJoined
+        ? `waiting to join ${batchDue.channel}`
+        : undefined;
   // biome-ignore lint/correctness/useExhaustiveDependencies: sendRequest is rebuilt every render and only reads current state through its own closure
   useEffect(() => {
     if (!batchDue || !batchServerUp) return;
+    if (!batchChannelJoined) {
+      if (!channelsAsked.current.has(batchChannelKey)) {
+        channelsAsked.current.add(batchChannelKey);
+        void window.irc.sendLine(batchDue.serverId, `JOIN ${batchDue.channel}`);
+      }
+      return;
+    }
+    // Give the bot a moment to see us in the channel before the first request.
+    if (
+      batchChannelKey &&
+      channelsAsked.current.has(batchChannelKey) &&
+      !channelsSettled.current.has(batchChannelKey)
+    ) {
+      channelsSettled.current.add(batchChannelKey);
+      lastBatchAt.current = Date.now();
+    }
     const timer = setTimeout(
       () => {
         lastBatchAt.current = Date.now();
@@ -1218,7 +1259,7 @@ export default function App() {
       Math.max(0, BATCH_GAP_MS - (Date.now() - lastBatchAt.current)),
     );
     return () => clearTimeout(timer);
-  }, [batchDue, batchServerUp]);
+  }, [batchDue, batchServerUp, batchChannelJoined, batchChannelKey]);
 
   function handleGetPack(nick: string, packNumber: number) {
     requestPack(selectedServerId, nick, packNumber);
@@ -1644,7 +1685,12 @@ export default function App() {
                 fetchPage={window.irc.fetchPage}
                 onQueue={handleQueuePacks}
                 onRemove={(id) => setPackQueue((q) => q.filter((b) => b.id !== id))}
-                onClear={() => setPackQueue([])}
+                waitingFor={packWaitingFor}
+                onClear={() => {
+                  setPackQueue([]);
+                  channelsAsked.current.clear();
+                  channelsSettled.current.clear();
+                }}
               />
             }
           />

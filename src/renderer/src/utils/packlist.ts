@@ -1,5 +1,8 @@
 /** `name` is the file name the page shows next to the request, when it shows one. */
 export type PackRequest = { bot: string; pack: number; name?: string };
+/** The network and channel a packlist says its bots are on, from its irc:// link. */
+export type PackSource = { host: string; channel?: string };
+
 export type PackBatch = { bot: string; spec: string; count: number };
 
 const ENTITIES: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
@@ -90,6 +93,20 @@ export function parsePackData(data: string): PackRequest[] {
   return found;
 }
 
+export function packSource(html: string): PackSource | null {
+  const m = /\birc(?:s)?:\/\/([^/\s"'<>:?#]+)(?::\d+)?\/?([^\s"'<>?]*)/i.exec(html);
+  if (!m) return null;
+  const target = m[2].split(',')[0];
+  return { host: m[1].toLowerCase(), channel: target ? (/^[#&]/.test(target) ? target : `#${target}`) : undefined };
+}
+
+// shortcut: two hosts are one network when their last two labels agree (irc.eu.rizon.net, irc.rizon.net);
+// a multi-part suffix like .co.uk would need a public-suffix list.
+export function sameNetwork(a: string, b: string): boolean {
+  const base = (h: string) => h.toLowerCase().split('.').slice(-2).join('.');
+  return base(a) === base(b);
+}
+
 /** A page that cannot be turned into requests; the message says why and is meant to be shown as is. */
 export class PackListError extends Error {}
 
@@ -97,8 +114,9 @@ export class PackListError extends Error {}
 // Each thing the rebuilding needs is checked, so a page that does not fit says which one is missing.
 export async function loadPackRequests(link: string, fetchPage: (url: string) => Promise<string>) {
   const html = await fetchPage(link);
+  const source = packSource(html);
   const written = extractPackRequests(html);
-  if (written.length > 0) return written;
+  if (written.length > 0) return { requests: written, source };
   if (!/\bp\.init\(/.test(html)) {
     throw new PackListError(
       'That page has no "/msg Bot xdcc send #N" lines, and it is not an XDCC Parser packlist that I can rebuild them from.',
@@ -112,7 +130,7 @@ export async function loadPackRequests(link: string, fetchPage: (url: string) =>
   }
   const data = await fetchPage(dataUrl);
   const rows = parsePackData(data);
-  if (rows.length > 0) return rows;
+  if (rows.length > 0) return { requests: rows, source };
   throw new PackListError(
     data.includes('p.k[')
       ? 'The packlist answered, but its rows have no bot, pack number and file name that I can read.'
