@@ -32,7 +32,7 @@ import { formatEntry } from './utils/exportFormat';
 import { canLoadOlder, dropServerPages, type HistoryPage, linesToStore, pagesToReload } from './utils/historyPages';
 import { comboFromEvent } from './utils/keybind';
 import { locationTitle } from './utils/locationTitle';
-import { isChannelScopedLine } from './utils/logFilter';
+import { isChannelScopedLine, routeLogLine } from './utils/logFilter';
 import { mentionsAny } from './utils/mentions';
 import { isNickServIdentifyPrompt } from './utils/nickserv';
 import { reconcileServers, reconcileStep } from './utils/reconcile';
@@ -64,7 +64,11 @@ function toMessages(entries: HistoryEntry[], forLog: boolean, selfNick: string):
     const timestamp = new Date(e.timestamp);
     if (forLog) {
       if (e.isRaw && !isChannelScopedLine(e.line ?? '')) {
-        messages.push({ id: e.id, nick: '', text: e.line ?? '', timestamp, isRaw: true });
+        const route = routeLogLine(e.line ?? '');
+        if (route.to !== 'pm') {
+          const important = route.to === 'log' ? route.important : true;
+          messages.push({ id: e.id, nick: '', text: e.line ?? '', timestamp, isRaw: true, important });
+        }
       }
       continue;
     }
@@ -498,6 +502,15 @@ export default function App() {
     [channelMap],
   );
 
+  const ensureQuery = useCallback(
+    (serverId: string, nick: string) => {
+      if (!(channelMap[serverId] ?? []).some((c) => c.id === nick)) {
+        addChannel(serverId, { id: nick, name: nick, isLog: false, isQuery: true });
+      }
+    },
+    [channelMap, addChannel],
+  );
+
   useEffect(() => {
     return window.irc.onLine((serverId, line) => {
       if (serverId.startsWith('dcc:')) {
@@ -510,26 +523,38 @@ export default function App() {
         return;
       }
       if (isChannelScopedLine(line)) return;
-      const key = `${serverId}:__log__`;
-      const msg: Message = {
+      const route = routeLogLine(line);
+      if (route.to === 'pm') {
+        ensureQuery(serverId, route.nick);
+        appendMessage(scopeKey(serverId, route.nick), {
+          id: nextMsgId.current++,
+          nick: route.nick,
+          text: route.text,
+          timestamp: new Date(),
+          notice: true,
+        });
+        return;
+      }
+      if (route.to === 'channel' && (channelMap[serverId] ?? []).some((c) => c.id === route.channel)) {
+        appendMessage(scopeKey(serverId, route.channel), {
+          id: nextMsgId.current++,
+          nick: '',
+          text: route.text,
+          timestamp: new Date(),
+          system: true,
+        });
+        return;
+      }
+      appendMessage(`${serverId}:__log__`, {
         id: nextMsgId.current++,
         nick: '',
         text: line,
         timestamp: new Date(),
         isRaw: true,
-      };
-      appendMessage(key, msg);
+        important: route.to === 'log' ? route.important : true,
+      });
     });
-  }, [appendMessage, dccPeerNick]);
-
-  const ensureQuery = useCallback(
-    (serverId: string, nick: string) => {
-      if (!(channelMap[serverId] ?? []).some((c) => c.id === nick)) {
-        addChannel(serverId, { id: nick, name: nick, isLog: false, isQuery: true });
-      }
-    },
-    [channelMap, addChannel],
-  );
+  }, [appendMessage, dccPeerNick, ensureQuery, channelMap]);
 
   const dmKey = useCallback(
     (serverId: string, target: string, nick: string): string => {
@@ -1139,7 +1164,10 @@ export default function App() {
 
   // A pack request from a button reads in the chat like the same line typed by hand.
   function requestPack(serverId: string, nick: string, packNumber: number) {
-    const text = `XDCC SEND #${packNumber}`;
+    sendRequest(serverId, nick, `XDCC SEND #${packNumber}`);
+  }
+
+  function sendRequest(serverId: string, nick: string, text: string) {
     ensureQuery(serverId, nick);
     sendTracked(serverId, `PRIVMSG ${nick} :${text}`);
     appendMessage(scopeKey(serverId, nick), {

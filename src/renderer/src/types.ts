@@ -39,6 +39,8 @@ export type Message = {
   text: string;
   timestamp: Date;
   isRaw?: boolean;
+  /** A log line worth noticing: errors and refusals. */
+  important?: boolean;
   system?: boolean;
   membership?: MembershipKind;
   action?: boolean;

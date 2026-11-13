@@ -342,6 +342,26 @@ describe('App: channel membership', () => {
   });
 });
 
+describe('App: server lines', () => {
+  it('puts a bot notice in its private chat, not the log', async () => {
+    const irc = await mount();
+    await irc.emit('onLine', 's1', ':Bot!u@h NOTICE me :** Sending you pack #5');
+    await fire.click(await screen.findByText('Bot', { selector: 'span.flex-1' }));
+    expect(await screen.findByText('** Sending you pack #5')).toBeTruthy();
+    await fire.click(screen.getByText('Server log'));
+    expect(screen.queryByText(/Sending you pack/)).toBeNull();
+  });
+
+  it('shows a channel refusal in the channel and an error numeric in the log', async () => {
+    const irc = await mount();
+    await irc.emit('onLine', 's1', ':srv 404 me #dolq :Cannot send to channel');
+    expect(await screen.findByText('#dolq: Cannot send to channel')).toBeTruthy();
+    await irc.emit('onLine', 's1', ':srv 433 me nick :Nickname is already in use');
+    await fire.click(screen.getByText('Server log'));
+    expect((await screen.findByText(/433/)).closest('div')?.className).toContain('font-semibold');
+  });
+});
+
 describe('App: sending', () => {
   it('sends /xdcc in a private chat to that nick', async () => {
     const irc = await mount();
