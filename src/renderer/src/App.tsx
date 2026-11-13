@@ -45,7 +45,14 @@ import { buildServerId, normalizeHost, resolveHostPort, serverColor, serverIniti
 import { transferRates } from './utils/transferRate';
 import { updateSpeed } from './utils/transferSpeed';
 import { computeAwayStats } from './utils/unread';
-import { queryXdccText, takeAutoAccept, xdccRequestKey, xdccRequestTarget, xdccSenderKey } from './utils/xdcc';
+import {
+  queryXdccText,
+  takeAutoAccept,
+  xdccRequestCount,
+  xdccRequestKey,
+  xdccRequestTarget,
+  xdccSenderKey,
+} from './utils/xdcc';
 
 const HISTORY_PAGE_SIZE = 100;
 
@@ -230,7 +237,7 @@ export default function App() {
   const [firstHistoryLoaded, setFirstHistoryLoaded] = useState(false);
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
-  const requestedPacks = useRef(new Set<string>());
+  const requestedPacks = useRef(new Map<string, number>());
   const sessionTrusted = useRef(new Set<string>());
   const xdccTrustedRef = useRef(xdccTrusted);
   xdccTrustedRef.current = xdccTrusted;
@@ -1168,7 +1175,10 @@ export default function App() {
   // Every outgoing line that may ask a bot for a pack goes through here, typed or clicked.
   function sendTracked(serverId: string, line: string) {
     const bot = xdccRequestTarget(line);
-    if (bot) requestedPacks.current.add(xdccRequestKey(serverId, bot));
+    if (bot) {
+      const key = xdccRequestKey(serverId, bot);
+      requestedPacks.current.set(key, (requestedPacks.current.get(key) ?? 0) + xdccRequestCount(line));
+    }
     return window.irc.sendLine(serverId, line);
   }
 
