@@ -20,18 +20,35 @@ export function xdccRequestTarget(line: string): string | null {
   return m ? m[1] : null;
 }
 
-// Takes the pending request out of `requested` and says whether the offer
-// may start without a prompt: a trusted nick always, anyone else only when
-// the global option is on and the offer answers a request of ours.
+// How many offers a raw outgoing line should bring: one for send/get, one per pack for "xdcc batch 1-3,7",
+// and 0 for any other line.
+export function xdccRequestCount(line: string): number {
+  const m = line.match(/^PRIVMSG [^\s#&]\S* :xdcc\s+(send|get|batch)\b\s*(.*)$/i);
+  if (!m) return 0;
+  if (m[1].toLowerCase() !== 'batch') return 1;
+  let count = 0;
+  for (const part of m[2].split(',')) {
+    const range = part.trim().match(/^#?(\d+)(?:\s*-\s*#?(\d+))?$/);
+    if (range) count += range[2] ? Math.max(1, Number(range[2]) - Number(range[1]) + 1) : 1;
+  }
+  return Math.max(1, count);
+}
+
+// Counts down the offers still expected from a nick (see xdccRequestCount) and says whether this one
+// may start without a prompt: a trusted nick always, anyone else only when the global option is on and
+// the offer answers a request of ours. A batch brings one offer per pack, so one request covers them all.
 export function takeAutoAccept(
   enabled: boolean,
   trusted: boolean,
-  requested: Set<string>,
+  requested: Map<string, number>,
   serverId: string,
   nick: string,
 ): boolean {
-  const wasRequested = requested.delete(xdccRequestKey(serverId, nick));
-  return trusted || (enabled && wasRequested);
+  const key = xdccRequestKey(serverId, nick);
+  const expected = requested.get(key) ?? 0;
+  if (expected > 1) requested.set(key, expected - 1);
+  else requested.delete(key);
+  return trusted || (enabled && expected > 0);
 }
 
 // In a query window "/xdcc send #5" needs no nick: it is the same as typing "xdcc send #5" there.

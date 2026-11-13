@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { takeAutoAccept, xdccRequestKey, xdccRequestTarget, xdccSenderKey } from './xdcc';
+import { takeAutoAccept, xdccRequestCount, xdccRequestKey, xdccRequestTarget, xdccSenderKey } from './xdcc';
 
 describe('xdccRequestTarget', () => {
   it('finds the bot in a typed request', () => {
@@ -18,27 +18,41 @@ describe('xdccRequestTarget', () => {
 
 describe('takeAutoAccept', () => {
   it('accepts a requested offer once when the option is on', () => {
-    const requested = new Set([xdccRequestKey('s1', 'Bot')]);
+    const requested = new Map([[xdccRequestKey('s1', 'Bot'), 1]]);
     expect(takeAutoAccept(true, false, requested, 's1', 'bot')).toBe(true);
     expect(takeAutoAccept(true, false, requested, 's1', 'bot')).toBe(false);
   });
 
   it('prompts for an unrequested offer from a stranger', () => {
-    expect(takeAutoAccept(true, false, new Set(), 's1', 'bot')).toBe(false);
+    expect(takeAutoAccept(true, false, new Map(), 's1', 'bot')).toBe(false);
   });
 
   it('prompts when the request was made on another server', () => {
-    expect(takeAutoAccept(true, false, new Set([xdccRequestKey('s2', 'bot')]), 's1', 'bot')).toBe(false);
+    expect(takeAutoAccept(true, false, new Map([[xdccRequestKey('s2', 'bot'), 1]]), 's1', 'bot')).toBe(false);
   });
 
   it('prompts when the option is off, and still consumes the request', () => {
-    const requested = new Set([xdccRequestKey('s1', 'bot')]);
+    const requested = new Map([[xdccRequestKey('s1', 'bot'), 1]]);
     expect(takeAutoAccept(false, false, requested, 's1', 'bot')).toBe(false);
     expect(requested.size).toBe(0);
   });
 
   it('accepts a trusted nick whether or not it was requested and the option is off', () => {
-    expect(takeAutoAccept(false, true, new Set(), 's1', 'bot')).toBe(true);
+    expect(takeAutoAccept(false, true, new Map(), 's1', 'bot')).toBe(true);
+  });
+});
+
+describe('a batch request', () => {
+  it('counts one expected offer per pack', () => {
+    expect(xdccRequestCount('PRIVMSG Bot :XDCC BATCH 12698-12700,15943,16005')).toBe(5);
+    expect(xdccRequestCount('PRIVMSG Bot :xdcc send #5')).toBe(1);
+    expect(xdccRequestCount('PRIVMSG Bot :hello')).toBe(0);
+  });
+
+  it('is auto-accepted for every pack it brings, then no more', () => {
+    const requested = new Map([[xdccRequestKey('s1', 'Bot'), 3]]);
+    const accepted = [1, 2, 3, 4].map(() => takeAutoAccept(true, false, requested, 's1', 'bot'));
+    expect(accepted).toEqual([true, true, true, false]);
   });
 });
 
