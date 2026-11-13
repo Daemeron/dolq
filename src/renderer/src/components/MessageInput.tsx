@@ -1,4 +1,5 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { suggestCommands } from '../utils/commandHints';
 import { pushInputHistory, stepInputHistory } from '../utils/inputHistory';
 import { insertAtCaret } from '../utils/insertAtCaret';
 import { restoreDraft, trySend } from '../utils/trySend';
@@ -9,6 +10,8 @@ type Props = {
   channelName: string;
   isLog: boolean;
   isQuery?: boolean;
+  /** Names of the user's aliases, offered next to the built-in commands. */
+  aliasNames?: string[];
   onSend: (text: string) => void | Promise<void>;
   /** Offers to send a file to the person in this conversation. */
   onSendFile?: () => void;
@@ -25,14 +28,23 @@ function loadSent(): string[] {
   }
 }
 
-export function MessageInput({ channelName, isLog, isQuery, onSend, onSendFile }: Props) {
+export function MessageInput({ channelName, isLog, isQuery, aliasNames, onSend, onSendFile }: Props) {
   const [value, setValue] = useState('');
   const [showEmoji, setShowEmoji] = useState(false);
   const [error, setError] = useState('');
   const [sent, setSent] = useState<string[]>(loadSent);
   const [showSent, setShowSent] = useState(false);
   const [cursor, setCursor] = useState(-1);
+  const [hintIndex, setHintIndex] = useState(0);
+  const [hintsClosed, setHintsClosed] = useState(false);
+  const hints = hintsClosed ? [] : suggestCommands(value, !!isQuery, aliasNames);
+  const active = Math.min(hintIndex, hints.length - 1);
+  const activeHint = useRef<HTMLButtonElement>(null);
   const draft = useRef('');
+
+  // Arrowing past the visible part of a long list keeps the highlighted entry in view.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: scrolls only when the highlight moves
+  useEffect(() => activeHint.current?.scrollIntoView?.({ block: 'nearest' }), [active, hints.length]);
   const inputRef = useRef<HTMLInputElement>(null);
 
   function remember(text: string) {
@@ -124,6 +136,31 @@ export function MessageInput({ channelName, isLog, isQuery, onSend, onSendFile }
         >
           <Icon name="history" />
         </button>
+        {hints.length > 0 && (
+          <ul
+            aria-label="Commands"
+            className="absolute bottom-full left-0 z-10 mb-1 m-0 max-h-80 w-96 max-w-full overscroll-contain list-none overflow-y-auto rounded-xl border border-(--dolq-border-strong) bg-(--dolq-bg-panel) p-1 shadow-lg"
+          >
+            {hints.map((c, i) => (
+              <li key={c.name}>
+                <button
+                  ref={i === active ? activeHint : undefined}
+                  type="button"
+                  tabIndex={-1}
+                  // mouse down, not click: the input must keep focus
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    setValue(`/${c.name} `);
+                  }}
+                  className={`block w-full cursor-pointer rounded-lg border-0 px-2 py-1.5 text-left ${i === active ? 'bg-(--dolq-bg-row-selected)' : 'bg-transparent hover:bg-(--dolq-bg-row-hover)'}`}
+                >
+                  <div className="font-mono text-[13px] text-(--dolq-text)">{c.usage}</div>
+                  <div className="text-[12px] text-(--dolq-text-dim)">{c.desc}</div>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
         {showSent && (
           <ul className="absolute bottom-full left-0 z-10 mb-1 m-0 max-h-64 w-72 list-none overflow-y-auto rounded-xl border border-(--dolq-border-strong) bg-(--dolq-bg-panel) p-1 shadow-lg">
             {sent.slice(0, 10).map((text) => (
@@ -148,6 +185,22 @@ export function MessageInput({ channelName, isLog, isQuery, onSend, onSendFile }
           className="min-w-0 flex-1 bg-transparent border-0 text-(--dolq-text) text-[15px] h-8.5 px-2 outline-none caret-(--dolq-text) placeholder:text-(--dolq-text-faint) disabled:opacity-40 disabled:cursor-not-allowed"
           value={value}
           onKeyDown={(e) => {
+            if (hints.length > 0) {
+              if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+                e.preventDefault();
+                setHintIndex((active + (e.key === 'ArrowUp' ? -1 : 1) + hints.length) % hints.length);
+                return;
+              }
+              if (e.key === 'Tab' || (e.key === 'Enter' && value !== `/${hints[active].name}`)) {
+                e.preventDefault();
+                setValue(`/${hints[active].name} `);
+                return;
+              }
+              if (e.key === 'Escape') {
+                setHintsClosed(true);
+                return;
+              }
+            }
             if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
               e.preventDefault();
               recall(e.key === 'ArrowUp' ? 1 : -1);
@@ -155,6 +208,8 @@ export function MessageInput({ channelName, isLog, isQuery, onSend, onSendFile }
           }}
           onChange={(e) => {
             setCursor(-1);
+            setHintsClosed(false);
+            setHintIndex(0);
             setValue(e.target.value);
             setError('');
           }}

@@ -363,6 +363,32 @@ describe('App: server lines', () => {
 });
 
 describe('App: sending', () => {
+  it('opens a private chat with /query and ignores with /ignore', async () => {
+    const irc = await mount();
+    await typeAndSend('/query mira hello');
+    await waitFor(() => expect(irc.spies.sendLine).toHaveBeenCalledWith('s1', 'PRIVMSG mira :hello'));
+    await typeAndSend('/ignore troll', 'Message mira');
+    expect(await screen.findByText('Ignoring troll')).toBeTruthy();
+  });
+
+  it('rejoins with /cycle, clears with /clear and explains with /help', async () => {
+    const irc = await mount();
+    await typeAndSend('/cycle');
+    await waitFor(() => expect(irc.spies.sendLine).toHaveBeenCalledWith('s1', 'JOIN #dolq'));
+    expect(irc.spies.sendLine).toHaveBeenCalledWith('s1', 'PART #dolq');
+    await typeAndSend('/help kick');
+    expect(await screen.findByText(/Remove someone from the channel/, { selector: 'span' })).toBeTruthy();
+    await typeAndSend('/clear');
+    await waitFor(() => expect(screen.queryByText(/Remove someone from the channel/, { selector: 'span' })).toBeNull());
+  });
+
+  it('sends a goodbye and disconnects with /quit', async () => {
+    const irc = await mount();
+    await typeAndSend('/quit lunch');
+    await waitFor(() => expect(irc.spies.sendLine).toHaveBeenCalledWith('s1', 'QUIT :lunch'));
+    expect(irc.spies.disconnect).toHaveBeenCalledWith('s1');
+  });
+
   it('sends /xdcc in a private chat to that nick', async () => {
     const irc = await mount();
     await irc.event('s1', { type: 'PRIVMSG', nick: 'kestrel', target: 'me', text: 'psst' });

@@ -1,9 +1,13 @@
-export type SlashCommand = { kind: 'raw'; line: string } | { kind: 'unknown'; name: string } | { kind: 'not-command' };
+export type SlashCommand =
+  | { kind: 'raw'; line: string }
+  | { kind: 'lines'; lines: string[] }
+  | { kind: 'unknown'; name: string }
+  | { kind: 'not-command' };
 
 const isChannelName = (s: string) => /^[#&!]/.test(s);
 
-// Commands that map straight onto one IRC line. /join, /msg, /me, /away and
-// aliases are handled by the caller before this is consulted.
+// Commands that map straight onto one IRC line. /join, /msg, /query, /me, /away,
+// /ignore and aliases are handled by the caller before this is consulted.
 export function parseSlashCommand(text: string, target: string): SlashCommand {
   // "//foo" is the escape for a message that really starts with a slash.
   if (!text.startsWith('/') || text.startsWith('//')) return { kind: 'not-command' };
@@ -38,6 +42,68 @@ export function parseSlashCommand(text: string, target: string): SlashCommand {
         : { kind: 'unknown', name };
     case 'notice':
       return first && after ? { kind: 'raw', line: `NOTICE ${first} :${after}` } : { kind: 'unknown', name };
+    case 'cycle':
+    case 'rejoin':
+      return isChannelName(target)
+        ? { kind: 'lines', lines: [`PART ${target}`, `JOIN ${target}`] }
+        : { kind: 'unknown', name };
+    case 'kickban':
+    case 'kb':
+      return first && isChannelName(target)
+        ? {
+            kind: 'lines',
+            lines: [`MODE ${target} +b ${first}!*@*`, `KICK ${target} ${first}${after ? ` :${after}` : ''}`],
+          }
+        : { kind: 'unknown', name };
+    case 'list':
+      return { kind: 'raw', line: rest ? `LIST ${rest}` : 'LIST' };
+    case 'names': {
+      const channel = first || (isChannelName(target) ? target : '');
+      return { kind: 'raw', line: channel ? `NAMES ${channel}` : 'NAMES' };
+    }
+    case 'who':
+      return first ? { kind: 'raw', line: `WHO ${first}` } : { kind: 'unknown', name };
+    case 'whowas':
+      return first ? { kind: 'raw', line: `WHOWAS ${first}` } : { kind: 'unknown', name };
+    case 'userhost':
+    case 'ison':
+      return rest ? { kind: 'raw', line: `${name.toUpperCase()} ${rest}` } : { kind: 'unknown', name };
+    case 'motd':
+    case 'info':
+    case 'lusers':
+    case 'admin':
+    case 'time':
+      return { kind: 'raw', line: name.toUpperCase() };
+    case 'version':
+      return { kind: 'raw', line: first ? `PRIVMSG ${first} :\x01VERSION\x01` : 'VERSION' };
+    case 'ping':
+      return first ? { kind: 'raw', line: `PRIVMSG ${first} :\x01PING ${Date.now()}\x01` } : { kind: 'unknown', name };
+    case 'ctcp':
+      return first && after
+        ? { kind: 'raw', line: `PRIVMSG ${first} :\x01${after.toUpperCase()}\x01` }
+        : { kind: 'unknown', name };
+    case 'knock':
+      return first ? { kind: 'raw', line: `KNOCK ${rest}` } : { kind: 'unknown', name };
+    case 'op':
+    case 'deop':
+    case 'voice':
+    case 'devoice': {
+      if (!first) return { kind: 'unknown', name };
+      const flag = (name.endsWith('op') ? 'o' : 'v').repeat(others.length + 1);
+      return { kind: 'raw', line: `MODE ${target} ${name.startsWith('de') ? '-' : '+'}${flag} ${rest}` };
+    }
+    case 'ban':
+    case 'unban':
+      return first
+        ? { kind: 'raw', line: `MODE ${target} ${name === 'ban' ? '+b' : '-b'} ${first}` }
+        : { kind: 'unknown', name };
+    case 'nickserv':
+    case 'ns':
+    case 'chanserv':
+    case 'cs':
+      return rest
+        ? { kind: 'raw', line: `PRIVMSG ${name.startsWith('n') ? 'NickServ' : 'ChanServ'} :${rest}` }
+        : { kind: 'unknown', name };
     case 'raw':
     case 'quote':
       return rest ? { kind: 'raw', line: rest } : { kind: 'unknown', name };

@@ -139,3 +139,13 @@ describe('MessageInput history', () => {
     expect(input.value).toBe('draft');
   });
 });
+
+describe('MessageInput command hints', () => {
+  it('offers commands with explanations and completes with Tab', () => {
+    const { input } = setup(vi.fn());
+    fireEvent.change(input, { target: { value: '/ki' } });
+    expect(screen.getByText('Remove someone from the channel')).toBeTruthy();
+    fireEvent.keyDown(input, { key: 'Tab' });
+    expect(input.value).toBe('/kick ');
+  });
+});
