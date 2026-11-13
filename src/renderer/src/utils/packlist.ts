@@ -138,6 +138,36 @@ export function fileNumber(name: string | undefined): number | null {
   return bare.length ? Number(bare[bare.length - 1]) : null;
 }
 
+const sameFile = (name: string) => name.toLowerCase().replace(/\s+/g, ' ').trim();
+
+// A file offered by several bots is requested once. The bot that offers the most of the wanted files is
+// taken first and keeps every file it has, so the downloads come from as few bots as possible and, where a
+// file could come from anyone, from the bot that already serves the rest. Requests with no file name cannot
+// be compared and are all kept.
+export function pickOnePeerPerFile(requests: PackRequest[]): PackRequest[] {
+  const kept = requests.filter((r) => !r.name);
+  const wanted = new Map<string, PackRequest[]>();
+  for (const r of requests) {
+    if (r.name) wanted.set(sameFile(r.name), [...(wanted.get(sameFile(r.name)) ?? []), r]);
+  }
+  while (wanted.size > 0) {
+    const offers = new Map<string, Map<string, PackRequest>>();
+    for (const [file, from] of wanted) {
+      for (const r of from) {
+        const bot = r.bot.toLowerCase();
+        if (!offers.get(bot)?.has(file)) offers.set(bot, (offers.get(bot) ?? new Map()).set(file, r));
+      }
+    }
+    let best: Map<string, PackRequest> | undefined;
+    for (const files of offers.values()) if (!best || files.size > best.size) best = files;
+    for (const [file, r] of best ?? []) {
+      kept.push(r);
+      wanted.delete(file);
+    }
+  }
+  return kept;
+}
+
 // 1,2,3,7 -> "1-3,7"
 function packSpec(packs: number[]): string {
   const parts: string[] = [];

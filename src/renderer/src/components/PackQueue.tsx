@@ -1,5 +1,12 @@
 import { useState } from 'react';
-import { fileNumber, loadPackRequests, type PackBatch, PackListError, toBatches } from '../utils/packlist';
+import {
+  fileNumber,
+  loadPackRequests,
+  type PackBatch,
+  PackListError,
+  pickOnePeerPerFile,
+  toBatches,
+} from '../utils/packlist';
 import { IconButton } from './Icon';
 import { Button, Card, inputClass } from './ui';
 
@@ -21,6 +28,7 @@ export function PackQueue({ serverName, queue, fetchPage, onQueue, onRemove, onC
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [found, setFound] = useState<PackBatch[] | null>(null);
+  const [duplicates, setDuplicates] = useState(0);
 
   async function load(e: React.FormEvent) {
     e.preventDefault();
@@ -31,7 +39,10 @@ export function PackQueue({ serverName, queue, fetchPage, onQueue, onRemove, onC
       const min = Number(start) || 0;
       const requests = await loadPackRequests(url.trim(), fetchPage);
       // A file with no number in its name cannot be placed, so it is left out once a start is given.
-      const batches = toBatches(requests.filter((r) => !min || (fileNumber(r.name) ?? 0) >= min));
+      const wanted = requests.filter((r) => !min || (fileNumber(r.name) ?? 0) >= min);
+      const picked = pickOnePeerPerFile(wanted);
+      const batches = toBatches(picked);
+      setDuplicates(wanted.length - picked.length);
       if (batches.length === 0)
         setError(`None of the ${requests.length} files on that page have a number of ${min} or higher in their name.`);
       else setFound(batches);
@@ -82,6 +93,7 @@ export function PackQueue({ serverName, queue, fetchPage, onQueue, onRemove, onC
           <span>
             {packCount(found)} packs from {new Set(found.map((b) => b.bot.toLowerCase())).size} bots, one batch request
             each, sent on {serverName}.
+            {duplicates > 0 && ` ${duplicates} copies of the same file from other bots were skipped.`}
           </span>
           <Button
             variant="primary"
