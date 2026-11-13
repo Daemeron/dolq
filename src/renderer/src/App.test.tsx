@@ -445,6 +445,17 @@ describe('App: sending', () => {
     expect(irc.spies.disconnect).toHaveBeenCalledWith('s1');
   });
 
+  it('opens the transfers panel with /transfers and moves between chats with /goto', async () => {
+    await mount();
+    await typeAndSend('/transfers');
+    expect(await screen.findByRole('dialog', { name: 'Transfers' })).toBeTruthy();
+    await fire.click(screen.getByRole('button', { name: 'Close' }));
+    await typeAndSend('/goto oth');
+    expect(await screen.findByPlaceholderText('Message #other')).toBeTruthy();
+    await typeAndSend('/goto zzz', 'Message #other');
+    expect(await screen.findByText(/Nothing is open that matches "zzz"/)).toBeTruthy();
+  });
+
   it('sends /xdcc in a private chat to that nick', async () => {
     const irc = await mount();
     await irc.event('s1', { type: 'PRIVMSG', nick: 'kestrel', target: 'me', text: 'psst' });
