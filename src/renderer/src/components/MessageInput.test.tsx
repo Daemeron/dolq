@@ -118,8 +118,24 @@ describe('MessageInput: send file', () => {
     expect(Array.from(form.children).map((el) => el.getAttribute('aria-label') ?? el.tagName)).toEqual([
       'Emoji',
       'Send file',
+      'Recent messages',
       'INPUT',
       'Send',
     ]);
+  });
+});
+
+describe('MessageInput history', () => {
+  it('brings back the last sent message with the up arrow and returns to the draft with down', async () => {
+    localStorage.clear();
+    const { input, submit } = setup(vi.fn());
+    fireEvent.change(input, { target: { value: 'first' } });
+    submit();
+    await waitFor(() => expect(input.value).toBe(''));
+    fireEvent.change(input, { target: { value: 'draft' } });
+    fireEvent.keyDown(input, { key: 'ArrowUp' });
+    expect(input.value).toBe('first');
+    fireEvent.keyDown(input, { key: 'ArrowDown' });
+    expect(input.value).toBe('draft');
   });
 });
