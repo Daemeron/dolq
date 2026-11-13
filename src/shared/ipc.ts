@@ -168,6 +168,8 @@ export type IrcApi = {
   xdccResume: (xdccId: string) => Promise<void>;
   openExternal: (url: string) => Promise<void>;
   showInFolder: (path: string) => Promise<void>;
+  /** The text of an http(s) page, for pulling pack requests out of a packlist. */
+  fetchPage: (url: string) => Promise<string>;
   setTitleBar: (color: string, symbolColor: string) => Promise<void>;
   saveTextFile: (defaultName: string, content: string) => Promise<boolean>;
   chooseDirectory: (defaultPath?: string) => Promise<string | null>;
@@ -216,6 +218,7 @@ export enum IrcMessages {
   xdccResume = 'irc:xdccResume',
   openExternal = 'irc:openExternal',
   showInFolder = 'irc:showInFolder',
+  fetchPage = 'irc:fetchPage',
   setTitleBar = 'irc:setTitleBar',
   saveTextFile = 'irc:saveTextFile',
   chooseDirectory = 'irc:chooseDirectory',

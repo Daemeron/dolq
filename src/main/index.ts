@@ -347,12 +347,26 @@ if (!app.requestSingleInstanceLock()) {
 // from the main process, so a clicked link in the renderer (see IrcText)
 // has to come through here. Rechecked server-side rather than trusting the
 // renderer's own http(s)-only regex as the sole guard.
+const PAGE_FETCH_TIMEOUT_MS = 15_000;
+const PAGE_FETCH_MAX_CHARS = 5_000_000;
+
 function registerShellHandlers(): void {
   ipcMain.handle(IrcMessages.appReady, () => revealMainWindow());
 
   ipcMain.handle(IrcMessages.openExternal, (_event, url: string) => {
     if (!isWebLink(url)) throw new Error(`refusing to open non-http(s) link: ${url}`);
     return shell.openExternal(url);
+  });
+
+  // The renderer cannot fetch other origins itself. Only http(s), a time limit and a size cap.
+  ipcMain.handle(IrcMessages.fetchPage, async (_event, url: string) => {
+    if (!isWebLink(url)) throw new Error(`refusing to fetch non-http(s) link: ${url}`);
+    const res = await fetch(url, { signal: AbortSignal.timeout(PAGE_FETCH_TIMEOUT_MS) });
+    if (!res.ok) throw new Error(`the page answered HTTP ${res.status}`);
+    // shortcut: the whole body is read before the cap is checked; stream it if pages get huge
+    const text = await res.text();
+    if (text.length > PAGE_FETCH_MAX_CHARS) throw new Error('the page is too large');
+    return text;
   });
 
   // Reveals a downloaded file in the system file manager; it never opens or runs it.

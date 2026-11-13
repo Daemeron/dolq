@@ -362,6 +362,46 @@ describe('App: server lines', () => {
   });
 });
 
+describe('App: packlist queue', () => {
+  it('reads a packlist page and asks each bot for its packs in one batch', async () => {
+    const html = '<p>/msg BotA xdcc send #1</p><p>/msg BotA xdcc send #2</p><p>/msg BotB xdcc send #7</p>';
+    const irc = await mount({ fetchPage: html });
+    await fire.click(await screen.findByRole('button', { name: 'Transfers' }));
+    await fire.change(await screen.findByLabelText('Packlist link'), { target: { value: 'https://example.org/p' } });
+    await fire.click(screen.getByRole('button', { name: 'Find packs' }));
+    expect(await screen.findByText(/3 packs from 2 bots/)).toBeTruthy();
+    await fire.click(screen.getByRole('button', { name: 'Queue requests' }));
+    await waitFor(() => expect(irc.spies.sendLine).toHaveBeenCalledWith('s1', 'PRIVMSG BotA :XDCC BATCH 1-2'));
+    await waitFor(() => expect(irc.spies.sendLine).toHaveBeenCalledWith('s1', 'PRIVMSG BotB :XDCC BATCH 7'), {
+      timeout: 4000,
+    });
+  });
+
+  it('queues only files whose number in the name is at or above the first file number', async () => {
+    const html = `<table>
+      <tr><td>Show - 01.mkv</td><td>/msg BotA xdcc send #11</td></tr>
+      <tr><td>Show - 05.mkv</td><td>/msg BotA xdcc send #12</td></tr>
+      <tr><td>Show - 07.mkv</td><td>/msg BotB xdcc send #3</td></tr></table>`;
+    const irc = await mount({ fetchPage: html });
+    await fire.click(await screen.findByRole('button', { name: 'Transfers' }));
+    await fire.change(await screen.findByLabelText('Packlist link'), { target: { value: 'https://example.org/p' } });
+    await fire.change(screen.getByLabelText('First file number'), { target: { value: '5' } });
+    await fire.click(screen.getByRole('button', { name: 'Find packs' }));
+    expect(await screen.findByText(/2 packs from 2 bots/)).toBeTruthy();
+    await fire.click(screen.getByRole('button', { name: 'Queue requests' }));
+    await waitFor(() => expect(irc.spies.sendLine).toHaveBeenCalledWith('s1', 'PRIVMSG BotA :XDCC BATCH 12'));
+    expect(irc.spies.sendLine).not.toHaveBeenCalledWith('s1', expect.stringContaining('BATCH 11'));
+  });
+
+  it('says so when a page has no requests', async () => {
+    await mount({ fetchPage: '<p>nothing here</p>' });
+    await fire.click(await screen.findByRole('button', { name: 'Transfers' }));
+    await fire.change(await screen.findByLabelText('Packlist link'), { target: { value: 'https://example.org/p' } });
+    await fire.click(screen.getByRole('button', { name: 'Find packs' }));
+    expect((await screen.findByRole('alert')).textContent).toMatch(/not an XDCC Parser packlist/);
+  });
+});
+
 describe('App: sending', () => {
   it('opens a private chat with /query and ignores with /ignore', async () => {
     const irc = await mount();
