@@ -36,6 +36,8 @@ import { comboFromEvent } from './utils/keybind';
 import { locationTitle } from './utils/locationTitle';
 import { isChannelScopedLine, routeLogLine } from './utils/logFilter';
 import { mentionsAny } from './utils/mentions';
+import type { NavAction } from './utils/navCommands';
+import { resolveNavCommand } from './utils/navCommands';
 import { isNickServIdentifyPrompt } from './utils/nickserv';
 import type { PackBatch } from './utils/packlist';
 import { reconcileServers, reconcileStep } from './utils/reconcile';
@@ -1372,6 +1374,58 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, [showTransfers]);
 
+  function runNavAction(action: NavAction) {
+    const step = (dir: 1 | -1) => {
+      const at = channels.findIndex((c) => c.id === selectedChannelId);
+      if (channels.length > 0) handleSelectChannel(channels[(at + dir + channels.length) % channels.length].id);
+    };
+    switch (action.kind) {
+      case 'transfers':
+        return setShowTransfers(true);
+      case 'search':
+        setSearchScope(action.scope);
+        return setShowSearch(true);
+      case 'dashboard':
+        return setView({ kind: 'dashboard' });
+      case 'preferences':
+        return setView({ kind: 'preferences', tab: action.tab });
+      case 'addServer':
+        return setView({ kind: 'connect' });
+      case 'editServer':
+        return selectedServerId ? setView({ kind: 'editServer', serverId: selectedServerId }) : undefined;
+      case 'members':
+        return setShowMembers((v) => !v);
+      case 'log': {
+        const logChannel = channels.find((c) => c.isLog);
+        return logChannel ? handleSelectChannel(logChannel.id) : undefined;
+      }
+      case 'back':
+        return nav.goBack();
+      case 'forward':
+        return nav.goForward();
+      case 'next':
+        return step(1);
+      case 'prev':
+        return step(-1);
+      case 'mute':
+        return toggleMuteChannel(selectedChannelId);
+      case 'close':
+        return selectedChannel && !selectedChannel.isLog ? handleRemoveChannel(selectedChannel.id) : undefined;
+      case 'goto':
+        return handleSelectChannel(action.channelId);
+      case 'server':
+        return handleSelectServer(action.serverId);
+      case 'error':
+        return appendMessage(scopeKey(selectedServerId, selectedChannelId), {
+          id: nextMsgId.current++,
+          nick: '',
+          text: action.text,
+          timestamp: new Date(),
+          system: true,
+        });
+    }
+  }
+
   async function handleSend(input: string, aliasDepth = 0): Promise<void> {
     const text = isQuery && !selectedChannel?.isDCC ? queryXdccText(input) : input;
     const joinMatch = text.match(/^\/join\s+(#\S+)(?:\s+(\S+))?$/);
@@ -1381,6 +1435,7 @@ export default function App() {
     const aliasDefMatch = text.match(/^\/alias\s+(\S+)\s+(.+)$/);
     const queryMatch = text.match(/^\/(?:query|q)\s+(\S+)(?:\s+(.+))?$/);
     const ignoreMatch = text.match(/^\/(un)?ignore\s+(\S+)$/);
+    const navAction = resolveNavCommand(text, servers, channels);
     const quitMatch = text.match(/^\/quit(?:\s+(.+))?$/);
     const helpMatch = text.match(/^\/help(?:\s+(\S+))?$/);
     const whoisMatch = text.match(/^\/whois\s+(\S+)$/);
@@ -1408,6 +1463,8 @@ export default function App() {
         text: msg,
         timestamp: new Date(),
       });
+    } else if (navAction) {
+      runNavAction(navAction);
     } else if (quitMatch) {
       if (quitMatch[1]) await window.irc.sendLine(selectedServerId, `QUIT :${quitMatch[1]}`);
       await handleDisconnect();
