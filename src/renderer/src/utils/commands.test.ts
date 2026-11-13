@@ -61,4 +61,44 @@ describe('parseSlashCommand: edges', () => {
     expect(parseSlashCommand('/raw', '#c')).toEqual({ kind: 'unknown', name: 'raw' });
     expect(parseSlashCommand('/frobnicate', '#c')).toEqual({ kind: 'unknown', name: 'frobnicate' });
   });
+
+  it('maps the informational commands onto one line each', () => {
+    expect(parseSlashCommand('/list >50', '#c')).toEqual(raw('LIST >50'));
+    expect(parseSlashCommand('/list', '#c')).toEqual(raw('LIST'));
+    expect(parseSlashCommand('/names', '#c')).toEqual(raw('NAMES #c'));
+    expect(parseSlashCommand('/names', 'bob')).toEqual(raw('NAMES'));
+    expect(parseSlashCommand('/who bob', '#c')).toEqual(raw('WHO bob'));
+    expect(parseSlashCommand('/whowas bob', '#c')).toEqual(raw('WHOWAS bob'));
+    expect(parseSlashCommand('/motd', '#c')).toEqual(raw('MOTD'));
+    expect(parseSlashCommand('/version', '#c')).toEqual(raw('VERSION'));
+    expect(parseSlashCommand('/version bob', '#c')).toEqual(raw('PRIVMSG bob :\x01VERSION\x01'));
+    expect(parseSlashCommand('/ctcp bob time', '#c')).toEqual(raw('PRIVMSG bob :\x01TIME\x01'));
+    expect(parseSlashCommand('/who', '#c')).toEqual({ kind: 'unknown', name: 'who' });
+  });
+
+  it('sets channel privileges and bans for the current channel', () => {
+    expect(parseSlashCommand('/op bob', '#c')).toEqual(raw('MODE #c +o bob'));
+    expect(parseSlashCommand('/deop bob al', '#c')).toEqual(raw('MODE #c -oo bob al'));
+    expect(parseSlashCommand('/voice bob', '#c')).toEqual(raw('MODE #c +v bob'));
+    expect(parseSlashCommand('/devoice bob', '#c')).toEqual(raw('MODE #c -v bob'));
+    expect(parseSlashCommand('/ban *!*@bad.host', '#c')).toEqual(raw('MODE #c +b *!*@bad.host'));
+    expect(parseSlashCommand('/unban *!*@bad.host', '#c')).toEqual(raw('MODE #c -b *!*@bad.host'));
+    expect(parseSlashCommand('/op', '#c')).toEqual({ kind: 'unknown', name: 'op' });
+  });
+
+  it('talks to services', () => {
+    expect(parseSlashCommand('/ns identify pw', '#c')).toEqual(raw('PRIVMSG NickServ :identify pw'));
+    expect(parseSlashCommand('/chanserv op #c', '#c')).toEqual(raw('PRIVMSG ChanServ :op #c'));
+    expect(parseSlashCommand('/ns', '#c')).toEqual({ kind: 'unknown', name: 'ns' });
+  });
+
+  it('turns /cycle and /kickban into two lines, only where a channel makes sense', () => {
+    expect(parseSlashCommand('/cycle', '#c')).toEqual({ kind: 'lines', lines: ['PART #c', 'JOIN #c'] });
+    expect(parseSlashCommand('/cycle', 'bob')).toEqual({ kind: 'unknown', name: 'cycle' });
+    expect(parseSlashCommand('/kb bob spam', '#c')).toEqual({
+      kind: 'lines',
+      lines: ['MODE #c +b bob!*@*', 'KICK #c bob :spam'],
+    });
+    expect(parseSlashCommand('/kickban', '#c')).toEqual({ kind: 'unknown', name: 'kickban' });
+  });
 });

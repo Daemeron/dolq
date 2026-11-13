@@ -25,6 +25,7 @@ import { scopeKey, useStore } from './store';
 import type { Message, Server } from './types';
 import { shouldAlert } from './utils/alerts';
 import { expandAlias } from './utils/aliases';
+import { helpText } from './utils/commandHints';
 import { parseSlashCommand } from './utils/commands';
 import { attemptConnect } from './utils/connectAttempt';
 import { describeEvent, eventChannels } from './utils/eventMessages';
@@ -1349,6 +1350,10 @@ export default function App() {
     const msgMatch = text.match(/^\/msg\s+(\S+)\s+(.+)$/);
     const awayMatch = text.match(/^\/away(?:\s+(.+))?$/);
     const aliasDefMatch = text.match(/^\/alias\s+(\S+)\s+(.+)$/);
+    const queryMatch = text.match(/^\/(?:query|q)\s+(\S+)(?:\s+(.+))?$/);
+    const ignoreMatch = text.match(/^\/(un)?ignore\s+(\S+)$/);
+    const quitMatch = text.match(/^\/quit(?:\s+(.+))?$/);
+    const helpMatch = text.match(/^\/help(?:\s+(\S+))?$/);
     const whoisMatch = text.match(/^\/whois\s+(\S+)$/);
     const unaliasMatch = text.match(/^\/unalias\s+(\S+)$/);
     const aliasInvokeMatch = text.match(/^\/(\S+)(?:\s+(.*))?$/);
@@ -1373,6 +1378,34 @@ export default function App() {
         nick: currentNick,
         text: msg,
         timestamp: new Date(),
+      });
+    } else if (quitMatch) {
+      if (quitMatch[1]) await window.irc.sendLine(selectedServerId, `QUIT :${quitMatch[1]}`);
+      await handleDisconnect();
+    } else if (text === '/clear') {
+      clearMessages([scopeKey(selectedServerId, selectedChannelId)]);
+    } else if (helpMatch) {
+      appendMessage(scopeKey(selectedServerId, selectedChannelId), {
+        id: nextMsgId.current++,
+        nick: '',
+        text: helpText(helpMatch[1] ?? '', isQuery),
+        timestamp: new Date(),
+        system: true,
+      });
+    } else if (queryMatch) {
+      const [, nick, msg] = queryMatch;
+      handleOpenQuery(nick);
+      if (msg) await handleSend(`/msg ${nick} ${msg}`, aliasDepth + 1);
+    } else if (ignoreMatch) {
+      const [, undo, nick] = ignoreMatch;
+      if (undo) removeIgnore(selectedServerId, nick);
+      else addIgnore(selectedServerId, nick);
+      appendMessage(scopeKey(selectedServerId, selectedChannelId), {
+        id: nextMsgId.current++,
+        nick: '',
+        text: `${undo ? 'No longer ignoring' : 'Ignoring'} ${nick}`,
+        timestamp: new Date(),
+        system: true,
       });
     } else if (whoisMatch) {
       handleWhois(whoisMatch[1]);
@@ -1408,6 +1441,8 @@ export default function App() {
       });
     } else if (slash.kind === 'raw') {
       await sendTracked(selectedServerId, slash.line);
+    } else if (slash.kind === 'lines') {
+      for (const line of slash.lines) await sendTracked(selectedServerId, line);
     } else if (slash.kind === 'unknown') {
       appendMessage(scopeKey(selectedServerId, selectedChannelId), {
         id: nextMsgId.current++,
@@ -1697,6 +1732,7 @@ export default function App() {
                   channelName={selectedChannel?.name ?? ''}
                   isLog={isLog}
                   isQuery={isQuery}
+                  aliasNames={Object.keys(aliases)}
                   onSend={handleSend}
                   onSendFile={
                     isQuery && !selectedChannel?.isDCC ? () => handleSendFile(selectedChannel?.name ?? '') : undefined
