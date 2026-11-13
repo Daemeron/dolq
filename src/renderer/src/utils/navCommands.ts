@@ -3,7 +3,10 @@ export type PreferencesTabName = 'general' | 'appearance' | 'notifications' | 'k
 export type NavAction =
   | { kind: 'transfers' | 'dashboard' | 'addServer' | 'editServer' | 'members' | 'log' | 'back' | 'forward' }
   | { kind: 'next' | 'prev' | 'mute' | 'close' }
-  | { kind: 'search'; scope: 'channel' | 'everywhere' }
+  | { kind: 'unread' | 'mentions' | 'awayAll' | 'update' | 'servers' | 'pause' | 'resume' }
+  | { kind: 'search'; scope: 'channel' | 'everywhere'; query?: string }
+  | { kind: 'export'; format: 'text' | 'json' }
+  | { kind: 'zoom'; size: 'small' | 'medium' | 'large' }
   | { kind: 'preferences'; tab?: PreferencesTabName }
   | { kind: 'goto'; channelId: string }
   | { kind: 'server'; serverId: string }
@@ -26,8 +29,13 @@ const SIMPLE: Record<string, NavAction> = {
   prev: { kind: 'prev' },
   mute: { kind: 'mute' },
   close: { kind: 'close' },
-  search: { kind: 'search', scope: 'channel' },
-  searchall: { kind: 'search', scope: 'everywhere' },
+  unread: { kind: 'unread' },
+  mentions: { kind: 'mentions' },
+  awayall: { kind: 'awayAll' },
+  update: { kind: 'update' },
+  servers: { kind: 'servers' },
+  pause: { kind: 'pause' },
+  resume: { kind: 'resume' },
 };
 
 // What a name or number picks out of a list: an exact match first, then a unique start of one.
@@ -49,6 +57,21 @@ export function resolveNavCommand(text: string, servers: Named[], channels: Name
   const name = m[1].toLowerCase();
   const arg = (m[2] ?? '').trim();
   if (name in SIMPLE && !arg) return SIMPLE[name];
+  if (name === 'search' || name === 'searchall') {
+    return { kind: 'search', scope: name === 'search' ? 'channel' : 'everywhere', query: arg || undefined };
+  }
+  if (name === 'export') {
+    const format = arg.toLowerCase() || 'text';
+    return format === 'text' || format === 'json'
+      ? { kind: 'export', format }
+      : { kind: 'error', text: 'Export as text or json: /export [text|json].' };
+  }
+  if (name === 'zoom') {
+    const size = arg.toLowerCase();
+    return size === 'small' || size === 'medium' || size === 'large'
+      ? { kind: 'zoom', size }
+      : { kind: 'error', text: 'Zoom to small, medium or large: /zoom medium.' };
+  }
   if (['preferences', 'prefs', 'settings'].includes(name)) {
     if (!arg) return { kind: 'preferences' };
     const tab = PREFERENCE_TABS.find((t) => t === arg.toLowerCase());

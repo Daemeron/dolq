@@ -10,6 +10,8 @@ import { ViewPanel } from './ViewPanel';
 
 type Props = {
   initialScope?: Scope;
+  /** Searched for as soon as the modal opens. */
+  initialQuery?: string;
   servers: Server[];
   defaultServerId: string;
   defaultChannel: string;
@@ -47,6 +49,7 @@ const whenLabel = (timestamp: string | number) => {
 
 export function SearchModal({
   initialScope = 'channel',
+  initialQuery = '',
   servers,
   defaultServerId,
   defaultChannel,
@@ -55,12 +58,17 @@ export function SearchModal({
   onGetPack,
   onClose,
 }: Props) {
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState(initialQuery);
   const [scope, setScope] = useState<Scope>(initialScope);
   const [packsOnly, setPacksOnly] = useState(false);
   const [results, setResults] = useState<HistoryEntry[] | null>(null);
   const [searched, setSearched] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: only the first search, when the modal opens
+  useEffect(() => {
+    if (initialQuery.trim()) void runSearch(scope, packsOnly);
+  }, []);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {

@@ -18,8 +18,9 @@ describe('resolveNavCommand', () => {
   it('opens panels and views', () => {
     expect(run('/transfers')).toEqual({ kind: 'transfers' });
     expect(run('/dashboard')).toEqual({ kind: 'dashboard' });
-    expect(run('/search')).toEqual({ kind: 'search', scope: 'channel' });
-    expect(run('/searchall')).toEqual({ kind: 'search', scope: 'everywhere' });
+    expect(run('/search')).toEqual({ kind: 'search', scope: 'channel', query: undefined });
+    expect(run('/searchall')).toEqual({ kind: 'search', scope: 'everywhere', query: undefined });
+    expect(run('/search kusuriya 05')).toEqual({ kind: 'search', scope: 'channel', query: 'kusuriya 05' });
     expect(run('/members')).toEqual({ kind: 'members' });
     expect(run('/BACK')).toEqual({ kind: 'back' });
   });
@@ -43,6 +44,20 @@ describe('resolveNavCommand', () => {
     expect(run('/server riz')).toEqual({ kind: 'server', serverId: 's2' });
     expect(run('/server ru')).toEqual({ kind: 'server', serverId: 's3' });
     expect(run('/server r')).toMatchObject({ kind: 'error' });
+  });
+
+  it('covers unread, mentions, away, servers, updates and transfer control', () => {
+    for (const name of ['unread', 'mentions', 'update', 'servers', 'pause', 'resume'])
+      expect(run(`/${name}`)).toEqual({ kind: name });
+    expect(run('/awayall')).toEqual({ kind: 'awayAll' });
+  });
+
+  it('exports and zooms with a checked argument', () => {
+    expect(run('/export')).toEqual({ kind: 'export', format: 'text' });
+    expect(run('/export JSON')).toEqual({ kind: 'export', format: 'json' });
+    expect(run('/export xml')).toMatchObject({ kind: 'error' });
+    expect(run('/zoom large')).toEqual({ kind: 'zoom', size: 'large' });
+    expect(run('/zoom')).toMatchObject({ kind: 'error' });
   });
 
   it('leaves everything else to the other handlers', () => {

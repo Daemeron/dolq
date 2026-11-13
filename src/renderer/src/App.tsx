@@ -232,6 +232,7 @@ export default function App() {
   } | null>(null);
   const [showSearch, setShowSearch] = useState(false);
   const [searchScope, setSearchScope] = useState<'channel' | 'everywhere'>('channel');
+  const [searchQuery, setSearchQuery] = useState('');
   const [settings, setSettingsState] = useState<Settings>({ retentionDays: 0 });
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [firstHistoryLoaded, setFirstHistoryLoaded] = useState(false);
@@ -349,6 +350,7 @@ export default function App() {
       if (action === 'openSearch') {
         e.preventDefault();
         setSearchScope('channel');
+        setSearchQuery('');
         setShowSearch(true);
         return;
       }
@@ -1426,6 +1428,14 @@ export default function App() {
   }, [showTransfers]);
 
   function runNavAction(action: NavAction) {
+    const say = (text: string) =>
+      appendMessage(scopeKey(selectedServerId, selectedChannelId), {
+        id: nextMsgId.current++,
+        nick: '',
+        text,
+        timestamp: new Date(),
+        system: true,
+      });
     const step = (dir: 1 | -1) => {
       const at = channels.findIndex((c) => c.id === selectedChannelId);
       if (channels.length > 0) handleSelectChannel(channels[(at + dir + channels.length) % channels.length].id);
@@ -1435,6 +1445,7 @@ export default function App() {
         return setShowTransfers(true);
       case 'search':
         setSearchScope(action.scope);
+        setSearchQuery(action.query ?? '');
         return setShowSearch(true);
       case 'dashboard':
         return setView({ kind: 'dashboard' });
@@ -1462,18 +1473,49 @@ export default function App() {
         return toggleMuteChannel(selectedChannelId);
       case 'close':
         return selectedChannel && !selectedChannel.isLog ? handleRemoveChannel(selectedChannel.id) : undefined;
+      case 'unread': {
+        const busiest = channels
+          .filter((c) => c.id !== selectedChannelId)
+          .sort((a, b) => (awayStats[b.id]?.count ?? 0) - (awayStats[a.id]?.count ?? 0))[0];
+        return busiest && (awayStats[busiest.id]?.count ?? 0) > 0
+          ? handleSelectChannel(busiest.id)
+          : say('Nothing unread on this server.');
+      }
+      case 'mentions':
+        return mentionedHere[0] ? handleSelectChannel(mentionedHere[0].id) : say('No mentions waiting.');
+      case 'awayAll':
+        return handleToggleAwayAll();
+      case 'update':
+        return update?.state === 'available' || update?.state === 'downloaded'
+          ? handleUpdate()
+          : say('No update is ready.');
+      case 'export':
+        return selectedChannel?.isDCC
+          ? say('A DCC chat keeps no history to export.')
+          : handleExportChannel(action.format);
+      case 'zoom':
+        return setFontSize(action.size);
+      case 'servers':
+        return say(
+          servers.length === 0
+            ? 'No servers yet.'
+            : servers.map((s, i) => `${i + 1}. ${s.name}: ${statusMap[s.id] ?? 'disconnected'}`).join('\n'),
+        );
+      case 'pause':
+      case 'resume': {
+        const pausing = action.kind === 'pause';
+        const running = Object.entries(transfers).filter(
+          ([, t]) => !t.done && !t.error && !t.sending && !!t.paused !== pausing,
+        );
+        for (const [id] of running) (pausing ? handlePauseTransfer : handleResumeTransfer)(id);
+        return say(`${pausing ? 'Paused' : 'Resumed'} ${running.length} transfer${running.length === 1 ? '' : 's'}.`);
+      }
       case 'goto':
         return handleSelectChannel(action.channelId);
       case 'server':
         return handleSelectServer(action.serverId);
       case 'error':
-        return appendMessage(scopeKey(selectedServerId, selectedChannelId), {
-          id: nextMsgId.current++,
-          nick: '',
-          text: action.text,
-          timestamp: new Date(),
-          system: true,
-        });
+        return say(action.text);
     }
   }
 
@@ -1612,6 +1654,7 @@ export default function App() {
         onGoForward={nav.goForward}
         onOpenSearch={() => {
           setSearchScope('everywhere');
+          setSearchQuery('');
           setShowSearch(true);
         }}
         away={allAway}
@@ -1698,6 +1741,7 @@ export default function App() {
         {showSearch && (
           <SearchModal
             initialScope={searchScope}
+            initialQuery={searchQuery}
             servers={servers}
             defaultServerId={selectedServerId}
             defaultChannel={backendChannelFor(selectedServerId, selectedChannelId)}
@@ -1857,6 +1901,7 @@ export default function App() {
                   onExport={selectedChannel?.isDCC ? undefined : handleExportChannel}
                   onOpenSearch={() => {
                     setSearchScope('channel');
+                    setSearchQuery('');
                     setShowSearch(true);
                   }}
                   connectionStatus={connectionStatus}
