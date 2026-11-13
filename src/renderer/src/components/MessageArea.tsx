@@ -194,7 +194,11 @@ export function MessageArea({
                   />
                 )}
                 {folded ? null : isLog ? (
-                  <div className="font-mono text-[12px] leading-5 text-(--dolq-text) whitespace-pre-wrap break-all px-7">
+                  <div
+                    className={`font-mono text-[12px] leading-5 whitespace-pre-wrap break-all px-7 ${
+                      m.important ? 'text-(--dolq-danger) font-semibold' : 'text-(--dolq-text)'
+                    }`}
+                  >
                     <span className="text-(--dolq-text-faint) mr-3">{formatTime(m.timestamp, timestampFormat)}</span>
                     <IrcText text={m.text} />
                   </div>

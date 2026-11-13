@@ -46,3 +46,29 @@ describe('isChannelScopedLine: degenerate input', () => {
     expect(isChannelScopedLine('')).toBe(false);
   });
 });
+
+import { routeLogLine } from './logFilter';
+
+describe('routeLogLine', () => {
+  it('sends a private notice from a person to their query', () => {
+    expect(routeLogLine(':Bot!u@h NOTICE me :** Sending you pack #5')).toEqual({
+      to: 'pm',
+      nick: 'Bot',
+      text: '** Sending you pack #5',
+    });
+  });
+  it('keeps server notices in the log', () => {
+    expect(routeLogLine(':irc.srv NOTICE * :*** Looking up your hostname')).toEqual({ to: 'log', important: false });
+  });
+  it('sends a channel refusal to the channel', () => {
+    expect(routeLogLine(':srv 473 me #chan :Cannot join channel (+i)')).toEqual({
+      to: 'channel',
+      channel: '#chan',
+      text: '#chan: Cannot join channel (+i)',
+    });
+  });
+  it('flags errors as important', () => {
+    expect(routeLogLine(':srv 433 me nick :Nickname is already in use')).toEqual({ to: 'log', important: true });
+    expect(routeLogLine('ERROR :Closing link')).toEqual({ to: 'log', important: true });
+  });
+});

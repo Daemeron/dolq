@@ -20,3 +20,47 @@ export function isChannelScopedLine(line: string): boolean {
   if (CHANNEL_NUMERICS.has(command)) return true;
   return false;
 }
+
+// Where a server-level line that is not channel-scoped really belongs.
+export type LogRoute =
+  | { to: 'pm'; nick: string; text: string }
+  | { to: 'channel'; channel: string; text: string }
+  | { to: 'log'; important: boolean };
+
+// Numerics that refuse something about one channel: "me #chan :Cannot join channel (+i)".
+const CHANNEL_ERRORS = new Set([
+  '403',
+  '404',
+  '405',
+  '437',
+  '441',
+  '442',
+  '467',
+  '471',
+  '472',
+  '473',
+  '474',
+  '475',
+  '476',
+  '477',
+  '478',
+  '482',
+]);
+
+// A person's private notice (xdcc bots answer this way) belongs in their query
+// window, a channel refusal in that channel, and only the rest stays in the Log.
+export function routeLogLine(line: string): LogRoute {
+  const m = /^(?:@\S+ )?(?::(\S+) )?(\S+) (.*)$/.exec(line);
+  if (!m) return { to: 'log', important: false };
+  const [, prefix = '', verb, params] = m;
+  const command = verb.toUpperCase();
+  const text = (params.match(/ :(.*)$/) ?? params.match(/^:(.*)$/))?.[1] ?? params;
+  if (command === 'NOTICE' && prefix.includes('!')) {
+    return { to: 'pm', nick: prefix.slice(0, prefix.indexOf('!')), text };
+  }
+  if (CHANNEL_ERRORS.has(command)) {
+    const channel = params.split(/\s+/).find((p) => /^[#&]/.test(p));
+    if (channel) return { to: 'channel', channel, text: `${channel}: ${text}` };
+  }
+  return { to: 'log', important: /^[45]\d\d$/.test(command) || command === 'ERROR' || command === 'KILL' };
+}
