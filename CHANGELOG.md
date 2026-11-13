@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.10.0](https://github.com/Daemeron/dolq/compare/dolq-v0.9.0...dolq-v0.10.0) (2026-11-13)
+
+
+### Features
+
+* queue the packs of a packlist page as one xdcc batch per bot ([3116b4b](https://github.com/Daemeron/dolq/commit/3116b4b276db4f74dd2c1d2a2816e06cf4f8dbda))
+* **renderer:** ask one bot for each file when a packlist offers it from several ([d9d90e0](https://github.com/Daemeron/dolq/commit/d9d90e0c9127d674042a70825adadf51832c6d53))
+* **renderer:** file server lines where they belong instead of all in the Log ([d7c0df5](https://github.com/Daemeron/dolq/commit/d7c0df5585467083d0ef05d830e8a1ed82661c2b))
+* **renderer:** more commands for the rest of the client ([3586db4](https://github.com/Daemeron/dolq/commit/3586db4fdd6fa6bea438115c2c461ad96f6033cc))
+* **renderer:** move around the app with slash commands ([4bc5fd1](https://github.com/Daemeron/dolq/commit/4bc5fd1a6e1f727cb767eb710646e95e664c00e6))
+* **renderer:** recall sent messages with the arrow keys or a history button ([cc12a08](https://github.com/Daemeron/dolq/commit/cc12a085b1bbe58f5471f4aa27a996a27ce89f9d))
+* **renderer:** send /xdcc in a private chat to the person it is open with ([25a97b9](https://github.com/Daemeron/dolq/commit/25a97b9a12071bce24501a9d776fba0a71161878))
+* **renderer:** suggest slash commands with what they do, and add the missing ones ([6ab30e9](https://github.com/Daemeron/dolq/commit/6ab30e9d8b34e20fbe7ef965b1d24abde7899445))
+
+
+### Bug Fixes
+
+* **renderer:** auto-accept every offer a batch request brings, not only the first ([7b8502f](https://github.com/Daemeron/dolq/commit/7b8502f55ae310d8177706866fba790e5edd7795))
+* **renderer:** join the packlist channel before asking its bots for packs ([4eeb01c](https://github.com/Daemeron/dolq/commit/4eeb01cb3ebe26def1ec5287bd2a22f5d93a4873))
+
 ## [0.9.0](https://github.com/Daemeron/dolq/compare/dolq-v0.8.0...dolq-v0.9.0) (2026-10-30)
 
 
