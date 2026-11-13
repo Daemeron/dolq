@@ -4,31 +4,36 @@ import {
   loadPackRequests,
   type PackBatch,
   PackListError,
+  type PackSource,
   pickOnePeerPerFile,
   toBatches,
 } from '../utils/packlist';
 import { IconButton } from './Icon';
 import { Button, Card, inputClass } from './ui';
 
-export type QueuedBatch = PackBatch & { id: number; serverId: string };
+export type QueuedBatch = PackBatch & { id: number; serverId: string; channel?: string };
 
 type Props = {
   serverName: string;
   queue: QueuedBatch[];
   fetchPage: (url: string) => Promise<string>;
-  onQueue: (batches: PackBatch[]) => void;
+  /** Returns why the requests cannot be queued, if they cannot. */
+  onQueue: (batches: PackBatch[], source: PackSource | null) => string | undefined;
+  /** What the first waiting request is held up by, if anything. */
+  waitingFor?: string;
   onRemove: (id: number) => void;
   onClear: () => void;
 };
 
 // Pulls the "/msg Bot xdcc send #N" lines out of a packlist page and sends the bots one batch request each.
-export function PackQueue({ serverName, queue, fetchPage, onQueue, onRemove, onClear }: Props) {
+export function PackQueue({ serverName, queue, fetchPage, onQueue, waitingFor, onRemove, onClear }: Props) {
   const [url, setUrl] = useState('');
   const [start, setStart] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [found, setFound] = useState<PackBatch[] | null>(null);
   const [duplicates, setDuplicates] = useState(0);
+  const [source, setSource] = useState<PackSource | null>(null);
 
   async function load(e: React.FormEvent) {
     e.preventDefault();
@@ -37,7 +42,8 @@ export function PackQueue({ serverName, queue, fetchPage, onQueue, onRemove, onC
     setFound(null);
     try {
       const min = Number(start) || 0;
-      const requests = await loadPackRequests(url.trim(), fetchPage);
+      const { requests, source: from } = await loadPackRequests(url.trim(), fetchPage);
+      setSource(from);
       // A file with no number in its name cannot be placed, so it is left out once a start is given.
       const wanted = requests.filter((r) => !min || (fileNumber(r.name) ?? 0) >= min);
       const picked = pickOnePeerPerFile(wanted);
@@ -99,7 +105,8 @@ export function PackQueue({ serverName, queue, fetchPage, onQueue, onRemove, onC
             variant="primary"
             small
             onClick={() => {
-              onQueue(found);
+              const refused = onQueue(found, source);
+              if (refused) return setError(refused);
               setFound(null);
               setUrl('');
               setStart('');
@@ -112,7 +119,10 @@ export function PackQueue({ serverName, queue, fetchPage, onQueue, onRemove, onC
       {queue.length > 0 && (
         <div className="mt-3">
           <div className="mb-1 flex items-center justify-between text-[13px] text-(--dolq-text-dim)">
-            <span>Requests waiting to be sent</span>
+            <span>
+              Requests waiting to be sent
+              {waitingFor && ` (${waitingFor})`}
+            </span>
             <Button variant="ghost" small onClick={onClear}>
               Clear
             </Button>
