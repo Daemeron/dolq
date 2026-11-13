@@ -5,6 +5,7 @@ import {
   loadPackRequests,
   PackListError,
   parsePackData,
+  pickOnePeerPerFile,
   toBatches,
   xdccParserDataUrl,
 } from './packlist';
@@ -126,5 +127,27 @@ describe('XDCC Parser pages', () => {
     expect((await reason(SHELL, 'https://subsplease.org/xdcc/?=zzz', 'p.k[0] = {x:1};')).message).toMatch(
       /no bot, pack number and file name/,
     );
+  });
+});
+
+describe('pickOnePeerPerFile', () => {
+  const r = (bot: string, pack: number, name?: string) => ({ bot, pack, name });
+  it('takes a repeated file from the bot that offers most of the rest', () => {
+    const picked = pickOnePeerPerFile([
+      r('Few', 1, 'Show - 05.mkv'),
+      r('Few', 2, 'Show - 06.mkv'),
+      r('Many', 10, 'show - 05.MKV'),
+      r('Many', 11, 'Show - 07.mkv'),
+      r('Many', 12, 'Show - 08.mkv'),
+      r('Many', 13, 'Show - 06.mkv'),
+    ]);
+    expect(picked.map((x) => `${x.bot}${x.pack}`).sort()).toEqual(['Many10', 'Many11', 'Many12', 'Many13']);
+  });
+  it('still uses a second bot for a file only it has, and keeps nameless requests', () => {
+    const picked = pickOnePeerPerFile([r('A', 1, 'x.mkv'), r('A', 2, 'y.mkv'), r('B', 3, 'z.mkv'), r('C', 4)]);
+    expect(picked.map((x) => x.pack).sort()).toEqual([1, 2, 3, 4]);
+  });
+  it('keeps one request when a bot lists the same file twice', () => {
+    expect(pickOnePeerPerFile([r('A', 1, 'x.mkv'), r('A', 2, 'x.mkv')])).toHaveLength(1);
   });
 });

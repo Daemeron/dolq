@@ -393,6 +393,22 @@ describe('App: packlist queue', () => {
     expect(irc.spies.sendLine).not.toHaveBeenCalledWith('s1', expect.stringContaining('BATCH 11'));
   });
 
+  it('requests a file listed by two bots only from the bot that has the most of them', async () => {
+    const html = `<table>
+      <tr><td>Show - 05.mkv</td><td>/msg Few xdcc send #1</td></tr>
+      <tr><td>Show - 05.mkv</td><td>/msg Many xdcc send #10</td></tr>
+      <tr><td>Show - 06.mkv</td><td>/msg Many xdcc send #11</td></tr></table>`;
+    const irc = await mount({ fetchPage: html });
+    await fire.click(await screen.findByRole('button', { name: 'Transfers' }));
+    await fire.change(await screen.findByLabelText('Packlist link'), { target: { value: 'https://example.org/p' } });
+    await fire.click(screen.getByRole('button', { name: 'Find packs' }));
+    expect(await screen.findByText(/2 packs from 1 bots/)).toBeTruthy();
+    expect(screen.getByText(/1 copies of the same file/)).toBeTruthy();
+    await fire.click(screen.getByRole('button', { name: 'Queue requests' }));
+    await waitFor(() => expect(irc.spies.sendLine).toHaveBeenCalledWith('s1', 'PRIVMSG Many :XDCC BATCH 10-11'));
+    expect(irc.spies.sendLine).not.toHaveBeenCalledWith('s1', expect.stringContaining('PRIVMSG Few'));
+  });
+
   it('says so when a page has no requests', async () => {
     await mount({ fetchPage: '<p>nothing here</p>' });
     await fire.click(await screen.findByRole('button', { name: 'Transfers' }));
