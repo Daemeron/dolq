@@ -596,6 +596,19 @@ describe('IPC handlers', () => {
     expect(() => invoke(IrcMessages.openExternal, 'javascript:alert(1)')).toThrow(/refusing/);
   });
 
+  it('fetches only http(s) pages, and reports a failing one', async () => {
+    await boot();
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: true, text: async () => '<p>hi</p>' })
+      .mockResolvedValueOnce({ ok: false, status: 404 });
+    vi.stubGlobal('fetch', fetchMock);
+    expect(await invoke(IrcMessages.fetchPage, 'https://example.org/packs')).toBe('<p>hi</p>');
+    await expect(invoke(IrcMessages.fetchPage, 'https://example.org/gone')).rejects.toThrow(/404/);
+    await expect(invoke(IrcMessages.fetchPage, 'file:///etc/passwd')).rejects.toThrow(/refusing/);
+    vi.unstubAllGlobals();
+  });
+
   it('reveals an absolute path in the file manager and refuses anything else', async () => {
     const { electron } = await boot();
     await invoke(IrcMessages.showInFolder, '/tmp/a.iso');

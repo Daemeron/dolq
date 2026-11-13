@@ -93,6 +93,7 @@ contextBridge.exposeInMainWorld('irc', {
 
   openExternal: (url: string) => ipcRenderer.invoke(IrcMessages.openExternal, url),
   showInFolder: (path: string) => ipcRenderer.invoke(IrcMessages.showInFolder, path),
+  fetchPage: (url: string) => ipcRenderer.invoke(IrcMessages.fetchPage, url),
   setTitleBar: (color: string, symbolColor: string) => ipcRenderer.invoke(IrcMessages.setTitleBar, color, symbolColor),
 
   saveTextFile: (defaultName: string, content: string) =>

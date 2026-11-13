@@ -8,6 +8,7 @@ import { type EditServerForm, EditServerModal } from './components/EditServerMod
 import { MessageArea } from './components/MessageArea';
 import { MessageInput } from './components/MessageInput';
 import { NickServIdentifyModal } from './components/NickServIdentifyModal';
+import { PackQueue, type QueuedBatch } from './components/PackQueue';
 import { PreferencesModal, type Tab as PreferencesTab } from './components/PreferencesModal';
 import { SearchModal } from './components/SearchModal';
 import { ServerList } from './components/ServerList';
@@ -36,6 +37,7 @@ import { locationTitle } from './utils/locationTitle';
 import { isChannelScopedLine, routeLogLine } from './utils/logFilter';
 import { mentionsAny } from './utils/mentions';
 import { isNickServIdentifyPrompt } from './utils/nickserv';
+import type { PackBatch } from './utils/packlist';
 import { reconcileServers, reconcileStep } from './utils/reconcile';
 import { buildServerId, normalizeHost, resolveHostPort, serverColor, serverInitials } from './utils/server';
 import { transferRates } from './utils/transferRate';
@@ -52,6 +54,9 @@ const FONT_SIZE_ZOOM: Record<'small' | 'medium' | 'large', number> = {
   medium: 1,
   large: 1.15,
 };
+
+// Time between two bots' batch requests, so a long packlist does not trip flood protection.
+const BATCH_GAP_MS = 2000;
 
 const FONT_FAMILY_STACKS: Record<'system' | 'serif' | 'monospace', string> = {
   system: "'Inter Variable', Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
@@ -236,6 +241,8 @@ export default function App() {
     port: number;
   } | null>(null);
   const [pendingXDCCOffer, setPendingXDCCOffer] = useState<PendingXDCCOffer | null>(null);
+  const [packQueue, setPackQueue] = useState<QueuedBatch[]>([]);
+  const lastBatchAt = useRef(0);
   const [transfers, setTransfers] = useState<Record<string, Transfer & { serverId: string; path: string }>>({});
   // The latest transfers, for event handlers that must act on one without doing it inside a state updater.
   const transfersRef = useRef(transfers);
@@ -1179,6 +1186,28 @@ export default function App() {
     });
   }
 
+  function handleQueuePacks(batches: PackBatch[]) {
+    const serverId = selectedServerId;
+    setPackQueue((q) => [...q, ...batches.map((b) => ({ ...b, id: nextMsgId.current++, serverId }))]);
+  }
+
+  // Bots get their batch one after another, a couple of seconds apart, once their server is connected.
+  const batchDue = packQueue[0];
+  const batchServerUp = batchDue ? statusMap[batchDue.serverId] === 'connected' : false;
+  // biome-ignore lint/correctness/useExhaustiveDependencies: sendRequest is rebuilt every render and only reads current state through its own closure
+  useEffect(() => {
+    if (!batchDue || !batchServerUp) return;
+    const timer = setTimeout(
+      () => {
+        lastBatchAt.current = Date.now();
+        sendRequest(batchDue.serverId, batchDue.bot, `XDCC BATCH ${batchDue.spec}`);
+        setPackQueue((q) => q.filter((b) => b.id !== batchDue.id));
+      },
+      Math.max(0, BATCH_GAP_MS - (Date.now() - lastBatchAt.current)),
+    );
+    return () => clearTimeout(timer);
+  }, [batchDue, batchServerUp]);
+
   function handleGetPack(nick: string, packNumber: number) {
     requestPack(selectedServerId, nick, packNumber);
   }
@@ -1541,6 +1570,16 @@ export default function App() {
             onDismiss={handleDismissTransfer}
             onShowInFolder={(path) => window.irc.showInFolder(path)}
             onClose={() => setShowTransfers(false)}
+            packQueue={
+              <PackQueue
+                serverName={selectedServer?.name ?? ''}
+                queue={packQueue}
+                fetchPage={window.irc.fetchPage}
+                onQueue={handleQueuePacks}
+                onRemove={(id) => setPackQueue((q) => q.filter((b) => b.id !== id))}
+                onClear={() => setPackQueue([])}
+              />
+            }
           />
         )}
         {showSearch && (

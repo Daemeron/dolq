@@ -26,9 +26,20 @@ type Props = {
   onDismiss: (id: string) => void;
   onShowInFolder?: (path: string) => void;
   onClose: () => void;
+  /** Shown above the list, for queuing packs from a packlist. */
+  packQueue?: React.ReactNode;
 };
 
-export function TransferStatus({ transfers, onPause, onResume, onCancel, onDismiss, onShowInFolder, onClose }: Props) {
+export function TransferStatus({
+  transfers,
+  onPause,
+  onResume,
+  onCancel,
+  onDismiss,
+  onShowInFolder,
+  onClose,
+  packQueue,
+}: Props) {
   const entries = Object.entries(transfers);
 
   return (
@@ -37,6 +48,7 @@ export function TransferStatus({ transfers, onPause, onResume, onCancel, onDismi
       description="Incoming offers need your approval before anything is downloaded."
       onClose={onClose}
     >
+      {packQueue}
       {entries.length === 0 ? (
         <p className="m-0 py-6 text-center text-[14px] text-(--dolq-text-faint)">
           No transfers yet. Downloads and file offers show up here.
