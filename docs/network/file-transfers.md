@@ -182,13 +182,39 @@ runs on needs IPv6 connectivity for that. A Docker bridge network has none by de
 What `dolqd` itself announces is still IPv4 only: the address in a passive offer, a DCC chat it offers, or a file it sends is
 its IPv4 address. A peer that can only be reached over IPv6 cannot connect to those.
 
+### Letting a peer connect in (passive offers, chats, files you send)
+
+When the *other side* has to connect to `dolqd`, two things must be true:
+
+1. **It is told an address it can reach.** By default `dolqd` announces its own address on the way to the internet: right on a plain LAN,
+   wrong behind a router or in a container, where it is a private address nothing outside can reach. `DOLQ_DCC_HOST` (or
+   `-dcc-host`) sets the address to announce: your public address, or a name that points at it (a dynamic DNS name is looked up
+   at each announcement). IPv4 only.
+2. **The connection can get in.** The listening port is chosen by `dolqd`, any free one by default, which cannot be forwarded.
+   `DOLQ_DCC_PORTS` (or `-dcc-ports`) pins it to a range, such as `40000-40010`, or a single port. Forward the same range on the
+   router to the machine, and with a Docker bridge network publish it too (the same numbers on both sides). The range set on the
+   backend wins over the one in the app's Preferences, since the ports to open are the machine's to say.
+
+```mermaid
+flowchart LR
+    Bot["bot on the internet"] -->|"connects to PUBLIC-ADDRESS:40003"| Router["router<br/>forwards 40000-40010<br/>to the NAS"]
+    Router --> Docker["Docker<br/>publishes 40000-40010"]
+    Docker --> D["dolqd listens on 40003<br/>(one port of the range)"]
+    D -.->|"DCC SEND file PUBLIC-ADDRESS 40003 size token<br/>(the announcement, through IRC)"| Bot
+```
+
+At start-up `dolqd` says what it will do, and in a container with no address set it warns, because that default cannot work:
+`warning: DCC: in a container, peers that have to connect here … are told the container's own address`.
+
+An **active** offer, where the sender listens and `dolqd` connects out, needs none of this.
+
 | Situation | Works? | Why |
 |---|---|---|
 | Active XDCC download | yes, anywhere | `dolqd` only connects out |
 | Passive XDCC, DCC chat you offer, sending a file | needs an open inbound port | the other side connects in |
-| Backend in Docker with host networking | yes | the container has the machine's address and ports |
-| Backend in Docker on a bridge network | only active downloads | the address `dolqd` announces is the container's internal one |
-| Behind a router | set a port range in Preferences and forward it | otherwise the OS picks any free port |
+| Backend in Docker with host networking | the machine's address and ports are used | still needs the router to forward the ports, and `DOLQ_DCC_HOST` for a peer on the internet |
+| Backend in Docker on a bridge network | only active downloads, unless `DOLQ_DCC_HOST` and `DOLQ_DCC_PORTS` are set and the range is published | otherwise it announces the container's internal address |
+| Behind a router | set the range (the backend's `DOLQ_DCC_PORTS`, or Preferences for a local backend) and forward it | otherwise the OS picks any free port |
 
 Preferences has a DCC port range (min and max). Leave both empty to let the operating system pick; set a range to
 forward through a router or firewall.
