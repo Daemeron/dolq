@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
+import type { BackendState } from '../shared/backendState';
 import {
   type ConnectionStatus,
   type IrcApi,
@@ -158,6 +159,16 @@ contextBridge.exposeInMainWorld('irc', {
     const handler = (_event: Electron.IpcRendererEvent, status: UpdateStatus) => callback(status);
     ipcRenderer.on(IrcMessages.updateStatus, handler);
     return () => ipcRenderer.removeListener(IrcMessages.updateStatus, handler);
+  },
+
+  getBackendState: () => ipcRenderer.invoke(IrcMessages.getBackendState),
+
+  reconnectBackend: () => ipcRenderer.invoke(IrcMessages.reconnectBackend),
+
+  onBackendState: (callback) => {
+    const handler = (_event: Electron.IpcRendererEvent, state: BackendState) => callback(state);
+    ipcRenderer.on(IrcMessages.backendState, handler);
+    return () => ipcRenderer.removeListener(IrcMessages.backendState, handler);
   },
 
   onBackendReconnected: (callback) => {

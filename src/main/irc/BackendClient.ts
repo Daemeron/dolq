@@ -8,12 +8,19 @@ import { createInterface } from 'node:readline';
 import tls from 'node:tls';
 import { promisify } from 'node:util';
 import { app } from 'electron';
+import type { BackendLogLine, BackendState, BackendStatus } from '../../shared/backendState';
 import type { ConnectionStatus, HistoryEntry, IrcEvent, SavedTransfer } from '../../shared/ipc';
-import { decideTrust, insecureReasons, type RemoteHooks, type RemoteTarget } from '../remoteBackend';
-import { PermanentError, redial } from './redial';
+import { formatHostPort } from '../../shared/pairing';
+import { decideTrust, describeDialError, insecureReasons, type RemoteHooks, type RemoteTarget } from '../remoteBackend';
+import { PermanentError, redial, redialDelay } from './redial';
 import { stopChild } from './stopChild';
 
 const execFileAsync = promisify(execFile);
+
+// A remote link that stays silent for PING_TIMEOUT_MS is taken to be dead; the OS's own keepalive would take minutes.
+const HEARTBEAT_MS = 20_000;
+const PING_TIMEOUT_MS = 10_000;
+const LOG_MAX = 200;
 
 interface ServerFrame {
   id?: string;
@@ -37,8 +44,14 @@ export class BackendClient extends EventEmitter {
   private socket?: net.Socket;
   private pending = new Map<string, Pending>();
   private devBinaryPath?: string;
-  private ready: Promise<void>;
+  private ready: Promise<void> = Promise.resolve();
   private stopping = false;
+  // Bumped whenever the target changes, so a dial still under way for the old one gives up.
+  private gen = 0;
+  private heartbeat?: NodeJS.Timeout;
+  private status: BackendStatus = 'connecting';
+  private detail = '';
+  private log: BackendLogLine[] = [];
   // Servers this client attached to, shown as connecting while a redial is under way.
   private servers = new Set<string>();
 
@@ -48,11 +61,128 @@ export class BackendClient extends EventEmitter {
     private hooks?: RemoteHooks,
   ) {
     super();
-    this.ready = this.remote ? this.connectRemoteWhenUp(this.remote) : this.spawnAndDial();
-    this.ready.catch((err) => {
-      console.error('backend failed to connect:', err);
-      this.emit('fatal', err instanceof Error ? err.message : String(err));
+    this.begin();
+  }
+
+  // What the window shows of the link, and the lines behind it.
+  getState(): BackendState {
+    return {
+      mode: this.remote ? 'remote' : 'local',
+      address: this.remote ? formatHostPort(this.remote.host, this.remote.port) : undefined,
+      status: this.status,
+      detail: this.detail,
+      log: [...this.log],
+    };
+  }
+
+  // A line for the log only.
+  private note(text: string): void {
+    this.log.push({ at: Date.now(), text });
+    if (this.log.length > LOG_MAX) this.log.shift();
+    this.emit('state', this.getState());
+  }
+
+  private set(status: BackendStatus, detail: string): void {
+    this.status = status;
+    this.detail = detail;
+    this.note(detail);
+  }
+
+  private get address(): string {
+    return this.remote ? formatHostPort(this.remote.host, this.remote.port) : 'the local backend';
+  }
+
+  // Starts connecting to the current target, and keeps at it: an unreachable remote is retried, and only
+  // something retrying cannot fix (a changed certificate, a refused token) stops and says so.
+  private begin(announce = false): void {
+    const gen = ++this.gen;
+    this.stopping = false;
+    this.set('connecting', this.remote ? `Connecting to ${this.address}…` : 'Starting the local backend…');
+    const run = this.remote ? this.connectRemoteWhenUp(this.remote, gen) : this.spawnAndDial();
+    this.ready = run.then(() => {
+      if (gen !== this.gen) return;
+      this.connected();
+      if (announce) this.emit('reconnected');
     });
+    this.ready.catch((err) => {
+      if (gen === this.gen) this.fail(err);
+    });
+  }
+
+  private connected(): void {
+    this.set('connected', this.remote ? `Connected to ${this.address}.` : 'The local backend is running.');
+    this.startHeartbeat();
+  }
+
+  private fail(err: unknown): void {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error('backend failed to connect:', err);
+    this.set('failed', message);
+    // A remote one is shown in the window and can be fixed there; only a local one that died is an alert.
+    if (!this.remote) this.emit('fatal', message);
+  }
+
+  // Starts over with the same target, as if the app had just been opened.
+  reconnect(): void {
+    this.retarget(this.remote);
+  }
+
+  // Drops the current link and connects to another target (or the same one again, from scratch).
+  retarget(remote?: RemoteTarget): void {
+    this.gen++;
+    this.stopHeartbeat();
+    const { socket, child } = this;
+    this.socket = undefined;
+    this.child = undefined;
+    socket?.destroy();
+    if (child) void stopChild(child, 12_000);
+    this.rejectAllPending(new Error('backend switched'));
+    this.remote = remote;
+    for (const id of this.servers) this.emit('status', id, 'connecting');
+    this.begin(true);
+  }
+
+  // Asks the backend something cheap; any answer proves the link is alive.
+  private ping(): Promise<void> {
+    const socket = this.socket;
+    if (!socket) return Promise.reject(new Error('not connected'));
+    return new Promise((resolve, reject) => {
+      const id = randomUUID();
+      const timer = setTimeout(() => {
+        this.pending.delete(id);
+        reject(new Error('no answer'));
+      }, PING_TIMEOUT_MS);
+      this.pending.set(id, {
+        resolve: () => {
+          clearTimeout(timer);
+          resolve();
+        },
+        reject: (err) => {
+          clearTimeout(timer);
+          reject(err);
+        },
+      });
+      socket.write(`${JSON.stringify({ id, action: 'getJoinedChannels', serverId: '' })}\n`);
+    });
+  }
+
+  private startHeartbeat(): void {
+    this.stopHeartbeat();
+    const socket = this.socket;
+    if (!this.remote || !socket) return;
+    this.heartbeat = setInterval(() => {
+      this.ping().catch(() => {
+        if (this.socket !== socket) return;
+        this.note('The backend stopped answering. Reconnecting…');
+        socket.destroy();
+      });
+    }, HEARTBEAT_MS);
+    this.heartbeat.unref?.();
+  }
+
+  private stopHeartbeat(): void {
+    clearInterval(this.heartbeat);
+    this.heartbeat = undefined;
   }
 
   private async spawnAndDial(): Promise<void> {
@@ -81,20 +211,26 @@ export class BackendClient extends EventEmitter {
 
   // A remote backend that is not up yet is waited for, not treated as fatal; only an error retrying
   // cannot fix (PermanentError) ends the wait. Calls made meanwhile queue on `ready`.
-  private async connectRemoteWhenUp(remote: RemoteTarget): Promise<void> {
+  private async connectRemoteWhenUp(remote: RemoteTarget, gen: number): Promise<void> {
     try {
-      await this.connectRemote(remote);
+      await this.connectRemote(remote, false, gen);
     } catch (err) {
       if (err instanceof PermanentError) throw err;
       console.error('remote backend not reachable yet, retrying:', err);
+      this.retrying(err, redialDelay(0));
       await redial(
-        () => this.connectRemote(this.remote ?? remote, true),
-        () => this.stopping,
+        () => this.connectRemote(this.remote ?? remote, true, gen),
+        () => this.stopping || gen !== this.gen,
+        (e, ms) => this.retrying(e, ms),
       );
     }
   }
 
-  private async connectRemote(remote: RemoteTarget, agreed = false): Promise<void> {
+  private retrying(err: unknown, ms: number): void {
+    this.set('reconnecting', `${describeDialError(err, this.address)} Trying again in ${Math.round(ms / 1000)}s.`);
+  }
+
+  private async connectRemote(remote: RemoteTarget, agreed = false, gen = this.gen): Promise<void> {
     // Running without TLS and/or a token is allowed (a backend started with
     // -tls=false / -token=false, a tunnel, a trusted LAN), but only after the user has agreed.
     const reasons = insecureReasons(remote);
@@ -103,7 +239,7 @@ export class BackendClient extends EventEmitter {
       if (!ok) throw new PermanentError('Connection to the remote backend cancelled (it is not fully secured).');
     }
     const socket = remote.tls ? await this.dialTls(remote) : await this.dialPlain(remote);
-    await this.attach(socket, remote.token);
+    await this.attach(socket, remote.token, gen);
   }
 
   private dialPlain(remote: RemoteTarget): Promise<net.Socket> {
@@ -157,7 +293,7 @@ export class BackendClient extends EventEmitter {
   // Wires up an established, trusted connection and authenticates it before
   // anything else is sent; the backend drops connections that skip this.
   // Requests only go out on it once that is done.
-  private async attach(socket: net.Socket, token?: string): Promise<void> {
+  private async attach(socket: net.Socket, token?: string, gen = this.gen): Promise<void> {
     // Without keepalive a link that dies silently (sleep, a NAT timeout) never
     // closes, so the redial below would never start.
     socket.setKeepAlive(true, 30_000);
@@ -191,6 +327,11 @@ export class BackendClient extends EventEmitter {
         socket.write(`${JSON.stringify({ id, action: 'auth', authToken: token })}\n`);
       });
     }
+    // The target changed while this one was signing in.
+    if (gen !== this.gen) {
+      socket.destroy();
+      throw new Error('superseded');
+    }
     this.socket = socket;
   }
 
@@ -200,21 +341,29 @@ export class BackendClient extends EventEmitter {
   private lost(): void {
     if (this.stopping) return;
     const remote = this.remote;
+    const gen = this.gen;
+    this.stopHeartbeat();
     for (const id of this.servers) this.emit('status', id, remote ? 'connecting' : 'disconnected');
     if (!remote) {
+      this.set('failed', 'The local backend stopped unexpectedly. Restart Dolq to start it again.');
       this.emit('fatal', 'The Dolq backend stopped unexpectedly. Restart Dolq to reconnect.');
       return;
     }
+    this.set('reconnecting', `Lost the connection to ${this.address}. Reconnecting…`);
     redial(
-      () => this.connectRemote(this.remote ?? remote, true),
-      () => this.stopping,
+      () => this.connectRemote(this.remote ?? remote, true, gen),
+      () => this.stopping || gen !== this.gen,
+      (e, ms) => this.retrying(e, ms),
     ).then(
       (connected) => {
-        if (connected) this.emit('reconnected');
+        if (!connected || gen !== this.gen) return;
+        this.connected();
+        this.emit('reconnected');
       },
       (err) => {
+        if (gen !== this.gen) return;
         for (const id of this.servers) this.emit('status', id, 'disconnected');
-        this.emit('fatal', err instanceof Error ? err.message : String(err));
+        this.fail(err);
       },
     );
   }
@@ -359,6 +508,7 @@ export class BackendClient extends EventEmitter {
 
   async stop(): Promise<void> {
     this.stopping = true;
+    this.stopHeartbeat();
     if (this.remote) {
       this.socket?.end();
       return;
@@ -376,7 +526,7 @@ export class BackendClient extends EventEmitter {
 
   private async request(action: string, fields: Record<string, unknown>): Promise<ServerFrame> {
     await this.ready;
-    if (!this.socket) return Promise.reject(new Error('backend not connected'));
+    if (!this.socket) return Promise.reject(new Error(`backend not connected: ${this.detail}`));
     const id = randomUUID();
     return new Promise((resolve, reject) => {
       this.pending.set(id, { resolve, reject });
@@ -388,7 +538,7 @@ export class BackendClient extends EventEmitter {
     switch (f.type) {
       case 'result':
         if (f.error === 'unauthorized') {
-          this.emit('fatal', 'The backend requires an access token. Paste its pairing link in Preferences.');
+          this.fail(new Error('The backend requires an access token. Paste its pairing link in Preferences.'));
         }
         if (!f.id) return;
         this.pending.get(f.id)?.resolve(f);

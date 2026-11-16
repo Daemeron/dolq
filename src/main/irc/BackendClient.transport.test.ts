@@ -89,6 +89,15 @@ const fatals = (client: BackendClient) => {
   return out;
 };
 
+// A remote backend that cannot be used is shown in the window, not as an alert.
+const failures = (client: BackendClient) => {
+  const out: string[] = [];
+  client.on('state', (s: { status: string; detail: string }) => {
+    if (s.status === 'failed') out.push(s.detail);
+  });
+  return out;
+};
+
 describe('local backend', () => {
   it('starts the packaged backend, hands it a random token and authenticates with it', async () => {
     const client = new BackendClient(7);
@@ -207,7 +216,7 @@ describe('remote backend over TLS', () => {
     hk.confirmTrust.mockResolvedValue(false);
     const err = vi.spyOn(console, 'error').mockImplementation(() => {});
     const client = new BackendClient(0, remote, hk);
-    const seen = fatals(client);
+    const seen = failures(client);
     await vi.waitFor(() => expect(seen[0]).toMatch(/was not trusted/));
     expect(hk.onPin).not.toHaveBeenCalled();
     err.mockRestore();
@@ -216,7 +225,7 @@ describe('remote backend over TLS', () => {
   it('refuses a certificate that no longer matches the pinned one', async () => {
     const err = vi.spyOn(console, 'error').mockImplementation(() => {});
     const client = new BackendClient(0, { ...remote, fingerprint: 'CC:DD' }, hooks());
-    const seen = fatals(client);
+    const seen = failures(client);
     await vi.waitFor(() => expect(seen[0]).toMatch(/certificate changed/));
     err.mockRestore();
   });
@@ -226,7 +235,7 @@ describe('remote backend over TLS', () => {
     hk.confirmInsecure.mockResolvedValue(false);
     const err = vi.spyOn(console, 'error').mockImplementation(() => {});
     const client = new BackendClient(0, { host: 'dolq.example', port: 1, tls: false }, hk);
-    const seen = fatals(client);
+    const seen = failures(client);
     await vi.waitFor(() => expect(seen[0]).toMatch(/cancelled/));
     expect(hk.confirmInsecure).toHaveBeenCalledWith('dolq.example', expect.arrayContaining([expect.any(String)]));
     err.mockRestore();
@@ -241,7 +250,7 @@ describe('remote backend over TLS', () => {
       { host: 'dolq.example', port: 1, tls: false },
       { ...hooks(), confirmInsecure: vi.fn().mockResolvedValue(true) },
     );
-    const seen = fatals(client);
+    const seen = failures(client);
     const status = client.getStatus('s1');
     await vi.advanceTimersByTimeAsync(1000);
     await vi.advanceTimersByTimeAsync(2000);

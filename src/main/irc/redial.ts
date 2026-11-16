@@ -15,7 +15,11 @@ const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve,
 // Calls dial until it succeeds, waiting redialDelay between attempts. Resolves
 // true once connected, false if stopped() turned true first; rejects with the
 // first PermanentError.
-export async function redial(dial: () => Promise<void>, stopped: () => boolean): Promise<boolean> {
+export async function redial(
+  dial: () => Promise<void>,
+  stopped: () => boolean,
+  onFail?: (err: unknown, retryInMs: number) => void,
+): Promise<boolean> {
   for (let attempt = 0; ; attempt++) {
     await sleep(redialDelay(attempt));
     if (stopped()) return false;
@@ -25,6 +29,7 @@ export async function redial(dial: () => Promise<void>, stopped: () => boolean):
     } catch (err) {
       if (err instanceof PermanentError) throw err;
       console.error('backend redial failed:', err);
+      onFail?.(err, redialDelay(attempt + 1));
     }
   }
 }

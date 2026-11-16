@@ -175,6 +175,9 @@ vi.mock('./irc/BackendClient', async () => {
     args: unknown[];
     calls: [string, unknown[]][] = [];
     stop = vi.fn(() => Promise.resolve());
+    retarget = vi.fn();
+    reconnect = vi.fn();
+    getState = vi.fn(() => ({ mode: 'local', status: 'connected', detail: 'The local backend is running.', log: [] }));
     isRemote: boolean;
     constructor(...args: unknown[]) {
       super();
@@ -230,6 +233,8 @@ type FakeBackendT = EventEmitter & {
   args: unknown[];
   calls: [string, unknown[]][];
   stop: ReturnType<typeof vi.fn>;
+  retarget: ReturnType<typeof vi.fn>;
+  reconnect: ReturnType<typeof vi.fn>;
   isRemote: boolean;
 };
 type FakeTrayT = { destroyed: boolean; tooltip: string; handlers: Map<string, () => void>; menu: unknown };
@@ -580,12 +585,21 @@ describe('IPC handlers', () => {
     backend().emit('event', 's1', { type: 'JOIN' });
     backend().emit('status', 's1', 'connected');
     backend().emit('reconnected');
+    backend().emit('state', { status: 'connected' });
     expect(win().sent).toEqual([
       [IrcMessages.line, 's1', ':srv'],
       [IrcMessages.event, 's1', { type: 'JOIN' }],
       [IrcMessages.status, 's1', 'connected'],
       [IrcMessages.backendReconnected],
+      [IrcMessages.backendState, { status: 'connected' }],
     ]);
+  });
+
+  it('reports how the backend link is doing, and reconnects it on request', async () => {
+    await boot();
+    expect(await invoke(IrcMessages.getBackendState)).toMatchObject({ mode: 'local', status: 'connected' });
+    await invoke(IrcMessages.reconnectBackend);
+    expect(backend().reconnect).toHaveBeenCalledOnce();
   });
 
   it('does not message a window that is gone', async () => {
@@ -693,6 +707,30 @@ describe('settings and secrets', () => {
     expect(h.trays).toHaveLength(1); // already there
     await invoke(IrcMessages.setSettings, { retentionDays: 5, trayEnabled: false });
     expect((h.trays[0] as FakeTrayT).destroyed).toBe(true);
+  });
+
+  it('connects to a pasted remote backend straight away, and drops back to local when it is switched off', async () => {
+    await boot({ retentionDays: 0 });
+    const remote = {
+      retentionDays: 0,
+      remoteEnabled: true,
+      remoteUrl: '192.168.50.82:6789',
+      remoteTls: true,
+      remoteToken: 'tok',
+      remoteFingerprint: 'AA',
+    };
+    await invoke(IrcMessages.setSettings, remote);
+    expect(backend().retarget).toHaveBeenCalledWith({
+      host: '192.168.50.82',
+      port: 6789,
+      tls: true,
+      token: 'tok',
+      fingerprint: 'AA',
+    });
+    await invoke(IrcMessages.setSettings, { ...remote, remoteToken: undefined, trayEnabled: true });
+    expect(backend().retarget).toHaveBeenCalledTimes(1); // nothing about the connection changed
+    await invoke(IrcMessages.setSettings, { ...remote, remoteEnabled: false });
+    expect(backend().retarget).toHaveBeenLastCalledWith(undefined);
   });
 
   it('reports that there is no keystore here and keeps the secrets calls working', async () => {
