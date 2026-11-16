@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -100,6 +102,16 @@ type Subscriber interface {
 
 type dialFunc func() (*ircclient.Client, error)
 
+// serverName is how a server appears in the log: where it was connected to, or its id when that is not known.
+func (b *Bouncer) serverName(serverID string) string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if name := b.serverNames[serverID]; name != "" {
+		return name
+	}
+	return serverID
+}
+
 type session struct {
 	client      *ircclient.Client
 	mu          sync.Mutex
@@ -172,7 +184,9 @@ func (s *session) fanOutStatus(serverID, status string) {
 type Bouncer struct {
 	mu       sync.Mutex
 	sessions map[string]*session
-	store    *history.Store
+	// serverNames is where each server was connected to (host:port), for the log.
+	serverNames map[string]string
+	store       *history.Store
 
 	dccMu       sync.Mutex
 	dccSessions map[string]*dcc.Session
@@ -195,6 +209,7 @@ type Bouncer struct {
 func New(store *history.Store) *Bouncer {
 	return &Bouncer{
 		sessions:             make(map[string]*session),
+		serverNames:          make(map[string]string),
 		dccSessions:          make(map[string]*dcc.Session),
 		xdccConns:            make(map[string]*xdccTransfer),
 		store:                store,
@@ -214,6 +229,11 @@ func (b *Bouncer) Connect(
 	if err := b.Disconnect(serverID); err != nil {
 		return err
 	}
+	name := net.JoinHostPort(host, strconv.Itoa(port))
+	b.mu.Lock()
+	b.serverNames[serverID] = name
+	b.mu.Unlock()
+	log.Printf("irc %s: connecting as %s", name, nick)
 
 	dial := func() (*ircclient.Client, error) {
 		client, err := ircclient.Dial(host, port, nick, secure)
@@ -230,6 +250,7 @@ func (b *Bouncer) Connect(
 	}
 	client, err := dial()
 	if err != nil {
+		log.Printf("irc %s: could not connect: %v", name, err)
 		return err
 	}
 	b.connect(serverID, client, initial, dial)
@@ -286,6 +307,23 @@ func (b *Bouncer) wire(serverID string, sess *session, client *ircclient.Client)
 			sess.mu.Unlock()
 		}
 	})
+	// What the user's own nick does on the server, for the log: no one else's, and no one's words.
+	var own string
+	client.AddEventListener(func(event any) {
+		switch e := event.(type) {
+		case ircparse.WelcomeEvent:
+			own = e.Nick
+			log.Printf("irc %s: registered as %s", b.serverName(serverID), e.Nick)
+		case ircparse.JoinEvent:
+			if e.Nick == own {
+				log.Printf("irc %s: joined %s", b.serverName(serverID), e.Channel)
+			}
+		case ircparse.PartEvent:
+			if e.Nick == own {
+				log.Printf("irc %s: left %s", b.serverName(serverID), e.Channel)
+			}
+		}
+	})
 	client.OnClose(func() { b.handleClose(serverID, sess) })
 }
 
@@ -312,12 +350,14 @@ func (b *Bouncer) handleClose(serverID string, sess *session) {
 	sess.mu.Unlock()
 
 	if closing || dial == nil {
+		log.Printf("irc %s: disconnected", b.serverName(serverID))
 		b.forget(serverID, sess)
 		sess.setStatus(serverID, "disconnected")
 		b.logLine(serverID, sess, "*** Disconnected", channels)
 		return
 	}
 
+	log.Printf("irc %s: connection lost, reconnecting", b.serverName(serverID))
 	sess.setStatus(serverID, "connecting")
 	b.logLine(serverID, sess, "*** Connection lost - reconnecting...", channels)
 	sess.reconnecting.Add(1)
@@ -379,13 +419,14 @@ func (b *Bouncer) reconnect(serverID string, sess *session) {
 			return
 		}
 		if err != nil {
-			log.Printf("bouncer: reconnect %s: %v", serverID, err)
+			log.Printf("irc %s: reconnect failed: %v", b.serverName(serverID), err)
 			backoff = min(backoff*2, b.ReconnectBackoffMax)
 			continue
 		}
 
 		b.wire(serverID, sess, client)
 		rejoinOnWelcome(client, previousChannels)
+		log.Printf("irc %s: reconnected", b.serverName(serverID))
 		sess.setStatus(serverID, "connected")
 		b.logLine(serverID, sess, "*** Reconnected", previousChannels)
 		b.pauseRedial("start")

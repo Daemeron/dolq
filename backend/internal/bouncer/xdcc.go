@@ -217,6 +217,7 @@ func (b *Bouncer) runXDCCTransfer(id, serverID string, offer ircparse.XDCCSendOf
 	}()
 
 	sub.SendStatus(id, "connected")
+	log.Printf("xdcc: receiving %s from %s (%d bytes)", offer.Filename, offer.Nick, size)
 	last := time.Now()
 	err := dcc.ReceiveFile(conn, f, base, size, t.pause, func(received int64) {
 		if received < size && time.Since(last) < progressInterval {
@@ -234,6 +235,7 @@ func (b *Bouncer) runXDCCTransfer(id, serverID string, offer ircparse.XDCCSendOf
 		return
 	}
 	sub.SendEvent(id, XDCCTransferEvent{Type: "XDCCTRANSFER", Received: size, Total: size, Path: destPath, Done: true})
+	log.Printf("xdcc: received %s from %s", offer.Filename, offer.Nick)
 	b.recordTransfer(serverID, offer.Nick, fmt.Sprintf("Downloaded %s to %s", offer.Filename, destPath))
 	b.keepTransfer(t, history.Transfer{ID: id, ServerID: serverID, Nick: offer.Nick, Filename: offer.Filename, Received: size, Total: size, Path: destPath, Done: true})
 }

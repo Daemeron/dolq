@@ -105,11 +105,13 @@ func (s *Server) authenticate(c *conn, scanner *bufio.Scanner) bool {
 
 	// Nothing arrived (a health probe, a port scan, a stalled client): just hang up.
 	if !scanner.Scan() {
+		log.Printf("client %s: closed without authenticating (a probe, or a client that gave up)", c.remote)
 		return false
 	}
 	var f ClientFrame
 	if json.Unmarshal(scanner.Bytes(), &f) != nil || f.Action != ActionAuth ||
 		subtle.ConstantTimeCompare([]byte(f.AuthToken), []byte(s.token)) != 1 {
+		log.Printf("client %s: rejected, the access token is missing or wrong", c.remote)
 		time.Sleep(300 * time.Millisecond) // slow down guessing
 		c.writeFrame(ServerFrame{ID: f.ID, Type: FrameResult, OK: false, Error: "unauthorized"})
 		return false
@@ -129,7 +131,9 @@ func (s *Server) Serve(ln net.Listener) error {
 }
 
 type conn struct {
-	netConn      net.Conn
+	netConn net.Conn
+	// remote is who is on the other end, for the log: an address, or "local" for the app's own socket.
+	remote       string
 	writeTimeout time.Duration
 
 	writeMu sync.Mutex
@@ -171,7 +175,9 @@ func (c *conn) writeFrame(f ServerFrame) {
 }
 
 func (s *Server) handleConn(netConn net.Conn) {
-	c := &conn{netConn: netConn, writeTimeout: s.writeTimeout, enc: json.NewEncoder(netConn)}
+	c := &conn{netConn: netConn, remote: remoteName(netConn), writeTimeout: s.writeTimeout, enc: json.NewEncoder(netConn)}
+	log.Printf("client %s: connected", c.remote)
+	defer log.Printf("client %s: disconnected", c.remote)
 	var inFlight sync.WaitGroup
 	lanes := map[string]chan ClientFrame{}
 	defer func() {
@@ -186,8 +192,13 @@ func (s *Server) handleConn(netConn net.Conn) {
 	scanner := bufio.NewScanner(netConn)
 	// Plain connections accepted for compatibility predate tokens and skip the check.
 	_, legacy := netConn.(*legacyPlainConn)
-	if s.token != "" && !legacy && !s.authenticate(c, scanner) {
-		return
+	if s.token != "" && !legacy {
+		if !s.authenticate(c, scanner) {
+			return
+		}
+		log.Printf("client %s: authenticated", c.remote)
+	} else if legacy {
+		log.Printf("client %s: plain connection without an access token (legacy)", c.remote)
 	}
 	for scanner.Scan() {
 		var f ClientFrame
@@ -308,4 +319,12 @@ func (s *Server) handleFrame(c *conn, f ClientFrame) {
 	default:
 		c.writeFrame(ServerFrame{ID: f.ID, Type: FrameResult, OK: false, Error: "unknown action: " + f.Action})
 	}
+}
+
+// remoteName is how the other end of a connection appears in the log.
+func remoteName(c net.Conn) string {
+	if a := c.RemoteAddr(); a != nil && a.Network() != "unix" && a.String() != "" {
+		return a.String()
+	}
+	return "local"
 }
