@@ -208,6 +208,45 @@ At start-up `dolqd` says what it will do, and in a container with no address set
 
 An **active** offer, where the sender listens and `dolqd` connects out, needs none of this.
 
+#### Asking the router instead: `DOLQ_DCC_HOST=auto`
+
+If the router speaks UPnP or NAT-PMP, `dolqd` can do both things itself, for each transfer that needs it:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant D as dolqd
+    participant R as router
+    participant P as bot on the internet
+    participant I as IRC server
+
+    P->>I: DCC SEND file 0 0 size token  (passive: you listen)
+    I-->>D: the offer, accepted in the app
+    D->>D: listen on a free port, say 41234
+    D->>R: what is your public address? (UPnP or NAT-PMP, found by a broadcast)
+    R-->>D: 80.144.209.90
+    D->>R: forward TCP 41234 to me, for up to 5 minutes
+    R-->>D: done (the external port may differ)
+    D->>I: DCC SEND file 80.144.209.90 41234 size token
+    I-->>P: the announcement
+    P->>R: connects to 80.144.209.90:41234
+    R->>D: forwarded to 41234
+    Note over D,R: the file arrives
+    D->>R: remove the forward of 41234
+```
+
+- **Nothing is opened until a transfer needs it**, only that one TCP port, with a lease of 5 minutes so the router closes it by itself if
+  `dolqd` dies, and `dolqd` removes it as soon as the sender has connected, given up or been cancelled. Each forward and each removal is logged.
+- **A changing public address is followed**, since it is asked for each time. The address and the port are never written down.
+- **It needs:** UPnP (or NAT-PMP) switched on in the router, which many routers have off by default; a router with a public address of its
+  own (a private one, or `100.64.x.x` from a provider that shares one address between customers, means another router or CGNAT sits in
+  front, and the transfer is refused with that reason); and, in a container, host networking, because the router is found by a broadcast
+  that a Docker bridge network cannot send.
+- **At start** `dolqd` asks the router once, without opening anything, and logs `found a router (…), whose public address is …` or why not.
+  Without a router the offer is refused at once, with the reason, instead of being left to time out.
+- **Where to look when it says no router answered:** the router's UPnP switch (on an ASUS router, WAN, Internet Connection, "Enable UPnP"),
+  and whether the NAS is on the same network as it. A VPN that takes over the default route also sends the search to the wrong network.
+
 | Situation | Works? | Why |
 |---|---|---|
 | Active XDCC download | yes, anywhere | `dolqd` only connects out |
