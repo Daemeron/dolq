@@ -48,6 +48,27 @@ services:
     restart: unless-stopped
 
     ## ==========================================================================
+    ##  Name
+    ## ==========================================================================
+    ##  A fixed name for the container, so `docker logs dolqd` and `docker exec
+    ##  dolqd ...` work, and it shows under that name in the NAS's container app.
+    ##  Without it Docker makes one up from the folder and service, such as
+    ##  dolq-dolqd-1. A name can belong to only one container at a time, so it
+    ##  cannot be used by two copies of this file.
+    #container_name: dolqd
+
+    ## ==========================================================================
+    ##  Terminal
+    ## ==========================================================================
+    ##  Keep the container's input open and give it a terminal, as `docker run -it`
+    ##  does, like your other containers. `docker attach` then shows what dolqd
+    ##  prints, and a console opened from the NAS's container app works. dolqd
+    ##  itself reads no input and does not need them. Leave an attached terminal
+    ##  with Ctrl-P then Ctrl-Q: Ctrl-C stops dolqd.
+    stdin_open: true
+    tty: true
+
+    ## ==========================================================================
     ##  Network
     ## ==========================================================================
     ##  The host's own network. The pairing link then names the NAS's real
@@ -62,39 +83,47 @@ services:
     #ports:
     #  - '6789:6789'
 
-    ##  Run as a user of the NAS instead of 10001, to write to a folder that
-    ##  belongs to that user without changing who owns it. Look up the numbers with
-    ##  `id <user>`.
-    #user: '1026:100'
-
     ## ==========================================================================
     ##  Environment
     ## ==========================================================================
     environment:
 
+      ##  Who dolqd runs as, and so who owns the files it writes: the user and group
+      ##  of the NAS that should own them (see them with `id <user>`; the same
+      ##  numbers as in your other containers). The folders Docker creates here are
+      ##  handed to them at every start. One that already exists, such as a share,
+      ##  is left as it is, so it has to belong to, or be writable for, this user.
+      ##  Without these, dolqd runs as 10001.
+      - "PUID=1000"
+      - "PGID=100"
+
+      ##  The time zone of the times in the log, such as Europe/Berlin. History is
+      ##  always kept in UTC, so this changes nothing else.
+      - "TZ=Etc/UTC"
+
       ##  Where XDCC downloads are saved. A client cannot choose another folder. It
       ##  is the folder mounted at /downloads under "volumes" below: change that
       ##  mount to save somewhere else, and leave this as it is.
-      DOLQ_DOWNLOAD_DIR: /downloads
+      - "DOLQ_DOWNLOAD_DIR=/downloads"
 
       ##  The access token clients present, instead of one that dolqd generates on
       ##  first start and keeps in the data folder. Anyone with it can use your
       ##  IRC sessions, so choose a long one.
-      #DOLQ_TOKEN: change-this-to-something-long-and-random
+      #- "DOLQ_TOKEN=change-this-to-something-long-and-random"
 
       ##  The name or IP that the pairing link gives clients. Needed only without
       ##  host networking, where dolqd cannot tell what address the NAS has from
       ##  the outside.
-      #DOLQ_PUBLIC_HOST: my-nas.local
+      #- "DOLQ_PUBLIC_HOST=my-nas.local"
 
       ##  The port the pairing link gives clients, when it is not the one dolqd
       ##  listens on: the left number of a mapping such as '7000:6789' under "ports".
-      #DOLQ_PUBLIC_PORT: '6789'
+      #- "DOLQ_PUBLIC_PORT=6789"
 
       ##  Also accept plain connections without a token, on the same port, for
       ##  clients from before access tokens existed. Anyone who can reach the port
       ##  can then use it. Cannot be combined with -tls=false or -token=false.
-      #DOLQ_ALLOW_LEGACY_PLAIN: '1'
+      #- "DOLQ_ALLOW_LEGACY_PLAIN=1"
 
     ## ==========================================================================
     ##  Command line options
@@ -159,8 +188,8 @@ services:
       ##  Where XDCC downloads are saved. To save them somewhere else, such as
       ##  /volume1/video/anime, replace the line below with the longer form under
       ##  it. Leave the target as /downloads. A folder that Docker has to create is
-      ##  handed to dolqd. One that already exists must be writable for user 10001,
-      ##  which dolqd runs as (or for the "user" above), or the log says it is not.
+      ##  handed to dolqd. One that already exists must be owned by, or writable for,
+      ##  the user dolqd runs as (PUID and PGID above), or the log says it is not.
       - ./downloads:/downloads
 
       ##  The longer form, for a path on a share: it must exist, or nothing starts.
