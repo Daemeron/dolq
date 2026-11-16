@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/Daemeron/dolq/backend/internal/dcc"
+	"github.com/Daemeron/dolq/backend/internal/disk"
 	"github.com/Daemeron/dolq/backend/internal/history"
 	"github.com/Daemeron/dolq/backend/internal/ircclient"
 	"github.com/Daemeron/dolq/backend/internal/ircparse"
@@ -228,7 +229,7 @@ func (b *Bouncer) runXDCCTransfer(id, serverID string, offer ircparse.XDCCSendOf
 	})
 	sub.SendStatus(id, "disconnected")
 	if err != nil {
-		log.Printf("bouncer: XDCC transfer %s: %v", id, err)
+		log.Printf("bouncer: XDCC transfer %s: %v (%s: %s)", id, err, filepath.Dir(destPath), disk.Describe(filepath.Dir(destPath)))
 		sub.SendEvent(id, XDCCTransferEvent{Type: "XDCCTRANSFER", Path: destPath, Error: err.Error()})
 		b.recordTransfer(serverID, offer.Nick, fmt.Sprintf("Download of %s failed: %s", offer.Filename, err))
 		b.keepTransfer(t, history.Transfer{ID: id, ServerID: serverID, Nick: offer.Nick, Filename: offer.Filename, Total: size, Path: destPath, Error: err.Error()})
