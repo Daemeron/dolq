@@ -6,12 +6,12 @@ on:
       - main
   pull_request:
 
+# The checks are separate jobs so they run side by side, which takes the time of the slowest rather than the sum of all.
+# The ruleset on main requires one check called "build-and-test", so the last job of that name gathers their results.
 jobs:
-  build-and-test:
+  backend:
+    name: Backend
     runs-on: ubuntu-24.04
-    # Only the step that publishes the coverage badges writes anything, and only on a push to main.
-    permissions:
-      contents: write
     steps:
       - uses: actions/checkout@v7
 
@@ -33,7 +33,18 @@ jobs:
         working-directory: backend
         env:
           COVERAGE_OUT: ${{ github.workspace }}/backend-coverage.txt
+      - uses: actions/upload-artifact@v7
+        if: github.event_name == 'push'
+        with:
+          name: backend-coverage
+          path: backend-coverage.txt
+          retention-days: 1
 
+  lint:
+    name: Lint and types
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
           node-version: 24
@@ -43,16 +54,81 @@ jobs:
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
       - run: npx biome ci .
       - run: npm run frontend:typecheck
-      - run: npx electron-vite build
+
+  unit-tests:
+    name: Unit tests
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: 1
       # fails below the thresholds in vitest.config.mts
       - run: npx vitest run --coverage
-      # npm ci skipped the Electron download above; the smoke test needs the real binary
-      - run: node node_modules/electron/install.js
+      - uses: actions/upload-artifact@v7
+        if: github.event_name == 'push'
+        with:
+          name: frontend-coverage
+          path: coverage/coverage-summary.json
+          retention-days: 1
+
+  e2e:
+    name: End-to-end
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      # the app builds its own backend from source when it is not packaged
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      # the smoke test needs the real Electron binary, so it is downloaded here
+      - run: npm ci
+      - run: npx electron-vite build
       - run: xvfb-run --auto-servernum npx playwright test
 
-      # The README shows the coverage badges from the badges branch, which only a push to main updates.
+  # The name the ruleset on main requires. Passes only when every check above did.
+  build-and-test:
+    needs: [backend, lint, unit-tests, e2e]
+    if: always()
+    runs-on: ubuntu-24.04
+    steps:
+      - env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "results: $RESULTS"
+          for r in $RESULTS; do [ "$r" = success ] || exit 1; done
+
+  # The README shows the coverage badges from the badges branch, which only a push to main updates.
+  coverage-badges:
+    name: Coverage badges
+    if: github.event_name == 'push'
+    needs: [backend, unit-tests]
+    runs-on: ubuntu-24.04
+    # Only this job writes anything.
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - uses: actions/download-artifact@v8
+        with:
+          name: backend-coverage
+      - uses: actions/download-artifact@v8
+        with:
+          name: frontend-coverage
+          path: coverage
       - name: Publish coverage badges
-        if: github.event_name == 'push'
         env:
           REMOTE: https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git
         run: |
