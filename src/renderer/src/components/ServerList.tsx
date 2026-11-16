@@ -56,10 +56,8 @@ export function ServerList({
           data-tip="Dashboard"
           aria-current={dashboardActive || undefined}
           onClick={onOpenDashboard}
-          className={`has-tip tip-right flex w-10.5 h-10.5 shrink-0 cursor-pointer select-none items-center justify-center rounded-[13px] border-0 bg-transparent p-0 transition-[border-radius] duration-150 hover:rounded-2xl hover:bg-(--dolq-bg-row-hover) hover:text-(--dolq-text) ${
-            dashboardActive
-              ? 'bg-(--dolq-bg-row-selected) text-(--dolq-text) ring-2 ring-offset-2 ring-(--dolq-text) ring-offset-(--dolq-bg-panel-alt)'
-              : 'text-(--dolq-text-muted)'
+          className={`has-tip tip-right flex w-10.5 h-10.5 shrink-0 cursor-pointer select-none items-center justify-center rounded-[13px] border-0 bg-(--dolq-accent) p-0 text-(--dolq-on-accent) transition-[border-radius] duration-150 hover:rounded-2xl hover:bg-(--dolq-accent-hover) ${
+            dashboardActive ? 'ring-2 ring-offset-2 ring-(--dolq-text) ring-offset-(--dolq-bg-panel-alt)' : ''
           }`}
         >
           <DolqMark className="h-8 w-auto" />
