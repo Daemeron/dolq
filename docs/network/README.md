@@ -14,6 +14,7 @@ preview does the same.
 | [File transfers](file-transfers.md) | DCC chat, XDCC downloads (including resume and pause) and sending a file |
 | [App and internet](app-and-internet.md) | Update checks, links, packlist pages, `irc://` links |
 | [Container and pairing](container-and-pairing.md) | Running `dolqd` in Docker or on a NAS: ports, host networking, the pairing link, Let's Encrypt |
+| [Dashboard monitoring](dashboard-monitoring.md) | Where the numbers on the dashboard's backend card come from, and what the colours mean |
 
 ## The big picture
 

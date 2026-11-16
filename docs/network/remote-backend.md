@@ -137,7 +137,8 @@ sequenceDiagram
 ## Keeping the link alive
 
 TCP keepalive is on (30 s), but an operating system can take minutes to notice a dead link after a sleep, a NAT
-timeout or a NAS reboot. So the app checks for itself.
+timeout or a NAS reboot. So the app checks for itself, and the same check measures the round trip and asks the
+backend how it is doing (see [Dashboard monitoring](dashboard-monitoring.md)).
 
 ```mermaid
 sequenceDiagram
@@ -146,9 +147,10 @@ sequenceDiagram
     participant D as dolqd
 
     loop every 20 seconds while connected
-        B->>D: getJoinedChannels for a server that does not exist<br/>(cheap, no side effects)
+        B->>D: getInfo (the backend describes itself)
         alt answered within 10 seconds
-            D-->>B: result (any answer proves the link is alive)
+            D-->>B: result, even "unknown action" from an older backend
+            Note over B: the time it took is kept as a round trip,<br/>and the backend's report is kept
         else no answer in 10 seconds
             Note over B: log: The backend stopped answering. Reconnecting…
             B->>B: destroy the socket
@@ -156,6 +158,9 @@ sequenceDiagram
         end
     end
 ```
+
+The answer comes from memory: the backend reads the free space of its folders in the background, never while an app
+waits, so a disk or a network share that stalls cannot make a healthy backend look dead.
 
 ## When the link drops
 
