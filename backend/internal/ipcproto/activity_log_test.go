@@ -48,7 +48,7 @@ func waitForLog(t *testing.T, out *logBuffer, want string) {
 	t.Fatalf("the log never said %q, it says:\n%s", want, out.String())
 }
 
-func TestTheLogSaysWhenAClientConnectsAuthenticatesAndLeaves(t *testing.T) {
+func TestLogShowsClientLifecycle(t *testing.T) {
 	out := captureLog(t)
 	tc := dialTestClient(t, startAuthServer(t, "s3cret"))
 	tc.send(t, ClientFrame{ID: "1", Action: ActionAuth, AuthToken: "s3cret"})
@@ -64,7 +64,7 @@ func TestTheLogSaysWhenAClientConnectsAuthenticatesAndLeaves(t *testing.T) {
 	}
 }
 
-func TestTheLogSaysWhyAClientWasRefused(t *testing.T) {
+func TestLogShowsRefusedClient(t *testing.T) {
 	out := captureLog(t)
 	tc := dialTestClient(t, startAuthServer(t, "s3cret"))
 	tc.send(t, ClientFrame{ID: "1", Action: ActionAuth, AuthToken: "guess"})
@@ -75,7 +75,7 @@ func TestTheLogSaysWhyAClientWasRefused(t *testing.T) {
 	}
 }
 
-func TestTheLogSaysWhenAConnectionHangsUpWithoutAuthenticating(t *testing.T) {
+func TestLogShowsProbeHangUp(t *testing.T) {
 	out := captureLog(t)
 	tc := dialTestClient(t, startAuthServer(t, "s3cret"))
 	tc.conn.Close()
