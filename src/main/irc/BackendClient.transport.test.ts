@@ -108,6 +108,41 @@ describe('local backend', () => {
     expect(h.stopChild).toHaveBeenCalled();
   });
 
+  const nas = { host: 'nas', port: 6789, tls: true, token: 'tok', fingerprint: 'AA:BB' };
+
+  it('stops its own backend and goes to a remote one when switched while running', async () => {
+    const client = new BackendClient(0);
+    await client.getStatus('s1');
+    const child = h.spawned[0];
+    let reconnected = 0;
+    client.on('reconnected', () => reconnected++);
+
+    client.retarget(nas);
+
+    expect(h.stopChild).toHaveBeenCalledWith(child, 12_000);
+    await vi.waitFor(() => expect(reconnected).toBe(1));
+    expect(client.getState()).toMatchObject({ mode: 'remote', address: 'nas:6789', status: 'connected' });
+    expect(h.spawned).toHaveLength(1);
+    await client.stop();
+  });
+
+  it('starts nothing when switched to a remote backend before its own was started', async () => {
+    const client = new BackendClient(0);
+    client.retarget(nas);
+    await vi.waitFor(() => expect(client.getState()).toMatchObject({ mode: 'remote', status: 'connected' }));
+    expect(h.spawned).toHaveLength(0);
+    await client.stop();
+  });
+
+  it('starts its own backend again when switched back from a remote one', async () => {
+    const client = new BackendClient(0, nas);
+    await vi.waitFor(() => expect(client.getState().status).toBe('connected'));
+    client.retarget(undefined);
+    await vi.waitFor(() => expect(h.spawned).toHaveLength(1));
+    await vi.waitFor(() => expect(client.getState()).toMatchObject({ mode: 'local', status: 'connected' }));
+    await client.stop();
+  });
+
   it('reports a crash of the local backend as fatal', async () => {
     const client = new BackendClient(0);
     const seen = fatals(client);
