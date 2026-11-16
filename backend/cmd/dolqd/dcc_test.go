@@ -68,9 +68,11 @@ func TestAutoAsksTheRouterAndIsNotAnAddress(t *testing.T) {
 	if !strings.Contains(lines, "router's public address") || strings.Contains(lines, "warning") {
 		t.Errorf("a plain machine with auto should say what it will do, and not warn:\n%s", lines)
 	}
+	// A container cannot tell host networking from a bridge, so it must not warn about being one: it would be wrong for
+	// everyone who set it up right. A search that finds no router says why, host networking included.
 	lines = strings.Join(dccLines(dccSettings{auto: true}, true, announce), "\n")
-	if !strings.Contains(lines, "warning") || !strings.Contains(lines, "network_mode: host") {
-		t.Errorf("a container with auto needs host networking, and should say so:\n%s", lines)
+	if strings.Contains(lines, "warning") {
+		t.Errorf("a container with auto was warned, which is wrong when it is on host networking:\n%s", lines)
 	}
 }
 
