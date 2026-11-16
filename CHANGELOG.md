@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.15.1](https://github.com/Daemeron/dolq/compare/dolq-v0.15.0...dolq-v0.15.1) (2026-11-16)
+
+
+### Bug Fixes
+
+* **app:** sign the macOS app as itself so macOS lets it use the local network ([16e8cd2](https://github.com/Daemeron/dolq/commit/16e8cd240ff13b19b62eb7630b8bf8ce19891b41))
+
 ## [0.15.0](https://github.com/Daemeron/dolq/compare/dolq-v0.14.0...dolq-v0.15.0) (2026-11-16)
 
 
