@@ -130,17 +130,39 @@ services:
     ## ==========================================================================
     ##  Folders (left of the colon: on the NAS. Right of it: inside the container.)
     ## ==========================================================================
+    ##  The folders below are next to this file, so they exist as long as this file
+    ##  does, and Docker creates them on the first start.
+    ##
+    ##  A path to somewhere else on the NAS, such as a file share, is different. If
+    ##  that share is gone (not mounted yet after a restart, or lost), Docker does
+    ##  not complain: it creates an empty folder at that path on the NAS's small
+    ##  system disk, and dolqd writes there until the disk is full, with "no space
+    ##  left on device" for an error. For such a path use the longer form shown
+    ##  below, where a missing folder stops the container from starting instead.
+    ##
+    ##  Use the share's real path: /volume1/<ShareName> on Synology, and
+    ##  /share/<ShareName> on QNAP (a path such as /<ShareName>, without /share, is
+    ##  not the share but a folder on the NAS's small system disk).
+    ##
+    ##  At start the log also says how much room each folder has, and warns when it
+    ##  is almost none, or when a folder is not a mounted volume.
     volumes:
 
       ##  Everything dolqd keeps: the message history (history.db), the access
       ##  token, and the TLS certificate and key. It survives upgrades, and can be
-      ##  backed up or moved as it is. Relative paths start at this file's folder;
-      ##  use a full path such as /volume1/docker/dolq/data to put it anywhere.
+      ##  backed up or moved as it is.
       - ./data:/data
 
-      ##  Where XDCC downloads are saved. Change the part before the colon to save
-      ##  them somewhere else, such as /volume1/video/anime; leave /downloads as
-      ##  it is. A folder that Docker has to create is handed to dolqd. One that
-      ##  already exists must be writable for user 10001, which dolqd runs as (or
-      ##  for the "user" above), or the log says it is not.
+      ##  Where XDCC downloads are saved. To save them somewhere else, such as
+      ##  /volume1/video/anime, replace the line below with the longer form under
+      ##  it. Leave the target as /downloads. A folder that Docker has to create is
+      ##  handed to dolqd. One that already exists must be writable for user 10001,
+      ##  which dolqd runs as (or for the "user" above), or the log says it is not.
       - ./downloads:/downloads
+
+      ##  The longer form, for a path on a share: it must exist, or nothing starts.
+      #- type: bind
+      #  source: /volume1/video/anime
+      #  target: /downloads
+      #  bind:
+      #    create_host_path: false
