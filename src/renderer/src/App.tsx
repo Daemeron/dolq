@@ -35,6 +35,7 @@ import { attemptConnect } from './utils/connectAttempt';
 import { describeEvent, eventChannels } from './utils/eventMessages';
 import { formatEntry } from './utils/exportFormat';
 import { canLoadOlder, dropServerPages, type HistoryPage, linesToStore, pagesToReload } from './utils/historyPages';
+import { ipcErrorMessage } from './utils/ipcError';
 import { comboFromEvent } from './utils/keybind';
 import { locationTitle } from './utils/locationTitle';
 import { isChannelScopedLine, routeLogLine } from './utils/logFilter';
@@ -642,12 +643,40 @@ export default function App() {
     ],
   );
 
-  const startXDCCDownload = useCallback(async (offer: PendingXDCCOffer) => {
-    const { serverId, nick, filename, ip, port, size, token } = offer;
-    const id = await window.irc.xdccAccept(serverId, nick, ip, port, filename, size, token);
-    setTransfers((prev) => ({ ...prev, [id]: { serverId, nick, filename, received: 0, total: size, path: '' } }));
-    setTransfersUnseen(true);
-  }, []);
+  const startXDCCDownload = useCallback(
+    async (offer: PendingXDCCOffer) => {
+      const { serverId, nick, filename, ip, port, size, token } = offer;
+      try {
+        const id = await window.irc.xdccAccept(serverId, nick, ip, port, filename, size, token);
+        setTransfers((prev) => ({ ...prev, [id]: { serverId, nick, filename, received: 0, total: size, path: '' } }));
+      } catch (err) {
+        // The backend refused it (no room, a folder it cannot write, no such connection). The sender is left waiting
+        // for a connection until it gives up, so say why here, in its chat and in the transfers.
+        const reason = ipcErrorMessage(err);
+        setTransfers((prev) => ({
+          ...prev,
+          [`refused:${crypto.randomUUID()}`]: {
+            serverId,
+            nick,
+            filename,
+            received: 0,
+            total: size,
+            path: '',
+            error: reason,
+          },
+        }));
+        appendMessage(scopeKey(serverId, dmKey(serverId, '', nick)), {
+          id: nextMsgId.current++,
+          nick: '',
+          text: `*** Could not accept ${filename}: ${reason}`,
+          timestamp: new Date(),
+          system: true,
+        });
+      }
+      setTransfersUnseen(true);
+    },
+    [appendMessage, dmKey],
+  );
 
   const isIgnored = useCallback(
     (serverId: string, nick: string): boolean => {
