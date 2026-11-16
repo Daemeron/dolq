@@ -45,6 +45,7 @@ import { buildServerId, normalizeHost, resolveHostPort, serverColor, serverIniti
 import { transferRates } from './utils/transferRate';
 import { updateSpeed } from './utils/transferSpeed';
 import { computeAwayStats } from './utils/unread';
+import { createWhoisFilter } from './utils/whoisFilter';
 import {
   queryXdccText,
   takeAutoAccept,
@@ -75,10 +76,11 @@ const FONT_FAMILY_STACKS: Record<'system' | 'serif' | 'monospace', string> = {
 
 function toMessages(entries: HistoryEntry[], forLog: boolean, selfNick: string): Message[] {
   const messages: Message[] = [];
+  const isWhoisLine = createWhoisFilter();
   for (const e of entries) {
     const timestamp = new Date(e.timestamp);
     if (forLog) {
-      if (e.isRaw && !isChannelScopedLine(e.line ?? '')) {
+      if (e.isRaw && !isChannelScopedLine(e.line ?? '') && !isWhoisLine(e.line ?? '')) {
         const route = routeLogLine(e.line ?? '');
         if (route.to !== 'pm') {
           const important = route.to === 'log' ? route.important : true;
@@ -261,6 +263,7 @@ export default function App() {
   // The latest transfers, for event handlers that must act on one without doing it inside a state updater.
   const transfersRef = useRef(transfers);
   transfersRef.current = transfers;
+  const whoisFilters = useRef(new Map<string, (line: string) => boolean>());
   const transferSpeedTrack = useRef<Record<string, { received: number; at: number }>>({});
   const [update, setUpdate] = useState<UpdateStatus | null>(null);
   const [pendingIdentifyServerId, setPendingIdentifyServerId] = useState<string | null>(null);
@@ -557,6 +560,10 @@ export default function App() {
         return;
       }
       if (isChannelScopedLine(line)) return;
+      // The reply to a WHOIS is shown in its window; the line is still kept in the history.
+      let isWhoisLine = whoisFilters.current.get(serverId);
+      if (!isWhoisLine) whoisFilters.current.set(serverId, (isWhoisLine = createWhoisFilter()));
+      if (isWhoisLine(line)) return;
       const route = routeLogLine(line);
       if (route.to === 'pm') {
         ensureQuery(serverId, route.nick);
