@@ -18,6 +18,8 @@ type Props = {
   awayDisabled: boolean;
   onToggleAway: () => void;
   transfers: Record<string, Transfer>;
+  /** Something started or ended in Transfers since it was last open. */
+  transfersUnseen: boolean;
   /** A newer version of Dolq, if there is one. */
   update: UpdateStatus | null;
   onUpdate: () => void;
@@ -40,13 +42,13 @@ export function TitleBar({
   awayDisabled,
   onToggleAway,
   transfers,
+  transfersUnseen,
   update,
   onUpdate,
   showTransfers,
   onToggleTransfers,
 }: Props) {
   const [peek, setPeek] = useState(false);
-  const transferCount = Object.keys(transfers).length;
   return (
     <header
       // Off macOS the OS draws the window controls over the right end; on macOS the traffic lights take the left.
@@ -80,7 +82,7 @@ export function TitleBar({
             icon="download"
             label="Transfers"
             on={showTransfers}
-            badge={transferCount > 0}
+            badge={transfersUnseen}
             onClick={onToggleTransfers}
           />
           {peek && !showTransfers && <TransfersPeek transfers={transfers} />}

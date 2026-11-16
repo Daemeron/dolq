@@ -256,6 +256,8 @@ export default function App() {
   const channelsAsked = useRef(new Set<string>());
   const channelsSettled = useRef(new Set<string>());
   const [transfers, setTransfers] = useState<Record<string, Transfer & { serverId: string; path: string }>>({});
+  // Something started or ended in Transfers since it was last open.
+  const [transfersUnseen, setTransfersUnseen] = useState(false);
   // The latest transfers, for event handlers that must act on one without doing it inside a state updater.
   const transfersRef = useRef(transfers);
   transfersRef.current = transfers;
@@ -635,6 +637,7 @@ export default function App() {
     const { serverId, nick, filename, ip, port, size, token } = offer;
     const id = await window.irc.xdccAccept(serverId, nick, ip, port, filename, size, token);
     setTransfers((prev) => ({ ...prev, [id]: { serverId, nick, filename, received: 0, total: size, path: '' } }));
+    setTransfersUnseen(true);
   }, []);
 
   const isIgnored = useCallback(
@@ -813,6 +816,7 @@ export default function App() {
             delete transferSpeedTrack.current[id];
             const finished = transfersRef.current[id];
             if (!finished) break;
+            setTransfersUnseen(true);
             const text = finished.sending
               ? event.error
                 ? `Sending ${finished.filename} failed: ${event.error}`
@@ -1414,6 +1418,11 @@ export default function App() {
   const membersLive = connectionStatus === 'connected' && selectedChannel?.joined === true;
   const [showMembers, setShowMembers] = useState(true);
   const [showTransfers, setShowTransfers] = useState(false);
+  // While Transfers is open, what happens in it is seen as it happens.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: runs again when the flag is raised while Transfers is open
+  useEffect(() => {
+    if (showTransfers) setTransfersUnseen(false);
+  }, [showTransfers, transfersUnseen]);
   const mentionedHere = channels
     .filter((c) => mentionedChannels[c.id])
     .map((c) => ({ id: c.id, label: c.isQuery ? `@${c.name}` : `#${c.name}` }));
@@ -1684,6 +1693,7 @@ export default function App() {
         awayDisabled={connectedIds.length === 0}
         onToggleAway={handleToggleAwayAll}
         transfers={transfers}
+        transfersUnseen={transfersUnseen}
         update={update}
         onUpdate={handleUpdate}
         showTransfers={showTransfers}

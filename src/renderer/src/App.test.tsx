@@ -1415,6 +1415,23 @@ describe('App: transfers', () => {
     done: true,
   });
 
+  it('flags new transfer activity on the button until Transfers is opened', async () => {
+    const irc = await mount({ getTransfers: [saved('old-1', 'old.iso')] });
+    expect(screen.queryByTestId('icon-badge')).toBeNull();
+    await irc.event('s1', offer);
+    await fire.click(await screen.findByRole('button', { name: 'Accept' }));
+    await waitFor(() => expect(screen.getByTestId('icon-badge')).toBeTruthy());
+    await fire.click(screen.getByRole('button', { name: 'Transfers' }));
+    await waitFor(() => expect(screen.queryByTestId('icon-badge')).toBeNull());
+    await irc.event('xfer-1', { type: 'XDCCTRANSFER', received: 2048, total: 2048, path: '/dl/f.iso', done: true });
+    await waitFor(() => expect(screen.getAllByText('Saved in /dl')).toHaveLength(2));
+    expect(screen.queryByTestId('icon-badge')).toBeNull();
+    await fire.click(screen.getByRole('button', { name: 'Close' }));
+    await irc.event('s1', { ...offer, filename: 'g.iso' });
+    await fire.click(await screen.findByRole('button', { name: 'Accept' }));
+    await waitFor(() => expect(screen.getByTestId('icon-badge')).toBeTruthy());
+  });
+
   it('lists transfers the backend kept from an earlier run', async () => {
     await mount({ getTransfers: [saved('old-1', 'old.iso')] });
     await fire.click(await screen.findByRole('button', { name: 'Transfers' }));
