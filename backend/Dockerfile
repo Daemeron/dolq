@@ -18,7 +18,9 @@ WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN CGO_ENABLED=0 go build -o /dolqd ./cmd/dolqd
+# the release workflow passes the release version; a local build reports "dev"
+ARG VERSION=dev
+RUN CGO_ENABLED=0 go build -ldflags "-X main.version=${VERSION}" -o /dolqd ./cmd/dolqd
 
 FROM alpine:3.24
 # a fixed uid so volumes and Kubernetes securityContext can refer to it

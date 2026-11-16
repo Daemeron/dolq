@@ -32,14 +32,18 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # Release tags are dolq-v0.12.0, which the tag action does not take for a version, so it is given the bare number.
+      - id: version
+        run: echo "value=${GITHUB_REF_NAME#dolq-v}" >> "$GITHUB_OUTPUT"
+
       # Image names must be lowercase; the action lowercases the owner for us.
       - id: meta
         uses: docker/metadata-action@v6
         with:
           images: ghcr.io/${{ github.repository_owner }}/dolqd
           tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{version}},value=${{ steps.version.outputs.value }},enable=${{ github.event_name == 'release' }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ steps.version.outputs.value }},enable=${{ github.event_name == 'release' }}
             type=raw,value=latest,enable=${{ github.event_name == 'release' }}
             type=sha,enable=${{ github.event_name == 'workflow_dispatch' }}
 
@@ -48,6 +52,7 @@ jobs:
           context: backend
           file: backend/Dockerfile
           platforms: linux/amd64,linux/arm64
+          build-args: VERSION=${{ steps.meta.outputs.version }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

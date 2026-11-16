@@ -335,3 +335,16 @@ func TestResolveDBPathReportsAnUnusableConfigDir(t *testing.T) {
 		t.Errorf("fatal = %q, want the create problem", got)
 	}
 }
+
+func TestVersionFlagPrintsTheVersionAndExits(t *testing.T) {
+	old := version
+	version = "1.2.3"
+	t.Cleanup(func() { version = old })
+	var out strings.Builder
+	if err := run(context.Background(), []string{"-version"}, &out); err != nil {
+		t.Fatal(err)
+	}
+	if out.String() != "dolqd 1.2.3\n" {
+		t.Fatalf("printed %q", out.String())
+	}
+}
