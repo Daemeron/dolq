@@ -9,7 +9,7 @@ export function TransfersPeek({ transfers }: { transfers: Record<string, Transfe
   return (
     <div
       role="tooltip"
-      className="absolute top-full right-0 z-40 mt-1 w-72 rounded-xl border border-(--dolq-border) bg-(--dolq-bg-raised) py-1 shadow-(--dolq-shadow)"
+      className="absolute top-full right-0 z-40 mt-1 w-[28rem] max-w-[90vw] rounded-xl border border-(--dolq-border) bg-(--dolq-bg-raised) py-1 shadow-(--dolq-shadow)"
     >
       {active.length === 0 ? (
         <p className="m-0 px-4 py-3 text-[13px] text-(--dolq-text-faint)">Nothing is transferring.</p>
