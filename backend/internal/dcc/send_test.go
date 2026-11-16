@@ -304,3 +304,40 @@ func TestParseSendOfferRejectsMalformedOffers(t *testing.T) {
 		}
 	}
 }
+
+func TestParseAddress(t *testing.T) {
+	cases := []struct {
+		in   string
+		want string
+		ok   bool
+	}{
+		{"3232235777", "192.168.1.1", true}, // IPv4 written as one number
+		{"0", "0.0.0.0", true},              // what a passive offer carries
+		{"192.168.1.1", "192.168.1.1", true},
+		{"2001:db8::1", "2001:db8::1", true},
+		{"2001:0db8:0:0:0:0:0:1", "2001:db8::1", true}, // written out, read back in its short form
+		{"::1", "::1", true},
+		{"::ffff:192.168.1.1", "192.168.1.1", true},
+		{"", "", false},
+		{"notanip", "", false},
+		{"4294967296", "", false},    // too big for IPv4
+		{"1.2.3", "", false},         // not an address
+		{"fe80::1%en0", "", false},   // a zone cannot be dialled from another machine
+		{"[2001:db8::1]", "", false}, // brackets belong to host:port, not to an address
+		{"2001:db8::1:", "", false},
+	}
+	for _, c := range cases {
+		got, ok := ParseAddress(c.in)
+		if got != c.want || ok != c.ok {
+			t.Errorf("ParseAddress(%q) = %q, %v; want %q, %v", c.in, got, ok, c.want, c.ok)
+		}
+	}
+}
+
+func TestParseSendOfferReadsAnIPv6Sender(t *testing.T) {
+	got, ok := ParseSendOffer(`SEND "pack 12.mkv" 2001:db8::1 5000 1048576 9`)
+	want := SendOffer{Filename: "pack 12.mkv", IP: "2001:db8::1", Port: 5000, Size: 1048576, Token: "9"}
+	if !ok || got != want {
+		t.Errorf("got %+v, %v; want %+v", got, ok, want)
+	}
+}

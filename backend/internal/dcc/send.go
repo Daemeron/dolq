@@ -21,6 +21,19 @@ type SendOffer struct {
 	Token    string
 }
 
+// ParseAddress reads the address of a DCC request. IPv4 is written as one number (192.168.1.1 is 3232235777). IPv6 has no
+// such form, so clients such as HexChat and irssi write it as the text of the address (2001:db8::1), and so do bots.
+// An IPv4 address written with dots is accepted too. The result is the address as text, ready to dial.
+func ParseAddress(s string) (string, bool) {
+	if n, err := strconv.ParseUint(s, 10, 32); err == nil {
+		return DecodeIP(uint32(n)).String(), true
+	}
+	if ip := net.ParseIP(s); ip != nil {
+		return ip.String(), true
+	}
+	return "", false
+}
+
 func ParseSendOffer(param string) (SendOffer, bool) {
 	rest, ok := strings.CutPrefix(param, "SEND ")
 	if !ok {
@@ -35,8 +48,8 @@ func ParseSendOffer(param string) (SendOffer, bool) {
 	if len(fields) < 3 {
 		return SendOffer{}, false
 	}
-	ipNum, err := strconv.ParseUint(fields[0], 10, 32)
-	if err != nil {
+	ip, ok := ParseAddress(fields[0])
+	if !ok {
 		return SendOffer{}, false
 	}
 	port, err := strconv.Atoi(fields[1])
@@ -47,7 +60,7 @@ func ParseSendOffer(param string) (SendOffer, bool) {
 	if err != nil {
 		return SendOffer{}, false
 	}
-	offer := SendOffer{Filename: filename, IP: DecodeIP(uint32(ipNum)).String(), Port: port, Size: size}
+	offer := SendOffer{Filename: filename, IP: ip, Port: port, Size: size}
 	if len(fields) >= 4 {
 		offer.Token = fields[3]
 	}

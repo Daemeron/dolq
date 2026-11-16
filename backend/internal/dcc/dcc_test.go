@@ -265,3 +265,29 @@ func TestLocalIPIsAUsableAddress(t *testing.T) {
 		t.Errorf("LocalIP = %v", ip)
 	}
 }
+
+func TestDialReachesAnIPv6Address(t *testing.T) {
+	ln, err := net.Listen("tcp6", "[::1]:0")
+	if err != nil {
+		t.Skipf("no IPv6 loopback here: %v", err)
+	}
+	defer ln.Close()
+	accepted := make(chan struct{})
+	go func() {
+		if conn, err := ln.Accept(); err == nil {
+			conn.Close()
+		}
+		close(accepted)
+	}()
+
+	conn, err := DialRaw("::1", ln.Addr().(*net.TCPAddr).Port)
+	if err != nil {
+		t.Fatalf("an IPv6 address was not dialled: %v", err)
+	}
+	conn.Close()
+	select {
+	case <-accepted:
+	case <-time.After(2 * time.Second):
+		t.Fatal("the listener never saw the connection")
+	}
+}

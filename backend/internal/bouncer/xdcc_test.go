@@ -68,6 +68,41 @@ func TestUniquePath(t *testing.T) {
 	}
 }
 
+func TestXDCCAcceptDownloadsFromAnIPv6Sender(t *testing.T) {
+	ln, err := net.Listen("tcp6", "[::1]:0")
+	if err != nil {
+		t.Skipf("no IPv6 loopback here: %v", err)
+	}
+	defer ln.Close()
+	content := []byte("a file offered from an IPv6 address")
+	go func() {
+		conn, err := ln.Accept()
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+		conn.Write(content)
+		io.Copy(io.Discard, conn)
+	}()
+
+	dir := t.TempDir()
+	b := New(nil)
+	sub := &fakeSubscriber{}
+	pipeSession(t, b, "server-a", sub)
+	offer := ircparse.XDCCSendOfferEvent{
+		Nick: "gattsu", Filename: "pack.mkv", IP: "::1", Port: ln.Addr().(*net.TCPAddr).Port, Size: int64(len(content)),
+	}
+	if _, err := b.XDCCAccept("server-a", offer, dir, 0, 0, sub); err != nil {
+		t.Fatalf("XDCCAccept: %v", err)
+	}
+	waitFor(t, func() bool { return sub.lastStatus() == "disconnected" })
+
+	got, err := os.ReadFile(filepath.Join(dir, "pack.mkv"))
+	if err != nil || string(got) != string(content) {
+		t.Fatalf("pack.mkv = %q, %v; want %q", got, err, content)
+	}
+}
+
 func TestXDCCAcceptResumesPartialFile(t *testing.T) {
 	dir := t.TempDir()
 	existing := []byte("0123456789")
