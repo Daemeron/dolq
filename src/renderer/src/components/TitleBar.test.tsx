@@ -17,6 +17,7 @@ function setup(over: Partial<React.ComponentProps<typeof TitleBar>> = {}) {
     awayDisabled: false,
     onToggleAway: vi.fn(),
     transfers: {},
+    transfersUnseen: false,
     update: null,
     onUpdate: vi.fn(),
     showTransfers: false,
@@ -62,10 +63,15 @@ describe('TitleBar', () => {
     expect(p.onToggleTransfers).toHaveBeenCalled();
   });
 
-  it('shows transfers as pressed with a badge while there are some', () => {
-    setup({ showTransfers: true, transfers: { a: bot, b: { ...bot, done: true } } });
+  it('shows transfers as pressed, with a badge only for what has not been seen', () => {
+    setup({ showTransfers: true, transfers: { a: bot, b: { ...bot, done: true } }, transfersUnseen: true });
     expect(screen.getByRole('button', { name: 'Transfers' })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByTestId('icon-badge')).toBeTruthy();
+  });
+
+  it('has no badge when there are transfers but nothing new', () => {
+    setup({ transfers: { a: bot, b: { ...bot, done: true } }, transfersUnseen: false });
+    expect(screen.queryByTestId('icon-badge')).toBeNull();
   });
 
   it('offers to come back when away, and does nothing with no connected server', () => {
