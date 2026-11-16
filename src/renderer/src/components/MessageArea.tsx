@@ -44,10 +44,12 @@ const TONE_COLOR: Record<LogTone, string> = {
   welcome: 'text-(--dolq-ok)',
   info: 'text-(--dolq-nick-7)',
   motd: 'text-(--dolq-nick-6)',
-  banner: 'text-(--dolq-brand-text)',
+  banner: 'text-(--dolq-accent-text)',
   notice: 'text-(--dolq-nick-2)',
   cap: 'text-(--dolq-download)',
   mode: 'text-(--dolq-warn)',
+  whois: 'text-(--dolq-nick-1)',
+  away: 'text-(--dolq-nick-4)',
   plain: 'text-(--dolq-text)',
 };
 
