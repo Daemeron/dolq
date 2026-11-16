@@ -15,6 +15,8 @@ on:
 
 permissions:
   contents: write
+  # to read the installers the release pull request built
+  actions: read
 
 jobs:
   build-binaries:
@@ -29,24 +31,55 @@ jobs:
         with:
           ref: ${{ inputs.tag }}
 
+      # The release pull request builds these installers before it can be merged. When one of its runs built this very
+      # tree (same Git tree id), those installers are published as they are. Anything else, such as a manual run or a
+      # tree that changed after the pull request, builds them here as before.
+      - name: Look for installers the release pull request already built
+        id: reuse
+        if: env.TAG != ''
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tree=$(git rev-parse 'HEAD^{tree}')
+          for run in $(gh run list --workflow release-pr-build-binaries.yml --status success --limit 30 --json databaseId --jq '.[].databaseId'); do
+            rm -rf pr-dist
+            if gh run download "$run" --name "installers-$RUNNER_OS" --dir pr-dist 2>/dev/null && [ "$(cat pr-dist/TREE 2>/dev/null)" = "$tree" ]; then
+              mkdir -p dist
+              rm pr-dist/TREE
+              cp pr-dist/* dist/
+              echo "reused=true" >> "$GITHUB_OUTPUT"
+              echo "Using the installers built by run $run for tree $tree"
+              exit 0
+            fi
+          done
+          echo "reused=false" >> "$GITHUB_OUTPUT"
+          echo "No installers built from tree $tree to reuse, building them"
+
       - uses: actions/setup-go@v7
+        if: steps.reuse.outputs.reused != 'true'
         with:
           go-version-file: backend/go.mod
           cache-dependency-path: backend/go.sum
       - run: go vet ./...
+        if: steps.reuse.outputs.reused != 'true'
         working-directory: backend
       - run: test -z "$(gofmt -l .)"
+        if: steps.reuse.outputs.reused != 'true'
         working-directory: backend
         shell: bash
       - run: go test ./...
+        if: steps.reuse.outputs.reused != 'true'
         working-directory: backend
 
       - uses: actions/setup-node@v7
+        if: steps.reuse.outputs.reused != 'true'
         with:
           node-version: 24
           cache: npm
       # electron-builder downloads Electron and its packaging tools on every run
       - uses: actions/cache@v6
+        if: steps.reuse.outputs.reused != 'true'
         with:
           path: |
             ~/.cache/electron
@@ -57,15 +90,18 @@ jobs:
             ~/AppData/Local/electron-builder/Cache
           key: electron-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
       - run: npm ci
+        if: steps.reuse.outputs.reused != 'true'
       - run: go build -C backend -o bin/ ./cmd/dolqd
+        if: steps.reuse.outputs.reused != 'true'
       - run: npx electron-vite build
+        if: steps.reuse.outputs.reused != 'true'
       - run: npx electron-builder --publish never
-        if: runner.os == 'Windows'
+        if: runner.os == 'Windows' && steps.reuse.outputs.reused != 'true'
         env:
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
       - run: npx electron-builder --publish never
-        if: runner.os != 'Windows'
+        if: runner.os != 'Windows' && steps.reuse.outputs.reused != 'true'
       - name: Upload macOS assets
         if: runner.os == 'macOS' && env.TAG != ''
         run: gh release upload "$TAG" dist/*.dmg dist/*.zip dist/latest-mac.yml --clobber
