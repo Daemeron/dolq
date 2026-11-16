@@ -59,13 +59,22 @@ func TestTheLogSaysWhenADCCOfferArrivesAndHowItIsAnswered(t *testing.T) {
 	// the client sends has to be read for the accept to get on.
 	go io.Copy(io.Discard, conn)
 	passive := ircparse.XDCCSendOfferEvent{Nick: "gattsu", Filename: "other.mkv", Size: 2048, Token: "7"}
-	if _, err := b.XDCCAccept("server-a", passive, t.TempDir(), 0, 0, sub); err != nil {
+	passiveID, err := b.XDCCAccept("server-a", passive, t.TempDir(), 0, 0, sub)
+	if err != nil {
 		t.Fatal(err)
 	}
+	// The passive transfer keeps its file open while it waits for the sender, and Windows will not delete an open file,
+	// so it is cancelled before the folder is removed (cleanups run last in, first out).
+	t.Cleanup(func() {
+		b.XDCCClose(passiveID)
+		waitFor(t, func() bool { return b.xdccTransfer(passiveID) == nil })
+	})
 	active := ircparse.XDCCSendOfferEvent{Nick: "gattsu", Filename: "pack.mkv", IP: "127.0.0.1", Port: 1, Size: 10}
-	if _, err := b.XDCCAccept("server-a", active, t.TempDir(), 0, 0, sub); err != nil {
+	activeID, err := b.XDCCAccept("server-a", active, t.TempDir(), 0, 0, sub)
+	if err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(func() { waitFor(t, func() bool { return b.xdccTransfer(activeID) == nil }) })
 	got = out.String()
 	for _, want := range []string{
 		"xdcc: accepted other.mkv from gattsu, waiting for it at ",
