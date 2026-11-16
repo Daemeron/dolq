@@ -158,6 +158,13 @@ func run(ctx context.Context, args []string, stdout io.Writer) error {
 			return fmt.Errorf("create download dir %s: %v", dir, err)
 		}
 		log.Printf("saving downloads to %s", dir)
+		inContainer := os.Getenv("DOLQ_CONTAINER") != ""
+		for _, line := range folderLines("data", filepath.Dir(resolveDBPath(*dbPath)), inContainer, machineFolderOps) {
+			log.Print(line)
+		}
+		for _, line := range folderLines("download", dir, inContainer, machineFolderOps) {
+			log.Print(line)
+		}
 		srv.DownloadDir(dir)
 	}
 

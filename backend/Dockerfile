@@ -28,6 +28,8 @@ RUN adduser -D -u 10001 -h /data dolq && apk add --no-cache su-exec
 COPY --from=build /dolqd /usr/local/bin/dolqd
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 # No USER here: the entrypoint starts as root to take over the data folder, then runs dolqd as dolq (uid 10001).
+# tells dolqd it runs in a container, so it can warn about a folder that is not a mounted volume
+ENV DOLQ_CONTAINER=1
 VOLUME /data
 EXPOSE 6789
 ENTRYPOINT ["docker-entrypoint.sh", "dolqd", "-addr", "0.0.0.0:6789", "-db", "/data/history.db"]
