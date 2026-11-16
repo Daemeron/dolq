@@ -1,5 +1,5 @@
-import { fireEvent, render } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { fireEvent, render, screen } from '@testing-library/react';
+import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import type { Message } from '../types';
 import { MessageArea } from './MessageArea';
 
@@ -472,5 +472,45 @@ describe('MessageArea: folded membership runs', () => {
     summaryHeight = 28;
     view.rerender(<MessageArea {...props} messages={lines()} />);
     expect(chatTop()).toBe(28);
+  });
+
+  describe('jumping to the latest line', () => {
+    const many = (): Message[] => Array.from({ length: 50 }, (_, i) => line(i + 1));
+    const scrollTo = (view: ReturnType<typeof render>, top: number) => {
+      const box = view.container.querySelector('.overflow-y-auto') as HTMLElement;
+      box.scrollTop = top;
+      fireEvent.scroll(box);
+    };
+
+    it('offers it once scrolled well up, and not near the bottom', () => {
+      setHeights(2000, 800);
+      const view = render(<MessageArea isLog timestampFormat="24h" density="cozy" channelId="c" messages={many()} />);
+      scrollTo(view, 1200);
+      expect(screen.queryByRole('button', { name: 'Jump to latest' })).toBeNull();
+      scrollTo(view, 200);
+      expect(screen.getByRole('button', { name: 'Jump to latest' })).toBeTruthy();
+      scrollTo(view, 1150);
+      expect(screen.queryByRole('button', { name: 'Jump to latest' })).toBeNull();
+    });
+
+    it('scrolls to the newest line when clicked', () => {
+      setHeights(2000, 800);
+      const scrolled = vi.fn();
+      const original = HTMLElement.prototype.scrollTo;
+      HTMLElement.prototype.scrollTo = scrolled;
+      onTestFinished(() => {
+        HTMLElement.prototype.scrollTo = original;
+      });
+      const view = render(<MessageArea isLog timestampFormat="24h" density="cozy" channelId="c" messages={many()} />);
+      scrollTo(view, 0);
+      fireEvent.click(screen.getByRole('button', { name: 'Jump to latest' }));
+      expect(scrolled).toHaveBeenCalled();
+    });
+
+    it('is not offered when everything fits', () => {
+      setHeights(500, 800);
+      render(<MessageArea isLog timestampFormat="24h" density="cozy" channelId="c" messages={[line(1)]} />);
+      expect(screen.queryByRole('button', { name: 'Jump to latest' })).toBeNull();
+    });
   });
 });
