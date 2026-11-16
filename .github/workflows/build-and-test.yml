@@ -9,6 +9,9 @@ on:
 jobs:
   build-and-test:
     runs-on: ubuntu-24.04
+    # Only the step that publishes the coverage badges writes anything, and only on a push to main.
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v7
 
@@ -28,6 +31,8 @@ jobs:
       # race detector plus a minimum total coverage (backend/scripts/check-coverage.sh)
       - run: ./scripts/check-coverage.sh
         working-directory: backend
+        env:
+          COVERAGE_OUT: ${{ github.workspace }}/backend-coverage.txt
 
       - uses: actions/setup-node@v7
         with:
@@ -44,3 +49,25 @@ jobs:
       # npm ci skipped the Electron download above; the smoke test needs the real binary
       - run: node node_modules/electron/install.js
       - run: xvfb-run --auto-servernum npx playwright test
+
+      # The README shows the coverage badges from the badges branch, which only a push to main updates.
+      - name: Publish coverage badges
+        if: github.event_name == 'push'
+        env:
+          REMOTE: https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git
+        run: |
+          node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/write-coverage-badges.mjs
+          if git ls-remote --exit-code --heads "$REMOTE" badges >/dev/null; then
+            git clone --quiet --depth 1 --branch badges "$REMOTE" "$RUNNER_TEMP/badges"
+          else
+            git init --quiet --initial-branch badges "$RUNNER_TEMP/badges"
+            git -C "$RUNNER_TEMP/badges" remote add origin "$REMOTE"
+          fi
+          cp badges/*.json "$RUNNER_TEMP/badges/"
+          cd "$RUNNER_TEMP/badges"
+          git add .
+          if ! git diff --cached --quiet; then
+            git -c user.name=github-actions[bot] -c user.email=41898282+github-actions[bot]@users.noreply.github.com \
+              commit --quiet -m "Update coverage badges"
+            git push --quiet origin badges
+          fi
