@@ -1,41 +1,74 @@
-// Shown on the splash, one at random per start. Kept short enough to sit under the name: a few lines, narrow.
+// Shown on the splash, one at random per start: well-known chat memes, drawn as a small figure with the chat lines beside it.
+// Kept short enough to sit under the name: six lines, narrow.
 export const JOKES: string[] = [
-  `*** Netsplit: irc.eu.net <-> irc.us.net
-    Everyone is quit. Nobody is surprised.`,
+  // Hello there / General Kenobi
+  `  O     <obiwan> Hello there!
+ /|\\==-
+ / \\
+ \\O/    <grievous> General Kenobi!
+ -|-
+ / \\`,
 
-  `<ghost_> I swear I was online
-*** ghost_ has quit (Ping timeout: 240 seconds)`,
+  // Press F to pay respects
+  `  .---.      <dae> prod just went down. my fault.
+ / RIP \\     <nova> F
+ | prod |    <mira> F
+ |______|    <kai> F
+             <bot> F`,
 
-  ` /\\_/\\
-( o.o )  /join #cats
- > ^ <   *** Topic: mrrp`,
+  // Wait, it's all...? Always has been
+  ` _O_    <dae> wait, it's all just text over TCP?
+  |
+ / \\
+    O=- <nova> *click* always has been.
+   /|
+   / \\`,
 
-  `/msg bot xdcc send #42
-...waiting in queue (position 1 of 3)
-...waiting in queue (position 1 of 3)
-...waiting in queue (position 1 of 3)`,
+  // Sir, this is a Wendy's
+  ` @(o o)@    <dae> how do I fix my graphics driver?
+  ( v )     <mod> Sir, this is a #wendys
+   \\_/      *** dae was kicked by mod`,
 
-  `   |
-  /|\\    Dolq: sharp enough
- / | \\   for IRC, blunt enough
-   |     not to cut you.
-  (_)`,
+  // You shall not pass
+  `    /\\      *** balrog has joined #moria
+   /__\\     *** gandalf sets mode: +b balrog
+  ( oo )|   <gandalf> YOU SHALL NOT PASS!
+  /|vv|\\|   *** balrog was kicked by gandalf
+   |  |`,
 
-  `<dae> brb
-<dae> (3 hours later)
-<dae> back, did I miss anything?`,
+  // The typing bubble that ends in k.
+  ` .--------.    nova is typing...
+ |  . . . |    nova is typing...
+ '-.------'    nova is typing...
+   |/          <nova> k.`,
 
-  `*** mira sets mode: +o mira
-<mira> power corrupts
-*** mira was kicked by mira`,
+  // Rickroll
+  `  ,@@@,     <dae> found the docs for the new API
+  (o_o)     <dae> https://youtu.be/dQw4w9WgXcQ
+ \\/|~|\\/    *** nova quit (never gonna give you up)
+   / \\`,
 
-  `* nova is now known as nova_
-* nova_ is now known as nova__
-* nova__ is now known as why_is_this_taken`,
+  // This is fine
+  `  ( ) ) ( )  (    *** netsplit: 9000 users quit
+ ) ( ( ) ( )  )   *** Topic: everything is on fire
+   /\\_/\\   _
+  ( o.o )_[_]     <dae> this is fine. :)
+   > ^ <   |
+  ------------`,
 
-  `<dae> hello?
-        ... (lag: 47 s)
-<nova> hi, 47 seconds ago`,
+  // Left on read
+  ` .-------.    <dae> hey
+ | hey   |    <dae> hello?
+ | hello?|    <dae> you there?
+ | Seen  |    -NickServ- nova last seen 3 days ago
+ '-------'`,
+
+  // Ah shit, here we go again
+  `   ___      *** Connection lost (Ping timeout)
+  (o_o)     *** Reconnecting...
+ /|[=]|\\    Ah shit, here we go again.
+  | | |
+ _/ \\_/`,
 ];
 
 /** One joke, chosen with `random` (a number in [0, 1), Math.random by default). */
