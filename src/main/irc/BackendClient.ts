@@ -8,7 +8,13 @@ import { createInterface } from 'node:readline';
 import tls from 'node:tls';
 import { promisify } from 'node:util';
 import { app } from 'electron';
-import type { BackendLogLine, BackendState, BackendStatus } from '../../shared/backendState';
+import type {
+  BackendInfo,
+  BackendLatency,
+  BackendLogLine,
+  BackendState,
+  BackendStatus,
+} from '../../shared/backendState';
 import type { ConnectionStatus, HistoryEntry, IrcEvent, SavedTransfer } from '../../shared/ipc';
 import { formatHostPort } from '../../shared/pairing';
 import { decideTrust, describeDialError, insecureReasons, type RemoteHooks, type RemoteTarget } from '../remoteBackend';
@@ -21,6 +27,8 @@ const execFileAsync = promisify(execFile);
 const HEARTBEAT_MS = 20_000;
 const PING_TIMEOUT_MS = 10_000;
 const LOG_MAX = 200;
+// 90 heartbeats at 20 s is half an hour of round trips.
+const LATENCY_MAX = 90;
 
 interface ServerFrame {
   id?: string;
@@ -32,6 +40,7 @@ interface ServerFrame {
   channels?: string[];
   messages?: HistoryEntry[];
   transfers?: SavedTransfer[];
+  info?: BackendInfo;
   dccId?: string;
   ok?: boolean;
   error?: string;
@@ -52,6 +61,11 @@ export class BackendClient extends EventEmitter {
   private status: BackendStatus = 'connecting';
   private detail = '';
   private log: BackendLogLine[] = [];
+  private latency: BackendLatency[] = [];
+  private connectedSince?: number;
+  private reconnects = 0;
+  private info?: BackendInfo;
+  private infoSupported = true;
   // Servers this client attached to, shown as connecting while a redial is under way.
   private servers = new Set<string>();
 
@@ -72,6 +86,11 @@ export class BackendClient extends EventEmitter {
       status: this.status,
       detail: this.detail,
       log: [...this.log],
+      latency: [...this.latency],
+      connectedSince: this.connectedSince,
+      reconnects: this.reconnects,
+      info: this.info,
+      infoSupported: this.infoSupported,
     };
   }
 
@@ -97,6 +116,11 @@ export class BackendClient extends EventEmitter {
   private begin(announce = false): void {
     const gen = ++this.gen;
     this.stopping = false;
+    this.latency = [];
+    this.connectedSince = undefined;
+    this.reconnects = 0;
+    this.info = undefined;
+    this.infoSupported = true;
     this.set('connecting', this.remote ? `Connecting to ${this.address}…` : 'Starting the local backend…');
     const run = this.remote ? this.connectRemoteWhenUp(this.remote, gen) : this.spawnAndDial(gen);
     this.ready = run.then(() => {
@@ -110,6 +134,7 @@ export class BackendClient extends EventEmitter {
   }
 
   private connected(): void {
+    this.connectedSince = Date.now();
     this.set('connected', this.remote ? `Connected to ${this.address}.` : 'The local backend is running.');
     this.startHeartbeat();
   }
@@ -124,7 +149,10 @@ export class BackendClient extends EventEmitter {
 
   // Starts over with the same target, as if the app had just been opened.
   reconnect(): void {
+    // Not a new backend, so how often the link broke is still worth knowing.
+    const { reconnects } = this;
     this.retarget(this.remote);
+    this.reconnects = reconnects;
   }
 
   // Drops the current link and connects to another target (or the same one again, from scratch).
@@ -142,8 +170,8 @@ export class BackendClient extends EventEmitter {
     this.begin(true);
   }
 
-  // Asks the backend something cheap; any answer proves the link is alive.
-  private ping(): Promise<void> {
+  // Asks the backend about itself. Any answer proves the link is alive, even "unknown action" from an older one.
+  private ping(): Promise<ServerFrame> {
     const socket = this.socket;
     if (!socket) return Promise.reject(new Error('not connected'));
     return new Promise((resolve, reject) => {
@@ -153,16 +181,16 @@ export class BackendClient extends EventEmitter {
         reject(new Error('no answer'));
       }, PING_TIMEOUT_MS);
       this.pending.set(id, {
-        resolve: () => {
+        resolve: (f) => {
           clearTimeout(timer);
-          resolve();
+          resolve(f);
         },
         reject: (err) => {
           clearTimeout(timer);
           reject(err);
         },
       });
-      socket.write(`${JSON.stringify({ id, action: 'getJoinedChannels', serverId: '' })}\n`);
+      socket.write(`${JSON.stringify({ id, action: 'getInfo' })}\n`);
     });
   }
 
@@ -171,13 +199,31 @@ export class BackendClient extends EventEmitter {
     const socket = this.socket;
     if (!this.remote || !socket) return;
     this.heartbeat = setInterval(() => {
-      this.ping().catch(() => {
-        if (this.socket !== socket) return;
-        this.note('The backend stopped answering. Reconnecting…');
-        socket.destroy();
-      });
+      const sent = performance.now();
+      this.ping().then(
+        (f) => {
+          if (this.socket === socket) this.recordHeartbeat(f, Math.round(performance.now() - sent));
+        },
+        () => {
+          if (this.socket !== socket) return;
+          this.note('The backend stopped answering. Reconnecting…');
+          socket.destroy();
+        },
+      );
     }, HEARTBEAT_MS);
     this.heartbeat.unref?.();
+  }
+
+  private recordHeartbeat(f: ServerFrame, ms: number): void {
+    this.latency.push({ at: Date.now(), ms });
+    if (this.latency.length > LATENCY_MAX) this.latency.shift();
+    if (f.ok && f.info) {
+      this.info = f.info;
+    } else if (!f.ok && f.error?.startsWith('unknown action')) {
+      this.info = undefined;
+      this.infoSupported = false;
+    }
+    this.emit('state', this.getState());
   }
 
   private stopHeartbeat(): void {
@@ -345,6 +391,7 @@ export class BackendClient extends EventEmitter {
     const remote = this.remote;
     const gen = this.gen;
     this.stopHeartbeat();
+    this.connectedSince = undefined;
     for (const id of this.servers) this.emit('status', id, remote ? 'connecting' : 'disconnected');
     if (!remote) {
       this.set('failed', 'The local backend stopped unexpectedly. Restart Dolq to start it again.');
@@ -359,6 +406,7 @@ export class BackendClient extends EventEmitter {
     ).then(
       (connected) => {
         if (!connected || gen !== this.gen) return;
+        this.reconnects++;
         this.connected();
         this.emit('reconnected');
       },
