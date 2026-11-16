@@ -449,6 +449,18 @@ func (b *Bouncer) forget(serverID string, sess *session) {
 	b.mu.Unlock()
 }
 
+// Stats counts what the bouncer is holding: IRC connections (including ones being redialled), and open file
+// transfers and direct chats.
+func (b *Bouncer) Stats() (sessions, transfers int) {
+	b.mu.Lock()
+	sessions = len(b.sessions)
+	b.mu.Unlock()
+	b.dccMu.Lock()
+	transfers = len(b.dccSessions) + len(b.xdccConns)
+	b.dccMu.Unlock()
+	return sessions, transfers
+}
+
 func (b *Bouncer) Attach(sub Subscriber, serverID string) {
 	b.mu.Lock()
 	sess := b.sessions[serverID]

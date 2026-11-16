@@ -6,6 +6,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"path/filepath"
 	"reflect"
 	"strconv"
 	"strings"
@@ -16,6 +17,11 @@ import (
 )
 
 func startTestServer(t *testing.T) string {
+	t.Helper()
+	return startServerWith(t, NewServer(bouncer.New(nil)))
+}
+
+func startServerWith(t *testing.T, s *Server) string {
 	t.Helper()
 	f, err := os.CreateTemp("", "dolq-*.sock")
 	if err != nil {
@@ -29,7 +35,7 @@ func startTestServer(t *testing.T) string {
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}
-	go NewServer(bouncer.New(nil)).Serve(ln)
+	go s.Serve(ln)
 	t.Cleanup(func() {
 		ln.Close()
 		os.Remove(path)
@@ -124,6 +130,66 @@ func TestMalformedFrameReturnsAnError(t *testing.T) {
 	}
 	if got := tc.recv(t); got.OK {
 		t.Errorf("expected ok=false for malformed input, got %#v", got)
+	}
+}
+
+func TestGetInfoDescribesTheBackend(t *testing.T) {
+	dir := t.TempDir()
+	s := NewServer(bouncer.New(nil)).About("9.9.9", Folder{"data", dir}, Folder{"gone", filepath.Join(dir, "nope")})
+	path := startServerWith(t, s)
+	first, second := dialTestClient(t, path), dialTestClient(t, path)
+
+	first.send(t, ClientFrame{ID: "1", Action: ActionGetInfo})
+	if got := first.recv(t); !got.OK || got.Info == nil {
+		t.Fatalf("expected an info result, got %#v", got)
+	}
+	second.send(t, ClientFrame{ID: "2", Action: ActionGetInfo})
+	got := second.recv(t)
+	info := got.Info
+	if !got.OK || info == nil {
+		t.Fatalf("expected an info result, got %#v", got)
+	}
+	if info.Version != "9.9.9" || info.Clients != 2 || info.Sessions != 0 || info.Transfers != 0 {
+		t.Errorf("unexpected info %#v", info)
+	}
+	if info.UptimeMs < 0 || info.UptimeMs > 5000 {
+		t.Errorf("a server that has just started has been up for %d ms", info.UptimeMs)
+	}
+	if len(info.Folders) != 2 {
+		t.Fatalf("expected both folders, got %#v", info.Folders)
+	}
+	if f := info.Folders[0]; f.Name != "data" || f.Path != dir || f.Total == 0 || f.Free > f.Total || f.Error != "" {
+		t.Errorf("the folder that exists should report its room, got %#v", f)
+	}
+	if f := info.Folders[1]; f.Error == "" || f.Total != 0 {
+		t.Errorf("a folder that is not there should say why, got %#v", f)
+	}
+}
+
+func TestGetInfoDoesNotWaitForAFolderThatStalls(t *testing.T) {
+	release := make(chan struct{})
+	t.Cleanup(func() { close(release) })
+	s := NewServer(bouncer.New(nil)).About("1", Folder{"share", "/stalled"})
+	s.roomFirstWait = 50 * time.Millisecond
+	s.freeSpace = func(string) (uint64, uint64, error) {
+		<-release // a network share that does not answer
+		return 1, 2, nil
+	}
+	tc := dialTestClient(t, startServerWith(t, s))
+
+	for i, id := range []string{"1", "2"} {
+		start := time.Now()
+		tc.send(t, ClientFrame{ID: id, Action: ActionGetInfo})
+		got := tc.recv(t)
+		if !got.OK || got.Info == nil || got.Info.Version != "1" {
+			t.Fatalf("call %d: expected an info result, got %#v", i+1, got)
+		}
+		if len(got.Info.Folders) != 0 {
+			t.Errorf("call %d: a folder that has not answered cannot be reported, got %#v", i+1, got.Info.Folders)
+		}
+		if took := time.Since(start); took > time.Second {
+			t.Errorf("call %d waited %v for a stalled folder", i+1, took)
+		}
 	}
 }
 
