@@ -98,7 +98,7 @@ export class BackendClient extends EventEmitter {
     const gen = ++this.gen;
     this.stopping = false;
     this.set('connecting', this.remote ? `Connecting to ${this.address}…` : 'Starting the local backend…');
-    const run = this.remote ? this.connectRemoteWhenUp(this.remote, gen) : this.spawnAndDial();
+    const run = this.remote ? this.connectRemoteWhenUp(this.remote, gen) : this.spawnAndDial(gen);
     this.ready = run.then(() => {
       if (gen !== this.gen) return;
       this.connected();
@@ -185,8 +185,10 @@ export class BackendClient extends EventEmitter {
     this.heartbeat = undefined;
   }
 
-  private async spawnAndDial(): Promise<void> {
+  private async spawnAndDial(gen: number): Promise<void> {
     const { cmd, args, cwd, devBinaryPath } = await resolveBackendCommand(this.retentionDays);
+    // Switched to another backend while this one was being built: nothing to start any more.
+    if (gen !== this.gen) throw new Error('superseded');
     this.devBinaryPath = devBinaryPath;
     // Only this process and the child it starts know the token, so nothing else
     // on the machine can use the socket even if its permissions were too open.
@@ -206,7 +208,7 @@ export class BackendClient extends EventEmitter {
       s.once('connect', () => resolve(s));
       s.once('error', reject);
     });
-    await this.attach(socket, token);
+    await this.attach(socket, token, gen);
   }
 
   // A remote backend that is not up yet is waited for, not treated as fatal; only an error retrying
