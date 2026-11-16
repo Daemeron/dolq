@@ -433,4 +433,44 @@ describe('MessageArea: folded membership runs', () => {
     expect(container.textContent).toContain('b left');
     expect(queryByRole('button', { name: /events/ })).toBeNull();
   });
+
+  it('reads the real height of a folded run head again when the lines change', () => {
+    setHeights(800, 800);
+    // The head of a folded run is a button; its height is what the page says it is, which can differ from what the list holds.
+    let summaryHeight = 20;
+    const heightOf = (el: HTMLElement) =>
+      el.querySelector('button[aria-expanded]') ? summaryHeight : el.textContent ? 20 : 0;
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      const height = this.dataset.index === undefined ? 800 : heightOf(this);
+      return { top: 0, left: 0, right: 1000, bottom: height, width: 1000, height, x: 0, y: 0, toJSON: () => ({}) };
+    });
+    vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockImplementation(function (this: HTMLElement) {
+      return this.dataset.index === undefined ? 800 : heightOf(this);
+    });
+    const join = (id: number): Message => ({
+      id,
+      nick: '',
+      text: `user${id} joined`,
+      timestamp: new Date(0),
+      system: true,
+      membership: 'join',
+    });
+    const lines = (): Message[] => [
+      join(1),
+      join(2),
+      join(3),
+      { id: 4, nick: 'mira', text: 'hi', timestamp: new Date(0) },
+    ];
+    const props = { isLog: false, timestampFormat: '24h', density: 'cozy', channelId: 'c' } as const;
+    const view = render(<MessageArea {...props} messages={lines()} />);
+    const chatTop = () => {
+      const row = view.container.querySelector<HTMLElement>('[data-index="3"]');
+      return Number(row?.style.transform.match(/translateY\((-?[\d.]+)px\)/)?.[1]);
+    };
+    expect(chatTop()).toBe(20);
+
+    summaryHeight = 28;
+    view.rerender(<MessageArea {...props} messages={lines()} />);
+    expect(chatTop()).toBe(28);
+  });
 });
