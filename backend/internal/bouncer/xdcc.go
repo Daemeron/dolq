@@ -59,6 +59,9 @@ func (b *Bouncer) XDCCAccept(
 	client := sess.client
 	sess.mu.Unlock()
 
+	if err := checkRoom(destDir, offer); err != nil {
+		return "", err
+	}
 	destPath, base, f, err := openDestination(client, offer, destDir, b.ResumeAcceptTimeout)
 	if err != nil {
 		return "", err
@@ -353,4 +356,30 @@ func quoteIfSpaced(name string) string {
 		return `"` + name + `"`
 	}
 	return name
+}
+
+// minFree is what a download leaves free on its disk. A download that would use it all is refused, because a full disk
+// takes more than the download down with it: on a NAS the system disk is small, and when it is full the NAS can no
+// longer keep its own files in order.
+const minFree = 100 * 1000 * 1000
+
+// freeSpace is how much room a folder has; a variable so tests can give another answer.
+var freeSpace = disk.Free
+
+// checkRoom refuses an offer when its file, less what a partial download of it already has, would not fit in destDir
+// with minFree to spare. When the room cannot be told, the download goes ahead.
+func checkRoom(destDir string, offer ircparse.XDCCSendOfferEvent) error {
+	if offer.Size <= 0 {
+		return nil
+	}
+	need := offer.Size
+	if st, err := os.Lstat(filepath.Join(destDir, safeFilename(offer.Filename))); err == nil && st.Mode().IsRegular() && st.Size() < offer.Size {
+		need = offer.Size - st.Size()
+	}
+	free, _, err := freeSpace(destDir)
+	if err != nil || free >= uint64(need)+minFree {
+		return nil
+	}
+	return fmt.Errorf("not enough room in %s: %s free, and %s needs %s with %s kept free for the system",
+		destDir, disk.Size(free), offer.Filename, disk.Size(uint64(need)), disk.Size(minFree))
 }
