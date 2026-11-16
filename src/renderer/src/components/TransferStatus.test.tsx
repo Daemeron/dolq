@@ -35,6 +35,16 @@ describe('TransferStatus', () => {
     expect(onClose).toHaveBeenCalled();
   });
 
+  it('shows the folder a file is saved in, for either kind of path', () => {
+    setup({ path: '/home/me/Downloads/a.iso', done: true });
+    expect(screen.getByText('Saved in /home/me/Downloads')).toBeTruthy();
+  });
+
+  it('shows the folder a running download is going to', () => {
+    setup({ path: 'C:\\Users\\me\\a.iso' });
+    expect(screen.getByText('Saving to C:\\Users\\me')).toBeTruthy();
+  });
+
   it('shows progress and speed, and pauses or cancels a running transfer', () => {
     const { onPause, onCancel } = setup({ speedBps: 2048 });
     expect(screen.getByText('bot · 50% of 100 B · 2.0 KB/s')).toBeTruthy();

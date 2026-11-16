@@ -18,6 +18,9 @@ export type Transfer = {
   sending?: boolean;
 };
 
+/** The folder part of a file path, whichever separator the platform uses. */
+const folderOf = (path: string) => path.replace(/[\\/][^\\/]*$/, '') || path;
+
 type Props = {
   transfers: Record<string, Transfer>;
   onPause: (id: string) => void;
@@ -72,6 +75,11 @@ export function TransferStatus({
                       activeLine(t)
                     )}
                   </div>
+                  {t.path && !t.sending && (
+                    <div className="truncate text-[12px] text-(--dolq-text-faint)" title={t.path}>
+                      {t.done ? 'Saved in' : 'Saving to'} {folderOf(t.path)}
+                    </div>
+                  )}
                   {!finished && (
                     <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-(--dolq-bg-row-selected)">
                       <div

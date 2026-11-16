@@ -841,7 +841,13 @@ export default function App() {
             if (!t) return prev;
             return {
               ...prev,
-              [id]: { ...t, received: event.received, total: event.total, speedBps: speedBps ?? t.speedBps },
+              [id]: {
+                ...t,
+                received: event.received,
+                total: event.total,
+                speedBps: speedBps ?? t.speedBps,
+                path: event.path || t.path,
+              },
             };
           });
           break;
