@@ -127,7 +127,7 @@ export function PreferencesModal({
     setRemoteTls(p.tls);
   }
   const [retentionDays, setRetentionDays] = useState(String(settings.retentionDays));
-  const [xdccAutoAccept, setXdccAutoAccept] = useState(settings.xdccAutoAccept ?? false);
+  const [xdccAutoAccept, setXdccAutoAccept] = useState(settings.xdccAutoAccept ?? true);
   const [autoUpdate, setAutoUpdate] = useState(settings.autoUpdate ?? true);
   const [autoDownloadUpdates, setAutoDownloadUpdates] = useState(settings.autoDownloadUpdates ?? false);
   const [downloadDir, setDownloadDir] = useState(settings.downloadDir ?? '');
@@ -251,7 +251,7 @@ export function PreferencesModal({
             </Setting>
             <Setting
               title="Auto-accept XDCC downloads"
-              description="Start a download without asking when the bot answers a pack you requested from Dolq. Offers you did not ask for still prompt."
+              description="Start a download without asking when the bot answers a pack you requested from Dolq, including when it queued you and sends the file hours later. Offers you did not ask for still prompt."
             >
               <Switch checked={xdccAutoAccept} onChange={(e) => setXdccAutoAccept(e.target.checked)} />
             </Setting>
