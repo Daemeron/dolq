@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.13.0](https://github.com/Daemeron/dolq/compare/dolq-v0.12.0...dolq-v0.13.0) (2026-11-16)
+
+
+### Features
+
+* **backend:** log what dolqd is doing, so a container can be checked ([00777a4](https://github.com/Daemeron/dolq/commit/00777a454af6a96a15965904c0c952e7cb264a40))
+
+
+### Bug Fixes
+
+* **backend:** let the image take over its data folder ([5230e78](https://github.com/Daemeron/dolq/commit/5230e78c64f1ac70fc810b7eb709650eefea182d))
+
 ## [0.12.0](https://github.com/Daemeron/dolq/compare/dolq-v0.11.0...dolq-v0.12.0) (2026-11-16)
 
 
