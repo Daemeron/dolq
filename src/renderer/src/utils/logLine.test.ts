@@ -32,6 +32,15 @@ describe('logLineParts', () => {
     ['CAP', 'cap'],
     ['MODE', 'mode'],
     ['PRIVMSG', 'plain'],
+    ['311', 'whois'],
+    ['312', 'whois'],
+    ['319', 'whois'],
+    ['307', 'whois'],
+    ['318', 'whois'],
+    ['716', 'whois'],
+    ['305', 'away'],
+    ['306', 'away'],
+    ['301', 'away'],
   ])('tones %s as %s', (command, tone) => {
     expect(logLineParts(`:s.example ${command} me :x`).tone).toBe(tone);
   });
