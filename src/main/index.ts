@@ -47,6 +47,8 @@ let pendingIrcUrl: string | null = null;
 // extraResources (electron-builder.json5) next to it instead.
 const RESOURCES_DIR = app.isPackaged ? join(process.resourcesPath, 'resources') : join(__dirname, '../../resources');
 const ICON_PATH = join(RESOURCES_DIR, 'icon.png');
+// The same artwork a little smaller inside its canvas, which is how macOS icons sit in the Dock.
+const DOCK_ICON_PATH = join(RESOURCES_DIR, 'icon-mac.png');
 // macOS menu bar icons are their own convention, not just a small app icon:
 // a black glyph on a transparent background (no colored square, no rounded
 // corners), marked as a "template image" so the OS re-tints it for light/
@@ -289,7 +291,7 @@ if (!app.requestSingleInstanceLock()) {
     // this only matters for `npm run frontend:dev`/`electron .`, where macOS would
     // otherwise show the generic Electron icon (BrowserWindow's `icon` option
     // has no effect on macOS, unlike Windows/Linux).
-    if (!app.isPackaged) app.dock?.setIcon(ICON_PATH);
+    if (!app.isPackaged) app.dock?.setIcon(DOCK_ICON_PATH);
 
     // Windows needs the running script's own path re-supplied in dev (an
     // unpackaged app launches through the bare electron.exe, which

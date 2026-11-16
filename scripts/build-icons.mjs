@@ -8,6 +8,11 @@ import { chromium } from '@playwright/test';
 
 const res = new URL('../resources/', import.meta.url).pathname;
 const svg = readFileSync(`${res}icon.svg`, 'utf8');
+// macOS draws its icons smaller than the canvas (the Dock shows the shape at about 80-85% of it), so the
+// .icns and the dev Dock icon get the same artwork scaled down inside it; everywhere else it fills the canvas.
+const macSvg = svg
+  .replace('</title>', '</title>\n  <g transform="translate(256 256) scale(0.9) translate(-256 -256)">')
+  .replace('</svg>', '</g>\n</svg>');
 // The macOS menu bar wants a monochrome template image: the dagger alone, black on transparent.
 const dagger = svg.slice(svg.indexOf('<polygon'), svg.indexOf('</g>'));
 const template = (w, h) =>
@@ -27,9 +32,12 @@ const sizes = [16, 24, 32, 48, 64, 128, 256, 512, 1024];
 // One page renders every size, so they must not overlap.
 const png = {};
 for (const s of sizes) png[s] = await render(svg, s);
+const macPng = {};
+for (const s of sizes) macPng[s] = await render(macSvg, s);
 mkdirSync(`${res}icons`, { recursive: true });
 for (const s of sizes) writeFileSync(`${res}icons/${s}x${s}.png`, png[s]);
 writeFileSync(`${res}icon.png`, png[512]);
+writeFileSync(`${res}icon-mac.png`, macPng[512]);
 
 // A PNG-compressed .ico: a header, one 16-byte directory entry per image, then the images.
 const ico = [16, 24, 32, 48, 64, 128, 256];
@@ -53,8 +61,8 @@ const set = join(tmpdir(), 'dolq.iconset');
 rmSync(set, { recursive: true, force: true });
 mkdirSync(set);
 for (const s of [16, 32, 128, 256, 512]) {
-  writeFileSync(join(set, `icon_${s}x${s}.png`), png[s]);
-  writeFileSync(join(set, `icon_${s}x${s}@2x.png`), png[s * 2]);
+  writeFileSync(join(set, `icon_${s}x${s}.png`), macPng[s]);
+  writeFileSync(join(set, `icon_${s}x${s}@2x.png`), macPng[s * 2]);
 }
 execFileSync('iconutil', ['-c', 'icns', set, '-o', `${res}icon.icns`]);
 rmSync(set, { recursive: true });
