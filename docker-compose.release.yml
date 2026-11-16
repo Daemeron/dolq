@@ -145,7 +145,10 @@ services:
     ##  not the share but a folder on the NAS's small system disk).
     ##
     ##  At start the log also says how much room each folder has, and warns when it
-    ##  is almost none, or when a folder is not a mounted volume.
+    ##  is almost none, or when a folder is not a mounted volume. And dolqd refuses a
+    ##  download that would leave less than 100 MB free on its disk, saying so in the
+    ##  error, so a wrong path cannot fill a small disk and take the NAS's own
+    ##  services down with it.
     volumes:
 
       ##  Everything dolqd keeps: the message history (history.db), the access
