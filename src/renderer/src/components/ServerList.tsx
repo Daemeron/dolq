@@ -30,6 +30,10 @@ const BADGE_COLOR: Record<ConnectionStatus, string> = {
   disconnected: 'bg-(--dolq-text-faint)',
 };
 
+// The hover effect of every button in the rail: it lifts and brightens a little, and presses back in when clicked.
+const LIFT =
+  'transition-[transform,filter,box-shadow,background-color,color,border-color] duration-150 hover:-translate-y-0.5 hover:scale-105 hover:brightness-110 hover:shadow-md active:translate-y-0 active:scale-95';
+
 export function ServerList({
   servers,
   selectedId,
@@ -56,7 +60,7 @@ export function ServerList({
           data-tip="Dashboard"
           aria-current={dashboardActive || undefined}
           onClick={onOpenDashboard}
-          className={`has-tip tip-right flex w-10.5 h-10.5 shrink-0 cursor-pointer select-none items-center justify-center rounded-[13px] border-0 bg-(--dolq-accent) p-0 text-(--dolq-on-accent) transition-[border-radius] duration-150 hover:rounded-2xl hover:bg-(--dolq-accent-hover) ${
+          className={`has-tip tip-right flex w-10.5 h-10.5 shrink-0 cursor-pointer select-none items-center justify-center rounded-[13px] border-0 bg-(--dolq-accent) p-0 text-(--dolq-on-accent) ${LIFT} hover:bg-(--dolq-accent-hover) ${
             dashboardActive ? 'ring-2 ring-offset-2 ring-(--dolq-text) ring-offset-(--dolq-bg-panel-alt)' : ''
           }`}
         >
@@ -74,7 +78,7 @@ export function ServerList({
               onClick={() => onSelect(s.id)}
               onContextMenu={(e) => open(s.id, e)}
               style={{ background: serverColor(s) }}
-              className={`has-tip tip-right relative w-10.5 h-10.5 shrink-0 text-[15px] font-semibold text-white cursor-pointer select-none border-0 rounded-[13px] transition-[border-radius] duration-150 hover:rounded-2xl ${
+              className={`has-tip tip-right relative w-10.5 h-10.5 shrink-0 text-[15px] font-semibold text-white cursor-pointer select-none border-0 rounded-[13px] ${LIFT} ${
                 s.id === selectedId ? 'ring-2 ring-offset-2 ring-(--dolq-text) ring-offset-(--dolq-bg-panel-alt)' : ''
               }`}
             >
@@ -94,7 +98,7 @@ export function ServerList({
           aria-label="Add server"
           data-tip="Add server"
           onClick={onAddServer}
-          className="has-tip tip-right w-10.5 h-10.5 shrink-0 rounded-[13px] border-[1.5px] border-dashed border-(--dolq-border-strong) bg-transparent text-(--dolq-text-dim) flex items-center justify-center cursor-pointer hover:text-(--dolq-text) hover:border-(--dolq-text) transition-colors select-none"
+          className={`has-tip tip-right w-10.5 h-10.5 shrink-0 rounded-[13px] border-[1.5px] border-dashed border-(--dolq-border-strong) bg-transparent text-(--dolq-text-dim) flex items-center justify-center cursor-pointer hover:text-(--dolq-text) hover:border-(--dolq-text) ${LIFT} select-none`}
         >
           <svg
             aria-hidden="true"
