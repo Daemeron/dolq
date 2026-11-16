@@ -67,6 +67,44 @@ sequenceDiagram
     D->>D: store the outcome in the Transfers list and in the chat with bot
 ```
 
+### When the bot queues the request
+
+A busy bot answers a request with a place in its queue, and sends the offer minutes or hours later, when your turn comes.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as You
+    participant W as Window
+    participant D as dolqd
+    participant P as bot
+
+    U->>W: request a pack
+    W->>W: remember "one offer expected from this bot", with the time
+    W->>D: send "PRIVMSG bot :xdcc send #12"
+    D->>P: the message
+    P-->>D: NOTICE: "queued at position 3"
+    D-->>W: the notice, which is shown in your chat with the bot (and kept in the server log)
+    Note over U,P: minutes or hours pass, the window may be in the background
+    P->>D: DCC SEND offer
+    D-->>W: XDCCSENDOFFER event
+    alt answers a request of yours that is less than 24 hours old, and auto-accept is on
+        W->>D: xdccAccept, with no prompt
+        Note over D,P: the transfer goes on as above
+    else auto-accept is off, or nothing was asked for
+        W-->>U: a prompt, which has to be answered before the bot gives up (180 s for many bots)
+    end
+```
+
+- **The bot's private notices** (queue position, "you already requested that pack", "you have a DCC pending") are shown in the
+  chat opened with that bot, as well as in the server log. Only a chat that is already open gets them: asking for a pack opens one.
+- **A request stays good for 24 hours**, counted from the last request to that bot. A batch counts one offer per pack. After
+  a day an offer from that nick is no longer taken to be the answer to it, and asks.
+- **Auto-accept for requested packs is on by default.** The preference can be switched off, and then every offer asks, which with a
+  queue means a prompt at an arbitrary time. Offers nobody asked for always ask.
+- **Not yet:** the decision is made in the app. If no app is attached when the offer arrives (closed, asleep), nothing accepts
+  it and the bot gives up. Accepting in the backend, which stays on, is the next step.
+
 ### Notes
 
 1. **Who connects.** An *active* offer is the usual one: the bot has a reachable address, `dolqd` connects out. A
