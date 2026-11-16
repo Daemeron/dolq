@@ -722,3 +722,36 @@ func TestNilStoreKeepsNoTransfers(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestAFailingWriteIsSaidOnceAndNotRolledOverIntoACommitError(t *testing.T) {
+	s, err := Open(":memory:", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	var buf syncBuf
+	log.SetOutput(&buf)
+	defer log.SetOutput(os.Stderr)
+
+	// A table that cannot be written to, as a full disk makes the real one: every insert fails.
+	if _, err := s.db.Exec(`CREATE TRIGGER full BEFORE INSERT ON messages BEGIN SELECT RAISE(ABORT, 'database or disk is full'); END`); err != nil {
+		t.Fatal(err)
+	}
+	entry := Entry{ServerID: "s", Channel: "#c", Timestamp: time.Now(), IsRaw: true, Line: "x"}
+	for range 5 {
+		s.writeBatch([]Entry{entry, entry, entry})
+	}
+
+	out := buf.String()
+	if strings.Count(out, "history: could not save") != 1 {
+		t.Errorf("expected one line about the failure for five failed batches, got:\n%s", out)
+	}
+	if !strings.Contains(out, "could not save 3 entries") {
+		t.Errorf("the first line should count the entries of its batch: %q", out)
+	}
+	for _, noise := range []string{"commit tx", "no transaction is active"} {
+		if strings.Contains(out, noise) {
+			t.Errorf("%q is in the log, which is only noise after a failed write:\n%s", noise, out)
+		}
+	}
+}

@@ -61,6 +61,10 @@ type Store struct {
 	stopPrune     chan struct{}
 	pruneDone     chan struct{}
 
+	// unsaved and lastFailureLogged are the writer goroutine's, for saying that writes fail without saying it every time.
+	unsaved           int
+	lastFailureLogged time.Time
+
 	// sendMu keeps append from sending on entries once Close has closed it.
 	sendMu sync.RWMutex
 	closed bool
@@ -213,18 +217,38 @@ func (s *Store) writeBatch(batch []Entry) {
 	}
 	defer stmt.Close()
 
-	for _, e := range batch {
+	for i, e := range batch {
 		payload := e.Line
 		if !e.IsRaw {
 			payload = string(e.Event)
 		}
 		if _, err := stmt.Exec(e.ServerID, e.Channel, payload, e.Timestamp.UnixMilli(), e.IsRaw); err != nil {
-			log.Printf("history: write error: %v", err)
+			// A write that fails, as one does on a full disk, has rolled the whole transaction back, so the rest of the
+			// batch cannot be saved either, and committing it would only fail again.
+			tx.Rollback()
+			s.writeFailed(len(batch)-i, err)
+			return
 		}
 	}
 	if err := tx.Commit(); err != nil {
-		log.Printf("history: commit tx: %v", err)
+		s.writeFailed(len(batch), err)
 	}
+}
+
+// failLogEvery is how seldom a store that cannot write says so: a full disk fails every write, and each failure would
+// otherwise be a line in the log, or two.
+const failLogEvery = 30 * time.Second
+
+// writeFailed counts entries that could not be saved and, at most every failLogEvery, says how many. It is called
+// only from the goroutine that writes, so it needs no lock.
+func (s *Store) writeFailed(n int, err error) {
+	s.unsaved += n
+	if time.Since(s.lastFailureLogged) < failLogEvery {
+		return
+	}
+	log.Printf("history: could not save %d entries: %v (is the disk full?)", s.unsaved, err)
+	s.unsaved = 0
+	s.lastFailureLogged = time.Now()
 }
 
 func (s *Store) AppendLine(serverID, channel, line string, ts time.Time) {
