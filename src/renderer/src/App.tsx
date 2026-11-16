@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { BackendState } from '../../shared/backendState';
 import { type HistoryEntry, type IrcEvent, RELEASES_URL, type Settings, type UpdateStatus } from '../../shared/ipc';
 import { mapRemotePath } from '../../shared/remotePath';
+import { BackendStatus } from './components/BackendStatus';
 import { ChannelList } from './components/ChannelList';
 import { type ConnectForm, ConnectModal, parseList } from './components/ConnectModal';
 import { Dashboard } from './components/Dashboard';
@@ -979,6 +981,20 @@ export default function App() {
     [reconcile, reloadHistory],
   );
 
+  const [backendState, setBackendState] = useState<BackendState | null>(null);
+  useEffect(() => {
+    let live = true;
+    window.irc
+      .getBackendState()
+      .then((state) => live && setBackendState(state ?? null))
+      .catch(() => {});
+    const off = window.irc.onBackendState(setBackendState);
+    return () => {
+      live = false;
+      off();
+    };
+  }, []);
+
   const loadOlderHistory = useCallback(() => {
     const key = scopeKey(selectedServerId, selectedChannelId);
     const page = historyPages.current.get(key);
@@ -1834,6 +1850,7 @@ export default function App() {
             onToggleConnection={handleToggleConnection}
             dashboardActive={view.kind === 'dashboard'}
             onOpenDashboard={() => setView({ kind: 'dashboard' })}
+            footer={<BackendStatus state={backendState} onReconnect={() => window.irc.reconnectBackend()} />}
           />
           {servers.length > 0 && view.kind !== 'dashboard' && (
             <div className="flex flex-col">

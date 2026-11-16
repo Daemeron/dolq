@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import type { ConnectionStatus } from '../../../shared/ipc';
 import { useContextMenu } from '../hooks/useContextMenu';
 import type { Server } from '../types';
@@ -16,6 +17,8 @@ type Props = {
   onToggleConnection: (id: string) => void;
   dashboardActive: boolean;
   onOpenDashboard: () => void;
+  /** Pinned under the servers, such as the state of the backend link. */
+  footer?: ReactNode;
 };
 
 export const STATUS_LABEL: Record<ConnectionStatus, string> = {
@@ -46,6 +49,7 @@ export function ServerList({
   onToggleConnection,
   dashboardActive,
   onOpenDashboard,
+  footer,
 }: Props) {
   const { menu, open, close, dismissIfUnhandled } = useContextMenu<string>();
   const menuServer = servers.find((s) => s.id === menu?.target);
@@ -115,6 +119,7 @@ export function ServerList({
           </svg>
         </button>
       </div>
+      {footer && <div className="flex shrink-0 flex-col items-center gap-2 px-3 pb-3">{footer}</div>}
 
       {menu && menuServer && (
         <ContextMenu x={menu.x} y={menu.y}>

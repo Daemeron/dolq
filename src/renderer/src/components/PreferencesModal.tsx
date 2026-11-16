@@ -434,7 +434,7 @@ export function PreferencesModal({
           <Card>
             <Setting
               title="Connect to a remote backend instead of running one locally"
-              description="Points at a dolqd already running elsewhere (see docker-compose.yml). Sessions and history live on the remote box. Takes effect the next time Dolq starts."
+              description="Points at a dolqd already running elsewhere (see docker-compose.yml). Sessions and history live on the remote box. Saving connects to it straight away, and the button at the bottom of the server list shows how the link is doing."
             >
               <Switch checked={remoteEnabled} onChange={(e) => setRemoteEnabled(e.target.checked)} />
             </Setting>
@@ -453,7 +453,7 @@ export function PreferencesModal({
                 </Field>
                 {pairing && (
                   <p className="m-0 text-[12px] text-(--dolq-text-dim)">
-                    Paired with {formatHostPort(pairing.host, pairing.port)}. Save to apply.
+                    Paired with {formatHostPort(pairing.host, pairing.port)}. Save to connect.
                   </p>
                 )}
                 {pairingInvalid && (

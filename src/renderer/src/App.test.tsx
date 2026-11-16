@@ -592,6 +592,33 @@ describe('App: sending', () => {
   });
 });
 
+describe('App: backend link', () => {
+  const state = {
+    mode: 'remote',
+    address: 'nas:6789',
+    status: 'connected',
+    detail: 'Connected to nas:6789.',
+    log: [],
+  };
+
+  it('shows the state of a remote backend, follows it as it changes, and reconnects on request', async () => {
+    const irc = await mount({ getBackendState: state });
+    expect(await screen.findByRole('button', { name: 'Backend: Connected' })).toBeTruthy();
+
+    await irc.emit('onBackendState', { ...state, status: 'reconnecting', detail: 'Lost the connection to nas:6789.' });
+    await fire.click(screen.getByRole('button', { name: 'Backend: Reconnecting…' }));
+    expect(screen.getAllByText('Lost the connection to nas:6789.').length).toBeGreaterThan(0);
+
+    await fire.click(screen.getByRole('button', { name: 'Reconnect' }));
+    expect(irc.spies.reconnectBackend).toHaveBeenCalledOnce();
+  });
+
+  it('shows nothing for a local backend that works', async () => {
+    await mount({ getBackendState: { mode: 'local', status: 'connected', detail: '', log: [] } });
+    expect(screen.queryByRole('button', { name: /^Backend:/ })).toBeNull();
+  });
+});
+
 describe('App: start-up', () => {
   it('tells the main process once the settings are in and the open channel has its history', async () => {
     const irc = await mount();
