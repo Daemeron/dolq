@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -113,9 +114,27 @@ func TestServerDownloadDir(t *testing.T) {
 	}
 }
 
+// lockedBuffer is a buffer the logger may write to from other goroutines while the test reads it.
+type lockedBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (l *lockedBuffer) Write(p []byte) (int, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.buf.Write(p)
+}
+
+func (l *lockedBuffer) String() string {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.buf.String()
+}
+
 func captureLog(t *testing.T, f func()) string {
 	t.Helper()
-	var buf bytes.Buffer
+	var buf lockedBuffer
 	log.SetOutput(&buf)
 	defer log.SetOutput(os.Stderr)
 	f()

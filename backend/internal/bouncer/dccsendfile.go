@@ -136,6 +136,7 @@ func (b *Bouncer) runDCCSendFile(
 	defer conn.Close()
 
 	sub.SendStatus(id, "connected")
+	log.Printf("dcc: sending %s to %s (%d bytes)", name, nick, size)
 	last := time.Now()
 	err = dcc.SendFile(conn, f, size, b.SendConfirmTimeout, func(sent int64) {
 		if sent < size && time.Since(last) < progressInterval {
@@ -157,6 +158,7 @@ func (b *Bouncer) runDCCSendFile(
 	forget()
 	sub.SendStatus(id, "disconnected")
 	sub.SendEvent(id, XDCCTransferEvent{Type: "XDCCTRANSFER", Received: size, Total: size, Path: path, Done: true, Sending: true})
+	log.Printf("dcc: sent %s to %s", name, nick)
 	b.recordTransfer(serverID, nick, fmt.Sprintf("Sent %s", name))
 	b.keepTransfer(t, history.Transfer{ID: id, ServerID: serverID, Nick: nick, Filename: name, Received: size, Total: size, Path: path, Done: true, Sending: true})
 }

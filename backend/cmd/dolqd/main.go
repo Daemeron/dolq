@@ -163,6 +163,7 @@ func run(ctx context.Context, args []string, stdout io.Writer) error {
 
 	serveErr := make(chan error, 1)
 	go func() { serveErr <- srv.Serve(ln) }()
+	log.Printf("ready, listening on %s", ln.Addr())
 
 	select {
 	case <-ctx.Done():
