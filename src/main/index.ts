@@ -4,11 +4,12 @@ import { pathToFileURL } from 'node:url';
 import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, safeStorage, shell, Tray } from 'electron';
 import { installExtension, REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';
 import { autoUpdater } from 'electron-updater';
+import type { BackendState } from '../shared/backendState';
 import { type ConnectionStatus, IrcMessages, type Settings, type UpdateStatus } from '../shared/ipc';
 import { BackendClient } from './irc/BackendClient';
 import { parseIrcUrl } from './ircUrl';
 import { isAppNavigation, isWebLink } from './navigation';
-import { type RemoteHooks, resolveRemoteBackend } from './remoteBackend';
+import { type RemoteHooks, resolveRemoteBackend, sameTarget } from './remoteBackend';
 import { applyIncomingSettings, BACKEND_SECRET_ID } from './remoteSettings';
 import { type SecretCipher, SecretsStore, type ServerSecrets, withSavedSecrets } from './secrets';
 import { loadSettings, saveSettings } from './settings';
@@ -337,7 +338,7 @@ if (!app.requestSingleInstanceLock()) {
     // value that was current when the app started.
     registerIrcHandlers(backend, settingsBox, secrets);
     registerSecretsHandlers(secrets);
-    registerSettingsHandlers(settingsBox, secrets);
+    registerSettingsHandlers(settingsBox, secrets, backend);
     registerShellHandlers();
     registerUpdateHandlers(settingsBox);
     registerAppLifecycleHandlers(backend);
@@ -561,6 +562,9 @@ function registerIrcHandlers(backend: BackendClient, settingsBox: { current: Set
     sendToWindow(IrcMessages.status, serverId, status),
   );
   backend.on('reconnected', () => sendToWindow(IrcMessages.backendReconnected));
+  backend.on('state', (state: BackendState) => sendToWindow(IrcMessages.backendState, state));
+  ipcMain.handle(IrcMessages.getBackendState, () => backend.getState());
+  ipcMain.handle(IrcMessages.reconnectBackend, () => backend.reconnect());
 }
 
 // Settings live for the process's lifetime in settingsBox.current (shared
@@ -610,15 +614,23 @@ function remoteHooks(settingsBox: { current: Settings }): RemoteHooks {
   };
 }
 
-function registerSettingsHandlers(settingsBox: { current: Settings }, secrets: SecretsStore): void {
+function registerSettingsHandlers(
+  settingsBox: { current: Settings },
+  secrets: SecretsStore,
+  backend: BackendClient,
+): void {
   ipcMain.handle(IrcMessages.getSettings, () => {
     const { remoteToken: _hidden, ...rest } = settingsBox.current;
     return { ...rest, remoteTokenSet: !!savedRemoteToken(secrets, settingsBox.current) };
   });
   ipcMain.handle(IrcMessages.setSettings, (_event, incoming: Settings) => {
+    const before = resolveRemoteBackend(settingsBox.current, savedRemoteToken(secrets, settingsBox.current));
     const next = applyIncomingSettings(settingsBox.current, incoming, secrets);
     settingsBox.current = next;
     saveSettings(next);
+    // A new link, or remote switched on or off, takes effect now: no restart.
+    const after = resolveRemoteBackend(next, savedRemoteToken(secrets, next));
+    if (!sameTarget(before, after)) backend.retarget(after);
     if (next.trayEnabled) createTray();
     else destroyTray();
   });

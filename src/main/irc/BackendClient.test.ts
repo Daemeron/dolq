@@ -11,7 +11,7 @@ type FakeSocket = Duplex & {
 // Every dialled connection, newest last. Each answers auth (as fake.authOk
 // says) and getStatus by itself; anything else is left pending. With
 // fake.refuse set, dialling fails instead.
-const fake = vi.hoisted(() => ({ sockets: [] as FakeSocket[], authOk: true, refuse: false }));
+const fake = vi.hoisted(() => ({ sockets: [] as FakeSocket[], authOk: true, refuse: false, answerPings: false }));
 
 vi.mock('electron', () => ({ app: {} }));
 
@@ -25,6 +25,8 @@ vi.mock('node:net', async (importOriginal) => {
         const f = JSON.parse(chunk.toString());
         s.written.push(f);
         if (f.action === 'auth') s.push(`${JSON.stringify({ id: f.id, type: 'result', ok: fake.authOk })}\n`);
+        if (f.action === 'getJoinedChannels' && fake.answerPings)
+          s.push(`${JSON.stringify({ id: f.id, type: 'result', ok: true, channels: [] })}\n`);
         if (f.action === 'getStatus')
           s.push(`${JSON.stringify({ id: f.id, type: 'result', ok: true, status: 'connected' })}\n`);
         done();
@@ -50,7 +52,9 @@ function record(client: BackendClient) {
   const statuses: [string, string][] = [];
   const fatals: string[] = [];
   client.on('status', (id: string, status: string) => statuses.push([id, status]));
-  client.on('fatal', (message: string) => fatals.push(message));
+  client.on('state', (s: { status: string; detail: string }) => {
+    if (s.status === 'failed') fatals.push(s.detail);
+  });
   return { statuses, fatals };
 }
 
@@ -133,6 +137,92 @@ describe('BackendClient', () => {
     await vi.advanceTimersByTimeAsync(redialDelay(5));
     expect(fake.sockets).toHaveLength(1);
     expect(statuses).toEqual([]);
+  });
+});
+
+describe('BackendClient: state and recovery', () => {
+  beforeEach(() => {
+    fake.sockets.length = 0;
+    fake.authOk = true;
+    fake.refuse = false;
+    fake.answerPings = false;
+    vi.useFakeTimers({ toFake: ['setTimeout', 'setInterval'] });
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it('says in plain words that it is connected, and keeps a log of how it got there', async () => {
+    const client = new BackendClient(0, remote);
+    await client.getStatus('s1');
+    const state = client.getState();
+    expect(state).toMatchObject({
+      mode: 'remote',
+      address: '127.0.0.1:6789',
+      status: 'connected',
+      detail: 'Connected to 127.0.0.1:6789.',
+    });
+    expect(state.log.map((l) => l.text)).toEqual(['Connecting to 127.0.0.1:6789…', 'Connected to 127.0.0.1:6789.']);
+    await client.stop();
+  });
+
+  it('explains an unreachable backend, keeps trying, and connects once it is up', async () => {
+    fake.refuse = true;
+    const client = new BackendClient(0, remote);
+    await vi.waitFor(() => expect(client.getState().status).toBe('reconnecting'));
+    expect(client.getState().detail).toMatch(/Could not reach 127\.0\.0\.1:6789.*Trying again in 1s/);
+    fake.refuse = false;
+    await vi.advanceTimersByTimeAsync(redialDelay(0));
+    await vi.waitFor(() => expect(client.getState().status).toBe('connected'));
+    await client.stop();
+  });
+
+  it('notices a backend that stops answering, and reconnects', async () => {
+    const client = new BackendClient(0, remote);
+    await client.getStatus('s1');
+    await vi.advanceTimersByTimeAsync(20_000);
+    expect(fake.sockets[0].written.some((f) => f.action === 'getJoinedChannels')).toBe(true);
+    await vi.advanceTimersByTimeAsync(10_000);
+    await vi.waitFor(() => expect(client.getState().status).toBe('reconnecting'));
+    await vi.advanceTimersByTimeAsync(redialDelay(0));
+    await vi.waitFor(() => expect(fake.sockets).toHaveLength(2));
+    expect(client.getState().log.map((l) => l.text)).toContain('The backend stopped answering. Reconnecting…');
+    await client.stop();
+  });
+
+  it('keeps the link while the backend answers its checks', async () => {
+    fake.answerPings = true;
+    const client = new BackendClient(0, remote);
+    await client.getStatus('s1');
+    await vi.advanceTimersByTimeAsync(20_000 * 5);
+    expect(fake.sockets).toHaveLength(1);
+    expect(client.getState().status).toBe('connected');
+    await client.stop();
+  });
+
+  it('switches to another backend while running, and tells the app to catch up', async () => {
+    const client = new BackendClient(0, remote);
+    await client.getStatus('s1');
+    let reconnected = 0;
+    client.on('reconnected', () => reconnected++);
+    client.retarget({ ...remote, port: 7000 });
+    await vi.waitFor(() => expect(reconnected).toBe(1));
+    expect(fake.sockets[0].destroyed).toBe(true);
+    expect(client.getState()).toMatchObject({ address: '127.0.0.1:7000', status: 'connected' });
+    await client.stop();
+  });
+
+  it('recovers from a refused token once pointed at the backend again with the right one', async () => {
+    fake.authOk = false;
+    const client = new BackendClient(0, { ...remote, token: 'wrong' });
+    await vi.waitFor(() => expect(client.getState().status).toBe('failed'));
+    expect(client.getState().detail).toMatch(/refused the access token/);
+    fake.authOk = true;
+    client.retarget(remote);
+    await vi.waitFor(() => expect(client.getState().status).toBe('connected'));
+    await client.stop();
   });
 });
 

@@ -196,7 +196,9 @@ describe('BackendClient pushed frames', () => {
 
   it('asks the user for an access token when the backend answers unauthorized', async () => {
     const fatals: string[] = [];
-    client.on('fatal', (m: string) => fatals.push(m));
+    client.on('state', (s: { status: string; detail: string }) => {
+      if (s.status === 'failed') fatals.push(s.detail);
+    });
     push({ type: 'result', id: 'x', ok: false, error: 'unauthorized' });
     await vi.waitFor(() => expect(fatals[0]).toMatch(/requires an access token/));
   });

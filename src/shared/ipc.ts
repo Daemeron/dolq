@@ -1,3 +1,5 @@
+import type { BackendState } from './backendState';
+
 export const IRC_PORT = 6667;
 export const IRC_TLS_PORT = 6697;
 
@@ -209,6 +211,11 @@ export type IrcApi = {
   // The connection to a remote backend dropped and came back; its sessions
   // may have changed meanwhile.
   onBackendReconnected: (callback: () => void) => () => void;
+  /** How the link to the backend is doing, in words, with the log behind it. */
+  getBackendState: () => Promise<BackendState>;
+  /** Drops the link and connects again from scratch. */
+  reconnectBackend: () => Promise<void>;
+  onBackendState: (callback: (state: BackendState) => void) => () => void;
   getUpdateStatus: () => Promise<UpdateStatus | null>;
   /** The window has rendered its first screen and can be shown; until then a splash covers the start. */
   appReady: () => Promise<void>;
@@ -256,6 +263,9 @@ export enum IrcMessages {
   openIrcUrl = 'irc:openIrcUrl',
   openPreferences = 'irc:openPreferences',
   backendReconnected = 'irc:backendReconnected',
+  getBackendState = 'irc:getBackendState',
+  reconnectBackend = 'irc:reconnectBackend',
+  backendState = 'irc:backendState',
   updateStatus = 'update:status',
   getUpdateStatus = 'update:get',
   appReady = 'app:ready',

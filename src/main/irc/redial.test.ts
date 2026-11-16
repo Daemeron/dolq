@@ -39,3 +39,25 @@ describe('redial', () => {
     expect(dial).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('redial: reporting failures', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it('tells the caller about each failed attempt and when the next one comes', async () => {
+    const err = new Error('refused');
+    const dial = vi.fn().mockRejectedValueOnce(err).mockResolvedValueOnce(undefined);
+    const onFail = vi.fn();
+    const result = redial(dial, () => false, onFail);
+    await vi.advanceTimersByTimeAsync(redialDelay(0));
+    expect(onFail).toHaveBeenCalledWith(err, redialDelay(1));
+    await vi.advanceTimersByTimeAsync(redialDelay(1));
+    expect(await result).toBe(true);
+  });
+});

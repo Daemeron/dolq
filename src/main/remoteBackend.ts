@@ -66,3 +66,38 @@ export function decideTrust(opts: { authorized: boolean; pinned?: string; finger
   if (opts.pinned) return opts.pinned.toUpperCase() === opts.fingerprint.toUpperCase() ? 'trusted' : 'mismatch';
   return opts.authorized ? 'trusted' : 'prompt';
 }
+
+// True when two settings lead to the same connection, so saving Preferences without touching the backend does not drop it.
+export function sameTarget(a?: RemoteTarget, b?: RemoteTarget): boolean {
+  if (!a || !b) return a === b;
+  return (
+    a.host === b.host &&
+    a.port === b.port &&
+    a.tls === b.tls &&
+    (a.token ?? '') === (b.token ?? '') &&
+    (a.fingerprint ?? '').toUpperCase() === (b.fingerprint ?? '').toUpperCase()
+  );
+}
+
+// A network error as a sentence a person can act on.
+export function describeDialError(err: unknown, address: string): string {
+  const code = (err as { code?: string } | null)?.code;
+  const message = err instanceof Error ? err.message : String(err);
+  switch (code) {
+    case 'ECONNREFUSED':
+      return `${address} refused the connection: nothing is listening there. Is the backend running, and is the port right?`;
+    case 'ETIMEDOUT':
+      return `${address} did not answer. A firewall may be dropping the connection, or the machine is off.`;
+    case 'EHOSTUNREACH':
+    case 'ENETUNREACH':
+      return `There is no route to ${address}. Check the network, and on a Mac that Dolq is allowed under Privacy & Security > Local Network.`;
+    case 'ENOTFOUND':
+    case 'EAI_AGAIN':
+      return `The name in ${address} could not be found. Try the machine's IP address instead.`;
+    case 'ECONNRESET':
+    case 'EPIPE':
+      return `${address} closed the connection.`;
+    default:
+      return `Could not reach ${address}: ${message}`;
+  }
+}

@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { decideTrust, insecureReasons, isLoopbackHost, resolveRemoteBackend } from './remoteBackend';
+import {
+  decideTrust,
+  describeDialError,
+  insecureReasons,
+  isLoopbackHost,
+  resolveRemoteBackend,
+  sameTarget,
+} from './remoteBackend';
 
 describe('resolveRemoteBackend', () => {
   it('parses a host:port URL when remote mode is on', () => {
@@ -102,5 +109,40 @@ describe('resolveRemoteBackend: unusable addresses', () => {
     expect(
       resolveRemoteBackend({ retentionDays: 0, remoteEnabled: true, remoteUrl: 'host-without-port' }),
     ).toBeUndefined();
+  });
+});
+
+describe('sameTarget', () => {
+  const t = { host: 'nas', port: 6789, tls: true, token: 'a', fingerprint: 'AA:BB' };
+
+  it('is true for the same connection, whatever the fingerprint case or an empty token', () => {
+    expect(sameTarget(t, { ...t, fingerprint: 'aa:bb' })).toBe(true);
+    expect(sameTarget({ ...t, token: undefined }, { ...t, token: '' })).toBe(true);
+    expect(sameTarget(undefined, undefined)).toBe(true);
+  });
+
+  it('is false when anything that matters differs, or only one side is remote', () => {
+    expect(sameTarget(t, { ...t, host: 'other' })).toBe(false);
+    expect(sameTarget(t, { ...t, port: 1 })).toBe(false);
+    expect(sameTarget(t, { ...t, tls: false })).toBe(false);
+    expect(sameTarget(t, { ...t, token: 'b' })).toBe(false);
+    expect(sameTarget(t, { ...t, fingerprint: 'CC' })).toBe(false);
+    expect(sameTarget(t, undefined)).toBe(false);
+  });
+});
+
+describe('describeDialError', () => {
+  it.each([
+    ['ECONNREFUSED', /nothing is listening/],
+    ['ETIMEDOUT', /did not answer/],
+    ['EHOSTUNREACH', /Local Network/],
+    ['ENOTFOUND', /could not be found/],
+    ['ECONNRESET', /closed the connection/],
+  ])('explains %s', (code, expected) => {
+    expect(describeDialError(Object.assign(new Error('x'), { code }), 'nas:6789')).toMatch(expected);
+  });
+
+  it('falls back to the error text', () => {
+    expect(describeDialError(new Error('weird'), 'nas:6789')).toBe('Could not reach nas:6789: weird');
   });
 });
