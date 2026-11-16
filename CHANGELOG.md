@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.15.0](https://github.com/Daemeron/dolq/compare/dolq-v0.14.0...dolq-v0.15.0) (2026-11-16)
+
+
+### Features
+
+* **app:** monitor the remote backend on the dashboard ([02164c1](https://github.com/Daemeron/dolq/commit/02164c11a777b84ec8df72309ccfd8501bb5c66c))
+* **app:** show how the link to the backend is doing, with its log ([1ae5042](https://github.com/Daemeron/dolq/commit/1ae504229d0f4d95d2f2ec81b5292b0e09198cb8))
+* **app:** watch the link to a remote backend, and switch backends while running ([0ee6225](https://github.com/Daemeron/dolq/commit/0ee62253634e0658ac03b8053122d8b3d8c4c284))
+* **backend:** tell a client about itself with getInfo ([bb4ad85](https://github.com/Daemeron/dolq/commit/bb4ad856fa7f5cc3d6ab8396454865acf9851c02))
+
+
+### Bug Fixes
+
+* **app:** do not let a backend that was being started take over after a switch ([aee441a](https://github.com/Daemeron/dolq/commit/aee441a2574ce05edcabffbad71e8e30ac00277d))
+
 ## [0.14.0](https://github.com/Daemeron/dolq/compare/dolq-v0.13.0...dolq-v0.14.0) (2026-11-16)
 
 
