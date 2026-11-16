@@ -27,9 +27,16 @@
     }
   ],
   "mac": {
-    "sign": {
-      "identity": "-",
-      "hardenedRuntime": false
+    // Ad-hoc signing ("-"): there is no paid Apple account, but the bundle still has to be signed as itself, with its
+    // resources sealed and its own identifier. Without a signature of its own macOS cannot tell the app apart from
+    // any other Electron app, and refuses it the local network (EHOSTUNREACH). Hardened runtime stays off: with an
+    // ad-hoc identity it would reject Electron's own frameworks.
+    "identity": "-",
+    "hardenedRuntime": false,
+    // macOS asks before an app talks to other machines on the local network, and only an app that says why can be
+    // asked. Dolq reaches a backend on a NAS or a server, so without this it is refused with "no route to host".
+    "extendInfo": {
+      "NSLocalNetworkUsageDescription": "Dolq connects to a Dolq backend running on your local network, such as one on a NAS."
     },
     "target": [
       "dmg",
