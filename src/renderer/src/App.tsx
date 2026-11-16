@@ -561,9 +561,8 @@ export default function App() {
       }
       if (isChannelScopedLine(line)) return;
       // The reply to a WHOIS is shown in its window; the line is still kept in the history.
-      let isWhoisLine = whoisFilters.current.get(serverId);
-      if (!isWhoisLine) whoisFilters.current.set(serverId, (isWhoisLine = createWhoisFilter()));
-      if (isWhoisLine(line)) return;
+      if (!whoisFilters.current.has(serverId)) whoisFilters.current.set(serverId, createWhoisFilter());
+      if (whoisFilters.current.get(serverId)?.(line)) return;
       const route = routeLogLine(line);
       if (route.to === 'pm') {
         ensureQuery(serverId, route.nick);
