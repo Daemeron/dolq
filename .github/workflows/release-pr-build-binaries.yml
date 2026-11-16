@@ -71,9 +71,12 @@ jobs:
       # Kept for the release: when it is published from this very tree, create-a-release-build-binaries.yml uploads
       # these installers as they are, instead of building them a second time.
       - name: Record the tree the installers were built from
+        if: runner.os != 'Windows'
         shell: bash
         run: git rev-parse 'HEAD^{tree}' > dist/TREE
+      # Not Windows: it is built and signed again for the release, which has the signing certificate.
       - uses: actions/upload-artifact@v7
+        if: runner.os != 'Windows'
         with:
           name: installers-${{ runner.os }}
           path: |

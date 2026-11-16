@@ -34,9 +34,11 @@ jobs:
       # The release pull request builds these installers before it can be merged. When one of its runs built this very
       # tree (same Git tree id), those installers are published as they are. Anything else, such as a manual run or a
       # tree that changed after the pull request, builds them here as before.
+      # Not on Windows: that installer is signed with the CSC_LINK certificate, which only this workflow has. The one
+      # from the pull request is unsigned, and Windows would refuse an update that is not signed like the app it replaces.
       - name: Look for installers the release pull request already built
         id: reuse
-        if: env.TAG != ''
+        if: env.TAG != '' && runner.os != 'Windows'
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -102,6 +104,15 @@ jobs:
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
       - run: npx electron-builder --publish never
         if: runner.os != 'Windows' && steps.reuse.outputs.reused != 'true'
+      # electron-builder signs only when the certificate is there, and skips it without a word when it is not.
+      - name: Check the Windows installer is signed
+        if: runner.os == 'Windows' && env.TAG != ''
+        shell: pwsh
+        run: |
+          $exe = Get-Item dist/*.exe
+          $sig = Get-AuthenticodeSignature $exe
+          if (-not $sig.SignerCertificate) { throw "$($exe.Name) is not signed" }
+          Write-Output "$($exe.Name) is signed by $($sig.SignerCertificate.Subject)"
       - name: Upload macOS assets
         if: runner.os == 'macOS' && env.TAG != ''
         run: gh release upload "$TAG" dist/*.dmg dist/*.zip dist/latest-mac.yml --clobber
