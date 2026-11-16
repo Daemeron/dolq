@@ -55,7 +55,12 @@ jobs:
       - run: npm ci
       - run: go build -C backend -o bin/ ./cmd/dolqd
       - run: npx electron-vite build
+      # electron-builder does not sign a pull request's build unless told to, and an unsigned macOS app is refused the
+      # local network. Safe here: the identity is ad hoc ("-"), so there is no certificate or secret to protect, and
+      # only the macOS build gets the switch (Windows is signed after the release, with a certificate that stays there).
       - run: npx electron-builder --publish never
+        env:
+          CSC_FOR_PULL_REQUEST: ${{ runner.os == 'macOS' }}
 
       # The app has to be signed as itself, even ad hoc. Unsigned, macOS cannot tell Dolq from any other Electron app and
       # refuses it the local network ("no route to host"), and electron-builder skips signing without a word when its
