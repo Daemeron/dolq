@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/Daemeron/dolq/backend/internal/dcc"
+	"github.com/Daemeron/dolq/backend/internal/disk"
 	"github.com/Daemeron/dolq/backend/internal/history"
 	"github.com/Daemeron/dolq/backend/internal/ircclient"
 	"github.com/Daemeron/dolq/backend/internal/ircparse"
@@ -322,6 +323,15 @@ func (b *Bouncer) wire(serverID string, sess *session, client *ircclient.Client)
 			if e.Nick == own {
 				log.Printf("irc %s: left %s", b.serverName(serverID), e.Channel)
 			}
+		case ircparse.XDCCSendOfferEvent:
+			// Whether it is taken up is up to an app, so say that it came: a transfer nobody accepts leaves no other trace.
+			how := fmt.Sprintf("to be fetched from %s:%d, waiting for an app to accept", e.IP, e.Port)
+			if e.Port == 0 {
+				how = "and wants us to listen for it (a passive offer), waiting for an app to accept"
+			}
+			log.Printf("irc %s: %s offers %s (%s) %s", b.serverName(serverID), e.Nick, e.Filename, disk.Size(uint64(max(e.Size, 0))), how)
+		case ircparse.DCCChatOfferEvent:
+			log.Printf("irc %s: %s offers a DCC chat, waiting for an app to accept", b.serverName(serverID), e.Nick)
 		}
 	})
 	client.OnClose(func() { b.handleClose(serverID, sess) })

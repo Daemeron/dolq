@@ -2,9 +2,12 @@ package ircclient
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/base64"
 	"io"
+	"log"
 	"net"
+	"os"
 	"reflect"
 	"slices"
 	"strings"
@@ -15,6 +18,32 @@ import (
 
 	"github.com/Daemeron/dolq/backend/internal/ircparse"
 )
+
+// logBuffer collects what the code under test logs, safe to read while it is still being written.
+type logBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (l *logBuffer) Write(p []byte) (int, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.buf.Write(p)
+}
+
+func (l *logBuffer) String() string {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.buf.String()
+}
+
+func waitForLog(t *testing.T, out *logBuffer, text string) {
+	t.Helper()
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) && !strings.Contains(out.String(), text) {
+		time.Sleep(10 * time.Millisecond)
+	}
+}
 
 func pipeClient(t *testing.T, nick string) (*Client, net.Conn, *bufio.Reader) {
 	t.Helper()
@@ -542,6 +571,62 @@ func TestCTCP(t *testing.T) {
 			}
 		case <-time.After(time.Second):
 			t.Fatal("timed out waiting for the XDCCResumeAcceptEvent")
+		}
+	})
+
+	t.Run("says why it dropped a DCC offer it cannot use, and emits nothing", func(t *testing.T) {
+		out := &logBuffer{}
+		log.SetOutput(out)
+		t.Cleanup(func() { log.SetOutput(os.Stderr) })
+
+		c, server, r := pipeClient(t, "testnick")
+		events := make(chan any, 1)
+		c.AddEventListener(func(e any) { events <- e })
+		c.Start()
+		drainHandshake(t, r)
+
+		writeLine(t, server, ":gattsu!u@host PRIVMSG testnick :\x01DCC SEND pack.mkv 2001:db8::1 5000 1024\x01")
+		writeLine(t, server, ":gattsu!u@host PRIVMSG testnick :\x01DCC SSEND pack.mkv 3232235777 5000 1024\x01")
+		waitForLog(t, out, "SSEND")
+
+		got := out.String()
+		for _, want := range []string{
+			"ignored a DCC request from gattsu",
+			"the sender's address as a number",
+			"SEND pack.mkv 2001:db8::1 5000 1024",
+			"not supported",
+			"SSEND pack.mkv 3232235777 5000 1024",
+		} {
+			if !strings.Contains(got, want) {
+				t.Errorf("the log never said %q:\n%s", want, got)
+			}
+		}
+		select {
+		case e := <-events:
+			t.Errorf("expected no event, got %#v", e)
+		default:
+		}
+	})
+
+	t.Run("does not log the offers it can use as dropped", func(t *testing.T) {
+		out := &logBuffer{}
+		log.SetOutput(out)
+		t.Cleanup(func() { log.SetOutput(os.Stderr) })
+
+		c, server, r := pipeClient(t, "testnick")
+		events := make(chan any, 1)
+		c.AddEventListener(func(e any) { events <- e })
+		c.Start()
+		drainHandshake(t, r)
+
+		writeLine(t, server, ":alice!u@host PRIVMSG testnick :\x01DCC SEND file.txt 3232235777 5000 1024\x01")
+		select {
+		case <-events:
+		case <-time.After(2 * time.Second):
+			t.Fatal("timed out waiting for the offer")
+		}
+		if strings.Contains(out.String(), "ignored a DCC request") {
+			t.Errorf("a usable offer was logged as dropped:\n%s", out.String())
 		}
 	})
 

@@ -700,14 +700,17 @@ func (c *Client) handleDCCRequest(from ircparse.CTCPRequestEvent, param string) 
 	switch fields[0] {
 	case "CHAT":
 		if len(fields) < 4 {
+			c.ignoredDCC(nick, param, "too few fields")
 			return
 		}
 		ipNum, err := strconv.ParseUint(fields[2], 10, 32)
 		if err != nil {
+			c.ignoredDCC(nick, param, "the address is not a number")
 			return
 		}
 		port, err := strconv.Atoi(fields[3])
 		if err != nil {
+			c.ignoredDCC(nick, param, "the port is not a number")
 			return
 		}
 		ip := dcc.DecodeIP(uint32(ipNum))
@@ -715,6 +718,7 @@ func (c *Client) handleDCCRequest(from ircparse.CTCPRequestEvent, param string) 
 	case "SEND":
 		offer, ok := dcc.ParseSendOffer(param)
 		if !ok {
+			c.ignoredDCC(nick, param, "it could not be read: DCC SEND wants the sender's address as a number")
 			return
 		}
 		c.emitEvent(ircparse.XDCCSendOfferEvent{
@@ -725,13 +729,25 @@ func (c *Client) handleDCCRequest(from ircparse.CTCPRequestEvent, param string) 
 	case "ACCEPT":
 		accept, ok := dcc.ParseResumeAccept(param)
 		if !ok {
+			c.ignoredDCC(nick, param, "it could not be read")
 			return
 		}
 		c.emitEvent(ircparse.XDCCResumeAcceptEvent{
 			Type: "XDCCRESUMEACCEPT", Nick: nick, Filename: accept.Filename,
 			Port: accept.Port, Position: accept.Position, Token: accept.Token,
 		})
+	default:
+		c.ignoredDCC(nick, param, "not supported")
 	}
+}
+
+// ignoredDCC says that a DCC request was dropped, and what it was. Dropped without a word, it leaves a bot waiting for a
+// connection until it gives up, and nothing anywhere to say why.
+func (c *Client) ignoredDCC(nick, param, why string) {
+	if len(param) > 200 {
+		param = param[:200] + "…"
+	}
+	log.Printf("ircclient: ignored a DCC request from %s (%s): %s", nick, why, param)
 }
 
 func (c *Client) sendCTCPReply(nick, payload string) {
