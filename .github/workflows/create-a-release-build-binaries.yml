@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Release tag to build and upload to (e.g. dolq-v0.1.4); leave empty to only build'
+        description: 'Release tag to build and upload to (e.g. v0.1.4); leave empty to only build'
         required: false
         default: ''
 

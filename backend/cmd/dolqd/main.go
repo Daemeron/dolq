@@ -23,6 +23,9 @@ import (
 	"github.com/Daemeron/dolq/backend/internal/ipcproto"
 )
 
+// version is the release this binary was built from; the release build sets it (-ldflags "-X main.version=...").
+var version = "dev"
+
 func main() {
 	// Installed before the socket path is printed, so a parent signalling
 	// right after reading it gets a clean shutdown rather than a default kill.
@@ -55,9 +58,15 @@ func run(ctx context.Context, args []string, stdout io.Writer) error {
 	downloadDir := flags.String("download-dir", "", "with -addr, where XDCC downloads are saved; clients cannot choose another directory (also DOLQ_DOWNLOAD_DIR; default: a downloads dir next to the database). A locally spawned dolqd saves where the app asks")
 	printPairing := flags.Bool("print-pairing", false, "with -addr, log the pairing link (it contains the access token); it is otherwise logged only when the token is first generated")
 	retentionDays := flags.Int("retention-days", 0, "prune history older than this many days (0 = keep forever)")
+	showVersion := flags.Bool("version", false, "print the version and exit")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
+	if *showVersion {
+		_, err := fmt.Fprintf(stdout, "dolqd %s\n", version)
+		return err
+	}
+	log.Printf("dolqd %s", version)
 
 	p, err := plan(options{
 		socket: *socketPath, addr: *addr, tlsCert: *tlsCert, tlsKey: *tlsKey, acmeDomain: *acmeDomain,

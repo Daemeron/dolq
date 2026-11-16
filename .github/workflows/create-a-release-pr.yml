@@ -28,7 +28,7 @@ jobs:
     steps:
       # release-please-action only honours its release-as/versioning-strategy
       # inputs when release-type is set, which bypasses release-please-config.json
-      # (and with it our PR title pattern and dolq-v tags). In manifest mode the
+      # (and with it our PR title pattern and v tags). In manifest mode the
       # only per-run override release-please offers is the CLI's --release-as,
       # so a forced bump is turned into an exact version from the manifest here.
       - uses: actions/checkout@v7
