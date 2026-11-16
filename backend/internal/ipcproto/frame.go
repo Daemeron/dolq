@@ -22,6 +22,7 @@ const (
 	ActionXDCCResume        = "xdccResume"
 	ActionGetTransfers      = "getTransfers"
 	ActionDeleteTransfer    = "deleteTransfer"
+	ActionGetInfo           = "getInfo"
 )
 
 const (
@@ -74,4 +75,30 @@ type ServerFrame struct {
 	DCCID     string             `json:"dccId,omitempty"`
 	OK        bool               `json:"ok,omitempty"`
 	Error     string             `json:"error,omitempty"`
+	Info      *Info              `json:"info,omitempty"`
+}
+
+// Info is what a backend says about itself, for a client that monitors it.
+type Info struct {
+	Version string `json:"version"`
+	// UptimeMs is how long this process has been running. A length of time, not a start time, so a client whose
+	// clock differs from this machine's still shows the right figure.
+	UptimeMs int64 `json:"uptimeMs"`
+	// Clients is how many authenticated clients are attached now.
+	Clients int `json:"clients"`
+	// Sessions is how many IRC connections it holds, including ones it is redialling.
+	Sessions int `json:"sessions"`
+	// Transfers is how many file transfers and direct chats are open.
+	Transfers int          `json:"transfers"`
+	Folders   []FolderInfo `json:"folders"`
+}
+
+// FolderInfo is the room a folder it writes to has left.
+type FolderInfo struct {
+	Name  string `json:"name"`
+	Path  string `json:"path"`
+	Free  uint64 `json:"free"`
+	Total uint64 `json:"total"`
+	// Error is why the room could not be told.
+	Error string `json:"error,omitempty"`
 }

@@ -91,6 +91,17 @@ func pipeSession(t *testing.T, b *Bouncer, serverID string, initial Subscriber) 
 	return serverConn, r
 }
 
+func TestStatsCountsSessions(t *testing.T) {
+	b := New(nil)
+	if sessions, transfers := b.Stats(); sessions != 0 || transfers != 0 {
+		t.Fatalf("an empty bouncer holds nothing, got %d sessions and %d transfers", sessions, transfers)
+	}
+	pipeSession(t, b, "s1", &fakeSubscriber{})
+	if sessions, transfers := b.Stats(); sessions != 1 || transfers != 0 {
+		t.Fatalf("got %d sessions and %d transfers, want 1 and 0", sessions, transfers)
+	}
+}
+
 func drainHandshake(t *testing.T, r *bufio.Reader) {
 	t.Helper()
 	for range 4 {

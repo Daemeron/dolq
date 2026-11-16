@@ -152,6 +152,7 @@ func run(ctx context.Context, args []string, stdout io.Writer) error {
 
 	b := bouncer.New(store)
 	srv := ipcproto.NewServer(b).RequireToken(token)
+	folders := []ipcproto.Folder{{Name: "data", Path: filepath.Dir(resolveDBPath(*dbPath))}}
 	if network == "tcp" {
 		dir := serverDownloadDir(*downloadDir, os.Getenv("DOLQ_DOWNLOAD_DIR"), *dbPath)
 		if err := os.MkdirAll(dir, 0o700); err != nil {
@@ -166,7 +167,9 @@ func run(ctx context.Context, args []string, stdout io.Writer) error {
 			log.Print(line)
 		}
 		srv.DownloadDir(dir)
+		folders = append(folders, ipcproto.Folder{Name: "downloads", Path: dir})
 	}
+	srv.About(version, folders...)
 
 	serveErr := make(chan error, 1)
 	go func() { serveErr <- srv.Serve(ln) }()

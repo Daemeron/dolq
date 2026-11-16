@@ -9,9 +9,11 @@ import (
 	"net"
 	"os"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/Daemeron/dolq/backend/internal/bouncer"
+	"github.com/Daemeron/dolq/backend/internal/disk"
 	"github.com/Daemeron/dolq/backend/internal/ircparse"
 )
 
@@ -62,7 +64,28 @@ type Server struct {
 	authTimeout time.Duration
 	// writeTimeout bounds each frame written to a client; see conn.writeFrame.
 	writeTimeout time.Duration
+
+	// What getInfo reports about this process.
+	version   string
+	startedAt time.Time
+	folders   []Folder
+	clients   atomic.Int32
+
+	// The room the folders have left is read in the background, never while a client waits: a folder on a network
+	// share can stall, and getInfo doubles as the app's heartbeat, which would then take the link for dead.
+	freeSpace     func(dir string) (free, total uint64, err error)
+	roomFirstWait time.Duration
+	roomMu        sync.Mutex
+	room          []FolderInfo
+	roomAt        time.Time
+	roomBusy      bool
 }
+
+// roomMaxAge is how old a reading of the folders may get before a new one is started.
+const roomMaxAge = 30 * time.Second
+
+// Folder is a folder the backend writes to, named for the client that monitors it.
+type Folder struct{ Name, Path string }
 
 const (
 	defaultAuthTimeout  = 10 * time.Second
@@ -70,7 +93,62 @@ const (
 )
 
 func NewServer(b *bouncer.Bouncer) *Server {
-	return &Server{b: b, authTimeout: defaultAuthTimeout, writeTimeout: defaultWriteTimeout}
+	return &Server{
+		b: b, authTimeout: defaultAuthTimeout, writeTimeout: defaultWriteTimeout, startedAt: time.Now(),
+		freeSpace: disk.Free, roomFirstWait: time.Second,
+	}
+}
+
+// About sets what getInfo says: the release this is, and the folders whose free space it reports.
+func (s *Server) About(version string, folders ...Folder) *Server {
+	s.version, s.folders = version, folders
+	return s
+}
+
+func (s *Server) info() *Info {
+	info := &Info{Version: s.version, UptimeMs: time.Since(s.startedAt).Milliseconds(), Clients: int(s.clients.Load()), Folders: s.folderRoom()}
+	if s.b != nil {
+		info.Sessions, info.Transfers = s.b.Stats()
+	}
+	return info
+}
+
+// folderRoom answers with the last reading of the folders and, when it is old, starts a new one in the background.
+// Only the very first call waits for a reading, and only briefly, so it has something to show. A folder that stalls
+// leaves the answer without that reading, and does not hold the answer back.
+func (s *Server) folderRoom() []FolderInfo {
+	s.roomMu.Lock()
+	if !s.roomBusy && time.Since(s.roomAt) > roomMaxAge {
+		s.roomBusy = true
+		done := make(chan struct{})
+		go func() {
+			read := make([]FolderInfo, 0, len(s.folders))
+			for _, f := range s.folders {
+				fi := FolderInfo{Name: f.Name, Path: f.Path}
+				if free, total, err := s.freeSpace(f.Path); err != nil {
+					fi.Error = err.Error()
+				} else {
+					fi.Free, fi.Total = free, total
+				}
+				read = append(read, fi)
+			}
+			s.roomMu.Lock()
+			s.room, s.roomAt, s.roomBusy = read, time.Now(), false
+			s.roomMu.Unlock()
+			close(done)
+		}()
+		if s.roomAt.IsZero() {
+			s.roomMu.Unlock()
+			select {
+			case <-done:
+			case <-time.After(s.roomFirstWait):
+			}
+			s.roomMu.Lock()
+		}
+	}
+	out := append([]FolderInfo{}, s.room...)
+	s.roomMu.Unlock()
+	return out
 }
 
 // RequireToken makes every connection open with an auth frame carrying token
@@ -200,6 +278,8 @@ func (s *Server) handleConn(netConn net.Conn) {
 	} else if legacy {
 		log.Printf("client %s: plain connection without an access token (legacy)", c.remote)
 	}
+	s.clients.Add(1)
+	defer s.clients.Add(-1)
 	for scanner.Scan() {
 		var f ClientFrame
 		if err := json.Unmarshal(scanner.Bytes(), &f); err != nil {
@@ -316,6 +396,8 @@ func (s *Server) handleFrame(c *conn, f ClientFrame) {
 		c.writeFrame(ServerFrame{ID: f.ID, Type: FrameResult, OK: true, Transfers: transfers})
 	case ActionDeleteTransfer:
 		c.writeResult(f.ID, s.b.DeleteTransfer(f.DCCID))
+	case ActionGetInfo:
+		c.writeFrame(ServerFrame{ID: f.ID, Type: FrameResult, OK: true, Info: s.info()})
 	default:
 		c.writeFrame(ServerFrame{ID: f.ID, Type: FrameResult, OK: false, Error: "unknown action: " + f.Action})
 	}
