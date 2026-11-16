@@ -97,6 +97,7 @@ func (b *Bouncer) XDCCAccept(
 		b.dccMu.Lock()
 		b.xdccConns[id] = t
 		b.dccMu.Unlock()
+		log.Printf("xdcc: accepted %s from %s, connecting to %s:%d", offer.Filename, offer.Nick, offer.IP, offer.Port)
 		sub.SendStatus(id, "connecting")
 		go func() { connected(dcc.DialRaw(offer.IP, offer.Port)) }()
 		return id, nil
@@ -118,6 +119,8 @@ func (b *Bouncer) XDCCAccept(
 	b.dccMu.Lock()
 	b.xdccConns[id] = t
 	b.dccMu.Unlock()
+	// The address announced is where the sender has to connect; inside a container it is the container's own.
+	log.Printf("xdcc: accepted %s from %s, waiting for it at %s:%d", offer.Filename, offer.Nick, ip, port)
 	line := fmt.Sprintf("PRIVMSG %s :\x01DCC SEND %s %d %d %d %s\x01",
 		offer.Nick, quoteIfSpaced(offer.Filename), dcc.EncodeIP(ip), port, offer.Size, offer.Token)
 	if err := client.SendPaced(line); err != nil {
