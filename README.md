@@ -122,7 +122,8 @@ SmartScreen will warn you. To proceed:
 By default the app starts its own `dolqd` and talks to it over a local socket.
 You can instead run `dolqd` on an always-on machine (a server, a NAS) so IRC
 sessions and history stay up while the app is closed, and point any number of
-clients at it.
+clients at it. How every connection works, as sequence diagrams, is in
+[docs/network](./docs/network/README.md).
 
 **Run it.** From the repo root, `docker compose up -d` builds and starts
 `backend/Dockerfile`, listening on port 6789 with its data in a volume. On
@@ -353,6 +354,7 @@ src/
 
 resources/                    # App and tray icons, generated from icon.svg by scripts/build-icons.mjs
 docs/design-system/           # Tokens, rules and a browsable preview of every component
+docs/network/                 # Sequence diagrams of every network connection: backend link, IRC, transfers, updates
 
 backend/
 ├── cmd/dolqd/                # Daemon entry point
