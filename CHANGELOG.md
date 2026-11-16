@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.16.0](https://github.com/Daemeron/dolq/compare/dolq-v0.15.1...dolq-v0.16.0) (2026-11-16)
+
+
+### Features
+
+* **backend:** accept DCC offers from IPv6 addresses ([617ef19](https://github.com/Daemeron/dolq/commit/617ef195072b42a03d2acc4f171b579928055329))
+* **backend:** log the DCC offers it gets, and the ones it drops ([85c2e86](https://github.com/Daemeron/dolq/commit/85c2e866edbabf4e0457211e7072a7d2fd2c1fb0))
+
 ## [0.15.1](https://github.com/Daemeron/dolq/compare/dolq-v0.15.0...dolq-v0.15.1) (2026-11-16)
 
 
