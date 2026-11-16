@@ -931,6 +931,27 @@ describe('App: prompts from the network', () => {
     expect(irc.spies.showInFolder).toHaveBeenCalledWith('/dl/f.iso');
   });
 
+  it('says why when the backend refuses a file offer, instead of leaving the sender waiting', async () => {
+    const irc = await mount();
+    irc.spies.xdccAccept.mockRejectedValueOnce(
+      new Error("Error invoking remote method 'irc:xdccAccept': Error: not enough room in /dl"),
+    );
+    await irc.event('s1', offer);
+    await fire.click(await screen.findByRole('button', { name: 'Accept' }));
+
+    await waitFor(() =>
+      expect(useStore.getState().messageMap['s1:bot']?.map((m) => m.text)).toContain(
+        '*** Could not accept f.iso: not enough room in /dl',
+      ),
+    );
+    await fire.click(await screen.findByRole('button', { name: 'Transfers' }));
+    expect(await screen.findByText('Failed: not enough room in /dl')).toBeTruthy();
+
+    await fire.click(screen.getByRole('button', { name: 'Dismiss' }));
+    expect(irc.spies.deleteTransfer.mock.calls[0][0]).toMatch(/^refused:/);
+    expect(screen.queryByText('Failed: not enough room in /dl')).toBeNull();
+  });
+
   it('trusts a sender for the session and skips the prompt the next time', async () => {
     const irc = await mount();
     await irc.event('s1', offer);
