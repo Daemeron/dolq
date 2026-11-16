@@ -703,9 +703,9 @@ func (c *Client) handleDCCRequest(from ircparse.CTCPRequestEvent, param string) 
 			c.ignoredDCC(nick, param, "too few fields")
 			return
 		}
-		ipNum, err := strconv.ParseUint(fields[2], 10, 32)
-		if err != nil {
-			c.ignoredDCC(nick, param, "the address is not a number")
+		ip, ok := dcc.ParseAddress(fields[2])
+		if !ok {
+			c.ignoredDCC(nick, param, "the address is neither a number nor an IP address")
 			return
 		}
 		port, err := strconv.Atoi(fields[3])
@@ -713,12 +713,11 @@ func (c *Client) handleDCCRequest(from ircparse.CTCPRequestEvent, param string) 
 			c.ignoredDCC(nick, param, "the port is not a number")
 			return
 		}
-		ip := dcc.DecodeIP(uint32(ipNum))
-		c.emitEvent(ircparse.DCCChatOfferEvent{Type: "DCCCHATOFFER", Nick: nick, IP: ip.String(), Port: port})
+		c.emitEvent(ircparse.DCCChatOfferEvent{Type: "DCCCHATOFFER", Nick: nick, IP: ip, Port: port})
 	case "SEND":
 		offer, ok := dcc.ParseSendOffer(param)
 		if !ok {
-			c.ignoredDCC(nick, param, "it could not be read: DCC SEND wants the sender's address as a number")
+			c.ignoredDCC(nick, param, "it could not be read: the sender's address is neither a number nor an IP address")
 			return
 		}
 		c.emitEvent(ircparse.XDCCSendOfferEvent{

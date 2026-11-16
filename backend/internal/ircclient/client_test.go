@@ -472,6 +472,35 @@ func TestCTCP(t *testing.T) {
 		}
 	})
 
+	t.Run("reads an IPv6 sender in a DCC SEND and a DCC CHAT offer", func(t *testing.T) {
+		c, server, r := pipeClient(t, "testnick")
+		events := make(chan any, 2)
+		c.AddEventListener(func(e any) { events <- e })
+		c.Start()
+		drainHandshake(t, r)
+
+		writeLine(t, server, ":gattsu!u@host PRIVMSG testnick :\x01DCC SEND pack.mkv 2001:db8::1 5000 1024 7\x01")
+		writeLine(t, server, ":gattsu!u@host PRIVMSG testnick :\x01DCC CHAT chat 2001:db8::2 5001\x01")
+
+		var got []any
+		for len(got) < 2 {
+			select {
+			case e := <-events:
+				got = append(got, e)
+			case <-time.After(2 * time.Second):
+				t.Fatalf("timed out; got %#v", got)
+			}
+		}
+		send, ok := got[0].(ircparse.XDCCSendOfferEvent)
+		if !ok || send.IP != "2001:db8::1" || send.Port != 5000 || send.Size != 1024 || send.Token != "7" {
+			t.Errorf("the DCC SEND offer was read as %#v", got[0])
+		}
+		chat, ok := got[1].(ircparse.DCCChatOfferEvent)
+		if !ok || chat.IP != "2001:db8::2" || chat.Port != 5001 {
+			t.Errorf("the DCC CHAT offer was read as %#v", got[1])
+		}
+	})
+
 	t.Run("does not auto-reply to a DCC CHAT request", func(t *testing.T) {
 		c, server, r := pipeClient(t, "testnick")
 		c.Start()
@@ -585,15 +614,15 @@ func TestCTCP(t *testing.T) {
 		c.Start()
 		drainHandshake(t, r)
 
-		writeLine(t, server, ":gattsu!u@host PRIVMSG testnick :\x01DCC SEND pack.mkv 2001:db8::1 5000 1024\x01")
+		writeLine(t, server, ":gattsu!u@host PRIVMSG testnick :\x01DCC SEND pack.mkv not-an-address 5000 1024\x01")
 		writeLine(t, server, ":gattsu!u@host PRIVMSG testnick :\x01DCC SSEND pack.mkv 3232235777 5000 1024\x01")
 		waitForLog(t, out, "SSEND")
 
 		got := out.String()
 		for _, want := range []string{
 			"ignored a DCC request from gattsu",
-			"the sender's address as a number",
-			"SEND pack.mkv 2001:db8::1 5000 1024",
+			"the sender's address is neither a number nor an IP address",
+			"SEND pack.mkv not-an-address 5000 1024",
 			"not supported",
 			"SSEND pack.mkv 3232235777 5000 1024",
 		} {
