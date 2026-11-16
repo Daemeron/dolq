@@ -201,6 +201,9 @@ type Bouncer struct {
 	// DCCHost is the address announced to a peer that has to connect to us (see dcc.AnnouncedIP). Empty is this
 	// machine's own address.
 	DCCHost string
+	// Reacher, when set, says how a peer reaches a port we listen on, instead of DCCHost and the port itself: the
+	// router's public address and a port it forwards.
+	Reacher Reacher
 
 	ResumeAcceptTimeout time.Duration
 	// SendConfirmTimeout is how long a finished upload waits for the peer's last acknowledgement.

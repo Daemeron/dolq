@@ -120,8 +120,7 @@ func (b *Bouncer) xdccAccept(
 		f.Close()
 		return "", err
 	}
-	port := ln.Addr().(*net.TCPAddr).Port
-	ip, err := dcc.AnnouncedIP(b.DCCHost)
+	ip, port, release, err := b.reach(ln.Addr().(*net.TCPAddr).Port)
 	if err != nil {
 		ln.Close()
 		f.Close()
@@ -140,12 +139,17 @@ func (b *Bouncer) xdccAccept(
 		delete(b.xdccConns, id)
 		b.dccMu.Unlock()
 		ln.Close()
+		release()
 		f.Close()
 		return "", err
 	}
 
 	sub.SendStatus(id, "connecting")
-	go func() { connected(dcc.AcceptOnceRaw(ln, b.DCCAcceptTimeout)) }()
+	go func() {
+		conn, err := dcc.AcceptOnceRaw(ln, b.DCCAcceptTimeout)
+		release() // the sender connected, gave up, or was cancelled: nothing more comes in on that port
+		connected(conn, err)
+	}()
 	return id, nil
 }
 

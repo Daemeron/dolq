@@ -22,6 +22,7 @@ import (
 	"github.com/Daemeron/dolq/backend/internal/dcc"
 	"github.com/Daemeron/dolq/backend/internal/history"
 	"github.com/Daemeron/dolq/backend/internal/ipcproto"
+	"github.com/Daemeron/dolq/backend/internal/natmap"
 )
 
 // version is the release this binary was built from; the release build sets it (-ldflags "-X main.version=...").
@@ -57,7 +58,7 @@ func run(ctx context.Context, args []string, stdout io.Writer) error {
 	useTLSFlag := flags.Bool("tls", true, "serve -addr over TLS; -tls=false for plain TCP, e.g. behind a TLS-terminating proxy or an SSH tunnel")
 	useTokenFlag := flags.Bool("token", true, "require an access token on -addr (DOLQ_TOKEN, or generated once and kept next to the database); -token=false means anyone who can reach the port can use it, so only on a network you fully trust. Independent of -tls")
 	downloadDir := flags.String("download-dir", "", "with -addr, where XDCC downloads are saved; clients cannot choose another directory (also DOLQ_DOWNLOAD_DIR; default: a downloads dir next to the database). A locally spawned dolqd saves where the app asks")
-	dccHost := flags.String("dcc-host", "", "the address announced to a peer that has to connect to this machine (a passive XDCC offer, a DCC chat, a file sent): an IPv4 address or a name that resolves to one, such as your public address or a dynamic DNS name; default is this machine's own address, which is not reachable from outside behind NAT or in a container (also DOLQ_DCC_HOST)")
+	dccHost := flags.String("dcc-host", "", "the address announced to a peer that has to connect to this machine (a passive XDCC offer, a DCC chat, a file sent): an IPv4 address or a name that resolves to one, such as your public address or a dynamic DNS name, or auto to ask the router (UPnP or NAT-PMP) for its public address and a forwarded port for each transfer, which needs host networking in a container; default is this machine's own address, which is not reachable from outside behind NAT or in a container (also DOLQ_DCC_HOST)")
 	dccPorts := flags.String("dcc-ports", "", "the only ports those connections listen on, e.g. 40000-40010, to be forwarded or published; default is any port (also DOLQ_DCC_PORTS)")
 	printPairing := flags.Bool("print-pairing", false, "with -addr, log the pairing link (it contains the access token); it is otherwise logged only when the token is first generated")
 	retentionDays := flags.Int("retention-days", 0, "prune history older than this many days (0 = keep forever)")
@@ -159,6 +160,19 @@ func run(ctx context.Context, args []string, stdout io.Writer) error {
 		return err
 	}
 	b.DCCHost = dccCfg.host
+	if dccCfg.auto {
+		mapper := natmap.New(dccMappingLease)
+		b.Reacher = mapper
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+			defer cancel()
+			if line, err := mapper.Probe(ctx); err != nil {
+				log.Printf("warning: DCC: %v", err)
+			} else {
+				log.Printf("DCC: %s", line)
+			}
+		}()
+	}
 	srv := ipcproto.NewServer(b).RequireToken(token).DCCPorts(dccCfg.minPort, dccCfg.maxPort)
 	folders := []ipcproto.Folder{{Name: "data", Path: filepath.Dir(resolveDBPath(*dbPath))}}
 	if network == "tcp" {
