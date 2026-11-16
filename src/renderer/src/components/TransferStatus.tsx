@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { formatBytes } from '../utils/bytes';
 import { activeLine, transferPercent } from '../utils/transferLine';
 import { IconButton } from './Icon';
@@ -18,6 +19,9 @@ export type Transfer = {
   sending?: boolean;
 };
 
+// How long a note about a transfer stays under it.
+const NOTE_MS = 8000;
+
 /** The folder part of a file path, whichever separator the platform uses. */
 const folderOf = (path: string) => path.replace(/[\\/][^\\/]*$/, '') || path;
 
@@ -29,7 +33,10 @@ type Props = {
   onDismiss: (id: string) => void;
   /** Forgets every transfer that has ended. */
   onClearFinished?: () => void;
-  onShowInFolder?: (path: string) => void;
+  /** Shows where a file is. A text it answers with is shown under the transfer, such as why it could not be shown. */
+  onShowInFolder?: (path: string) => undefined | string | Promise<undefined | string>;
+  /** What the button says for a file; "Show in folder" unless all that can be done is to copy its path. */
+  showInFolderLabel?: (path: string) => string;
   onClose: () => void;
   /** Shown above the list, for queuing packs from a packlist. */
   packQueue?: React.ReactNode;
@@ -43,10 +50,18 @@ export function TransferStatus({
   onDismiss,
   onClearFinished,
   onShowInFolder,
+  showInFolderLabel,
   onClose,
   packQueue,
 }: Props) {
   const entries = Object.entries(transfers);
+  const [notes, setNotes] = useState<Record<string, string>>({});
+
+  async function locate(id: string, path: string) {
+    const note = await onShowInFolder?.(path);
+    setNotes((prev) => ({ ...prev, [id]: note ?? '' }));
+    if (note) setTimeout(() => setNotes((prev) => ({ ...prev, [id]: '' })), NOTE_MS);
+  }
 
   return (
     <ViewPanel
@@ -90,6 +105,7 @@ export function TransferStatus({
                       {t.done ? 'Saved in' : 'Saving to'} {folderOf(t.path)}
                     </div>
                   )}
+                  {notes[id] && <div className="text-[12px] text-(--dolq-text-dim)">{notes[id]}</div>}
                   {!finished && (
                     <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-(--dolq-bg-row-selected)">
                       <div
@@ -108,8 +124,8 @@ export function TransferStatus({
                     />
                   )}
                   {t.done && t.path && onShowInFolder && (
-                    <Button small variant="ghost" onClick={() => onShowInFolder(t.path as string)}>
-                      Show in folder
+                    <Button small variant="ghost" onClick={() => locate(id, t.path as string)}>
+                      {showInFolderLabel?.(t.path) ?? 'Show in folder'}
                     </Button>
                   )}
                   <IconButton

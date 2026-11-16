@@ -374,7 +374,10 @@ function registerShellHandlers(): void {
   // Reveals a downloaded file in the system file manager; it never opens or runs it.
   ipcMain.handle(IrcMessages.showInFolder, (_event, filePath: string) => {
     if (typeof filePath !== 'string' || !isAbsolute(filePath)) throw new Error('refusing to reveal a relative path');
+    // A file that is not here (deleted, or on another machine) would reveal nothing, and the caller should say so.
+    if (!fs.existsSync(filePath)) return false;
     shell.showItemInFolder(filePath);
+    return true;
   });
 
   // The Windows/Linux window controls take the toolbar's colours; macOS has none to colour.

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { type HistoryEntry, type IrcEvent, RELEASES_URL, type Settings, type UpdateStatus } from '../../shared/ipc';
+import { mapRemotePath } from '../../shared/remotePath';
 import { ChannelList } from './components/ChannelList';
 import { type ConnectForm, ConnectModal, parseList } from './components/ConnectModal';
 import { Dashboard } from './components/Dashboard';
@@ -1325,6 +1326,30 @@ export default function App() {
     });
   }
 
+  // Reveals a downloaded file. With a remote backend the file is on that machine: a folder of it that is mounted here
+  // (Preferences) is revealed through that mount, and otherwise all that can be done is to copy where it is.
+  async function handleShowInFolder(path: string): Promise<string | undefined> {
+    const { remoteEnabled, remotePathFrom, remotePathTo } = settingsRef.current;
+    if (!remoteEnabled) return (await window.irc.showInFolder(path)) ? undefined : 'That file is not there any more.';
+    const here = mapRemotePath(path, remotePathFrom, remotePathTo);
+    if (here) {
+      return (await window.irc.showInFolder(here))
+        ? undefined
+        : `Not found at ${here} on this computer. Is the share mounted?`;
+    }
+    try {
+      await navigator.clipboard.writeText(path);
+    } catch {
+      return `On the remote backend: ${path}`;
+    }
+    return `On the remote backend: ${path} (copied). Set a folder mapping in Preferences to open it here.`;
+  }
+
+  const showInFolderLabel = (path: string) =>
+    settings.remoteEnabled && !mapRemotePath(path, settings.remotePathFrom, settings.remotePathTo)
+      ? 'Copy path'
+      : 'Show in folder';
+
   function handleClearFinished() {
     window.irc.deleteTransfer?.();
     setTransfers((prev) => Object.fromEntries(Object.entries(prev).filter(([, t]) => !t.done && !t.error)));
@@ -1759,7 +1784,8 @@ export default function App() {
             onCancel={handleCancelTransfer}
             onDismiss={handleDismissTransfer}
             onClearFinished={handleClearFinished}
-            onShowInFolder={(path) => window.irc.showInFolder(path)}
+            onShowInFolder={handleShowInFolder}
+            showInFolderLabel={showInFolderLabel}
             onClose={() => setShowTransfers(false)}
             packQueue={
               <PackQueue

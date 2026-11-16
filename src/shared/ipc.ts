@@ -116,6 +116,10 @@ export type Settings = {
   // Write-only: sent to save a new token, never returned by getSettings
   remoteToken?: string;
   remoteTokenSet?: boolean;
+  // A folder of the remote backend, and where that same folder is mounted on this computer (a network share), so a
+  // downloaded file there can be shown in the file manager here
+  remotePathFrom?: string;
+  remotePathTo?: string;
   // Look for new versions; on unless explicitly false
   autoUpdate?: boolean;
   // Fetch a new version as soon as it is found instead of waiting to be asked; off unless true
@@ -185,7 +189,8 @@ export type IrcApi = {
   xdccPause: (xdccId: string) => Promise<void>;
   xdccResume: (xdccId: string) => Promise<void>;
   openExternal: (url: string) => Promise<void>;
-  showInFolder: (path: string) => Promise<void>;
+  /** Reveals a file in the file manager. False when it is not there to reveal. */
+  showInFolder: (path: string) => Promise<boolean>;
   /** The text of an http(s) page, for pulling pack requests out of a packlist. */
   fetchPage: (url: string) => Promise<string>;
   setTitleBar: (color: string, symbolColor: string) => Promise<void>;

@@ -4,7 +4,7 @@ import { type Transfer, TransferStatus } from './TransferStatus';
 
 const base: Transfer = { nick: 'bot', filename: 'a.iso', received: 50, total: 100 };
 
-function setup(t: Partial<Transfer>) {
+function setup(t: Partial<Transfer>, extra: Partial<Parameters<typeof TransferStatus>[0]> = {}) {
   const h = {
     onPause: vi.fn(),
     onResume: vi.fn(),
@@ -13,7 +13,7 @@ function setup(t: Partial<Transfer>) {
     onShowInFolder: vi.fn(),
     onClose: vi.fn(),
   };
-  render(<TransferStatus transfers={{ x: { ...base, ...t } }} {...h} />);
+  render(<TransferStatus transfers={{ x: { ...base, ...t } }} {...h} {...extra} />);
   return h;
 }
 
@@ -87,6 +87,17 @@ describe('TransferStatus', () => {
     const { onShowInFolder } = setup({ done: true, received: 100, path: '/dl/a.iso' });
     fireEvent.click(screen.getByRole('button', { name: 'Show in folder' }));
     expect(onShowInFolder).toHaveBeenCalledWith('/dl/a.iso');
+  });
+
+  it('can call the button something else, and shows what it answers under the transfer', async () => {
+    const answer = vi.fn().mockResolvedValue('On the remote backend: /dl/a.iso (copied).');
+    setup(
+      { done: true, received: 100, path: '/dl/a.iso' },
+      { onShowInFolder: answer, showInFolderLabel: () => 'Copy path' },
+    );
+    expect(screen.queryByRole('button', { name: 'Show in folder' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Copy path' }));
+    expect(await screen.findByText('On the remote backend: /dl/a.iso (copied).')).toBeTruthy();
   });
 
   it('has no show-in-folder button without a path or while running', () => {

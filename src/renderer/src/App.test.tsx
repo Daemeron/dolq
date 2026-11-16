@@ -1,5 +1,5 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import { type IrcEvent, RELEASES_URL, type UpdateStatus } from '../../shared/ipc';
 import App from './App';
 import { useStore } from './store';
@@ -1407,6 +1407,58 @@ describe('App: transfers', () => {
     await fire.click(screen.getByRole('button', { name: 'Cancel' }));
     expect(irc.spies.xdccClose).toHaveBeenCalledWith('xfer-1');
     expect(screen.queryByText('f.iso')).toBeNull();
+  });
+
+  describe('showing a finished download', () => {
+    const finish = async (irc: Awaited<ReturnType<typeof mount>>) => {
+      await startTransfer(irc);
+      await irc.event('xfer-1', { type: 'XDCCTRANSFER', received: 2048, total: 2048, path: '/dl/f.iso', done: true });
+      await screen.findByText('Completed · 2.0 KB');
+    };
+    const remote = (extra: Record<string, unknown> = {}) => ({
+      getSettings: { retentionDays: 0, remoteEnabled: true, ...extra },
+    });
+
+    it('reveals a remote file through the folder it is mounted at here', async () => {
+      const irc = await mount({
+        ...remote({ remotePathFrom: '/dl', remotePathTo: '/Volumes/anime' }),
+        showInFolder: true,
+      });
+      await finish(irc);
+      await fire.click(screen.getByRole('button', { name: 'Show in folder' }));
+      expect(irc.spies.showInFolder).toHaveBeenCalledWith('/Volumes/anime/f.iso');
+    });
+
+    it('says when the mounted share does not have the file', async () => {
+      const irc = await mount({
+        ...remote({ remotePathFrom: '/dl', remotePathTo: '/Volumes/anime' }),
+        showInFolder: false,
+      });
+      await finish(irc);
+      await fire.click(screen.getByRole('button', { name: 'Show in folder' }));
+      expect(await screen.findByText(/Not found at \/Volumes\/anime\/f.iso on this computer/)).toBeTruthy();
+    });
+
+    it('copies the path of a remote file when there is no mapping, and says where it is', async () => {
+      const writeText = vi.fn().mockResolvedValue(undefined);
+      vi.stubGlobal('navigator', { ...navigator, clipboard: { writeText } });
+      onTestFinished(() => {
+        vi.unstubAllGlobals();
+      });
+      const irc = await mount(remote());
+      await finish(irc);
+      await fire.click(screen.getByRole('button', { name: 'Copy path' }));
+      expect(writeText).toHaveBeenCalledWith('/dl/f.iso');
+      expect(irc.spies.showInFolder).not.toHaveBeenCalled();
+      expect(await screen.findByText(/On the remote backend: \/dl\/f.iso \(copied\)/)).toBeTruthy();
+    });
+
+    it('says when a local file is gone', async () => {
+      const irc = await mount({ showInFolder: false });
+      await finish(irc);
+      await fire.click(screen.getByRole('button', { name: 'Show in folder' }));
+      expect(await screen.findByText('That file is not there any more.')).toBeTruthy();
+    });
   });
 
   it('dismisses a finished download', async () => {
