@@ -1,5 +1,5 @@
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { Message } from '../types';
 import { dayLabel } from '../utils/dayLabel';
 import { continuesGroup } from '../utils/groupMessages';
@@ -7,6 +7,7 @@ import { type LogTone, logLineParts } from '../utils/logLine';
 import { hiddenByFold, membershipRuns } from '../utils/membershipGroups';
 import { mentionsAny } from '../utils/mentions';
 import { nickColor, nickInitial } from '../utils/nickColor';
+import { remeasureRows } from '../utils/remeasureRows';
 import { startsNewSession } from '../utils/session';
 import { IrcText } from './IrcText';
 import { MembershipSummary } from './MembershipSummary';
@@ -104,6 +105,26 @@ export function MessageArea({
     followOnAppend: switchedChannel ? false : 'smooth',
     scrollEndThreshold: AT_BOTTOM_THRESHOLD,
   });
+
+  // A row's height is read when it is drawn and when its own size changes. A line that turns into the head of a folded
+  // run, or a run that grows, can end up drawn at a stale height, with the rows after it painted over its text. So the
+  // drawn rows are measured again whenever the lines or the folds change, and once the web fonts are in.
+  // The virtualizer's own measure call answers from its cache once a row has a size, so the real height is set directly.
+  const remeasure = useCallback(
+    () =>
+      remeasureRows(containerRef.current, (row) =>
+        rowVirtualizer.resizeItem(
+          Number((row as HTMLElement).dataset.index),
+          Math.round(row.getBoundingClientRect().height),
+        ),
+      ),
+    [rowVirtualizer],
+  );
+  // biome-ignore lint/correctness/useExhaustiveDependencies: a new list of lines or a fold toggled is the trigger
+  useLayoutEffect(remeasure, [remeasure, messages, opened]);
+  useEffect(() => {
+    void document.fonts?.ready.then(remeasure);
+  }, [remeasure]);
 
   useLayoutEffect(() => {
     if (switchedChannel) {
