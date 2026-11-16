@@ -152,7 +152,7 @@ export function MessageArea({
         onClick={open}
         onContextMenu={(e) => nickMenu.open(nick, e)}
         title={open ? `Message ${nick}` : undefined}
-        className={`${className} border-0 bg-transparent p-0 ${open ? 'cursor-pointer hover:underline' : 'cursor-default'}`}
+        className={`${className} border-0 bg-transparent p-0 ${open ? 'cursor-pointer' : 'cursor-default'} ${open && !decorative ? 'hover:underline' : ''}`}
         style={style}
       >
         {children}

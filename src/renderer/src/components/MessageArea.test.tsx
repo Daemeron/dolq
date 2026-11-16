@@ -567,6 +567,13 @@ describe('MessageArea: folded membership runs', () => {
       expect(a.onToggleIgnore).toHaveBeenCalledWith('mira');
     });
 
+    it('underlines a nick on hover, but not the avatar next to it', () => {
+      const view = mount([chat(1, 'mira', 'hello')], actions());
+      expect(screen.getByRole('button', { name: 'mira' }).className).toContain('hover:underline');
+      const avatar = view.container.querySelector('button[aria-hidden="true"]') as HTMLElement;
+      expect(avatar.className).not.toContain('underline');
+    });
+
     it('leaves nicks as plain text without actions', () => {
       mount([chat(1, 'mira', 'hello')]);
       expect(screen.queryByRole('button', { name: 'mira' })).toBeNull();
