@@ -358,7 +358,7 @@ describe('App: server lines', () => {
     expect(await screen.findByText('#dolq: Cannot send to channel')).toBeTruthy();
     await irc.emit('onLine', 's1', ':srv 433 me nick :Nickname is already in use');
     await fire.click(screen.getByText('Server log'));
-    expect((await screen.findByText(/433/)).closest('div')?.className).toContain('font-semibold');
+    expect((await screen.findByText('433')).className).toContain('text-(--dolq-danger)');
   });
 });
 

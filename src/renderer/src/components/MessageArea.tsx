@@ -3,6 +3,7 @@ import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { Message } from '../types';
 import { dayLabel } from '../utils/dayLabel';
 import { continuesGroup } from '../utils/groupMessages';
+import { type LogTone, logLineParts } from '../utils/logLine';
 import { hiddenByFold, membershipRuns } from '../utils/membershipGroups';
 import { mentionsAny } from '../utils/mentions';
 import { nickColor, nickInitial } from '../utils/nickColor';
@@ -29,6 +30,32 @@ function formatTime(d: Date, timestampFormat: '12h' | '24h'): string {
 
 const AT_BOTTOM_THRESHOLD = 40;
 const LOAD_OLDER_THRESHOLD = 100;
+const TONE_COLOR: Record<LogTone, string> = {
+  welcome: 'text-(--dolq-ok)',
+  info: 'text-(--dolq-nick-7)',
+  motd: 'text-(--dolq-nick-6)',
+  banner: 'text-(--dolq-brand-text)',
+  notice: 'text-(--dolq-nick-2)',
+  cap: 'text-(--dolq-download)',
+  mode: 'text-(--dolq-warn)',
+  plain: 'text-(--dolq-text)',
+};
+
+// A server line with its source dimmed and its command and text coloured by what kind of line it is.
+function LogLine({ text, important }: { text: string; important?: boolean }) {
+  const { prefix, command, params, tone } = logLineParts(text);
+  const color = important ? 'text-(--dolq-danger) font-semibold' : TONE_COLOR[tone];
+  return (
+    <>
+      {prefix && <span className="text-(--dolq-text-faint)">{prefix} </span>}
+      <span className={`${color} font-semibold`}>{command}</span>{' '}
+      <span className={color}>
+        <IrcText text={params} />
+      </span>
+    </>
+  );
+}
+
 // Pages a view may ask for in a row without a scroll, so lines hidden at draw time cannot make it crawl all history.
 const MAX_AUTO_LOADS = 20;
 
@@ -194,13 +221,9 @@ export function MessageArea({
                   />
                 )}
                 {folded ? null : isLog ? (
-                  <div
-                    className={`font-mono text-[12px] leading-5 whitespace-pre-wrap break-all px-7 ${
-                      m.important ? 'text-(--dolq-danger) font-semibold' : 'text-(--dolq-text)'
-                    }`}
-                  >
+                  <div className="font-mono text-[12px] leading-5 whitespace-pre-wrap break-all px-7 text-(--dolq-text)">
                     <span className="text-(--dolq-text-faint) mr-3">{formatTime(m.timestamp, timestampFormat)}</span>
-                    <IrcText text={m.text} />
+                    <LogLine text={m.text} important={m.important} />
                   </div>
                 ) : m.system ? (
                   <div className={`group flex items-baseline gap-3 px-7 ${compact ? 'py-0' : 'py-1'}`}>
