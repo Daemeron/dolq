@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.11.0](https://github.com/Daemeron/dolq/compare/dolq-v0.10.0...dolq-v0.11.0) (2026-11-16)
+
+
+### Features
+
+* keep finished transfers across restarts ([3e94f63](https://github.com/Daemeron/dolq/commit/3e94f63300bd8fa15d33c1e26948e358027fbd32))
+* **main:** tell well-known chat memes on the splash ([b84024c](https://github.com/Daemeron/dolq/commit/b84024c4a5c23058cd6b7ba506782b0a29941c4d))
+* **renderer:** colour server log lines by what they are ([6de4122](https://github.com/Daemeron/dolq/commit/6de4122e57ba9345b61265eaa4d823cd57dea430))
+* **renderer:** colour the Dashboard button like the app icon ([b67505d](https://github.com/Daemeron/dolq/commit/b67505d7e324611155db6eabb3849e71c9d4b4ce))
+* **renderer:** flag new transfer activity on the Transfers button ([afa822f](https://github.com/Daemeron/dolq/commit/afa822fe5e370839b67aeb67975bc08e04182b00))
+* **renderer:** lift the server buttons on hover instead of rounding them ([48a817b](https://github.com/Daemeron/dolq/commit/48a817b15c63279e75f48f0866bc3afe06a56c21))
+* **renderer:** offer a way back down when scrolled up in a conversation ([c446da8](https://github.com/Daemeron/dolq/commit/c446da89cc42965c7fa2f4b0de17925eee9f861c))
+* **renderer:** show where each download is saved ([450fb0e](https://github.com/Daemeron/dolq/commit/450fb0e268e22791b89622b7d19882cf24933cfb))
+* **renderer:** widen the downloads peek to show more of each file name ([5054821](https://github.com/Daemeron/dolq/commit/5054821777e92e699ba54afad019c16780530e8f))
+
+
+### Bug Fixes
+
+* draw the macOS icon a little smaller, like the rest of the Dock ([f6e6920](https://github.com/Daemeron/dolq/commit/f6e69201fb648095c8acef6bdb42c0cea3c19c28))
+* **renderer:** animate the server button lift instead of snapping it ([dae87ac](https://github.com/Daemeron/dolq/commit/dae87ac159bea8b1f2f8a13da3bf2757e3ff984a))
+* **renderer:** give folded-run rows their real height ([73a5bf7](https://github.com/Daemeron/dolq/commit/73a5bf7c27084a7237d9b0c6b9c4e14f1925f48e))
+* **renderer:** keep tooltips inside the window ([3a88004](https://github.com/Daemeron/dolq/commit/3a8800431e93035c5616b5330e4af85aaff3de57))
+* **renderer:** start a folded run's summary at its real height ([c8eb1e8](https://github.com/Daemeron/dolq/commit/c8eb1e8796679067c5d0ee2230e78633f2c106ff))
+
 ## [0.10.0](https://github.com/Daemeron/dolq/compare/dolq-v0.9.0...dolq-v0.10.0) (2026-11-13)
 
 
