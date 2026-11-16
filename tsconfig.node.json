@@ -13,6 +13,7 @@
     "vitest.config.*",
     "playwright.config.*",
     "e2e/**/*",
+    "src/renderer/src/utils/rowSize.ts",
     "src/main/**/*",
     "src/preload/**/*",
     "src/shared/**/*",
