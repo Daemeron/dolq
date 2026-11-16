@@ -617,10 +617,23 @@ describe('IPC handlers', () => {
 
   it('reveals an absolute path in the file manager and refuses anything else', async () => {
     const { electron } = await boot();
-    await invoke(IrcMessages.showInFolder, '/tmp/a.iso');
-    expect(electron.shell.showItemInFolder).toHaveBeenCalledWith('/tmp/a.iso');
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dolq-reveal-'));
+    const file = path.join(dir, 'a.iso');
+    fs.writeFileSync(file, 'x');
+    try {
+      expect(await invoke(IrcMessages.showInFolder, file)).toBe(true);
+      expect(electron.shell.showItemInFolder).toHaveBeenCalledWith(file);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
     expect(() => invoke(IrcMessages.showInFolder, 'relative/a.iso')).toThrow(/refusing/);
     expect(() => invoke(IrcMessages.showInFolder, 42)).toThrow(/refusing/);
+  });
+
+  it('reveals nothing for a file that is not there, and says so', async () => {
+    const { electron } = await boot();
+    expect(await invoke(IrcMessages.showInFolder, '/nowhere/at/all/a.iso')).toBe(false);
+    expect(electron.shell.showItemInFolder).not.toHaveBeenCalled();
   });
 
   it('colours the window controls from the renderer theme, except on macOS', async () => {

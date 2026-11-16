@@ -108,6 +108,8 @@ export function PreferencesModal({
   );
   const [remoteFingerprint, setRemoteFingerprint] = useState(settings.remoteFingerprint ?? '');
   const [remoteToken, setRemoteToken] = useState('');
+  const [remotePathFrom, setRemotePathFrom] = useState(settings.remotePathFrom ?? '');
+  const [remotePathTo, setRemotePathTo] = useState(settings.remotePathTo ?? '');
   const [pairingText, setPairingText] = useState('');
   const noToken = !remoteToken && !settings.remoteTokenSet;
   const unprotected = !remoteTls || noToken;
@@ -170,6 +172,11 @@ export function PreferencesModal({
     return () => window.removeEventListener('keydown', onKey, true);
   }, [recording, onKeybindingChange]);
 
+  async function handleBrowseRemotePathTo() {
+    const chosen = await window.irc.chooseDirectory(remotePathTo || undefined);
+    if (chosen) setRemotePathTo(chosen);
+  }
+
   async function handleBrowseDownloadDir() {
     const chosen = await window.irc.chooseDirectory(downloadDir || undefined);
     if (chosen) setDownloadDir(chosen);
@@ -198,6 +205,8 @@ export function PreferencesModal({
       remoteTls,
       remoteFingerprint: remoteFingerprint || undefined,
       remoteToken: remoteToken || undefined,
+      remotePathFrom: remotePathFrom.trim() || undefined,
+      remotePathTo: remotePathTo.trim() || undefined,
     });
   }
 
@@ -486,6 +495,34 @@ export function PreferencesModal({
                     with -tls=false and/or -token=false). You will be asked to confirm each time Dolq connects.
                   </p>
                 )}
+                <p className="m-0 text-[12px] text-(--dolq-text-dim)">
+                  Downloads are saved on the remote machine. To show them in your file manager from Transfers, say where
+                  its download folder is mounted here, for example as a network share. If these stay empty, Show in
+                  folder copies the file's path instead.
+                </p>
+                <Field label="Download folder on the remote backend">
+                  <input
+                    className={inputClass}
+                    type="text"
+                    value={remotePathFrom}
+                    onChange={(e) => setRemotePathFrom(e.target.value)}
+                    placeholder="/downloads"
+                    spellCheck={false}
+                  />
+                </Field>
+                <Field label="The same folder on this computer">
+                  <div className="flex items-center gap-2">
+                    <input
+                      className={inputClass}
+                      type="text"
+                      value={remotePathTo}
+                      onChange={(e) => setRemotePathTo(e.target.value)}
+                      placeholder="/Volumes/anime"
+                      spellCheck={false}
+                    />
+                    <Button onClick={handleBrowseRemotePathTo}>Browse…</Button>
+                  </div>
+                </Field>
                 {remoteTls && remoteFingerprint && (
                   <div className="text-[12px] break-all text-(--dolq-text-dim)">
                     Trusted certificate:{' '}

@@ -1,5 +1,5 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { afterEach, describe, expect, it, type Mock, vi } from 'vitest';
+import { afterEach, describe, expect, it, type Mock, onTestFinished, vi } from 'vitest';
 import type { Settings } from '../../../shared/ipc';
 import { PreferencesModal } from './PreferencesModal';
 
@@ -206,6 +206,46 @@ describe('PreferencesModal: remote backend', () => {
     tab('Backend');
     fireEvent.click(screen.getByLabelText(/Connect to a remote backend/));
   };
+
+  it('saves where the remote download folder is mounted here, trimmed', () => {
+    const p = setup({ remoteEnabled: true, remoteUrl: 'h:1' });
+    tab('Backend');
+    fireEvent.change(screen.getByLabelText('Download folder on the remote backend'), {
+      target: { value: ' /downloads ' },
+    });
+    fireEvent.change(screen.getByLabelText('The same folder on this computer'), {
+      target: { value: '/Volumes/anime' },
+    });
+    save();
+    expect(saved(p)).toMatchObject({ remotePathFrom: '/downloads', remotePathTo: '/Volumes/anime' });
+  });
+
+  it('saves no mapping when the fields are left empty', () => {
+    const p = setup({ remoteEnabled: true, remoteUrl: 'h:1' });
+    save();
+    expect(saved(p).remotePathFrom).toBeUndefined();
+    expect(saved(p).remotePathTo).toBeUndefined();
+  });
+
+  it('shows the saved mapping and fills the local folder from the picker', async () => {
+    const chooseDirectory = vi.fn().mockResolvedValue('/Volumes/picked');
+    // biome-ignore lint/suspicious/noExplicitAny: test stub
+    (window as any).irc = { chooseDirectory };
+    onTestFinished(() => {
+      // biome-ignore lint/suspicious/noExplicitAny: test stub
+      delete (window as any).irc;
+    });
+    setup({ remoteEnabled: true, remoteUrl: 'h:1', remotePathFrom: '/downloads', remotePathTo: '/Volumes/old' });
+    tab('Backend');
+    expect((screen.getByLabelText('Download folder on the remote backend') as HTMLInputElement).value).toBe(
+      '/downloads',
+    );
+    const local = screen.getByLabelText('The same folder on this computer') as HTMLInputElement;
+    expect(local.value).toBe('/Volumes/old');
+    fireEvent.click(screen.getByRole('button', { name: 'Browse…' }));
+    await waitFor(() => expect(local.value).toBe('/Volumes/picked'));
+    expect(chooseDirectory).toHaveBeenCalledWith('/Volumes/old');
+  });
 
   it('fills the form from a valid pairing link', () => {
     const p = setup();
