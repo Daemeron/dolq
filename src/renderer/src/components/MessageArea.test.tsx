@@ -513,4 +513,65 @@ describe('MessageArea: folded membership runs', () => {
       expect(screen.queryByRole('button', { name: 'Jump to latest' })).toBeNull();
     });
   });
+
+  describe('nicks and copying', () => {
+    const chat = (id: number, nick: string, text: string): Message => ({ id, nick, text, timestamp: new Date(0) });
+    const actions = () => ({
+      canAsk: true,
+      currentNick: 'me',
+      onOpenQuery: vi.fn(),
+      onWhois: vi.fn(),
+      ignoredNicks: [] as string[],
+      onToggleIgnore: vi.fn(),
+      onDCCOffer: vi.fn(),
+      onSendFile: vi.fn(),
+    });
+    const mount = (messages: Message[], nickActions?: ReturnType<typeof actions>) => {
+      setHeights(800, 800);
+      return render(
+        <MessageArea
+          isLog={false}
+          timestampFormat="24h"
+          density="cozy"
+          channelId="c"
+          messages={messages}
+          nickActions={nickActions}
+        />,
+      );
+    };
+
+    it('opens a conversation when a nick is clicked, as the member list does', () => {
+      const a = actions();
+      mount([chat(1, 'mira', 'hello')], a);
+      fireEvent.click(screen.getByRole('button', { name: 'mira' }));
+      expect(a.onOpenQuery).toHaveBeenCalledWith('mira');
+    });
+
+    it('does not open a conversation with oneself or while disconnected', () => {
+      const a = { ...actions(), currentNick: 'mira' };
+      mount([chat(1, 'mira', 'hello')], a);
+      fireEvent.click(screen.getByRole('button', { name: 'mira' }));
+      expect(a.onOpenQuery).not.toHaveBeenCalled();
+    });
+
+    it('opens the nick menu on a right click, on the nick and on the avatar alike', () => {
+      const a = actions();
+      const view = mount([chat(1, 'mira', 'hello')], a);
+      fireEvent.contextMenu(screen.getByRole('button', { name: 'mira' }));
+      fireEvent.click(screen.getByText('WHOIS'));
+      expect(a.onWhois).toHaveBeenCalledWith('mira');
+      expect(screen.queryByText('WHOIS')).toBeNull();
+
+      fireEvent.contextMenu(view.container.querySelector('button[aria-hidden="true"]') as HTMLElement);
+      fireEvent.click(screen.getByText('Ignore'));
+      expect(a.onToggleIgnore).toHaveBeenCalledWith('mira');
+    });
+
+    it('leaves nicks as plain text without actions', () => {
+      mount([chat(1, 'mira', 'hello')]);
+      expect(screen.queryByRole('button', { name: 'mira' })).toBeNull();
+      expect(screen.getByText('mira')).toBeTruthy();
+    });
+
+  });
 });

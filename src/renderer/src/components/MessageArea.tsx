@@ -1,5 +1,6 @@
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useContextMenu } from '../hooks/useContextMenu';
 import type { Message } from '../types';
 import { dayLabel } from '../utils/dayLabel';
 import { continuesGroup } from '../utils/groupMessages';
@@ -13,6 +14,7 @@ import { startsNewSession } from '../utils/session';
 import { Icon } from './Icon';
 import { IrcText } from './IrcText';
 import { MembershipSummary } from './MembershipSummary';
+import { type NickActions, NickMenu, queryOnClick } from './NickMenu';
 
 type Props = {
   messages: Message[];
@@ -25,6 +27,8 @@ type Props = {
   // Lines from others that name this nick get an accent background.
   selfNick?: string;
   highlightWords?: string[];
+  /** What clicking or right-clicking a nick does; without it nicks are plain text. */
+  nickActions?: NickActions;
 };
 
 function formatTime(d: Date, timestampFormat: '12h' | '24h'): string {
@@ -74,6 +78,7 @@ export function MessageArea({
   onGetPack,
   selfNick,
   highlightWords,
+  nickActions,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const prevChannelId = useRef(channelId);
@@ -81,6 +86,40 @@ export function MessageArea({
   const isAtBottom = useRef<Map<string, boolean>>(new Map());
   const autoLoads = useRef(0);
   const [awayFromBottom, setAwayFromBottom] = useState(false);
+  const nickMenu = useContextMenu<string>();
+
+  // A nick, or the avatar next to it: a click opens a conversation with that person and a right click opens their
+  // menu, the same as in the member list.
+  const asNick = (
+    nick: string,
+    children: React.ReactNode,
+    className: string,
+    style?: React.CSSProperties,
+    decorative = false,
+  ) => {
+    if (!nickActions) {
+      return (
+        <span className={className} style={style} aria-hidden={decorative || undefined}>
+          {children}
+        </span>
+      );
+    }
+    const open = queryOnClick(nickActions, nick);
+    return (
+      <button
+        type="button"
+        tabIndex={decorative ? -1 : undefined}
+        aria-hidden={decorative || undefined}
+        onClick={open}
+        onContextMenu={(e) => nickMenu.open(nick, e)}
+        title={open ? `Message ${nick}` : undefined}
+        className={`${className} border-0 bg-transparent p-0 ${open ? 'cursor-pointer hover:underline' : 'cursor-default'}`}
+        style={style}
+      >
+        {children}
+      </button>
+    );
+  };
   const { runs, followers } = useMemo(() => membershipRuns(messages), [messages]);
   // Runs the user has opened, by `channel:first message id`.
   const [opened, setOpened] = useState<Set<string>>(new Set());
@@ -202,7 +241,8 @@ export function MessageArea({
   const virtualRows = rowVirtualizer.getVirtualItems();
 
   return (
-    <div className="relative flex min-h-0 flex-1 flex-col">
+    // biome-ignore lint/a11y/noStaticElementInteractions: a right click anywhere else closes a nick's menu
+    <div className="relative flex min-h-0 flex-1 flex-col" onContextMenu={nickMenu.dismissIfUnhandled}>
       <div ref={containerRef} onScroll={handleScroll} onWheel={handleWheel} className="flex-1 overflow-y-auto py-2">
         {messages.length === 0 ? (
           <p
@@ -288,7 +328,7 @@ export function MessageArea({
                         {formatTime(m.timestamp, timestampFormat)}
                       </span>
                       <span className="text-[13px] italic text-(--dolq-text-dim)">
-                        <span style={{ color: nickColor(m.nick) }}>-{m.nick}-</span> <IrcText text={m.text} />
+                        {asNick(m.nick, `-${m.nick}-`, '', { color: nickColor(m.nick) })} <IrcText text={m.text} />
                       </span>
                     </div>
                   ) : m.xdccPack ? (
@@ -318,7 +358,7 @@ export function MessageArea({
                         {formatTime(m.timestamp, timestampFormat)}
                       </span>
                       <span className="text-[15px] leading-relaxed italic">
-                        <span style={{ color: nickColor(m.nick) }}>* {m.nick}</span>{' '}
+                        {asNick(m.nick, `* ${m.nick}`, '', { color: nickColor(m.nick) })}{' '}
                         <span className="text-(--dolq-text)">
                           <IrcText text={m.text} />
                         </span>
@@ -337,18 +377,16 @@ export function MessageArea({
                     <div
                       className={`flex gap-3 hover:bg-(--dolq-bg-row-hover) px-7 pb-px ${compact ? 'pt-1.5' : 'pt-3.5'}`}
                     >
-                      <span
-                        aria-hidden="true"
-                        className="w-9 h-9 rounded-full text-white text-sm font-semibold flex items-center justify-center shrink-0"
-                        style={{ background: nickColor(m.nick) }}
-                      >
-                        {nickInitial(m.nick)}
-                      </span>
+                      {asNick(
+                        m.nick,
+                        nickInitial(m.nick),
+                        'w-9 h-9 rounded-full text-white text-sm font-semibold flex items-center justify-center shrink-0',
+                        { background: nickColor(m.nick) },
+                        true,
+                      )}
                       <div className="min-w-0 flex-1">
                         <div className="flex items-baseline gap-2">
-                          <span className="font-semibold text-[14px]" style={{ color: nickColor(m.nick) }}>
-                            {m.nick}
-                          </span>
+                          {asNick(m.nick, m.nick, 'font-semibold text-[14px]', { color: nickColor(m.nick) })}
                           <span className="text-[12px] text-(--dolq-text-dim)">
                             {formatTime(m.timestamp, timestampFormat)}
                           </span>
@@ -365,6 +403,15 @@ export function MessageArea({
           </div>
         )}
       </div>
+      {nickMenu.menu && nickActions && (
+        <NickMenu
+          x={nickMenu.menu.x}
+          y={nickMenu.menu.y}
+          nick={nickMenu.menu.target}
+          actions={nickActions}
+          close={nickMenu.close}
+        />
+      )}
       {awayFromBottom && (
         <button
           type="button"
