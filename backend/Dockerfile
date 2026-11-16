@@ -24,9 +24,10 @@ RUN CGO_ENABLED=0 go build -ldflags "-X main.version=${VERSION}" -o /dolqd ./cmd
 
 FROM alpine:3.24
 # a fixed uid so volumes and Kubernetes securityContext can refer to it
-RUN adduser -D -u 10001 -h /data dolq
+RUN adduser -D -u 10001 -h /data dolq && apk add --no-cache su-exec
 COPY --from=build /dolqd /usr/local/bin/dolqd
-USER dolq
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+# No USER here: the entrypoint starts as root to take over the data folder, then runs dolqd as dolq (uid 10001).
 VOLUME /data
 EXPOSE 6789
-ENTRYPOINT ["dolqd", "-addr", "0.0.0.0:6789", "-db", "/data/history.db"]
+ENTRYPOINT ["docker-entrypoint.sh", "dolqd", "-addr", "0.0.0.0:6789", "-db", "/data/history.db"]
