@@ -42,8 +42,8 @@ services:
     ## ==========================================================================
     ##  Image
     ## ==========================================================================
-    ##  0.13 follows the 0.13.x releases. Use 0.13.0 to stay on exactly that one.
-    image: ghcr.io/daemeron/dolqd:0.13
+    ##  0.14 follows the 0.14.x releases. Use 0.14.0 to stay on exactly that one.
+    image: ghcr.io/daemeron/dolqd:0.14
 
     restart: unless-stopped
 
