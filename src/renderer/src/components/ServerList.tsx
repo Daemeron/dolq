@@ -31,8 +31,9 @@ const BADGE_COLOR: Record<ConnectionStatus, string> = {
 };
 
 // The hover effect of every button in the rail: it lifts and brightens a little, and presses back in when clicked.
+// Tailwind sets translate and scale as properties of their own, so they are what is transitioned, not transform.
 const LIFT =
-  'transition-[transform,filter,box-shadow,background-color,color,border-color] duration-150 hover:-translate-y-0.5 hover:scale-105 hover:brightness-110 hover:shadow-md active:translate-y-0 active:scale-95';
+  'transition-[translate,scale,filter,box-shadow,background-color,color,border-color] duration-250 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-0.5 hover:scale-105 hover:brightness-110 hover:shadow-md active:translate-y-0 active:scale-95';
 
 export function ServerList({
   servers,
