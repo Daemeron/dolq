@@ -8,6 +8,7 @@ import { hiddenByFold, membershipRuns } from '../utils/membershipGroups';
 import { mentionsAny } from '../utils/mentions';
 import { nickColor, nickInitial } from '../utils/nickColor';
 import { remeasureRows } from '../utils/remeasureRows';
+import { estimateRowSize } from '../utils/rowSize';
 import { startsNewSession } from '../utils/session';
 import { IrcText } from './IrcText';
 import { MembershipSummary } from './MembershipSummary';
@@ -90,13 +91,20 @@ export function MessageArea({
 
   const switchedChannel = prevChannelId.current !== channelId;
   const compact = density === 'compact';
-  const rowEstimate = isLog ? 20 : compact ? 24 : 30;
 
   const rowVirtualizer = useVirtualizer({
     count: messages.length,
     getScrollElement: () => containerRef.current,
     // A folded-away line measures 0, so estimating it taller would shift the scroll as each one comes into view.
-    estimateSize: (index) => (hiddenByFold(followers, messages[index].id, isOpen) ? 0 : rowEstimate),
+    estimateSize: (index) => {
+      const { id } = messages[index];
+      return estimateRowSize({
+        isLog,
+        compact,
+        hidden: hiddenByFold(followers, id, isOpen),
+        run: runs.has(id) ? (isOpen(id) ? 'open' : 'closed') : null,
+      });
+    },
     getItemKey: (index) => messages[index].id,
     overscan: 8,
     // The virtualizer reports changes from layout effects, where React refuses a synchronous flush.
