@@ -3,15 +3,16 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { useContextMenu } from '../hooks/useContextMenu';
 import type { Message } from '../types';
 import { dayLabel } from '../utils/dayLabel';
-import { continuesGroup } from '../utils/groupMessages';
+import { continuesGroup, groupAround } from '../utils/groupMessages';
 import { type LogTone, logLineParts } from '../utils/logLine';
 import { hiddenByFold, membershipRuns } from '../utils/membershipGroups';
 import { mentionsAny } from '../utils/mentions';
 import { nickColor, nickInitial } from '../utils/nickColor';
+import { plainText } from '../utils/plainText';
 import { remeasureRows } from '../utils/remeasureRows';
 import { estimateRowSize } from '../utils/rowSize';
 import { startsNewSession } from '../utils/session';
-import { Icon } from './Icon';
+import { Icon, type IconName } from './Icon';
 import { IrcText } from './IrcText';
 import { MembershipSummary } from './MembershipSummary';
 import { type NickActions, NickMenu, queryOnClick } from './NickMenu';
@@ -66,6 +67,42 @@ function LogLine({ text, important }: { text: string; important?: boolean }) {
 }
 
 // Pages a view may ask for in a row without a scroll, so lines hidden at draw time cannot make it crawl all history.
+// Appear at the right end of a message while the pointer is over it: one copies the line, and for a line that is part
+// of a run from the same person, another copies the whole run, a line each. Formatting codes are left out.
+function CopyMessage({ text, group }: { text: string; group: string[] }) {
+  const [copied, setCopied] = useState<'line' | 'all' | null>(null);
+  useEffect(() => {
+    if (!copied) return;
+    const timer = setTimeout(() => setCopied(null), 1500);
+    return () => clearTimeout(timer);
+  }, [copied]);
+  const copy = (kind: 'line' | 'all', value: string) =>
+    navigator.clipboard
+      .writeText(value)
+      .then(() => setCopied(kind))
+      .catch(() => {});
+  const button = (kind: 'line' | 'all', label: string, icon: IconName, value: string) => {
+    const shown = copied === kind ? 'Copied' : label;
+    return (
+      <button
+        type="button"
+        aria-label={shown}
+        data-tip={shown}
+        onClick={() => copy(kind, value)}
+        className="has-tip flex size-6.5 cursor-pointer items-center justify-center rounded-md border border-(--dolq-border) bg-(--dolq-bg-raised) text-(--dolq-text-dim) shadow-sm hover:text-(--dolq-text)"
+      >
+        <Icon name={copied === kind ? 'check' : icon} size={14} />
+      </button>
+    );
+  };
+  return (
+    <div className="absolute top-1 right-7 flex gap-1 opacity-0 focus-within:opacity-100 group-hover/row:opacity-100">
+      {button('line', 'Copy message', 'copy', plainText(text))}
+      {group.length > 1 && button('all', `Copy all ${group.length} lines`, 'lines', group.map(plainText).join('\n'))}
+    </div>
+  );
+}
+
 const MAX_AUTO_LOADS = 20;
 
 export function MessageArea({
@@ -275,7 +312,7 @@ export function MessageArea({
                   key={virtualRow.key}
                   ref={rowVirtualizer.measureElement}
                   data-index={virtualRow.index}
-                  className={mention ? 'bg-(--dolq-brand-soft)' : undefined}
+                  className={`group/row ${mention ? 'bg-(--dolq-brand-soft)' : ''}`}
                   style={{
                     position: 'absolute',
                     top: 0,
@@ -396,6 +433,9 @@ export function MessageArea({
                         </div>
                       </div>
                     </div>
+                  )}
+                  {!folded && !m.system && !m.xdccPack && m.text && (
+                    <CopyMessage text={m.text} group={groupAround(messages, virtualRow.index).map((g) => g.text)} />
                   )}
                 </div>
               );
