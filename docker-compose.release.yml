@@ -1,0 +1,146 @@
+## ==============================================================================
+##  Dolq backend (dolqd), from its published image
+## ==============================================================================
+##
+##  Nothing needs setting up first: put this file in a folder on the NAS and start
+##  it, as it is.
+##
+##      docker compose -f docker-compose.release.yml up -d
+##
+##  (or add it as a project in Container Manager, Portainer or the like).
+##
+##  How to read this file
+##
+##      ## Text like this, behind two hashes, explains a setting.
+##      #SETTING: value     <- a setting that is switched off, behind one hash.
+##                             Remove that one "#", and only it, to switch it on.
+##
+##  Every setting dolqd has is here, so nothing has to be looked up elsewhere.
+##
+##  Pairing a client
+##
+##      docker compose -f docker-compose.release.yml logs dolqd
+##
+##  On first start dolqd prints a pairing link (dolq://host:6789?token=...&fp=...).
+##  Paste one of the links into a client's Preferences > Remote Backend.
+##
+##  Checking that it works
+##
+##      docker compose -f docker-compose.release.yml logs -f dolqd
+##
+##  "ready, listening on ..." says it started. "client <address>: connected" and
+##  "authenticated" say an app has paired with it. After that it logs what it does:
+##  the IRC servers it connects to, the channels you join and leave, and the files it
+##  receives. "rejected" means a client has the wrong token; a client that never
+##  shows up cannot reach the port.
+##
+## ==============================================================================
+
+services:
+  dolqd:
+
+    ## ==========================================================================
+    ##  Image
+    ## ==========================================================================
+    ##  0.13 follows the 0.13.x releases. Use 0.13.0 to stay on exactly that one.
+    image: ghcr.io/daemeron/dolqd:0.13
+
+    restart: unless-stopped
+
+    ## ==========================================================================
+    ##  Network
+    ## ==========================================================================
+    ##  The host's own network. The pairing link then names the NAS's real
+    ##  addresses without being told them, and the ports DCC file transfers open
+    ##  can be reached. Port 6789 on the NAS must be free.
+    network_mode: host
+
+    ##  Where host networking is not available (Docker Desktop on a Mac or Windows
+    ##  PC), or the port is taken: remove "network_mode: host" above, switch these
+    ##  on, and name the machine in the pairing link (see DOLQ_PUBLIC_HOST below).
+    ##  The first number is the port on the NAS; clients connect to it.
+    #ports:
+    #  - '6789:6789'
+
+    ##  Run as a user of the NAS instead of 10001, to write to a folder that
+    ##  belongs to that user without changing who owns it. Look up the numbers with
+    ##  `id <user>`.
+    #user: '1026:100'
+
+    ## ==========================================================================
+    ##  Environment
+    ## ==========================================================================
+    environment:
+
+      ##  Where XDCC downloads are saved. A client cannot choose another folder. It
+      ##  is the folder mounted at /downloads under "volumes" below: change that
+      ##  mount to save somewhere else, and leave this as it is.
+      DOLQ_DOWNLOAD_DIR: /downloads
+
+      ##  The access token clients present, instead of one that dolqd generates on
+      ##  first start and keeps in the data folder. Anyone with it can use your
+      ##  IRC sessions, so choose a long one.
+      #DOLQ_TOKEN: change-this-to-something-long-and-random
+
+      ##  The name or IP that the pairing link gives clients. Needed only without
+      ##  host networking, where dolqd cannot tell what address the NAS has from
+      ##  the outside.
+      #DOLQ_PUBLIC_HOST: my-nas.local
+
+      ##  The port the pairing link gives clients, when it is not the one dolqd
+      ##  listens on: the left number of a mapping such as '7000:6789' under "ports".
+      #DOLQ_PUBLIC_PORT: '6789'
+
+      ##  Also accept plain connections without a token, on the same port, for
+      ##  clients from before access tokens existed. Anyone who can reach the port
+      ##  can then use it. Cannot be combined with -tls=false or -token=false.
+      #DOLQ_ALLOW_LEGACY_PLAIN: '1'
+
+    ## ==========================================================================
+    ##  Command line options
+    ## ==========================================================================
+    ##  The settings that have no environment variable are options of dolqd. Switch
+    ##  on "command:" and the options you want under it; the others stay off.
+    ##
+    ##  -retention-days   delete history older than this many days (0 keeps all)
+    ##  -print-pairing    log the pairing link at every start, not only the first
+    ##                    (it contains the token, so it ends up in the logs)
+    ##  -tls=false        plain TCP instead of TLS, for behind a proxy or a tunnel
+    ##  -token=false      no access token: anyone who can reach the port can use it
+    ##  -tls-cert, -tls-key
+    ##                    your own certificate and key (PEM files in the data
+    ##                    folder, as /data/...), instead of the generated one
+    ##  -acme-domain      a Let's Encrypt certificate for this domain. Needs port
+    ##                    443 reachable from the internet, so without host
+    ##                    networking and with ports '443:6789'
+    ##  -acme-email       where Let's Encrypt sends expiry notices (optional)
+    ##  -acme-staging     Let's Encrypt's test service, with untrusted certificates
+    ##
+    #command:
+    #  - -retention-days=90
+    #  - -print-pairing
+    #  - -tls=false
+    #  - -token=false
+    #  - -tls-cert=/data/my-cert.pem
+    #  - -tls-key=/data/my-key.pem
+    #  - -acme-domain=dolq.example.org
+    #  - -acme-email=me@example.org
+    #  - -acme-staging
+
+    ## ==========================================================================
+    ##  Folders (left of the colon: on the NAS. Right of it: inside the container.)
+    ## ==========================================================================
+    volumes:
+
+      ##  Everything dolqd keeps: the message history (history.db), the access
+      ##  token, and the TLS certificate and key. It survives upgrades, and can be
+      ##  backed up or moved as it is. Relative paths start at this file's folder;
+      ##  use a full path such as /volume1/docker/dolq/data to put it anywhere.
+      - ./data:/data
+
+      ##  Where XDCC downloads are saved. Change the part before the colon to save
+      ##  them somewhere else, such as /volume1/video/anime; leave /downloads as
+      ##  it is. A folder that Docker has to create is handed to dolqd. One that
+      ##  already exists must be writable for user 10001, which dolqd runs as (or
+      ##  for the "user" above), or the log says it is not.
+      - ./downloads:/downloads
