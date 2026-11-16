@@ -198,6 +198,10 @@ type Bouncer struct {
 
 	DCCAcceptTimeout time.Duration
 
+	// DCCHost is the address announced to a peer that has to connect to us (see dcc.AnnouncedIP). Empty is this
+	// machine's own address.
+	DCCHost string
+
 	ResumeAcceptTimeout time.Duration
 	// SendConfirmTimeout is how long a finished upload waits for the peer's last acknowledgement.
 	SendConfirmTimeout time.Duration

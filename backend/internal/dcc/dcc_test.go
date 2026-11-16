@@ -291,3 +291,38 @@ func TestDialReachesAnIPv6Address(t *testing.T) {
 		t.Fatal("the listener never saw the connection")
 	}
 }
+
+func TestAnnouncedIP(t *testing.T) {
+	cases := []struct {
+		host string
+		want string
+		ok   bool
+	}{
+		{"203.0.113.7", "203.0.113.7", true},
+		{"::ffff:203.0.113.7", "203.0.113.7", true},
+		{"localhost", "127.0.0.1", true}, // a name is looked up, so a dynamic DNS name follows the address
+		{"2001:db8::1", "", false},       // a DCC offer carries an IPv4 address only
+		{"no-such-host.invalid", "", false},
+	}
+	for _, c := range cases {
+		ip, err := AnnouncedIP(c.host)
+		got := ""
+		if ip != nil {
+			got = ip.String()
+		}
+		if (err == nil) != c.ok || got != c.want {
+			t.Errorf("AnnouncedIP(%q) = %q, %v; want %q, ok=%v", c.host, got, err, c.want, c.ok)
+		}
+	}
+}
+
+func TestAnnouncedIPWithNothingSetIsThisMachinesOwnAddress(t *testing.T) {
+	own, err := LocalIP()
+	if err != nil {
+		t.Skipf("no route to work out this machine's address: %v", err)
+	}
+	got, err := AnnouncedIP("")
+	if err != nil || !got.Equal(own) {
+		t.Errorf("AnnouncedIP(\"\") = %v, %v; want %v", got, err, own)
+	}
+}
