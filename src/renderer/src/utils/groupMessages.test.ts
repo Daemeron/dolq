@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Message } from '../types';
-import { continuesGroup } from './groupMessages';
+import { continuesGroup, groupAround } from './groupMessages';
 
 const MIN = 60_000;
 const msg = (nick: string, minute: number, extra: Partial<Message> = {}): Message => ({
@@ -41,5 +41,21 @@ describe('continuesGroup', () => {
 
   it('does not group out-of-order timestamps', () => {
     expect(continuesGroup(msg('mira', 5), msg('mira', 1))).toBe(false);
+  });
+});
+
+describe('groupAround', () => {
+  const lines = [msg('mira', 0), msg('jon', 1), msg('jon', 2), msg('jon', 3), msg('mira', 4)];
+  it('is the whole run from one sender, whichever of its lines is asked about', () => {
+    for (const i of [1, 2, 3]) expect(groupAround(lines, i).map((m) => m.timestamp.getTime() / MIN)).toEqual([1, 2, 3]);
+  });
+  it('is just the line when another sender is on either side', () => {
+    expect(groupAround(lines, 0)).toHaveLength(1);
+    expect(groupAround(lines, 4)).toHaveLength(1);
+  });
+  it('stops where more than five minutes pass', () => {
+    const slow = [msg('jon', 0), msg('jon', 1), msg('jon', 7)];
+    expect(groupAround(slow, 0)).toHaveLength(2);
+    expect(groupAround(slow, 2)).toHaveLength(1);
   });
 });

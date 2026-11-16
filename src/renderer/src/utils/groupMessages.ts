@@ -18,3 +18,12 @@ export function continuesGroup(prev: Message | undefined, m: Message): boolean {
   const gap = m.timestamp.getTime() - prev.timestamp.getTime();
   return gap >= 0 && gap <= GROUP_WINDOW_MS;
 }
+
+/** The lines of the group the line at `index` belongs to: the run from one sender that nothing else interrupted. */
+export function groupAround(messages: Message[], index: number): Message[] {
+  let start = index;
+  while (start > 0 && continuesGroup(messages[start - 1], messages[start])) start--;
+  let end = index;
+  while (end + 1 < messages.length && continuesGroup(messages[end], messages[end + 1])) end++;
+  return messages.slice(start, end + 1);
+}

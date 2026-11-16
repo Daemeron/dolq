@@ -573,5 +573,43 @@ describe('MessageArea: folded membership runs', () => {
       expect(screen.getByText('mira')).toBeTruthy();
     });
 
+    it('copies a message without its formatting', async () => {
+      const writeText = vi.fn().mockResolvedValue(undefined);
+      vi.stubGlobal('navigator', { ...navigator, clipboard: { writeText } });
+      onTestFinished(() => {
+        vi.unstubAllGlobals();
+      });
+      mount([chat(1, 'mira', '\x02hello\x02 \x0304there')]);
+      fireEvent.click(screen.getByRole('button', { name: 'Copy message' }));
+      expect(writeText).toHaveBeenCalledWith('hello there');
+      expect(await screen.findByRole('button', { name: 'Copied' })).toBeTruthy();
+    });
+
+    it('copies the whole run from one person, a line each, as well as a single line', async () => {
+      const writeText = vi.fn().mockResolvedValue(undefined);
+      vi.stubGlobal('navigator', { ...navigator, clipboard: { writeText } });
+      onTestFinished(() => {
+        vi.unstubAllGlobals();
+      });
+      const at = (minute: number) => new Date(minute * 60_000);
+      mount([
+        { id: 1, nick: 'mira', text: 'before', timestamp: at(0) },
+        { id: 2, nick: 'jon', text: 'first', timestamp: at(1) },
+        { id: 3, nick: 'jon', text: '\x02second\x02', timestamp: at(2) },
+        { id: 4, nick: 'jon', text: 'third', timestamp: at(3) },
+        { id: 5, nick: 'mira', text: 'after', timestamp: at(4) },
+      ]);
+      // Only the three lines of the run offer it: the lines of the others stand alone.
+      const all = screen.getAllByRole('button', { name: 'Copy all 3 lines' });
+      expect(all).toHaveLength(3);
+      expect(screen.getAllByRole('button', { name: 'Copy message' })).toHaveLength(5);
+      fireEvent.click(all[1]);
+      expect(writeText).toHaveBeenCalledWith('first\nsecond\nthird');
+    });
+
+    it('offers no copy button on a membership line', () => {
+      mount([{ id: 1, nick: '', text: 'mira joined', timestamp: new Date(0), system: true }]);
+      expect(screen.queryByRole('button', { name: 'Copy message' })).toBeNull();
+    });
   });
 });
