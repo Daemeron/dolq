@@ -34,19 +34,35 @@ export function xdccRequestCount(line: string): number {
   return Math.max(1, count);
 }
 
+// What was asked of each bot and when. A bot may queue a request and send the file minutes or hours later, so a
+// request stays good for a day. After that an offer from the same nick is not taken for the answer to it.
+export type Requested = Map<string, { count: number; at: number }>;
+export const XDCC_REQUEST_TTL_MS = 24 * 60 * 60 * 1000;
+
+/** Records that `count` more offers are expected from `nick`, counted from now. */
+export function noteRequest(requested: Requested, serverId: string, nick: string, count: number, now = Date.now()) {
+  const key = xdccRequestKey(serverId, nick);
+  const previous = requested.get(key);
+  const live = previous && now - previous.at < XDCC_REQUEST_TTL_MS ? previous.count : 0;
+  requested.set(key, { count: live + count, at: now });
+}
+
 // Counts down the offers still expected from a nick (see xdccRequestCount) and says whether this one
 // may start without a prompt: a trusted nick always, anyone else only when the global option is on and
-// the offer answers a request of ours. A batch brings one offer per pack, so one request covers them all.
+// the offer answers a request of ours that is not a day old. A batch brings one offer per pack, so one
+// request covers them all.
 export function takeAutoAccept(
   enabled: boolean,
   trusted: boolean,
-  requested: Map<string, number>,
+  requested: Requested,
   serverId: string,
   nick: string,
+  now = Date.now(),
 ): boolean {
   const key = xdccRequestKey(serverId, nick);
-  const expected = requested.get(key) ?? 0;
-  if (expected > 1) requested.set(key, expected - 1);
+  const entry = requested.get(key);
+  const expected = entry && now - entry.at < XDCC_REQUEST_TTL_MS ? entry.count : 0;
+  if (entry && expected > 1) requested.set(key, { count: expected - 1, at: entry.at });
   else requested.delete(key);
   return trusted || (enabled && expected > 0);
 }

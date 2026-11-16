@@ -122,6 +122,17 @@ describe('PreferencesModal: saving', () => {
     });
   });
 
+  it('takes the pack a bot was asked for without asking by default, and keeps it switched off when it was', () => {
+    const untouched = setup({ retentionDays: 14 });
+    save();
+    expect(saved(untouched).xdccAutoAccept).toBe(true);
+    cleanup();
+
+    const off = setup({ retentionDays: 14, xdccAutoAccept: false });
+    save();
+    expect(saved(off).xdccAutoAccept).toBe(false);
+  });
+
   it('turns a bad retention into 0 (keep forever)', () => {
     const p = setup();
     tab('Backend');
@@ -152,9 +163,10 @@ describe('PreferencesModal: saving', () => {
   it('saves the tray and auto-accept toggles', () => {
     const p = setup();
     fireEvent.click(screen.getByLabelText('Show a tray/menu bar icon'));
+    // on by default, so this switches it off
     fireEvent.click(screen.getByLabelText('Auto-accept XDCC downloads'));
     save();
-    expect(saved(p)).toMatchObject({ trayEnabled: true, xdccAutoAccept: true });
+    expect(saved(p)).toMatchObject({ trayEnabled: true, xdccAutoAccept: false });
   });
 
   it('checks for updates by default and downloads them only when asked to, and saves both choices', () => {

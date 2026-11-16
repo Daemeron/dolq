@@ -51,10 +51,11 @@ import { updateSpeed } from './utils/transferSpeed';
 import { computeAwayStats } from './utils/unread';
 import { createWhoisFilter } from './utils/whoisFilter';
 import {
+  noteRequest,
   queryXdccText,
+  type Requested,
   takeAutoAccept,
   xdccRequestCount,
-  xdccRequestKey,
   xdccRequestTarget,
   xdccSenderKey,
 } from './utils/xdcc';
@@ -244,7 +245,7 @@ export default function App() {
   const [firstHistoryLoaded, setFirstHistoryLoaded] = useState(false);
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
-  const requestedPacks = useRef(new Map<string, number>());
+  const requestedPacks = useRef<Requested>(new Map());
   const sessionTrusted = useRef(new Set<string>());
   const xdccTrustedRef = useRef(xdccTrusted);
   xdccTrustedRef.current = xdccTrusted;
@@ -738,6 +739,22 @@ export default function App() {
               timestamp: new Date(),
               notice: true,
             });
+          } else if (!event.target.startsWith('#') && !isIgnored(serverId, event.nick)) {
+            // A bot says where it has queued a request, or that one is pending, in a private notice. It goes to the
+            // chat with that bot, where the request was made, as well as to the server log. Nicks do not differ by
+            // case, so the chat is found that way and the message goes to it under the name it was opened with.
+            const chat = (useStore.getState().channelMap[serverId] ?? []).find(
+              (c) => c.isQuery && c.id.toLowerCase() === event.nick.toLowerCase(),
+            );
+            if (chat) {
+              appendMessage(scopeKey(serverId, chat.id), {
+                id: nextMsgId.current++,
+                nick: event.nick,
+                text: event.text,
+                timestamp: new Date(),
+                notice: true,
+              });
+            }
           }
           if (isNickServIdentifyPrompt(event.nick, event.text)) {
             setPendingIdentifyServerId(serverId);
@@ -840,7 +857,13 @@ export default function App() {
             (sessionTrusted.current.has(`${serverId}\0${senderKey}`) ||
               (xdccTrustedRef.current[serverId] ?? []).some((t) => xdccSenderKey(t) === senderKey));
           if (
-            takeAutoAccept(!!settingsRef.current.xdccAutoAccept, trusted, requestedPacks.current, serverId, event.nick)
+            takeAutoAccept(
+              settingsRef.current.xdccAutoAccept ?? true,
+              trusted,
+              requestedPacks.current,
+              serverId,
+              event.nick,
+            )
           ) {
             void startXDCCDownload(offer);
           } else {
@@ -1253,8 +1276,7 @@ export default function App() {
   function sendTracked(serverId: string, line: string) {
     const bot = xdccRequestTarget(line);
     if (bot) {
-      const key = xdccRequestKey(serverId, bot);
-      requestedPacks.current.set(key, (requestedPacks.current.get(key) ?? 0) + xdccRequestCount(line));
+      noteRequest(requestedPacks.current, serverId, bot, xdccRequestCount(line));
     }
     return window.irc.sendLine(serverId, line);
   }

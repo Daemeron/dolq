@@ -1309,6 +1309,55 @@ describe('App: packs and search results', () => {
     expect(useStore.getState().messageMap['s1:bot'].map((m) => m.text)).toEqual(['XDCC SEND #7']);
   });
 
+  const answer = {
+    type: 'XDCCSENDOFFER' as const,
+    nick: 'bot',
+    filename: 'f.iso',
+    ip: '1.2.3.4',
+    port: 5000,
+    size: 10,
+  };
+
+  it('takes the offer that answers a pack we requested without asking, unless that was switched off', async () => {
+    // the setting was never touched: asking for a pack is the answer to whether to take it
+    const irc = await mount({ getSettings: { retentionDays: 0 } });
+    await irc.event('s1', pack);
+    await fire.click(await screen.findByTitle('Click to request this pack'));
+    await waitFor(() => expect(irc.spies.sendLine).toHaveBeenCalledWith('s1', 'PRIVMSG bot :XDCC SEND #7'));
+    await irc.event('s1', answer);
+    await waitFor(() => expect(irc.spies.xdccAccept).toHaveBeenCalled());
+    expect(screen.queryByText('File offer')).toBeNull();
+  });
+
+  it('still asks about the offer that answers a pack we requested when auto-accept was switched off', async () => {
+    const irc = await mount({ getSettings: { retentionDays: 0, xdccAutoAccept: false } });
+    await irc.event('s1', pack);
+    await fire.click(await screen.findByTitle('Click to request this pack'));
+    await waitFor(() => expect(irc.spies.sendLine).toHaveBeenCalledWith('s1', 'PRIVMSG bot :XDCC SEND #7'));
+    await irc.event('s1', answer);
+    expect(await screen.findByText('File offer')).toBeTruthy();
+    expect(irc.spies.xdccAccept).not.toHaveBeenCalled();
+  });
+
+  it('shows what a bot says in a private notice, such as its queue, in the chat opened with it', async () => {
+    const irc = await mount();
+    await irc.event('s1', pack);
+    await fire.click(await screen.findByTitle('Click to request this pack'));
+    await waitFor(() => expect(irc.spies.sendLine).toHaveBeenCalledWith('s1', 'PRIVMSG bot :XDCC SEND #7'));
+
+    await irc.event('s1', {
+      type: 'NOTICE',
+      nick: 'Bot',
+      target: 'me',
+      text: '** Added you to the queue at position 3',
+    });
+    await irc.event('s1', { type: 'NOTICE', nick: 'stranger', target: 'me', text: 'hello from nobody you talked to' });
+
+    const chat = useStore.getState().messageMap['s1:bot'];
+    expect(chat.at(-1)).toMatchObject({ nick: 'Bot', text: '** Added you to the queue at position 3', notice: true });
+    expect(useStore.getState().messageMap['s1:stranger']).toBeUndefined();
+  });
+
   it('auto-accepts the offer that answers a pack we requested', async () => {
     const irc = await mount({ getSettings: { retentionDays: 0, xdccAutoAccept: true } });
     await irc.event('s1', pack);

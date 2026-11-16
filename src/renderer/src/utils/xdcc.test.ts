@@ -1,5 +1,20 @@
 import { describe, expect, it } from 'vitest';
-import { takeAutoAccept, xdccRequestCount, xdccRequestKey, xdccRequestTarget, xdccSenderKey } from './xdcc';
+import {
+  noteRequest,
+  type Requested,
+  takeAutoAccept,
+  XDCC_REQUEST_TTL_MS,
+  xdccRequestCount,
+  xdccRequestKey,
+  xdccRequestTarget,
+  xdccSenderKey,
+} from './xdcc';
+
+const NOW = 1_700_000_000_000;
+const HOUR = 3_600_000;
+// `count` offers expected from `nick`, asked for at `at`
+const asked = (serverId: string, nick: string, count: number, at = NOW): Requested =>
+  new Map([[xdccRequestKey(serverId, nick), { count, at }]]);
 
 describe('xdccRequestTarget', () => {
   it('finds the bot in a typed request', () => {
@@ -18,27 +33,54 @@ describe('xdccRequestTarget', () => {
 
 describe('takeAutoAccept', () => {
   it('accepts a requested offer once when the option is on', () => {
-    const requested = new Map([[xdccRequestKey('s1', 'Bot'), 1]]);
-    expect(takeAutoAccept(true, false, requested, 's1', 'bot')).toBe(true);
-    expect(takeAutoAccept(true, false, requested, 's1', 'bot')).toBe(false);
+    const requested = asked('s1', 'Bot', 1);
+    expect(takeAutoAccept(true, false, requested, 's1', 'bot', NOW)).toBe(true);
+    expect(takeAutoAccept(true, false, requested, 's1', 'bot', NOW)).toBe(false);
   });
 
   it('prompts for an unrequested offer from a stranger', () => {
-    expect(takeAutoAccept(true, false, new Map(), 's1', 'bot')).toBe(false);
+    expect(takeAutoAccept(true, false, new Map(), 's1', 'bot', NOW)).toBe(false);
   });
 
   it('prompts when the request was made on another server', () => {
-    expect(takeAutoAccept(true, false, new Map([[xdccRequestKey('s2', 'bot'), 1]]), 's1', 'bot')).toBe(false);
+    expect(takeAutoAccept(true, false, asked('s2', 'bot', 1), 's1', 'bot', NOW)).toBe(false);
   });
 
   it('prompts when the option is off, and still consumes the request', () => {
-    const requested = new Map([[xdccRequestKey('s1', 'bot'), 1]]);
-    expect(takeAutoAccept(false, false, requested, 's1', 'bot')).toBe(false);
+    const requested = asked('s1', 'bot', 1);
+    expect(takeAutoAccept(false, false, requested, 's1', 'bot', NOW)).toBe(false);
     expect(requested.size).toBe(0);
   });
 
+  it('still takes an offer that comes hours later, when the bot queued the request', () => {
+    expect(takeAutoAccept(true, false, asked('s1', 'bot', 1), 's1', 'bot', NOW + 23 * HOUR)).toBe(true);
+  });
+
+  it('does not take an offer for the answer to a request that is a day old, and forgets that request', () => {
+    const requested = asked('s1', 'bot', 1);
+    expect(takeAutoAccept(true, false, requested, 's1', 'bot', NOW + XDCC_REQUEST_TTL_MS)).toBe(false);
+    expect(requested.size).toBe(0);
+  });
+
+  it('keeps the time of the request while it counts the offers of a batch down', () => {
+    const requested = asked('s1', 'bot', 2);
+    takeAutoAccept(true, false, requested, 's1', 'bot', NOW + HOUR);
+    expect(requested.get(xdccRequestKey('s1', 'bot'))).toEqual({ count: 1, at: NOW });
+  });
+
   it('accepts a trusted nick whether or not it was requested and the option is off', () => {
-    expect(takeAutoAccept(false, true, new Map(), 's1', 'bot')).toBe(true);
+    expect(takeAutoAccept(false, true, new Map(), 's1', 'bot', NOW)).toBe(true);
+  });
+});
+
+describe('noteRequest', () => {
+  it('adds to a request that is still good, and starts again from one that is not', () => {
+    const requested: Requested = new Map();
+    noteRequest(requested, 's1', 'Bot', 2, NOW);
+    noteRequest(requested, 's1', 'bot', 1, NOW + HOUR);
+    expect(requested.get(xdccRequestKey('s1', 'bot'))).toEqual({ count: 3, at: NOW + HOUR });
+    noteRequest(requested, 's1', 'bot', 1, NOW + HOUR + XDCC_REQUEST_TTL_MS);
+    expect(requested.get(xdccRequestKey('s1', 'bot'))?.count).toBe(1);
   });
 });
 
@@ -50,8 +92,8 @@ describe('a batch request', () => {
   });
 
   it('is auto-accepted for every pack it brings, then no more', () => {
-    const requested = new Map([[xdccRequestKey('s1', 'Bot'), 3]]);
-    const accepted = [1, 2, 3, 4].map(() => takeAutoAccept(true, false, requested, 's1', 'bot'));
+    const requested = asked('s1', 'Bot', 3);
+    const accepted = [1, 2, 3, 4].map(() => takeAutoAccept(true, false, requested, 's1', 'bot', NOW));
     expect(accepted).toEqual([true, true, true, false]);
   });
 });
