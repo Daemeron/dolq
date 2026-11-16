@@ -57,6 +57,26 @@ jobs:
       - run: npx electron-vite build
       - run: npx electron-builder --publish never
 
+      # Kept for the release: when it is published from this very tree, create-a-release-build-binaries.yml uploads
+      # these installers as they are, instead of building them a second time.
+      - name: Record the tree the installers were built from
+        shell: bash
+        run: git rev-parse 'HEAD^{tree}' > dist/TREE
+      - uses: actions/upload-artifact@v7
+        with:
+          name: installers-${{ runner.os }}
+          path: |
+            dist/*.dmg
+            dist/*.zip
+            dist/*.AppImage
+            dist/*.deb
+            dist/*.exe
+            dist/*.exe.blockmap
+            dist/latest*.yml
+            dist/TREE
+          retention-days: 7
+          if-no-files-found: error
+
   # One check with a fixed name for the ruleset to require: a skipped matrix job has no stable name of its own.
   result:
     name: Build Binaries
