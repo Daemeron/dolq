@@ -68,7 +68,7 @@ flowchart TD
 | Pairing link host | the NAS's real addresses, found automatically | needs `DOLQ_PUBLIC_HOST` |
 | Port 6789 | taken on the NAS itself, must be free | mapped, can be another number (then set `DOLQ_PUBLIC_PORT`) |
 | Active XDCC downloads | work | work |
-| Passive XDCC, DCC chat, sending files | work on the LAN. From the internet they also need `DOLQ_DCC_HOST` and a forwarded `DOLQ_DCC_PORTS` range | work only with `DOLQ_DCC_HOST` and `DOLQ_DCC_PORTS` set, forwarded on the router and published under `ports`. Otherwise the announced address is the container's own (see [File transfers](file-transfers.md#letting-a-peer-connect-in-passive-offers-chats-files-you-send)) |
+| Passive XDCC, DCC chat, sending files | work on the LAN. From the internet they also need `DOLQ_DCC_HOST` and a forwarded `DOLQ_DCC_PORTS` range, or `DOLQ_DCC_HOST=auto` with UPnP on the router | work only with `DOLQ_DCC_HOST` and `DOLQ_DCC_PORTS` set, forwarded on the router and published under `ports`. Otherwise the announced address is the container's own (see [File transfers](file-transfers.md#letting-a-peer-connect-in-passive-offers-chats-files-you-send)) |
 | Docker Desktop on a Mac or PC | not available | use this |
 
 ## Certificate, token and why they must persist

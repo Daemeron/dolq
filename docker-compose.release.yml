@@ -132,7 +132,17 @@ services:
       ##  points at it, such as a dynamic DNS name (looked up each time). Without it
       ##  this machine says its own address, which in a container is the container's
       ##  and which nothing outside can reach. IPv4 only.
+      ##
+      ##  Or "auto": ask the router, over UPnP or NAT-PMP, for its public address and
+      ##  for a port to be forwarded to this machine, when a transfer needs it, and
+      ##  give the port back afterwards. Then neither the address nor the router has
+      ##  to be set up by hand, and a changing public address is followed. It needs
+      ##  UPnP (or NAT-PMP) switched on in the router, a router that has a public
+      ##  address of its own (not one shared by your provider), and host networking
+      ##  above: the router is found by a broadcast that a bridge network cannot send.
+      ##  The log says at start whether a router answered. DOLQ_DCC_PORTS is not needed.
       #- "DOLQ_DCC_HOST=mynas.example.org"
+      #- "DOLQ_DCC_HOST=auto"
 
       ##  The only ports those connections listen on, a range or a single port (one
       ##  is enough if you download one file at a time). Forward the same range on
