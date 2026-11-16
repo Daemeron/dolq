@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.17.0](https://github.com/Daemeron/dolq/compare/dolq-v0.16.1...dolq-v0.17.0) (2026-11-16)
+
+
+### Features
+
+* **app:** take a requested pack when the bot gets to it, and show what the bot says meanwhile ([c6dcba6](https://github.com/Daemeron/dolq/commit/c6dcba675de84bdde72b06090bdab8f89040956c))
+* **backend:** DOLQ_DCC_HOST=auto asks the router for its address and a forwarded port ([8df6927](https://github.com/Daemeron/dolq/commit/8df6927589c0795de418fb600917810fa57cc6f7))
+* **backend:** let a peer reach a passive transfer, with a set address and ports ([b500ec7](https://github.com/Daemeron/dolq/commit/b500ec734b7959c7678fe08e8753cf4253a9d157))
+
 ## [0.16.1](https://github.com/Daemeron/dolq/compare/dolq-v0.16.0...dolq-v0.16.1) (2026-11-16)
 
 
