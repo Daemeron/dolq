@@ -82,6 +82,8 @@ services:
     ##  The first number is the port on the NAS; clients connect to it.
     #ports:
     #  - '6789:6789'
+    #  ## and the DCC ports below, the same number on both sides (see DOLQ_DCC_PORTS)
+    #  - '40000-40010:40000-40010'
 
     ## ==========================================================================
     ##  Environment
@@ -119,6 +121,25 @@ services:
       ##  The port the pairing link gives clients, when it is not the one dolqd
       ##  listens on: the left number of a mapping such as '7000:6789' under "ports".
       #- "DOLQ_PUBLIC_PORT=6789"
+
+      ##  Passive XDCC downloads, where a bot has you listen and tell it where to
+      ##  connect. Many bots on home connections do this. The bot then connects IN to
+      ##  this machine, from the internet, so it has to be told an address it can
+      ##  reach, and your router has to let the connection through. Offers where the
+      ##  bot listens and this machine connects OUT (active offers) need neither.
+      ##
+      ##  The address to tell the bot: your public (WAN) address, or a name that
+      ##  points at it, such as a dynamic DNS name (looked up each time). Without it
+      ##  this machine says its own address, which in a container is the container's
+      ##  and which nothing outside can reach. IPv4 only.
+      #- "DOLQ_DCC_HOST=mynas.example.org"
+
+      ##  The only ports those connections listen on, a range or a single port (one
+      ##  is enough if you download one file at a time). Forward the same range on
+      ##  your router to this machine, and with a bridge network publish it under
+      ##  "ports" above (same number on both sides). Without it any free port is used,
+      ##  which cannot be forwarded.
+      #- "DOLQ_DCC_PORTS=40000-40010"
 
       ##  Also accept plain connections without a token, on the same port, for
       ##  clients from before access tokens existed. Anyone who can reach the port
