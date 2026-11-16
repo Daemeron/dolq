@@ -1,3 +1,5 @@
+import { useLayoutEffect, useRef, useState } from 'react';
+import { placeMenu } from '../utils/placeMenu';
 import { Icon } from './Icon';
 
 type Props = {
@@ -7,12 +9,28 @@ type Props = {
 };
 
 export function ContextMenu({ x, y, children }: Props) {
+  const ref = useRef<HTMLDivElement>(null);
+  // Opened at the pointer, then moved back inside the window once its size is known.
+  const [at, setAt] = useState<{ left: number; top: number } | null>(null);
+  useLayoutEffect(() => {
+    const box = ref.current?.getBoundingClientRect();
+    if (box) {
+      setAt(
+        placeMenu(
+          { x, y },
+          { width: box.width, height: box.height },
+          { width: window.innerWidth, height: window.innerHeight },
+        ),
+      );
+    }
+  }, [x, y]);
   return (
     // biome-ignore lint/a11y/noStaticElementInteractions: backdrop click-to-dismiss, Escape is handled separately
     <div
+      ref={ref}
       role="presentation"
       className="fixed z-50 min-w-40 bg-(--dolq-bg-input) rounded-lg shadow-(--dolq-shadow) py-1.5"
-      style={{ left: x, top: y }}
+      style={{ left: at?.left ?? x, top: at?.top ?? y, visibility: at ? 'visible' : 'hidden' }}
       onClick={(e) => e.stopPropagation()}
     >
       {children}
