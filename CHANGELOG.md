@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.12.0](https://github.com/Daemeron/dolq/compare/dolq-v0.11.0...dolq-v0.12.0) (2026-11-16)
+
+
+### Features
+
+* **renderer:** click or right-click a nick in the conversation like in the member list ([5db72f6](https://github.com/Daemeron/dolq/commit/5db72f6d5d6cc51a7b7308d69b14f7b31634fe01))
+* **renderer:** colour WHOIS replies and away notices in the server log ([c3ae6b9](https://github.com/Daemeron/dolq/commit/c3ae6b9d93ee95ef3dcc05ba36cb6501ff573ab4))
+* **renderer:** copy a message, or the whole run from the same person ([bb7bdb5](https://github.com/Daemeron/dolq/commit/bb7bdb5e9d1d3a3109ec204fade395f5c857a297))
+* **renderer:** keep WHOIS replies out of the server log view ([0042336](https://github.com/Daemeron/dolq/commit/004233636d8f216629ac121cb5695a382153d538))
+
+
+### Bug Fixes
+
+* **renderer:** do not underline the avatar when hovering a message ([7b9f22f](https://github.com/Daemeron/dolq/commit/7b9f22f0cf88eb9d53832619eca6cccccb307e85))
+* **renderer:** keep context menus inside the window ([5a73a77](https://github.com/Daemeron/dolq/commit/5a73a772a2ecd3e748be138aa18c11f8d5413588))
+* **renderer:** line up the Upload and Download labels of the bandwidth chart ([0642d11](https://github.com/Daemeron/dolq/commit/0642d1111e1bded406324978281501fe18228030))
+
 ## [0.11.0](https://github.com/Daemeron/dolq/compare/dolq-v0.10.0...dolq-v0.11.0) (2026-11-16)
 
 
