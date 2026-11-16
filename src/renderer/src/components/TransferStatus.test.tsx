@@ -45,6 +45,20 @@ describe('TransferStatus', () => {
     expect(screen.getByText('Saving to C:\\Users\\me')).toBeTruthy();
   });
 
+  it('offers to clear the finished ones only when there are some', () => {
+    const onClearFinished = vi.fn();
+    const props = { onPause: vi.fn(), onResume: vi.fn(), onCancel: vi.fn(), onDismiss: vi.fn(), onClose: vi.fn() };
+    const { rerender } = render(
+      <TransferStatus transfers={{ x: base }} onClearFinished={onClearFinished} {...props} />,
+    );
+    expect(screen.queryByRole('button', { name: 'Clear finished' })).toBeNull();
+    rerender(
+      <TransferStatus transfers={{ x: { ...base, done: true } }} onClearFinished={onClearFinished} {...props} />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Clear finished' }));
+    expect(onClearFinished).toHaveBeenCalled();
+  });
+
   it('shows progress and speed, and pauses or cancels a running transfer', () => {
     const { onPause, onCancel } = setup({ speedBps: 2048 });
     expect(screen.getByText('bot · 50% of 100 B · 2.0 KB/s')).toBeTruthy();

@@ -150,6 +150,18 @@ describe('BackendClient requests', () => {
     await client.xdccResume('x1');
     expect(lastRequest()).toMatchObject({ action: 'xdccResume', dccId: 'x1' });
   });
+
+  it('lists and forgets saved transfers', async () => {
+    fake.reply.getTransfers = { ok: true, transfers: [{ id: 'x1' }] };
+    expect(await client.getTransfers()).toEqual([{ id: 'x1' }]);
+    expect(lastRequest()).toMatchObject({ action: 'getTransfers' });
+    fake.reply.getTransfers = { ok: true };
+    expect(await client.getTransfers()).toEqual([]);
+    await client.deleteTransfer('x1');
+    expect(lastRequest()).toMatchObject({ action: 'deleteTransfer', dccId: 'x1' });
+    await client.deleteTransfer();
+    expect(lastRequest()).toMatchObject({ action: 'deleteTransfer', dccId: '' });
+  });
 });
 
 describe('BackendClient pushed frames', () => {

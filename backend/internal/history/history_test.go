@@ -674,3 +674,51 @@ func TestNewDatabaseNeedsNoCleanupAndIsMarkedDone(t *testing.T) {
 		t.Errorf("user_version = %d, want %d", version, cleanupVersion)
 	}
 }
+
+func TestTransfersAreSavedAndForgotten(t *testing.T) {
+	s, err := Open(":memory:", 0)
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	defer s.Close()
+
+	now := time.Now()
+	s.SaveTransfer(Transfer{ID: "a", ServerID: "srv", Nick: "bot", Filename: "a.mkv", Received: 5, Total: 5, Path: "/d/a.mkv", Done: true, Timestamp: now})
+	s.SaveTransfer(Transfer{ID: "b", ServerID: "srv", Nick: "bot", Filename: "b.mkv", Error: "boom", Sending: true, Timestamp: now.Add(time.Second)})
+	s.SaveTransfer(Transfer{ID: "a", ServerID: "srv", Nick: "bot", Filename: "a.mkv", Received: 6, Total: 6, Path: "/d/a.mkv", Done: true, Timestamp: now})
+
+	got, err := s.Transfers()
+	if err != nil || len(got) != 2 {
+		t.Fatalf("transfers = %+v, %v; want 2 (the repeated id replaced)", got, err)
+	}
+	if got[0].ID != "a" || got[0].Received != 6 || !got[0].Done || got[0].Path != "/d/a.mkv" {
+		t.Errorf("first = %+v", got[0])
+	}
+	if got[1].ID != "b" || got[1].Error != "boom" || !got[1].Sending {
+		t.Errorf("second = %+v", got[1])
+	}
+
+	if err := s.DeleteTransfer("a"); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := s.Transfers(); len(got) != 1 || got[0].ID != "b" {
+		t.Fatalf("after deleting one: %+v", got)
+	}
+	if err := s.DeleteTransfer(""); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := s.Transfers(); len(got) != 0 {
+		t.Fatalf("after clearing: %+v", got)
+	}
+}
+
+func TestNilStoreKeepsNoTransfers(t *testing.T) {
+	var s *Store
+	s.SaveTransfer(Transfer{ID: "a"})
+	if got, err := s.Transfers(); got != nil || err != nil {
+		t.Fatalf("got %v, %v", got, err)
+	}
+	if err := s.DeleteTransfer(""); err != nil {
+		t.Fatal(err)
+	}
+}

@@ -20,6 +20,8 @@ const (
 	ActionXDCCClose         = "xdccClose"
 	ActionXDCCPause         = "xdccPause"
 	ActionXDCCResume        = "xdccResume"
+	ActionGetTransfers      = "getTransfers"
+	ActionDeleteTransfer    = "deleteTransfer"
 )
 
 const (
@@ -60,15 +62,16 @@ type ClientFrame struct {
 }
 
 type ServerFrame struct {
-	ID       string          `json:"id,omitempty"`
-	Type     string          `json:"type"`
-	ServerID string          `json:"serverId,omitempty"`
-	Line     string          `json:"line,omitempty"`
-	Event    any             `json:"event,omitempty"`
-	Status   string          `json:"status,omitempty"`
-	Channels []string        `json:"channels,omitempty"`
-	Messages []history.Entry `json:"messages,omitempty"`
-	DCCID    string          `json:"dccId,omitempty"`
-	OK       bool            `json:"ok,omitempty"`
-	Error    string          `json:"error,omitempty"`
+	ID        string             `json:"id,omitempty"`
+	Type      string             `json:"type"`
+	ServerID  string             `json:"serverId,omitempty"`
+	Line      string             `json:"line,omitempty"`
+	Event     any                `json:"event,omitempty"`
+	Status    string             `json:"status,omitempty"`
+	Channels  []string           `json:"channels,omitempty"`
+	Messages  []history.Entry    `json:"messages,omitempty"`
+	Transfers []history.Transfer `json:"transfers,omitempty"`
+	DCCID     string             `json:"dccId,omitempty"`
+	OK        bool               `json:"ok,omitempty"`
+	Error     string             `json:"error,omitempty"`
 }

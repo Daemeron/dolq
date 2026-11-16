@@ -29,6 +29,7 @@ function installIrc(overrides: Record<string, unknown> = {}) {
     getStatus: 'connected',
     getJoinedChannels: ['#dolq', '#other'],
     getHistory: [],
+    getTransfers: [],
     search: [],
     secretsAvailable: true,
     sendLine: undefined,
@@ -1400,6 +1401,35 @@ describe('App: transfers', () => {
     await irc.event('xfer-1', { type: 'XDCCTRANSFER', received: 2048, total: 2048, path: '/dl/f.iso', done: true });
     await fire.click(await screen.findByRole('button', { name: 'Dismiss' }));
     expect(screen.queryByText('f.iso')).toBeNull();
+    expect(irc.spies.deleteTransfer).toHaveBeenCalledWith('xfer-1');
+  });
+
+  const saved = (id: string, filename: string) => ({
+    id,
+    serverId: 's1',
+    nick: 'bot',
+    filename,
+    received: 5,
+    total: 5,
+    path: `/dl/${filename}`,
+    done: true,
+  });
+
+  it('lists transfers the backend kept from an earlier run', async () => {
+    await mount({ getTransfers: [saved('old-1', 'old.iso')] });
+    await fire.click(await screen.findByRole('button', { name: 'Transfers' }));
+    expect(await screen.findByText('old.iso')).toBeTruthy();
+    expect(screen.getByText('Saved in /dl')).toBeTruthy();
+  });
+
+  it('clears every finished transfer, and only those', async () => {
+    const irc = await mount({ getTransfers: [saved('old-1', 'old.iso'), saved('old-2', 'older.iso')] });
+    await startTransfer(irc);
+    await fire.click(screen.getByRole('button', { name: 'Clear finished' }));
+    expect(irc.spies.deleteTransfer).toHaveBeenCalledWith();
+    expect(screen.queryByText('old.iso')).toBeNull();
+    expect(screen.queryByText('older.iso')).toBeNull();
+    expect(screen.getByText('f.iso')).toBeTruthy();
   });
 });
 

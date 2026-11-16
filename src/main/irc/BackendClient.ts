@@ -8,7 +8,7 @@ import { createInterface } from 'node:readline';
 import tls from 'node:tls';
 import { promisify } from 'node:util';
 import { app } from 'electron';
-import type { ConnectionStatus, HistoryEntry, IrcEvent } from '../../shared/ipc';
+import type { ConnectionStatus, HistoryEntry, IrcEvent, SavedTransfer } from '../../shared/ipc';
 import { decideTrust, insecureReasons, type RemoteHooks, type RemoteTarget } from '../remoteBackend';
 import { PermanentError, redial } from './redial';
 import { stopChild } from './stopChild';
@@ -24,6 +24,7 @@ interface ServerFrame {
   status?: ConnectionStatus;
   channels?: string[];
   messages?: HistoryEntry[];
+  transfers?: SavedTransfer[];
   dccId?: string;
   ok?: boolean;
   error?: string;
@@ -333,6 +334,15 @@ export class BackendClient extends EventEmitter {
     });
     if (!f.ok) throw new Error(f.error);
     return f.dccId ?? '';
+  }
+
+  async getTransfers(): Promise<SavedTransfer[]> {
+    const f = await this.request('getTransfers', {});
+    return f.transfers ?? [];
+  }
+
+  deleteTransfer(id = ''): Promise<void> {
+    return this.call('deleteTransfer', { dccId: id });
   }
 
   xdccClose(dccId: string): Promise<void> {

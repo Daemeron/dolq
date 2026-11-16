@@ -76,6 +76,20 @@ export type IrcEvent =
       sending?: boolean;
     };
 
+/** A transfer that has ended, as the backend kept it. */
+export type SavedTransfer = {
+  id: string;
+  serverId: string;
+  nick: string;
+  filename: string;
+  received: number;
+  total: number;
+  path: string;
+  done?: boolean;
+  error?: string;
+  sending?: boolean;
+};
+
 export type HistoryEntry = {
   id: number;
   serverId: string;
@@ -164,6 +178,10 @@ export type IrcApi = {
     token?: string,
   ) => Promise<string>;
   xdccClose: (xdccId: string) => Promise<void>;
+  /** Transfers that ended, kept by the backend across restarts. */
+  getTransfers: () => Promise<SavedTransfer[]>;
+  /** Forgets one saved transfer, or every one when no id is given. */
+  deleteTransfer: (id?: string) => Promise<void>;
   xdccPause: (xdccId: string) => Promise<void>;
   xdccResume: (xdccId: string) => Promise<void>;
   openExternal: (url: string) => Promise<void>;
@@ -214,6 +232,8 @@ export enum IrcMessages {
   dccClose = 'irc:dccClose',
   xdccAccept = 'irc:xdccAccept',
   xdccClose = 'irc:xdccClose',
+  getTransfers = 'irc:getTransfers',
+  deleteTransfer = 'irc:deleteTransfer',
   xdccPause = 'irc:xdccPause',
   xdccResume = 'irc:xdccResume',
   openExternal = 'irc:openExternal',
