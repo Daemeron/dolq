@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.16.1](https://github.com/Daemeron/dolq/compare/dolq-v0.16.0...dolq-v0.16.1) (2026-11-16)
+
+
+### Bug Fixes
+
+* **app:** say why a file offer could not be accepted ([a9482d9](https://github.com/Daemeron/dolq/commit/a9482d96ec82c8a56df599ea9bf7d1228e5db447))
+* **backend:** log a file offer it refuses, with the reason ([5ee2c9e](https://github.com/Daemeron/dolq/commit/5ee2c9ec2f8c71e778bc4da2cd89429b86e48e0f))
+
 ## [0.16.0](https://github.com/Daemeron/dolq/compare/dolq-v0.15.1...dolq-v0.16.0) (2026-11-16)
 
 
