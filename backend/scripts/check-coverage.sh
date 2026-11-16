@@ -9,6 +9,8 @@ trap 'rm -f "$profile"' EXIT
 go test -race -coverprofile="$profile" ./...
 total="$(go tool cover -func="$profile" | awk '/^total:/ { sub("%", "", $3); print $3 }')"
 echo "backend coverage: ${total}% (minimum ${min}%)"
+# COVERAGE_OUT: where to leave the total, for the coverage badge.
+[ -z "${COVERAGE_OUT:-}" ] || echo "$total" >"$COVERAGE_OUT"
 awk -v t="$total" -v m="$min" 'BEGIN { exit !(t + 0 >= m + 0) }' || {
   echo "backend coverage ${total}% is below the ${min}% minimum" >&2
   exit 1

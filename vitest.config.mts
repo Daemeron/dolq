@@ -5,6 +5,8 @@ export default defineConfig({
   test: {
     coverage: {
       provider: 'v8',
+      // json-summary is what the coverage badge reads.
+      reporter: ['text', 'html', 'json-summary'],
       include: ['src/**/*.{ts,tsx}'],
       exclude: ['**/*.test.*', 'src/**/*.d.ts'],
       thresholds: { statements: 95, branches: 85, functions: 95, lines: 95 },

@@ -5,6 +5,8 @@
 > An IRC client that feels like Discord.
 
 [![Build and Test](https://github.com/daemeron/dolq/actions/workflows/build-and-test.yml/badge.svg?branch=main)](https://github.com/daemeron/dolq/actions/workflows/build-and-test.yml)
+[![Frontend coverage](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FDaemeron%2Fdolq%2Fbadges%2Ffrontend-coverage.json)](https://github.com/daemeron/dolq/actions/workflows/build-and-test.yml)
+[![Backend coverage](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FDaemeron%2Fdolq%2Fbadges%2Fbackend-coverage.json)](https://github.com/daemeron/dolq/actions/workflows/build-and-test.yml)
 [![Latest Release](https://img.shields.io/github/v/release/daemeron/dolq)](https://github.com/daemeron/dolq/releases/latest)
 
 Dolq is a desktop IRC client built with Electron, React, and a Go backend,
