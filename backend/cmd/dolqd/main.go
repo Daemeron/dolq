@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/Daemeron/dolq/backend/internal/bouncer"
+	"github.com/Daemeron/dolq/backend/internal/dcc"
 	"github.com/Daemeron/dolq/backend/internal/history"
 	"github.com/Daemeron/dolq/backend/internal/ipcproto"
 )
@@ -56,6 +57,8 @@ func run(ctx context.Context, args []string, stdout io.Writer) error {
 	useTLSFlag := flags.Bool("tls", true, "serve -addr over TLS; -tls=false for plain TCP, e.g. behind a TLS-terminating proxy or an SSH tunnel")
 	useTokenFlag := flags.Bool("token", true, "require an access token on -addr (DOLQ_TOKEN, or generated once and kept next to the database); -token=false means anyone who can reach the port can use it, so only on a network you fully trust. Independent of -tls")
 	downloadDir := flags.String("download-dir", "", "with -addr, where XDCC downloads are saved; clients cannot choose another directory (also DOLQ_DOWNLOAD_DIR; default: a downloads dir next to the database). A locally spawned dolqd saves where the app asks")
+	dccHost := flags.String("dcc-host", "", "the address announced to a peer that has to connect to this machine (a passive XDCC offer, a DCC chat, a file sent): an IPv4 address or a name that resolves to one, such as your public address or a dynamic DNS name; default is this machine's own address, which is not reachable from outside behind NAT or in a container (also DOLQ_DCC_HOST)")
+	dccPorts := flags.String("dcc-ports", "", "the only ports those connections listen on, e.g. 40000-40010, to be forwarded or published; default is any port (also DOLQ_DCC_PORTS)")
 	printPairing := flags.Bool("print-pairing", false, "with -addr, log the pairing link (it contains the access token); it is otherwise logged only when the token is first generated")
 	retentionDays := flags.Int("retention-days", 0, "prune history older than this many days (0 = keep forever)")
 	showVersion := flags.Bool("version", false, "print the version and exit")
@@ -151,7 +154,12 @@ func run(ctx context.Context, args []string, stdout io.Writer) error {
 	defer store.Close()
 
 	b := bouncer.New(store)
-	srv := ipcproto.NewServer(b).RequireToken(token)
+	dccCfg, err := readDCCSettings(*dccHost, *dccPorts, os.Getenv)
+	if err != nil {
+		return err
+	}
+	b.DCCHost = dccCfg.host
+	srv := ipcproto.NewServer(b).RequireToken(token).DCCPorts(dccCfg.minPort, dccCfg.maxPort)
 	folders := []ipcproto.Folder{{Name: "data", Path: filepath.Dir(resolveDBPath(*dbPath))}}
 	if network == "tcp" {
 		dir := serverDownloadDir(*downloadDir, os.Getenv("DOLQ_DOWNLOAD_DIR"), *dbPath)
@@ -168,6 +176,9 @@ func run(ctx context.Context, args []string, stdout io.Writer) error {
 		}
 		srv.DownloadDir(dir)
 		folders = append(folders, ipcproto.Folder{Name: "downloads", Path: dir})
+		for _, line := range dccLines(dccCfg, inContainer, dcc.AnnouncedIP) {
+			log.Print(line)
+		}
 	}
 	srv.About(version, folders...)
 

@@ -330,6 +330,19 @@ func TestServerDownloadDirOverridesClient(t *testing.T) {
 	}
 }
 
+func TestDCCPortsPinnedByTheServerWinOverTheClients(t *testing.T) {
+	s := NewServer(nil)
+	if min, max := s.portRange(5000, 5010); min != 5000 || max != 5010 {
+		t.Fatalf("without pinned ports the client's range stands, got %d-%d", min, max)
+	}
+	s.DCCPorts(40000, 40010)
+	for _, asked := range [][2]int{{5000, 5010}, {0, 0}} {
+		if min, max := s.portRange(asked[0], asked[1]); min != 40000 || max != 40010 {
+			t.Errorf("asked for %v, got %d-%d, want the pinned 40000-40010", asked, min, max)
+		}
+	}
+}
+
 func TestSendsToOneServerArriveInOrder(t *testing.T) {
 	const lines = 4 // the flood limiter's burst, so none of them is delayed
 	for round := 0; round < 25; round++ {

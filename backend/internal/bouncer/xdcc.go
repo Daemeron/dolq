@@ -121,7 +121,7 @@ func (b *Bouncer) xdccAccept(
 		return "", err
 	}
 	port := ln.Addr().(*net.TCPAddr).Port
-	ip, err := dcc.LocalIP()
+	ip, err := dcc.AnnouncedIP(b.DCCHost)
 	if err != nil {
 		ln.Close()
 		f.Close()

@@ -65,6 +65,10 @@ type Server struct {
 	// writeTimeout bounds each frame written to a client; see conn.writeFrame.
 	writeTimeout time.Duration
 
+	// dccMin and dccMax, when set, are the only ports DCC listens on, whatever range a client asks for. On a network
+	// listener the machine is not the client's own, so the ports to forward are the backend's to say.
+	dccMin, dccMax int
+
 	// What getInfo reports about this process.
 	version   string
 	startedAt time.Time
@@ -165,6 +169,20 @@ func (s *Server) RequireToken(token string) *Server {
 func (s *Server) DownloadDir(dir string) *Server {
 	s.downloadDir = dir
 	return s
+}
+
+// DCCPorts pins the ports DCC connections to this machine listen on, for a network listener whose ports are
+// published or forwarded. Zero keeps the client's choice.
+func (s *Server) DCCPorts(min, max int) *Server {
+	s.dccMin, s.dccMax = min, max
+	return s
+}
+
+func (s *Server) portRange(min, max int) (int, int) {
+	if s.dccMax > 0 {
+		return s.dccMin, s.dccMax
+	}
+	return min, max
 }
 
 func (s *Server) destDir(requested string) string {
@@ -347,7 +365,8 @@ func (s *Server) handleFrame(c *conn, f ClientFrame) {
 		}
 		c.writeFrame(ServerFrame{ID: f.ID, Type: FrameResult, OK: true, Messages: entries})
 	case ActionDCCOffer:
-		id, err := s.b.DCCOffer(f.ServerID, f.Nick, f.PortMin, f.PortMax, c)
+		min, max := s.portRange(f.PortMin, f.PortMax)
+		id, err := s.b.DCCOffer(f.ServerID, f.Nick, min, max, c)
 		if err != nil {
 			c.writeFrame(ServerFrame{ID: f.ID, Type: FrameResult, OK: false, Error: err.Error()})
 			return
@@ -363,7 +382,8 @@ func (s *Server) handleFrame(c *conn, f ClientFrame) {
 	case ActionDCCSend:
 		c.writeResult(f.ID, s.b.DCCSend(f.DCCID, f.Line))
 	case ActionDCCSendFile:
-		id, err := s.b.DCCSendFile(f.ServerID, f.Nick, f.Path, f.PortMin, f.PortMax, c)
+		min, max := s.portRange(f.PortMin, f.PortMax)
+		id, err := s.b.DCCSendFile(f.ServerID, f.Nick, f.Path, min, max, c)
 		if err != nil {
 			c.writeFrame(ServerFrame{ID: f.ID, Type: FrameResult, OK: false, Error: err.Error()})
 			return
@@ -375,7 +395,8 @@ func (s *Server) handleFrame(c *conn, f ClientFrame) {
 		offer := ircparse.XDCCSendOfferEvent{
 			Nick: f.Nick, Filename: f.Filename, IP: f.Host, Port: f.Port, Size: f.Size, Token: f.Token,
 		}
-		id, err := s.b.XDCCAccept(f.ServerID, offer, s.destDir(f.DestDir), f.PortMin, f.PortMax, c)
+		min, max := s.portRange(f.PortMin, f.PortMax)
+		id, err := s.b.XDCCAccept(f.ServerID, offer, s.destDir(f.DestDir), min, max, c)
 		if err != nil {
 			c.writeFrame(ServerFrame{ID: f.ID, Type: FrameResult, OK: false, Error: err.Error()})
 			return

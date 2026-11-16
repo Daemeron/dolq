@@ -92,6 +92,32 @@ func LocalIP() (net.IP, error) {
 	return conn.LocalAddr().(*net.UDPAddr).IP, nil
 }
 
+// AnnouncedIP is the address given to a peer that has to connect to us: in a passive XDCC offer, a DCC chat we offer, a
+// file we send. host is what the user set (an IPv4 address, or a name that resolves to one, such as a dynamic DNS name).
+// Empty means this machine's own address on the way to the internet, which is right on a plain LAN and wrong behind
+// NAT or in a container, where it is not an address the peer can reach.
+func AnnouncedIP(host string) (net.IP, error) {
+	if host == "" {
+		return LocalIP()
+	}
+	if ip := net.ParseIP(host); ip != nil {
+		if v4 := ip.To4(); v4 != nil {
+			return v4, nil
+		}
+		return nil, fmt.Errorf("dcc: %s is an IPv6 address, and a DCC offer can only carry an IPv4 one", host)
+	}
+	addrs, err := net.LookupIP(host)
+	if err != nil {
+		return nil, fmt.Errorf("dcc: cannot find the address of %s: %w", host, err)
+	}
+	for _, a := range addrs {
+		if v4 := a.To4(); v4 != nil {
+			return v4, nil
+		}
+	}
+	return nil, fmt.Errorf("dcc: %s has no IPv4 address", host)
+}
+
 func EncodeIP(ip net.IP) uint32 {
 	return binary.BigEndian.Uint32(ip.To4())
 }

@@ -67,7 +67,7 @@ func (b *Bouncer) DCCSendFile(serverID, nick, path string, portMin, portMax int,
 		f.Close()
 		return "", err
 	}
-	ip, err := dcc.LocalIP()
+	ip, err := dcc.AnnouncedIP(b.DCCHost)
 	if err != nil {
 		ln.Close()
 		f.Close()
