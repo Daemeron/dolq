@@ -159,9 +159,28 @@ sequenceDiagram
     W->>D: dccClose
 ```
 
-An address in a DCC message is a 32-bit integer (an IPv4 address written as a number); `dolqd` encodes and decodes it.
+### How an address is written in a DCC message
+
+| Form | Example | Meaning |
+|---|---|---|
+| A number | `3232235777` | an IPv4 address (192.168.1.1) written as one 32-bit integer, which is what the DCC convention says |
+| Text with colons | `2001:db8::1` | an IPv6 address. IPv6 has no numeric form, so clients and bots write the address itself |
+| Text with dots | `192.168.1.1` | an IPv4 address, accepted too |
+
+`dolqd` reads all three. Anything else (a host name, an address with a zone such as `fe80::1%en0`, brackets) is dropped, and
+the log says so (`ignored a DCC request from …`). The same goes for a subcommand it does not support, such as `SSEND` (a
+TLS-encrypted send) and `TSEND`.
 
 ## Ports and networks
+
+### IPv6
+
+A sender offering from an IPv6 address works as an ordinary active offer: `dolqd` connects out to it. The machine `dolqd`
+runs on needs IPv6 connectivity for that. A Docker bridge network has none by default, so the connection fails with
+`network is unreachable` in the log. Host networking uses the NAS's own IPv6, if it has any.
+
+What `dolqd` itself announces is still IPv4 only: the address in a passive offer, a DCC chat it offers, or a file it sends is
+its IPv4 address. A peer that can only be reached over IPv6 cannot connect to those.
 
 | Situation | Works? | Why |
 |---|---|---|
