@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.14.0](https://github.com/Daemeron/dolq/compare/dolq-v0.13.0...dolq-v0.14.0) (2026-11-16)
+
+
+### Features
+
+* **backend:** run as PUID and PGID, and know the time zone ([6e44c27](https://github.com/Daemeron/dolq/commit/6e44c273d235d0269a17bfa930cebbfda4963826))
+* show a download of a remote backend in the file manager ([cd4ca22](https://github.com/Daemeron/dolq/commit/cd4ca22595c3893d71890a00f4a5ca7325ae80e3))
+
+
+### Bug Fixes
+
+* **backend:** refuse a download that would fill the disk ([7b407c3](https://github.com/Daemeron/dolq/commit/7b407c332538fc813487a8c94180f9ff531fead2))
+* **backend:** say at start how much room the data and download folders have ([c017e48](https://github.com/Daemeron/dolq/commit/c017e48f111b2c89fef93baaef94c3c49f3302a2))
+* **backend:** say once that the history cannot be saved, not twice per message ([caab7dd](https://github.com/Daemeron/dolq/commit/caab7dde4bae924b71a3f5e35f502c002c761f18))
+
 ## [0.13.0](https://github.com/Daemeron/dolq/compare/dolq-v0.12.0...dolq-v0.13.0) (2026-11-16)
 
 
