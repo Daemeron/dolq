@@ -53,6 +53,27 @@ func TestDCCSettingsReadTheFlagsFirstAndThenTheEnvironment(t *testing.T) {
 	}
 }
 
+func TestAutoAsksTheRouterAndIsNotAnAddress(t *testing.T) {
+	getenv := func(k string) string { return map[string]string{"DOLQ_DCC_HOST": "Auto"}[k] }
+	got, err := readDCCSettings("", "", getenv)
+	if err != nil || !got.auto || got.host != "" {
+		t.Errorf("DOLQ_DCC_HOST=Auto: got %+v, %v; want the router asked, and no address", got, err)
+	}
+	if got, _ := readDCCSettings("auto", "", func(string) string { return "" }); !got.auto {
+		t.Errorf("-dcc-host auto: got %+v", got)
+	}
+
+	announce := func(string) (net.IP, error) { return nil, errors.New("not used") }
+	lines := strings.Join(dccLines(dccSettings{auto: true}, false, announce), "\n")
+	if !strings.Contains(lines, "router's public address") || strings.Contains(lines, "warning") {
+		t.Errorf("a plain machine with auto should say what it will do, and not warn:\n%s", lines)
+	}
+	lines = strings.Join(dccLines(dccSettings{auto: true}, true, announce), "\n")
+	if !strings.Contains(lines, "warning") || !strings.Contains(lines, "network_mode: host") {
+		t.Errorf("a container with auto needs host networking, and should say so:\n%s", lines)
+	}
+}
+
 func TestDCCLinesSayHowAPeerReachesThisMachine(t *testing.T) {
 	announce := func(host string) (net.IP, error) {
 		if host == "bad.example" {

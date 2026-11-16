@@ -28,8 +28,7 @@ func (b *Bouncer) DCCOffer(serverID, nick string, portMin, portMax int, sub Subs
 	if err != nil {
 		return "", err
 	}
-	port := ln.Addr().(*net.TCPAddr).Port
-	ip, err := dcc.AnnouncedIP(b.DCCHost)
+	ip, port, release, err := b.reach(ln.Addr().(*net.TCPAddr).Port)
 	if err != nil {
 		ln.Close()
 		return "", err
@@ -39,12 +38,14 @@ func (b *Bouncer) DCCOffer(serverID, nick string, portMin, portMax int, sub Subs
 	line := fmt.Sprintf("PRIVMSG %s :\x01DCC CHAT chat %d %d\x01", nick, dcc.EncodeIP(ip), port)
 	if err := client.SendPaced(line); err != nil {
 		ln.Close()
+		release()
 		return "", err
 	}
 
 	sub.SendStatus(id, "connecting")
 	go func() {
 		peer, err := dcc.AcceptOnce(ln, b.DCCAcceptTimeout)
+		release()
 		if err != nil {
 			log.Printf("bouncer: DCC offer to %s: %v", nick, err)
 			sub.SendStatus(id, "disconnected")

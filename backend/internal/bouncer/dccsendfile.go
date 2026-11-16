@@ -67,7 +67,7 @@ func (b *Bouncer) DCCSendFile(serverID, nick, path string, portMin, portMax int,
 		f.Close()
 		return "", err
 	}
-	ip, err := dcc.AnnouncedIP(b.DCCHost)
+	ip, port, release, err := b.reach(ln.Addr().(*net.TCPAddr).Port)
 	if err != nil {
 		ln.Close()
 		f.Close()
@@ -81,25 +81,25 @@ func (b *Bouncer) DCCSendFile(serverID, nick, path string, portMin, portMax int,
 	b.dccMu.Unlock()
 
 	name := offerName(path)
-	port := ln.Addr().(*net.TCPAddr).Port
 	line := fmt.Sprintf("PRIVMSG %s :\x01DCC SEND %s %d %d %d\x01", nick, name, dcc.EncodeIP(ip), port, size)
 	if err := client.SendPaced(line); err != nil {
 		b.dccMu.Lock()
 		delete(b.xdccConns, id)
 		b.dccMu.Unlock()
 		ln.Close()
+		release()
 		f.Close()
 		return "", err
 	}
 
 	sub.SendStatus(id, "connecting")
 	sub.SendEvent(id, XDCCTransferEvent{Type: "XDCCTRANSFER", Total: size, Path: path, Sending: true})
-	go b.runDCCSendFile(id, serverID, nick, name, path, size, t, ln, f, sub)
+	go b.runDCCSendFile(id, serverID, nick, name, path, size, t, ln, release, f, sub)
 	return id, nil
 }
 
 func (b *Bouncer) runDCCSendFile(
-	id, serverID, nick, name, path string, size int64, t *xdccTransfer, ln net.Listener, f *os.File, sub Subscriber,
+	id, serverID, nick, name, path string, size int64, t *xdccTransfer, ln net.Listener, release func(), f *os.File, sub Subscriber,
 ) {
 	defer f.Close()
 	forget := func() {
@@ -117,6 +117,7 @@ func (b *Bouncer) runDCCSendFile(
 	}
 
 	conn, err := dcc.AcceptOnceRaw(ln, b.DCCAcceptTimeout)
+	release()
 	b.dccMu.Lock()
 	cancelled := t.cancelled
 	if err == nil && !cancelled {
