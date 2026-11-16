@@ -10,6 +10,7 @@ import { nickColor, nickInitial } from '../utils/nickColor';
 import { remeasureRows } from '../utils/remeasureRows';
 import { estimateRowSize } from '../utils/rowSize';
 import { startsNewSession } from '../utils/session';
+import { Icon } from './Icon';
 import { IrcText } from './IrcText';
 import { MembershipSummary } from './MembershipSummary';
 
@@ -31,6 +32,8 @@ function formatTime(d: Date, timestampFormat: '12h' | '24h'): string {
 }
 
 const AT_BOTTOM_THRESHOLD = 40;
+// Scrolled up further than this from the newest line, the view offers a way back down.
+const JUMP_DISTANCE = 300;
 const LOAD_OLDER_THRESHOLD = 100;
 const TONE_COLOR: Record<LogTone, string> = {
   welcome: 'text-(--dolq-ok)',
@@ -77,6 +80,7 @@ export function MessageArea({
   const scrollTop = useRef<Map<string, number>>(new Map());
   const isAtBottom = useRef<Map<string, boolean>>(new Map());
   const autoLoads = useRef(0);
+  const [awayFromBottom, setAwayFromBottom] = useState(false);
   const { runs, followers } = useMemo(() => membershipRuns(messages), [messages]);
   // Runs the user has opened, by `channel:first message id`.
   const [opened, setOpened] = useState<Set<string>>(new Set());
@@ -163,9 +167,23 @@ export function MessageArea({
     onLoadOlder();
   }, [messages, onLoadOlder]);
 
+  function updateAwayFromBottom() {
+    const el = containerRef.current;
+    if (el) setAwayFromBottom(el.scrollHeight - el.scrollTop - el.clientHeight > JUMP_DISTANCE);
+  }
+
+  // Lines arriving while the view is scrolled up add to the distance without a scroll, and so does a channel switch.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: a new list of lines or channel is the trigger
+  useLayoutEffect(updateAwayFromBottom, [messages, channelId]);
+
+  function jumpToLatest() {
+    if (messages.length > 0) rowVirtualizer.scrollToIndex(messages.length - 1, { align: 'end', behavior: 'smooth' });
+  }
+
   function handleScroll() {
     const el = containerRef.current;
     if (!el) return;
+    updateAwayFromBottom();
     autoLoads.current = 0;
     scrollTop.current.set(channelId, el.scrollTop);
     isAtBottom.current.set(channelId, el.scrollHeight - el.scrollTop - el.clientHeight < AT_BOTTOM_THRESHOLD);
@@ -184,166 +202,178 @@ export function MessageArea({
   const virtualRows = rowVirtualizer.getVirtualItems();
 
   return (
-    <div ref={containerRef} onScroll={handleScroll} onWheel={handleWheel} className="flex-1 overflow-y-auto py-2">
-      {messages.length === 0 ? (
-        <p
-          className={
-            isLog ? 'text-(--dolq-text-faint) text-[14px]' : 'text-(--dolq-text-faint) text-[14px] text-center mt-8'
-          }
-        >
-          {isLog ? 'No traffic yet.' : 'No messages yet.'}
-        </p>
-      ) : (
-        <div style={{ height: rowVirtualizer.getTotalSize(), position: 'relative' }}>
-          {virtualRows.map((virtualRow) => {
-            const m = messages[virtualRow.index];
-            const requestPack = () => {
-              if (onGetPack && m.xdccPackNumber != null) onGetPack(m.nick, m.xdccPackNumber);
-            };
-            const day = isLog ? null : dayLabel(messages[virtualRow.index - 1], m);
-            const newSession = isLog && startsNewSession(messages[virtualRow.index - 1]);
-            const run = runs.get(m.id);
-            // Folded away: the first line of a closed run shows the summary alone, the rest show nothing.
-            const folded = run ? !isOpen(m.id) : hiddenByFold(followers, m.id, isOpen);
-            const mention =
-              !!selfNick &&
-              !isLog &&
-              !m.system &&
-              m.nick !== selfNick &&
-              mentionsAny(m.text, selfNick, highlightWords ?? []);
-            return (
-              <div
-                key={virtualRow.key}
-                ref={rowVirtualizer.measureElement}
-                data-index={virtualRow.index}
-                className={mention ? 'bg-(--dolq-brand-soft)' : undefined}
-                style={{
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  transform: `translateY(${virtualRow.start}px)`,
-                }}
-              >
-                {day && (
-                  <div className="flex items-center gap-3 mx-7 mt-4 mb-2 text-[12px] font-medium text-(--dolq-text-dim)">
-                    <span className="h-px flex-1 bg-(--dolq-border)" />
-                    {day}
-                    <span className="h-px flex-1 bg-(--dolq-border)" />
-                  </div>
-                )}
-                {newSession && (
-                  <div className="mx-7 mt-8 mb-3 flex items-center gap-3">
-                    <span className="h-px flex-1 bg-(--dolq-border-strong)" />
-                    <span className="rounded-full bg-(--dolq-brand-soft) px-3 py-0.5 text-[11px] font-semibold tracking-wider text-(--dolq-brand-text) uppercase">
-                      New session
-                    </span>
-                    <span className="h-px flex-1 bg-(--dolq-border-strong)" />
-                  </div>
-                )}
-                {run && (
-                  <MembershipSummary
-                    run={run}
-                    open={isOpen(m.id)}
-                    onToggle={() => toggle(m.id)}
-                    formatTime={(d) => formatTime(d, timestampFormat)}
-                  />
-                )}
-                {folded ? null : isLog ? (
-                  <div className="font-mono text-[12px] leading-5 whitespace-pre-wrap break-all px-7 text-(--dolq-text)">
-                    <span className="text-(--dolq-text-faint) mr-3">{formatTime(m.timestamp, timestampFormat)}</span>
-                    <LogLine text={m.text} important={m.important} />
-                  </div>
-                ) : m.system ? (
-                  <div className={`group flex items-baseline gap-3 px-7 ${compact ? 'py-0' : 'py-1'}`}>
-                    <span className="text-[11px] text-(--dolq-text-faint) shrink-0 w-9 flex justify-end whitespace-nowrap opacity-0 group-hover:opacity-100">
-                      {formatTime(m.timestamp, timestampFormat)}
-                    </span>
-                    <span className="text-(--dolq-text-faint) text-[13px] italic">
-                      <IrcText text={m.text} />
-                    </span>
-                  </div>
-                ) : m.notice ? (
-                  <div className={`flex items-baseline gap-3 px-7 ${compact ? 'py-0' : 'py-0.5'}`}>
-                    <span className="text-[11px] text-(--dolq-text-faint) shrink-0 w-9 flex justify-end whitespace-nowrap">
-                      {formatTime(m.timestamp, timestampFormat)}
-                    </span>
-                    <span className="text-[13px] italic text-(--dolq-text-dim)">
-                      <span style={{ color: nickColor(m.nick) }}>-{m.nick}-</span> <IrcText text={m.text} />
-                    </span>
-                  </div>
-                ) : m.xdccPack ? (
-                  // biome-ignore lint/a11y/noStaticElementInteractions: role and tabIndex are set when a pack handler exists
-                  <div
-                    className={`flex items-baseline gap-3 px-7 ${compact ? 'py-0' : 'py-0.5'} ${
-                      onGetPack && m.xdccPackNumber != null ? 'cursor-pointer hover:bg-(--dolq-bg-row-hover)' : ''
-                    }`}
-                    role={onGetPack ? 'button' : undefined}
-                    tabIndex={onGetPack ? 0 : undefined}
-                    onClick={requestPack}
-                    onKeyDown={(e) => e.key === 'Enter' && requestPack()}
-                    title={onGetPack ? 'Click to request this pack' : undefined}
-                  >
-                    <span className="text-[11px] text-(--dolq-text-faint) shrink-0 w-9 flex justify-end whitespace-nowrap">
-                      {formatTime(m.timestamp, timestampFormat)}
-                    </span>
-                    <span className="text-[13px] font-mono text-(--dolq-text-muted)">
-                      📦 <IrcText text={m.text} />
-                    </span>
-                  </div>
-                ) : m.action ? (
-                  <div
-                    className={`flex items-baseline gap-3 group hover:bg-(--dolq-bg-row-hover) px-7 ${compact ? 'py-0' : 'py-0.5'}`}
-                  >
-                    <span className="text-[11px] text-(--dolq-text-faint) shrink-0 w-9 flex justify-end whitespace-nowrap opacity-0 group-hover:opacity-100">
-                      {formatTime(m.timestamp, timestampFormat)}
-                    </span>
-                    <span className="text-[15px] leading-relaxed italic">
-                      <span style={{ color: nickColor(m.nick) }}>* {m.nick}</span>{' '}
-                      <span className="text-(--dolq-text)">
+    <div className="relative flex min-h-0 flex-1 flex-col">
+      <div ref={containerRef} onScroll={handleScroll} onWheel={handleWheel} className="flex-1 overflow-y-auto py-2">
+        {messages.length === 0 ? (
+          <p
+            className={
+              isLog ? 'text-(--dolq-text-faint) text-[14px]' : 'text-(--dolq-text-faint) text-[14px] text-center mt-8'
+            }
+          >
+            {isLog ? 'No traffic yet.' : 'No messages yet.'}
+          </p>
+        ) : (
+          <div style={{ height: rowVirtualizer.getTotalSize(), position: 'relative' }}>
+            {virtualRows.map((virtualRow) => {
+              const m = messages[virtualRow.index];
+              const requestPack = () => {
+                if (onGetPack && m.xdccPackNumber != null) onGetPack(m.nick, m.xdccPackNumber);
+              };
+              const day = isLog ? null : dayLabel(messages[virtualRow.index - 1], m);
+              const newSession = isLog && startsNewSession(messages[virtualRow.index - 1]);
+              const run = runs.get(m.id);
+              // Folded away: the first line of a closed run shows the summary alone, the rest show nothing.
+              const folded = run ? !isOpen(m.id) : hiddenByFold(followers, m.id, isOpen);
+              const mention =
+                !!selfNick &&
+                !isLog &&
+                !m.system &&
+                m.nick !== selfNick &&
+                mentionsAny(m.text, selfNick, highlightWords ?? []);
+              return (
+                <div
+                  key={virtualRow.key}
+                  ref={rowVirtualizer.measureElement}
+                  data-index={virtualRow.index}
+                  className={mention ? 'bg-(--dolq-brand-soft)' : undefined}
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    transform: `translateY(${virtualRow.start}px)`,
+                  }}
+                >
+                  {day && (
+                    <div className="flex items-center gap-3 mx-7 mt-4 mb-2 text-[12px] font-medium text-(--dolq-text-dim)">
+                      <span className="h-px flex-1 bg-(--dolq-border)" />
+                      {day}
+                      <span className="h-px flex-1 bg-(--dolq-border)" />
+                    </div>
+                  )}
+                  {newSession && (
+                    <div className="mx-7 mt-8 mb-3 flex items-center gap-3">
+                      <span className="h-px flex-1 bg-(--dolq-border-strong)" />
+                      <span className="rounded-full bg-(--dolq-brand-soft) px-3 py-0.5 text-[11px] font-semibold tracking-wider text-(--dolq-brand-text) uppercase">
+                        New session
+                      </span>
+                      <span className="h-px flex-1 bg-(--dolq-border-strong)" />
+                    </div>
+                  )}
+                  {run && (
+                    <MembershipSummary
+                      run={run}
+                      open={isOpen(m.id)}
+                      onToggle={() => toggle(m.id)}
+                      formatTime={(d) => formatTime(d, timestampFormat)}
+                    />
+                  )}
+                  {folded ? null : isLog ? (
+                    <div className="font-mono text-[12px] leading-5 whitespace-pre-wrap break-all px-7 text-(--dolq-text)">
+                      <span className="text-(--dolq-text-faint) mr-3">{formatTime(m.timestamp, timestampFormat)}</span>
+                      <LogLine text={m.text} important={m.important} />
+                    </div>
+                  ) : m.system ? (
+                    <div className={`group flex items-baseline gap-3 px-7 ${compact ? 'py-0' : 'py-1'}`}>
+                      <span className="text-[11px] text-(--dolq-text-faint) shrink-0 w-9 flex justify-end whitespace-nowrap opacity-0 group-hover:opacity-100">
+                        {formatTime(m.timestamp, timestampFormat)}
+                      </span>
+                      <span className="text-(--dolq-text-faint) text-[13px] italic">
                         <IrcText text={m.text} />
                       </span>
-                    </span>
-                  </div>
-                ) : continuesGroup(messages[virtualRow.index - 1], m) ? (
-                  <div className="flex gap-3 group hover:bg-(--dolq-bg-row-hover) px-7 py-px">
-                    <span className="text-[11px] leading-6 text-(--dolq-text-faint) shrink-0 w-9 flex justify-end whitespace-nowrap opacity-0 group-hover:opacity-100 tabular-nums">
-                      {formatTime(m.timestamp, timestampFormat)}
-                    </span>
-                    <span className="min-w-0 flex-1 text-(--dolq-text) text-[15px] leading-6">
-                      <IrcText text={m.text} />
-                    </span>
-                  </div>
-                ) : (
-                  <div
-                    className={`flex gap-3 hover:bg-(--dolq-bg-row-hover) px-7 pb-px ${compact ? 'pt-1.5' : 'pt-3.5'}`}
-                  >
-                    <span
-                      aria-hidden="true"
-                      className="w-9 h-9 rounded-full text-white text-sm font-semibold flex items-center justify-center shrink-0"
-                      style={{ background: nickColor(m.nick) }}
+                    </div>
+                  ) : m.notice ? (
+                    <div className={`flex items-baseline gap-3 px-7 ${compact ? 'py-0' : 'py-0.5'}`}>
+                      <span className="text-[11px] text-(--dolq-text-faint) shrink-0 w-9 flex justify-end whitespace-nowrap">
+                        {formatTime(m.timestamp, timestampFormat)}
+                      </span>
+                      <span className="text-[13px] italic text-(--dolq-text-dim)">
+                        <span style={{ color: nickColor(m.nick) }}>-{m.nick}-</span> <IrcText text={m.text} />
+                      </span>
+                    </div>
+                  ) : m.xdccPack ? (
+                    // biome-ignore lint/a11y/noStaticElementInteractions: role and tabIndex are set when a pack handler exists
+                    <div
+                      className={`flex items-baseline gap-3 px-7 ${compact ? 'py-0' : 'py-0.5'} ${
+                        onGetPack && m.xdccPackNumber != null ? 'cursor-pointer hover:bg-(--dolq-bg-row-hover)' : ''
+                      }`}
+                      role={onGetPack ? 'button' : undefined}
+                      tabIndex={onGetPack ? 0 : undefined}
+                      onClick={requestPack}
+                      onKeyDown={(e) => e.key === 'Enter' && requestPack()}
+                      title={onGetPack ? 'Click to request this pack' : undefined}
                     >
-                      {nickInitial(m.nick)}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-baseline gap-2">
-                        <span className="font-semibold text-[14px]" style={{ color: nickColor(m.nick) }}>
-                          {m.nick}
+                      <span className="text-[11px] text-(--dolq-text-faint) shrink-0 w-9 flex justify-end whitespace-nowrap">
+                        {formatTime(m.timestamp, timestampFormat)}
+                      </span>
+                      <span className="text-[13px] font-mono text-(--dolq-text-muted)">
+                        📦 <IrcText text={m.text} />
+                      </span>
+                    </div>
+                  ) : m.action ? (
+                    <div
+                      className={`flex items-baseline gap-3 group hover:bg-(--dolq-bg-row-hover) px-7 ${compact ? 'py-0' : 'py-0.5'}`}
+                    >
+                      <span className="text-[11px] text-(--dolq-text-faint) shrink-0 w-9 flex justify-end whitespace-nowrap opacity-0 group-hover:opacity-100">
+                        {formatTime(m.timestamp, timestampFormat)}
+                      </span>
+                      <span className="text-[15px] leading-relaxed italic">
+                        <span style={{ color: nickColor(m.nick) }}>* {m.nick}</span>{' '}
+                        <span className="text-(--dolq-text)">
+                          <IrcText text={m.text} />
                         </span>
-                        <span className="text-[12px] text-(--dolq-text-dim)">
-                          {formatTime(m.timestamp, timestampFormat)}
-                        </span>
-                      </div>
-                      <div className="text-(--dolq-text) text-[15px] leading-6">
+                      </span>
+                    </div>
+                  ) : continuesGroup(messages[virtualRow.index - 1], m) ? (
+                    <div className="flex gap-3 group hover:bg-(--dolq-bg-row-hover) px-7 py-px">
+                      <span className="text-[11px] leading-6 text-(--dolq-text-faint) shrink-0 w-9 flex justify-end whitespace-nowrap opacity-0 group-hover:opacity-100 tabular-nums">
+                        {formatTime(m.timestamp, timestampFormat)}
+                      </span>
+                      <span className="min-w-0 flex-1 text-(--dolq-text) text-[15px] leading-6">
                         <IrcText text={m.text} />
+                      </span>
+                    </div>
+                  ) : (
+                    <div
+                      className={`flex gap-3 hover:bg-(--dolq-bg-row-hover) px-7 pb-px ${compact ? 'pt-1.5' : 'pt-3.5'}`}
+                    >
+                      <span
+                        aria-hidden="true"
+                        className="w-9 h-9 rounded-full text-white text-sm font-semibold flex items-center justify-center shrink-0"
+                        style={{ background: nickColor(m.nick) }}
+                      >
+                        {nickInitial(m.nick)}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-baseline gap-2">
+                          <span className="font-semibold text-[14px]" style={{ color: nickColor(m.nick) }}>
+                            {m.nick}
+                          </span>
+                          <span className="text-[12px] text-(--dolq-text-dim)">
+                            {formatTime(m.timestamp, timestampFormat)}
+                          </span>
+                        </div>
+                        <div className="text-(--dolq-text) text-[15px] leading-6">
+                          <IrcText text={m.text} />
+                        </div>
                       </div>
                     </div>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+      {awayFromBottom && (
+        <button
+          type="button"
+          onClick={jumpToLatest}
+          className="absolute bottom-3 left-1/2 flex -translate-x-1/2 cursor-pointer items-center gap-1.5 rounded-full border border-(--dolq-border-strong) bg-(--dolq-bg-raised) py-1.5 pr-3 pl-2.5 text-[12px] font-medium text-(--dolq-text-dim) shadow-md transition-colors hover:text-(--dolq-text)"
+        >
+          <Icon name="chevronDown" size={14} />
+          Jump to latest
+        </button>
       )}
     </div>
   );
