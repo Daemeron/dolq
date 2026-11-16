@@ -48,7 +48,7 @@ sequenceDiagram
 | `disconnect` | `serverId` | `ok` | Quits that IRC connection for good |
 | `send` | `serverId`, `line` | `ok` | Sends one raw IRC line. Strictly in order per server |
 | `getStatus` | `serverId` | `status` | Says how a session is doing, **and attaches this client to it** so it receives its pushed frames |
-| `getJoinedChannels` | `serverId` | `channels` | Channels the session is in. An unknown `serverId` gives an empty list, which the heartbeat relies on |
+| `getJoinedChannels` | `serverId` | `channels` | Channels the session is in. An unknown `serverId` gives an empty list |
 | `getHistory` | `serverId`, `channel`, `before`, `limit` | `messages` | A page of stored lines and events, newest first |
 | `search` | `serverId`, `channel`, `query`, `limit` | `messages` | Full-text search in the history |
 | `dccOffer` | `serverId`, `nick`, `portMin`, `portMax` | `dccId` | Offers a DCC chat: listens, tells the peer where |
@@ -59,8 +59,37 @@ sequenceDiagram
 | `xdccAccept` | `serverId`, `nick`, `host`, `port`, `filename`, `size`, `token`, `destDir`, `portMin`, `portMax` | `dccId` | Takes a file a bot offered. See [File transfers](file-transfers.md) |
 | `xdccClose` | `dccId` | `ok` | Cancels a transfer |
 | `xdccPause`, `xdccResume` | `dccId` | `ok` | Pauses and resumes a download |
+| `getInfo` | none | `info` | The backend describes itself (below). The app sends it every 20 s as its heartbeat. A backend from before it existed answers `ok: false` with `unknown action: getInfo`, which still proves it is alive |
 | `getTransfers` | none | `transfers` | Transfers that ended, kept across restarts |
 | `deleteTransfer` | `dccId` (empty for all) | `ok` | Forgets one saved transfer, or all |
+
+## What `getInfo` answers
+
+```json
+{"id":"7","type":"result","ok":true,"info":{
+  "version":"0.15.0",
+  "uptimeMs":273600000,
+  "clients":1,
+  "sessions":3,
+  "transfers":1,
+  "folders":[
+    {"name":"data","path":"/data","free":3700000000000,"total":6500000000000},
+    {"name":"downloads","path":"/downloads","free":3700000000000,"total":6500000000000}
+  ]}}
+```
+
+| Field | Meaning |
+|---|---|
+| `version` | The release this `dolqd` was built from (`dev` for a build from source) |
+| `uptimeMs` | How long the process has been running. A length of time, not a start time, so a client with a different clock still shows it right |
+| `clients` | Authenticated apps attached now, including the one asking |
+| `sessions` | IRC connections held, including ones being redialled |
+| `transfers` | Open file transfers and direct chats |
+| `folders` | The folders it writes to, with free and total bytes. A folder whose size cannot be read has an `error` instead |
+
+The free space is read in a background goroutine and kept for up to 30 seconds. Only the first ever `getInfo` waits for
+a reading, for at most a second. A folder that does not answer (a stalled network share) leaves the `folders` list without
+it, and never delays the answer.
 
 ## Ordering and concurrency
 
