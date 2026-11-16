@@ -361,6 +361,20 @@ describe('App: server lines', () => {
     await fire.click(screen.getByText('Server log'));
     expect((await screen.findByText('433')).className).toContain('text-(--dolq-danger)');
   });
+
+  it('keeps the replies to a WHOIS out of the log, and the rest of what the server says in it', async () => {
+    const irc = await mount();
+    await irc.emit('onLine', 's1', ':srv 311 me mira user host * :Mira Real');
+    await irc.emit('onLine', 's1', ':srv 319 me mira :#dolq');
+    await irc.emit('onLine', 's1', ':srv 312 me mira *.rizon.net :Where are you?');
+    await irc.emit('onLine', 's1', ':srv 318 me mira :End of /WHOIS list.');
+    await irc.emit('onLine', 's1', ':srv 306 me :You have been marked as being away');
+    await fire.click(screen.getByText('Server log'));
+    expect(await screen.findByText(/marked as being away/)).toBeTruthy();
+    expect(screen.queryByText(/Mira Real/)).toBeNull();
+    expect(screen.queryByText(/Where are you/)).toBeNull();
+    expect(screen.queryByText(/End of \/WHOIS/)).toBeNull();
+  });
 });
 
 describe('App: packlist queue', () => {
