@@ -3,6 +3,7 @@ package bouncer
 import (
 	"errors"
 	"fmt"
+	"github.com/Daemeron/dolq/backend/internal/history"
 	"log"
 	"math"
 	"net"
@@ -112,6 +113,7 @@ func (b *Bouncer) runDCCSendFile(
 		sub.SendStatus(id, "disconnected")
 		sub.SendEvent(id, XDCCTransferEvent{Type: "XDCCTRANSFER", Total: size, Path: path, Error: err.Error(), Sending: true})
 		b.recordTransfer(serverID, nick, fmt.Sprintf("Sending %s failed: %s", name, err))
+		b.keepTransfer(t, history.Transfer{ID: id, ServerID: serverID, Nick: nick, Filename: name, Total: size, Path: path, Error: err.Error(), Sending: true})
 	}
 
 	conn, err := dcc.AcceptOnceRaw(ln, b.DCCAcceptTimeout)
@@ -156,4 +158,5 @@ func (b *Bouncer) runDCCSendFile(
 	sub.SendStatus(id, "disconnected")
 	sub.SendEvent(id, XDCCTransferEvent{Type: "XDCCTRANSFER", Received: size, Total: size, Path: path, Done: true, Sending: true})
 	b.recordTransfer(serverID, nick, fmt.Sprintf("Sent %s", name))
+	b.keepTransfer(t, history.Transfer{ID: id, ServerID: serverID, Nick: nick, Filename: name, Received: size, Total: size, Path: path, Done: true, Sending: true})
 }

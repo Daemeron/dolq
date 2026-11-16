@@ -272,6 +272,17 @@ export default function App() {
     });
   }, []);
 
+  // Transfers that ended in an earlier run, kept by the backend. The optional call covers a preload from before they were kept.
+  useEffect(() => {
+    Promise.resolve(window.irc.getTransfers?.())
+      .then((saved) => {
+        if (!saved?.length) return;
+        const restored = Object.fromEntries(saved.map(({ id, ...t }) => [id, t]));
+        setTransfers((prev) => ({ ...restored, ...prev }));
+      })
+      .catch(() => {});
+  }, []);
+
   // The optional calls cover a preload from before updates existed (a dev run that was not restarted).
   useEffect(() => {
     Promise.resolve(window.irc.getUpdateStatus?.()).then((status) => status && setUpdate(status));
@@ -1304,7 +1315,13 @@ export default function App() {
     });
   }
 
+  function handleClearFinished() {
+    window.irc.deleteTransfer?.();
+    setTransfers((prev) => Object.fromEntries(Object.entries(prev).filter(([, t]) => !t.done && !t.error)));
+  }
+
   function handleDismissTransfer(id: string) {
+    window.irc.deleteTransfer?.(id);
     setTransfers((prev) => {
       const { [id]: _dismissed, ...rest } = prev;
       return rest;
@@ -1725,6 +1742,7 @@ export default function App() {
             onResume={handleResumeTransfer}
             onCancel={handleCancelTransfer}
             onDismiss={handleDismissTransfer}
+            onClearFinished={handleClearFinished}
             onShowInFolder={(path) => window.irc.showInFolder(path)}
             onClose={() => setShowTransfers(false)}
             packQueue={

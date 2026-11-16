@@ -27,6 +27,8 @@ type Props = {
   onResume: (id: string) => void;
   onCancel: (id: string) => void;
   onDismiss: (id: string) => void;
+  /** Forgets every transfer that has ended. */
+  onClearFinished?: () => void;
   onShowInFolder?: (path: string) => void;
   onClose: () => void;
   /** Shown above the list, for queuing packs from a packlist. */
@@ -39,6 +41,7 @@ export function TransferStatus({
   onResume,
   onCancel,
   onDismiss,
+  onClearFinished,
   onShowInFolder,
   onClose,
   packQueue,
@@ -52,6 +55,13 @@ export function TransferStatus({
       onClose={onClose}
     >
       {packQueue}
+      {onClearFinished && entries.some(([, t]) => t.done || t.error) && (
+        <div className="mb-2 flex justify-end">
+          <Button variant="ghost" small onClick={onClearFinished}>
+            Clear finished
+          </Button>
+        </div>
+      )}
       {entries.length === 0 ? (
         <p className="m-0 py-6 text-center text-[14px] text-(--dolq-text-faint)">
           No transfers yet. Downloads and file offers show up here.

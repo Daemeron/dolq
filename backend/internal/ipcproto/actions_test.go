@@ -90,6 +90,27 @@ func TestHistoryAndSearchAreServedFromTheStore(t *testing.T) {
 	}
 }
 
+func TestSavedTransfersAreListedAndForgotten(t *testing.T) {
+	path, store := startStoreServer(t)
+	store.SaveTransfer(history.Transfer{ID: "a", ServerID: "s1", Nick: "bot", Filename: "a.mkv", Done: true, Timestamp: time.Now()})
+	store.SaveTransfer(history.Transfer{ID: "b", ServerID: "s1", Nick: "bot", Filename: "b.mkv", Done: true, Timestamp: time.Now()})
+	tc := dialTestClient(t, path)
+
+	if got := tc.call(t, ClientFrame{ID: "1", Action: ActionGetTransfers}); !got.OK || len(got.Transfers) != 2 {
+		t.Fatalf("list = %#v", got)
+	}
+	if got := tc.call(t, ClientFrame{ID: "2", Action: ActionDeleteTransfer, DCCID: "a"}); !got.OK {
+		t.Fatalf("delete one = %#v", got)
+	}
+	if got := tc.call(t, ClientFrame{ID: "3", Action: ActionGetTransfers}); len(got.Transfers) != 1 || got.Transfers[0].ID != "b" {
+		t.Fatalf("after delete = %#v", got)
+	}
+	tc.call(t, ClientFrame{ID: "4", Action: ActionDeleteTransfer})
+	if got := tc.call(t, ClientFrame{ID: "5", Action: ActionGetTransfers}); len(got.Transfers) != 0 {
+		t.Fatalf("after clear = %#v", got)
+	}
+}
+
 func TestConnectDisconnectAndStatusAgainstAnIRCServer(t *testing.T) {
 	irc, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {

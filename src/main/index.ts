@@ -539,6 +539,10 @@ function registerIrcHandlers(backend: BackendClient, settingsBox: { current: Set
 
   ipcMain.handle(IrcMessages.xdccClose, (_event, dccId: string) => backend.xdccClose(dccId));
 
+  ipcMain.handle(IrcMessages.getTransfers, () => backend.getTransfers());
+
+  ipcMain.handle(IrcMessages.deleteTransfer, (_event, id?: string) => backend.deleteTransfer(id));
+
   ipcMain.handle(IrcMessages.xdccPause, (_event, dccId: string) => backend.xdccPause(dccId));
 
   ipcMain.handle(IrcMessages.xdccResume, (_event, dccId: string) => backend.xdccResume(dccId));

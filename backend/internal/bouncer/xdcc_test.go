@@ -317,6 +317,11 @@ func TestXDCCOutcomeIsStoredInTheSendersHistory(t *testing.T) {
 	if ev.Type != "SYSTEM" || ev.Text != want {
 		t.Fatalf("got %#v, want a system line %q", ev, want)
 	}
+	waitFor(t, func() bool { got, _ := b.Transfers(); return len(got) == 1 })
+	got, _ := b.Transfers()
+	if g := got[0]; !g.Done || g.Nick != "alice" || g.Filename != "file.zip" || g.Total != int64(len(data)) || g.Path != filepath.Join(dir, "file.zip") {
+		t.Fatalf("saved transfer = %+v", g)
+	}
 
 	done := make(chan error, 1)
 	go func() { done <- b.Disconnect("server-a") }()

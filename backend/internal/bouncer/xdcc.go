@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/Daemeron/dolq/backend/internal/dcc"
+	"github.com/Daemeron/dolq/backend/internal/history"
 	"github.com/Daemeron/dolq/backend/internal/ircclient"
 	"github.com/Daemeron/dolq/backend/internal/ircparse"
 	"github.com/google/uuid"
@@ -229,10 +230,33 @@ func (b *Bouncer) runXDCCTransfer(id, serverID string, offer ircparse.XDCCSendOf
 		log.Printf("bouncer: XDCC transfer %s: %v", id, err)
 		sub.SendEvent(id, XDCCTransferEvent{Type: "XDCCTRANSFER", Path: destPath, Error: err.Error()})
 		b.recordTransfer(serverID, offer.Nick, fmt.Sprintf("Download of %s failed: %s", offer.Filename, err))
+		b.keepTransfer(t, history.Transfer{ID: id, ServerID: serverID, Nick: offer.Nick, Filename: offer.Filename, Total: size, Path: destPath, Error: err.Error()})
 		return
 	}
 	sub.SendEvent(id, XDCCTransferEvent{Type: "XDCCTRANSFER", Received: size, Total: size, Path: destPath, Done: true})
 	b.recordTransfer(serverID, offer.Nick, fmt.Sprintf("Downloaded %s to %s", offer.Filename, destPath))
+	b.keepTransfer(t, history.Transfer{ID: id, ServerID: serverID, Nick: offer.Nick, Filename: offer.Filename, Received: size, Total: size, Path: destPath, Done: true})
+}
+
+// keepTransfer saves how a transfer ended for the Transfers list, unless the user cancelled it: that one is dismissed already.
+func (b *Bouncer) keepTransfer(t *xdccTransfer, tr history.Transfer) {
+	b.dccMu.Lock()
+	cancelled := t.cancelled
+	b.dccMu.Unlock()
+	if cancelled {
+		return
+	}
+	tr.Timestamp = time.Now()
+	b.store.SaveTransfer(tr)
+}
+
+func (b *Bouncer) Transfers() ([]history.Transfer, error) {
+	return b.store.Transfers()
+}
+
+// DeleteTransfer forgets one saved transfer, or all of them when id is empty.
+func (b *Bouncer) DeleteTransfer(id string) error {
+	return b.store.DeleteTransfer(id)
 }
 
 // recordTransfer keeps the outcome of a download in the history of the

@@ -53,6 +53,8 @@ describe('preload bridge: requests', () => {
     ['xdccClose', ['x'], IrcMessages.xdccClose],
     ['xdccPause', ['x'], IrcMessages.xdccPause],
     ['xdccResume', ['x'], IrcMessages.xdccResume],
+    ['getTransfers', [], IrcMessages.getTransfers],
+    ['deleteTransfer', ['x'], IrcMessages.deleteTransfer],
     ['openExternal', ['https://example.org'], IrcMessages.openExternal],
     ['showInFolder', ['/tmp/a.iso'], IrcMessages.showInFolder],
     ['fetchPage', ['https://example.org/packs'], IrcMessages.fetchPage],

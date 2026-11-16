@@ -296,6 +296,15 @@ func (s *Server) handleFrame(c *conn, f ClientFrame) {
 		c.writeResult(f.ID, s.b.XDCCPause(f.DCCID))
 	case ActionXDCCResume:
 		c.writeResult(f.ID, s.b.XDCCResume(f.DCCID))
+	case ActionGetTransfers:
+		transfers, err := s.b.Transfers()
+		if err != nil {
+			c.writeFrame(ServerFrame{ID: f.ID, Type: FrameResult, OK: false, Error: err.Error()})
+			return
+		}
+		c.writeFrame(ServerFrame{ID: f.ID, Type: FrameResult, OK: true, Transfers: transfers})
+	case ActionDeleteTransfer:
+		c.writeResult(f.ID, s.b.DeleteTransfer(f.DCCID))
 	default:
 		c.writeFrame(ServerFrame{ID: f.ID, Type: FrameResult, OK: false, Error: "unknown action: " + f.Action})
 	}

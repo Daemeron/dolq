@@ -87,6 +87,10 @@ contextBridge.exposeInMainWorld('irc', {
 
   xdccClose: (xdccId: string) => ipcRenderer.invoke(IrcMessages.xdccClose, xdccId),
 
+  getTransfers: () => ipcRenderer.invoke(IrcMessages.getTransfers),
+
+  deleteTransfer: (id?: string) => ipcRenderer.invoke(IrcMessages.deleteTransfer, id),
+
   xdccPause: (xdccId: string) => ipcRenderer.invoke(IrcMessages.xdccPause, xdccId),
 
   xdccResume: (xdccId: string) => ipcRenderer.invoke(IrcMessages.xdccResume, xdccId),

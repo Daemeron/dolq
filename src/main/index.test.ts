@@ -198,6 +198,8 @@ vi.mock('./irc/BackendClient', async () => {
         'xdccClose',
         'xdccPause',
         'xdccResume',
+        'getTransfers',
+        'deleteTransfer',
       ]) {
         (this as unknown as Record<string, unknown>)[m] = (...a: unknown[]) => {
           this.calls.push([m, a]);
@@ -505,6 +507,8 @@ describe('IPC handlers', () => {
     await invoke(IrcMessages.xdccClose, 'x');
     await invoke(IrcMessages.xdccPause, 'x');
     await invoke(IrcMessages.xdccResume, 'x');
+    await invoke(IrcMessages.getTransfers);
+    await invoke(IrcMessages.deleteTransfer, 'x');
     expect(backend().calls.map(([m]) => m)).toEqual([
       'send',
       'disconnect',
@@ -518,6 +522,8 @@ describe('IPC handlers', () => {
       'xdccClose',
       'xdccPause',
       'xdccResume',
+      'getTransfers',
+      'deleteTransfer',
     ]);
     expect(backend().calls[4][1]).toEqual(['s1', '#a', 1, 2]);
   });

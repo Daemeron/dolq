@@ -25,6 +25,19 @@ CREATE TABLE IF NOT EXISTS messages (
 	is_raw    INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_messages_scope ON messages(server_id, channel, id);
+CREATE TABLE IF NOT EXISTS transfers (
+	id        TEXT PRIMARY KEY,
+	server_id TEXT NOT NULL,
+	nick      TEXT NOT NULL,
+	filename  TEXT NOT NULL,
+	received  INTEGER NOT NULL,
+	total     INTEGER NOT NULL,
+	path      TEXT NOT NULL,
+	done      INTEGER NOT NULL,
+	error     TEXT NOT NULL,
+	sending   INTEGER NOT NULL,
+	ts        INTEGER NOT NULL
+);
 `
 
 // LogChannel holds a server's raw lines (and the events that belong to no channel).
@@ -396,4 +409,69 @@ func (s *Store) Close() error {
 	s.sendMu.Unlock()
 	<-s.done
 	return s.db.Close()
+}
+
+// Transfer is a download or upload that has ended, kept so the Transfers list survives a restart.
+type Transfer struct {
+	ID        string    `json:"id"`
+	ServerID  string    `json:"serverId"`
+	Nick      string    `json:"nick"`
+	Filename  string    `json:"filename"`
+	Received  int64     `json:"received"`
+	Total     int64     `json:"total"`
+	Path      string    `json:"path"`
+	Done      bool      `json:"done,omitempty"`
+	Error     string    `json:"error,omitempty"`
+	Sending   bool      `json:"sending,omitempty"`
+	Timestamp time.Time `json:"timestamp"`
+}
+
+func (s *Store) SaveTransfer(t Transfer) {
+	if s == nil {
+		return
+	}
+	_, err := s.db.Exec(
+		`INSERT OR REPLACE INTO transfers (id, server_id, nick, filename, received, total, path, done, error, sending, ts)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		t.ID, t.ServerID, t.Nick, t.Filename, t.Received, t.Total, t.Path, t.Done, t.Error, t.Sending, t.Timestamp.UnixMilli())
+	if err != nil {
+		log.Printf("history: save transfer: %v", err)
+	}
+}
+
+// Transfers returns the saved transfers, oldest first.
+func (s *Store) Transfers() ([]Transfer, error) {
+	if s == nil {
+		return nil, nil
+	}
+	rows, err := s.db.Query(
+		`SELECT id, server_id, nick, filename, received, total, path, done, error, sending, ts FROM transfers ORDER BY ts, id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Transfer
+	for rows.Next() {
+		var t Transfer
+		var ts int64
+		if err := rows.Scan(&t.ID, &t.ServerID, &t.Nick, &t.Filename, &t.Received, &t.Total, &t.Path, &t.Done, &t.Error, &t.Sending, &ts); err != nil {
+			return nil, err
+		}
+		t.Timestamp = time.UnixMilli(ts)
+		out = append(out, t)
+	}
+	return out, rows.Err()
+}
+
+// DeleteTransfer forgets one saved transfer, or every one when id is empty.
+func (s *Store) DeleteTransfer(id string) error {
+	if s == nil {
+		return nil
+	}
+	if id == "" {
+		_, err := s.db.Exec(`DELETE FROM transfers`)
+		return err
+	}
+	_, err := s.db.Exec(`DELETE FROM transfers WHERE id = ?`, id)
+	return err
 }
