@@ -57,6 +57,17 @@ jobs:
       - run: npx electron-vite build
       - run: npx electron-builder --publish never
 
+      # The app has to be signed as itself, even ad hoc. Unsigned, macOS cannot tell Dolq from any other Electron app and
+      # refuses it the local network ("no route to host"), and electron-builder skips signing without a word when its
+      # configuration is wrong.
+      - name: Check the macOS app is signed as Dolq
+        if: runner.os == 'macOS'
+        run: |
+          app=$(ls -d dist/mac*/Dolq.app | head -1)
+          codesign --verify --deep --strict "$app"
+          codesign -dv "$app" 2>&1 | grep -q '^Identifier=com.daemeron.dolq$'
+          /usr/libexec/PlistBuddy -c 'Print :NSLocalNetworkUsageDescription' "$app/Contents/Info.plist" >/dev/null
+
       # Kept for the release: when it is published from this very tree, create-a-release-build-binaries.yml uploads
       # these installers as they are, instead of building them a second time.
       - name: Record the tree the installers were built from
