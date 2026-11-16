@@ -44,7 +44,19 @@ type xdccTransfer struct {
 
 const DefaultResumeAcceptTimeout = 10 * time.Second
 
+// XDCCAccept takes up a file the sender offered. A refusal is logged as well as returned: the sender is left waiting for
+// a connection until it gives up, and the log is where anyone looking for why will go.
 func (b *Bouncer) XDCCAccept(
+	serverID string, offer ircparse.XDCCSendOfferEvent, destDir string, portMin, portMax int, sub Subscriber,
+) (string, error) {
+	id, err := b.xdccAccept(serverID, offer, destDir, portMin, portMax, sub)
+	if err != nil {
+		log.Printf("xdcc: could not accept %s from %s: %v", offer.Filename, offer.Nick, err)
+	}
+	return id, err
+}
+
+func (b *Bouncer) xdccAccept(
 	serverID string, offer ircparse.XDCCSendOfferEvent, destDir string, portMin, portMax int, sub Subscriber,
 ) (string, error) {
 	id := "xdcc:" + uuid.NewString()
