@@ -1,5 +1,6 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
+import type { BackendState } from '../../../shared/backendState';
 import type { Channel, Server } from '../types';
 import { Dashboard } from './Dashboard';
 
@@ -89,6 +90,41 @@ describe('Dashboard', () => {
     expect(p.onOpenServer).toHaveBeenCalledWith('a');
     fireEvent.click(screen.getByRole('button', { name: '#dolq' }));
     expect(p.onOpenChannel).toHaveBeenCalledWith('a', 'dolq');
+  });
+
+  describe('backend', () => {
+    const backend = (over: Partial<BackendState> = {}): BackendState => ({
+      mode: 'remote',
+      address: 'nas:6789',
+      status: 'connected',
+      detail: 'Connected to nas:6789.',
+      log: [],
+      latency: [{ at: 1, ms: 20 }],
+      reconnects: 0,
+      infoSupported: true,
+      ...over,
+    });
+
+    it('shows a remote backend, and reconnects it', () => {
+      const onReconnectBackend = vi.fn();
+      setup({ backend: backend({ status: 'failed', detail: 'The certificate changed.' }), onReconnectBackend });
+      expect(screen.getByRole('region', { name: 'Backend' })).toBeTruthy();
+      fireEvent.click(screen.getByRole('button', { name: 'Reconnect' }));
+      expect(onReconnectBackend).toHaveBeenCalledOnce();
+    });
+
+    it('stays out of the way of a local backend that works, and when nothing is known yet', () => {
+      setup({ backend: backend({ mode: 'local', address: undefined }) });
+      expect(screen.queryByRole('region', { name: 'Backend' })).toBeNull();
+      cleanup();
+      setup({ backend: null });
+      expect(screen.queryByRole('region', { name: 'Backend' })).toBeNull();
+    });
+
+    it('shows a local backend that is not running', () => {
+      setup({ backend: backend({ mode: 'local', address: undefined, status: 'failed' }) });
+      expect(screen.getByText('Local backend')).toBeTruthy();
+    });
   });
 
   it('points to the rail when there are no servers', () => {

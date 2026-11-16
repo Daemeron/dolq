@@ -12,6 +12,9 @@ const remote: BackendState = {
     { at: Date.UTC(2026, 10, 16, 18, 18, 27), text: 'Connecting to 192.168.50.82:6789…' },
     { at: Date.UTC(2026, 10, 16, 18, 18, 28), text: 'Connected to 192.168.50.82:6789.' },
   ],
+  latency: [],
+  reconnects: 0,
+  infoSupported: true,
 };
 
 afterEach(cleanup);
@@ -22,7 +25,15 @@ describe('BackendStatus', () => {
     expect(container.innerHTML).toBe('');
     rerender(
       <BackendStatus
-        state={{ mode: 'local', status: 'connected', detail: 'The local backend is running.', log: [] }}
+        state={{
+          mode: 'local',
+          status: 'connected',
+          detail: 'The local backend is running.',
+          log: [],
+          latency: [],
+          reconnects: 0,
+          infoSupported: true,
+        }}
         onReconnect={vi.fn()}
       />,
     );

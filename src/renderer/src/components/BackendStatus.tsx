@@ -2,14 +2,14 @@ import { useEffect, useState } from 'react';
 import type { BackendState, BackendStatus as Status } from '../../../shared/backendState';
 import { Icon } from './Icon';
 
-const TITLE: Record<Status, string> = {
+export const STATUS_TITLE: Record<Status, string> = {
   connected: 'Connected',
   connecting: 'Connecting…',
   reconnecting: 'Reconnecting…',
   failed: 'Not connected',
 };
 
-const DOT: Record<Status, string> = {
+export const STATUS_DOT: Record<Status, string> = {
   connected: 'bg-(--dolq-ok)',
   connecting: 'bg-(--dolq-warn) animate-pulse',
   reconnecting: 'bg-(--dolq-warn) animate-pulse',
@@ -53,15 +53,15 @@ export function BackendStatus({ state, onReconnect }: Props) {
     <>
       <button
         type="button"
-        aria-label={`Backend: ${TITLE[state.status]}`}
-        data-tip={`${title}: ${TITLE[state.status]}`}
+        aria-label={`Backend: ${STATUS_TITLE[state.status]}`}
+        data-tip={`${title}: ${STATUS_TITLE[state.status]}`}
         onClick={() => setOpen((o) => !o)}
         className="has-tip tip-right relative flex h-10.5 w-10.5 shrink-0 cursor-pointer items-center justify-center rounded-[13px] border-0 bg-transparent p-0 text-(--dolq-text-dim) hover:bg-(--dolq-bg-row-hover) hover:text-(--dolq-text)"
       >
         <Icon name="server" />
         <span
           aria-hidden="true"
-          className={`absolute right-1.5 bottom-1.5 h-2.5 w-2.5 rounded-full border-2 border-(--dolq-bg-panel-alt) ${DOT[state.status]}`}
+          className={`absolute right-1.5 bottom-1.5 h-2.5 w-2.5 rounded-full border-2 border-(--dolq-bg-panel-alt) ${STATUS_DOT[state.status]}`}
         />
       </button>
       {open && (
@@ -78,8 +78,8 @@ export function BackendStatus({ state, onReconnect }: Props) {
             className="fixed bottom-3 left-20 z-50 flex max-h-[70vh] w-[440px] max-w-[calc(100vw-96px)] flex-col gap-3 rounded-xl border border-(--dolq-border) bg-(--dolq-bg-raised) p-4 shadow-(--dolq-shadow)"
           >
             <div className="flex items-center gap-2">
-              <span aria-hidden="true" className={`h-2.5 w-2.5 shrink-0 rounded-full ${DOT[state.status]}`} />
-              <h2 className="m-0 text-[14px] font-semibold text-(--dolq-text)">{TITLE[state.status]}</h2>
+              <span aria-hidden="true" className={`h-2.5 w-2.5 shrink-0 rounded-full ${STATUS_DOT[state.status]}`} />
+              <h2 className="m-0 text-[14px] font-semibold text-(--dolq-text)">{STATUS_TITLE[state.status]}</h2>
               <span className="min-w-0 flex-1 truncate text-[12px] text-(--dolq-text-dim)">{title}</span>
             </div>
             <p className="m-0 text-[13px] leading-snug text-(--dolq-text-muted)">{state.detail}</p>

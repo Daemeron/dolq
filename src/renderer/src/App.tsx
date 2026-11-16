@@ -1953,6 +1953,8 @@ export default function App() {
               latencyMap={latencyMap}
               rates={rates}
               bandwidth={bandwidth}
+              backend={backendState}
+              onReconnectBackend={() => window.irc.reconnectBackend()}
               onOpenServer={handleSelectServer}
               onOpenChannel={(serverId, channelId) => {
                 handleSelectServer(serverId);

@@ -1,3 +1,4 @@
+import type { BackendState } from '../../../shared/backendState';
 import type { ConnectionStatus } from '../../../shared/ipc';
 import type { RateSample } from '../hooks/useRateHistory';
 import type { LatencySample } from '../store';
@@ -5,6 +6,7 @@ import type { Channel, Server } from '../types';
 import { formatRate } from '../utils/bytes';
 import { latencyRange, latencyStats, latencyTone } from '../utils/latency';
 import { serverColor, serverIconText } from '../utils/server';
+import { BackendMonitor } from './BackendMonitor';
 import { BandwidthChart } from './BandwidthChart';
 import { STATUS_LABEL } from './ServerList';
 import { Sparkline } from './Sparkline';
@@ -17,6 +19,9 @@ type Props = {
   latencyMap: Record<string, LatencySample[]>;
   rates: { down: number; up: number; active: number };
   bandwidth: RateSample[];
+  /** The link to the backend. Shown when it is remote, or local and not running. */
+  backend?: BackendState | null;
+  onReconnectBackend?: () => void;
   onOpenServer: (serverId: string) => void;
   onOpenChannel: (serverId: string, channelId: string) => void;
 };
@@ -41,6 +46,8 @@ export function Dashboard({
   latencyMap,
   rates,
   bandwidth,
+  backend,
+  onReconnectBackend,
   onOpenServer,
   onOpenChannel,
 }: Props) {
@@ -62,6 +69,9 @@ export function Dashboard({
           <Card>
             <BandwidthChart samples={bandwidth} />
           </Card>
+          {backend && !(backend.mode === 'local' && backend.status === 'connected') && (
+            <BackendMonitor state={backend} onReconnect={() => onReconnectBackend?.()} />
+          )}
           {servers.length === 0 && <p className="text-(--dolq-text-dim)">No servers yet. Add one from the rail.</p>}
           {servers.map((s) => {
             const status = statusMap[s.id] ?? 'disconnected';
