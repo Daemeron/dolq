@@ -1958,6 +1958,20 @@ export default function App() {
                   onGetPack={handleGetPack}
                   selfNick={currentNick}
                   highlightWords={highlightWords}
+                  nickActions={
+                    isLog
+                      ? undefined
+                      : {
+                          canAsk: connectionStatus === 'connected',
+                          currentNick,
+                          onOpenQuery: handleOpenQuery,
+                          onWhois: handleWhois,
+                          ignoredNicks: ignoredNicks[selectedServerId] ?? [],
+                          onToggleIgnore: handleToggleIgnore,
+                          onDCCOffer: handleDCCOffer,
+                          onSendFile: handleSendFile,
+                        }
+                  }
                 />
                 <MessageInput
                   channelName={selectedChannel?.name ?? ''}

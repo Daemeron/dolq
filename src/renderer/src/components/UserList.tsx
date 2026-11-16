@@ -4,7 +4,7 @@ import { highestPrivilege, PRIVILEGE_RANK, type PrivilegeLevel } from '../../../
 import { useContextMenu } from '../hooks/useContextMenu';
 import type { User } from '../types';
 import { nickColor, nickInitial } from '../utils/nickColor';
-import { ContextMenu, ContextMenuHeader, ContextMenuItem } from './ContextMenu';
+import { type NickActions, NickMenu, queryOnClick } from './NickMenu';
 
 const GROUP_LABEL: Record<PrivilegeLevel, string> = {
   owner: 'Owners',
@@ -49,12 +49,12 @@ export function toRows(users: User[]): Row[] {
 
 function UserRow({
   user,
-  onOpenQuery,
+  onOpen,
   onContextMenu,
   ignored,
 }: {
   user: User;
-  onOpenQuery?: (nick: string) => void;
+  onOpen?: () => void;
   onContextMenu: (e: React.MouseEvent) => void;
   ignored: boolean;
 }) {
@@ -63,9 +63,9 @@ function UserRow({
   return (
     <button
       type="button"
-      onClick={onOpenQuery && (() => onOpenQuery(user.nick))}
+      onClick={onOpen}
       onContextMenu={onContextMenu}
-      title={onOpenQuery ? `Message ${user.nick}` : undefined}
+      title={onOpen ? `Message ${user.nick}` : undefined}
       className={`flex items-center gap-2 w-full px-2 py-1 rounded-lg border-0 bg-transparent text-left hover:bg-(--dolq-bg-row-hover) cursor-pointer ${ignored || user.away ? 'opacity-50' : ''}`}
     >
       <div
@@ -109,8 +109,17 @@ export function UserList({
   onSendFile,
   state,
 }: ListProps) {
-  // Everything but ignoring is a request to the server, so it goes when there is none.
-  const canAsk = state.connected;
+  const actions: NickActions = {
+    // Everything but ignoring is a request to the server, so it goes when there is none.
+    canAsk: state.connected,
+    currentNick,
+    onOpenQuery,
+    onWhois,
+    ignoredNicks,
+    onToggleIgnore,
+    onDCCOffer,
+    onSendFile,
+  };
   const containerRef = useRef<HTMLDivElement>(null);
   const rows = toRows(users);
   const { menu, open, close, dismissIfUnhandled } = useContextMenu<string>();
@@ -156,7 +165,7 @@ export function UserList({
               ) : (
                 <UserRow
                   user={row.user}
-                  onOpenQuery={row.user.nick === currentNick || !canAsk ? undefined : onOpenQuery}
+                  onOpen={queryOnClick(actions, row.user.nick)}
                   onContextMenu={(e) => open(row.user.nick, e)}
                   ignored={ignoredNicks.includes(row.user.nick)}
                 />
@@ -166,48 +175,7 @@ export function UserList({
         })}
       </div>
 
-      {menu && (
-        <ContextMenu x={menu.x} y={menu.y}>
-          <ContextMenuHeader>{menu.target}</ContextMenuHeader>
-          {canAsk && (
-            <>
-              <ContextMenuItem
-                onClick={() => {
-                  onWhois(menu.target);
-                  close();
-                }}
-              >
-                WHOIS
-              </ContextMenuItem>
-              <ContextMenuItem
-                onClick={() => {
-                  onDCCOffer(menu.target);
-                  close();
-                }}
-              >
-                DCC Chat
-              </ContextMenuItem>
-              <ContextMenuItem
-                onClick={() => {
-                  onSendFile(menu.target);
-                  close();
-                }}
-              >
-                Send File…
-              </ContextMenuItem>
-            </>
-          )}
-          <ContextMenuItem
-            danger={!ignoredNicks.includes(menu.target)}
-            onClick={() => {
-              onToggleIgnore(menu.target);
-              close();
-            }}
-          >
-            {ignoredNicks.includes(menu.target) ? 'Unignore' : 'Ignore'}
-          </ContextMenuItem>
-        </ContextMenu>
-      )}
+      {menu && <NickMenu x={menu.x} y={menu.y} nick={menu.target} actions={actions} close={close} />}
     </div>
   );
 }
