@@ -18,7 +18,7 @@ export function BandwidthChart({ samples }: { samples: RateSample[] }) {
   );
   return (
     <div className="flex flex-col gap-2 px-4 py-3.5">
-      <div className="flex items-baseline gap-4 text-[13px]">
+      <div className="flex items-center gap-4 text-[13px]">
         <span className="font-medium text-(--dolq-text)">Bandwidth</span>
         <span className="flex items-center gap-1.5 text-(--dolq-text-dim)">
           <span
