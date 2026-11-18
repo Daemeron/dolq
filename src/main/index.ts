@@ -6,6 +6,7 @@ import { installExtension, REACT_DEVELOPER_TOOLS } from 'electron-devtools-insta
 import { autoUpdater } from 'electron-updater';
 import type { BackendState } from '../shared/backendState';
 import { type ConnectionStatus, IrcMessages, type Settings, type UpdateStatus } from '../shared/ipc';
+import { installIpcTap, ipcDebugEnabled, traceFrame, traceWindowSend } from './debugIpc';
 import { BackendClient } from './irc/BackendClient';
 import { parseIrcUrl } from './ircUrl';
 import { isAppNavigation, isWebLink } from './navigation';
@@ -27,6 +28,17 @@ import { TITLE_BAR_HEIGHT, windowFrame } from './windowFrame';
 app.setName('Dolq');
 
 let mainWindow: BrowserWindow;
+
+// DOLQ_DEBUG_IPC=1: print everything that passes between the window, this process and the backend, to the terminal
+// the app was started from, with secrets hidden. Read once, and installed before any handler registers.
+const debugIpc = ipcDebugEnabled(process.env);
+const printTrace = (line: string) => void process.stderr.write(`${line}\n`);
+if (debugIpc) {
+  process.stderr.write(
+    'DOLQ_DEBUG_IPC is on: window <-> main and main <-> backend traffic is printed below, passwords and tokens hidden.\n',
+  );
+  installIpcTap(ipcMain, printTrace);
+}
 let tray: Tray | undefined;
 
 // Set the moment a real quit is actually underway (Cmd+Q, the tray's Quit
@@ -330,7 +342,12 @@ if (!app.requestSingleInstanceLock()) {
     const secrets = new SecretsStore(join(app.getPath('userData'), 'secrets.json'), osCipher());
     const remote = resolveRemoteBackend(settings, savedRemoteToken(secrets, settings));
     const settingsBox = { current: settings };
-    const backend = new BackendClient(settings.retentionDays, remote, remoteHooks(settingsBox));
+    const backend = new BackendClient(
+      settings.retentionDays,
+      remote,
+      remoteHooks(settingsBox),
+      debugIpc ? (direction, text) => traceFrame(printTrace, direction, text) : undefined,
+    );
     backend.on('fatal', (message: string) => dialog.showErrorBox('Dolq backend', message));
     // A plain mutable box, not a fresh `settings` binding per read - so
     // registerIrcHandlers' closures see whatever Preferences last saved
@@ -441,7 +458,10 @@ function registerSecretsHandlers(secrets: SecretsStore): void {
 // Backend traffic goes to whichever window is current, and nowhere while
 // there is none: the first one may have been closed and another opened since.
 function sendToWindow(channel: string, ...args: unknown[]): void {
-  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(channel, ...args);
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    if (debugIpc) traceWindowSend(printTrace, channel, args);
+    mainWindow.webContents.send(channel, ...args);
+  }
 }
 
 function registerIrcHandlers(backend: BackendClient, settingsBox: { current: Settings }, secrets: SecretsStore): void {
