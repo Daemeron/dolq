@@ -158,3 +158,16 @@ A client receives pushed frames only for sessions it has attached to, which happ
 - `backend/internal/ipcproto/server.go`: reading, the per-server lanes, `handleFrame`
 - `src/main/irc/BackendClient.ts`: `request`, `handleFrame`, the typed methods
 - `src/shared/ipc.ts`: the app's own IPC names (window to main), which are separate from these frames
+
+## Watching the traffic
+
+Start the app with `DOLQ_DEBUG_IPC=1` to print both conversations to the terminal it was started from:
+
+- `[ipc]` lines: what the window asks the main process (`window.irc.*`), what is answered, and what is pushed back.
+- `[backend]` lines: every JSON line sent to and received from the backend, local or remote, after TLS is removed.
+
+```
+DOLQ_DEBUG_IPC=1 /Applications/Dolq.app/Contents/MacOS/Dolq
+```
+
+The access token, SASL and server passwords, and passwords typed to services (`identify`, `register`, and so on) are printed as `«hidden»`, so a trace can be shared. Long values are cut at 400 characters. With the variable unset nothing is printed and nothing is hooked.
