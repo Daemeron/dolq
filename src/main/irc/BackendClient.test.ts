@@ -222,6 +222,19 @@ describe('BackendClient: state and recovery', () => {
     await client.stop();
   });
 
+  it('tells a trace about every frame it sends and receives, the access token as it goes out', async () => {
+    const seen: [string, string][] = [];
+    const client = new BackendClient(0, remote, undefined, (direction, text) => seen.push([direction, text.trim()]));
+    await client.getStatus('s1');
+    const sent = seen.filter(([d]) => d === 'app → backend').map(([, t]) => JSON.parse(t));
+    const got = seen.filter(([d]) => d === 'backend → app').map(([, t]) => JSON.parse(t));
+    expect(sent.map((f) => f.action)).toEqual(['auth', 'getStatus']);
+    expect(sent[0].authToken).toBe('tok'); // redacting is the printer's job, a trace is the raw frame
+    expect(got.map((f) => f.type)).toEqual(['result', 'result']);
+    expect(got[1].status).toBe('connected');
+    await client.stop();
+  });
+
   it('records each round trip, and what the backend says about itself', async () => {
     fake.answerPings = true;
     const client = new BackendClient(0, remote);

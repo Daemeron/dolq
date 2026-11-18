@@ -73,9 +73,18 @@ export class BackendClient extends EventEmitter {
     private retentionDays: number,
     private remote?: RemoteTarget,
     private hooks?: RemoteHooks,
+    // Told of every frame sent to and received from the backend, as its JSON line (DOLQ_DEBUG_IPC).
+    private trace?: (direction: 'app → backend' | 'backend → app', text: string) => void,
   ) {
     super();
     this.begin();
+  }
+
+  // Every frame goes out through here, so a trace sees them all.
+  private write(socket: net.Socket, frame: Record<string, unknown>): void {
+    const text = `${JSON.stringify(frame)}\n`;
+    this.trace?.('app → backend', text);
+    socket.write(text);
   }
 
   // What the window shows of the link, and the lines behind it.
@@ -190,7 +199,7 @@ export class BackendClient extends EventEmitter {
           reject(err);
         },
       });
-      socket.write(`${JSON.stringify({ id, action: 'getInfo' })}\n`);
+      this.write(socket, { id, action: 'getInfo' });
     });
   }
 
@@ -347,6 +356,7 @@ export class BackendClient extends EventEmitter {
     socket.setKeepAlive(true, 30_000);
     const lines = createInterface({ input: socket });
     lines.on('line', (line) => {
+      this.trace?.('backend → app', line);
       try {
         this.handleFrame(JSON.parse(line));
       } catch (err) {
@@ -372,7 +382,7 @@ export class BackendClient extends EventEmitter {
             f.ok ? resolve() : reject(new PermanentError(`The backend refused the access token (${f.error}).`)),
           reject,
         });
-        socket.write(`${JSON.stringify({ id, action: 'auth', authToken: token })}\n`);
+        this.write(socket, { id, action: 'auth', authToken: token });
       });
     }
     // The target changed while this one was signing in.
@@ -580,7 +590,7 @@ export class BackendClient extends EventEmitter {
     const id = randomUUID();
     return new Promise((resolve, reject) => {
       this.pending.set(id, { resolve, reject });
-      this.socket?.write(`${JSON.stringify({ id, action, ...fields })}\n`);
+      if (this.socket) this.write(this.socket, { id, action, ...fields });
     });
   }
 

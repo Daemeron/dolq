@@ -579,6 +579,54 @@ describe('IPC handlers', () => {
     expect(backend().calls[0][1].slice(8)).toEqual([0, 0]);
   });
 
+  describe('with DOLQ_DEBUG_IPC', () => {
+    // The tap replaces ipcMain.handle on the shared mock, so it has to be put back for the tests that follow.
+    let restoreHandle: () => void;
+    beforeEach(async () => {
+      const { ipcMain } = await import('electron');
+      const original = ipcMain.handle;
+      restoreHandle = () => {
+        ipcMain.handle = original;
+      };
+    });
+    afterEach(() => {
+      restoreHandle();
+      delete process.env.DOLQ_DEBUG_IPC;
+    });
+    const printed = (spy: { mock: { calls: unknown[][] } }) => spy.mock.calls.map((c) => String(c[0])).join('');
+
+    it('prints what the window asks, what is answered, what is pushed, and each frame, with secrets hidden', async () => {
+      process.env.DOLQ_DEBUG_IPC = '1';
+      const write = vi.spyOn(process.stderr, 'write').mockReturnValue(true);
+      await boot();
+      expect(printed(write)).toContain('DOLQ_DEBUG_IPC is on');
+
+      await invoke(IrcMessages.getBackendState);
+      await invoke(IrcMessages.setSettings, { retentionDays: 5, remoteToken: 'tokenSecret' });
+      backend().emit('status', 's1', 'connected');
+      const trace = backend().args[3] as (direction: string, text: string) => void;
+      trace('app → backend', '{"id":"1","action":"auth","authToken":"tokenSecret"}\n');
+
+      const out = printed(write);
+      expect(out).toMatch(/window → main\s+irc:getBackendState/);
+      expect(out).toMatch(/reply to irc:getBackendState: \{"mode":"local"/);
+      expect(out).toMatch(/main → window\s+irc:status \["s1","connected"\]/);
+      expect(out).toMatch(/app → backend\s+\{"id":"1","action":"auth","authToken":"«hidden»"\}/);
+      expect(out).not.toContain('tokenSecret');
+      write.mockRestore();
+    });
+
+    it('is silent without it', async () => {
+      const write = vi.spyOn(process.stderr, 'write').mockReturnValue(true);
+      await boot();
+      await invoke(IrcMessages.getBackendState);
+      backend().emit('status', 's1', 'connected');
+      expect(backend().args[3]).toBeUndefined();
+      expect(printed(write)).not.toMatch(/\[ipc\]|DOLQ_DEBUG_IPC/);
+      write.mockRestore();
+    });
+  });
+
   it('relays backend traffic to the window', async () => {
     await boot();
     backend().emit('line', 's1', ':srv');
