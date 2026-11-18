@@ -71,10 +71,9 @@ func dccLines(c dccSettings, inContainer bool, announce func(host string) (net.I
 	var lines []string
 	switch {
 	case c.auto:
+		// Whether the container is on host networking cannot be told from inside, so no warning is given for being in one:
+		// when no router answers, the message of the search names host networking as a cause.
 		lines = append(lines, "DCC: peers that have to connect here (a passive offer, a chat, a file sent) are told the router's public address and a port it forwards to this machine, asked for (UPnP or NAT-PMP) when a transfer needs it and given back afterwards")
-		if inContainer {
-			lines = append(lines, "warning: DCC: the router is found by a broadcast on the network, which a Docker bridge network cannot send: this needs host networking (network_mode: host)")
-		}
 	case c.host != "":
 		if ip, err := announce(c.host); err != nil {
 			lines = append(lines, fmt.Sprintf("warning: DCC: cannot announce %s to peers: %v", c.host, err))
